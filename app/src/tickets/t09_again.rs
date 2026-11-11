@@ -78,7 +78,8 @@ pub async fn remark(db: &Db) -> Result<()> {
         LET $on = $ids.map(|$i| type::record('review', $i));
         UPDATE review SET marks += $mark WHERE id INSIDE $on AND marks CONTAINSNOT $mark;
         UPDATE review SET marks -= $mark WHERE id NOTINSIDE $on AND marks CONTAINS $mark;", json!({ "ids": on, "mark": MARK })).await?;
-    Ok(())
+    // 10 추인: 재검토인 과거의 승인을 그룹 × 귀속월의 묶음으로 다시 맞춘다(추인 작업)
+    super::t10_ratify::bundle(db, &now).await
 }
 
 pub fn routes() -> Router<Db> {

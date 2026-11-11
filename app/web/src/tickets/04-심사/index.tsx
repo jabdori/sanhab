@@ -217,7 +217,7 @@ function Rules() {
 }
 
 /** 결정 한 줄: 결정 · 사람 · 날짜 · 사유의 분류. 메모는 그 아래에 따로 */
-const Line = ({ d }: { d: Decision }) => (
+export const Line = ({ d }: { d: Decision }) => (
   <div className="text-body break-keep">
     <p className="tabular-nums">{[d.kind, d.role, d.at ?? L.미상, d.reason?.class ?? `${L.사유} ${L.없음}${d.source === L.원본 ? `(${L.원본})` : ''}`].join(' · ')}</p>
     {d.reason?.memo && <p className="text-text-sub">{d.reason.memo}</p>}

@@ -265,7 +265,9 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(row["name"] == "대성상사1" && row["total"] == 988_932 && row["marks"] == json!([]), "대성상사1의 줄 {row}");
     ensure!(going[0]["target"] == group && going[0]["name"] == "금강상사11 외 2" && going[0]["total"] == 3_888_097 && going[0]["role"] == exec && going[0]["pick"] == false, "박상현 그룹의 줄 {}", going[0]);
     let t = c.get(exec, "/api/tasks").await?;
-    ensure!(rows(&t["mine"]).len() == 1 && t["mine"][0]["target"] == group && t["mine"][0]["pick"] == false && rows(&t["going"]).is_empty(), "영업임원의 작업 {t}");
+    // 심사 작업만 본다(영업임원의 담당에는 뒤 티켓의 작업도 있다: 10의 추인)
+    let own: Vec<J> = rows(&t["mine"]).into_iter().filter(|m| m["kind"] == "심사").collect();
+    ensure!(own.len() == 1 && own[0]["target"] == group && own[0]["pick"] == false && rows(&t["going"]).is_empty(), "영업임원의 작업 {t}");
     for role in ["내부 감시", "회계·자금"] {
         ensure!(c.get(role, "/api/tasks").await? == json!({ "mine": [], "going": [] }), "{role}의 작업");
     }
@@ -317,7 +319,7 @@ pub async fn check(c: &Check) -> Result<()> {
         q(&s, sql, json!({})).await.ok();
     }
     ensure!(approve(support, &[group]).await?.0 == 403 && review(exec, group).await? == before, "직접 쓴 뒤");
-    let n = q1(&c.db, "RETURN [count(SELECT id FROM review WHERE status = '대기' AND fixed = NONE), count(SELECT id FROM task WHERE state = '대기'), count(SELECT id FROM decision WHERE source != '원본'), [act:`승인`.who, act:`통과`.id], rule:`한도-v1`.value, review:`2026-06-D-011`.approver];", json!({})).await?;
+    let n = q1(&c.db, "RETURN [count(SELECT id FROM review WHERE status = '대기' AND fixed = NONE), count(SELECT id FROM task WHERE state = '대기' AND kind = '심사'), count(SELECT id FROM decision WHERE source != '원본'), [act:`승인`.who, act:`통과`.id], rule:`한도-v1`.value, review:`2026-06-D-011`.approver];", json!({})).await?;
     ensure!(n == json!([38, 38, 0, ["승인권자", null], 2_000_000, exec]), "직접 쓴 뒤의 상태 {n}");
 
     // 영업지원이 대성상사1의 심사를 승인: 상태 승인, 굳은 날, 이력에 사람과 날짜. 남의 이름을 적어 보내도 DB가 채운 값이 남는다
