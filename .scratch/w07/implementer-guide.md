@@ -59,3 +59,13 @@
 - **공통 부품**: `app/web/src/ui/`(`Pill` 상태 표지, `Empty` 없음, `styles.ts`의 `button`·`label`·`floating`). `components.md`의 부품을 새로 만들면 `ui/부품이름.tsx` 한 파일로 두고 여기에 한 줄 더한다. 동작이 있는 부품은 `@base-ui/react/<부품>`에서 가져온다(사용법: `app/web/node_modules/@base-ui/react/docs/react/components/*.md`).
 - **같이 쓰는 파일**: `app/src/tickets.rs`와 `app/web/src/labels.ts`는 합칠 때 양쪽 줄이 모두 남는다(`app/.gitattributes`의 `merge=union`). 줄을 **더하기만** 하고 있는 줄은 고치지 않는다. `main.rs`, `App.tsx`, `Band.tsx`, `state.ts`, `pieces.tsx`, `theme.css`는 그 티켓의 완료 조건이 요구할 때만 고친다(예: 21번의 띠 날짜).
 - **배포 구성**: `compose.yaml`, `axhub.yaml`, `app/db.Dockerfile`은 그대로 둔다(`cargo test`의 `deploy_constraints`가 지킨다). 화면 파일 이름은 `app.js`, `app.css`, `PretendardVariable.woff2`로 고정이다(`vite.config.ts` ↔ `main.rs`). 화면에 파일을 더 실으려면 `main.rs`에 경로를 더한다.
+
+02 대리점이 정한 것.
+- **그래프의 테이블**(`app/db/02-대리점.surql`): 노드 `dealer`(id = 원본의 `D-001`, `registered` = 등록일) · `person`(`name`, `same` = 동일인 여부) · `address`·`account`(`value`) · `payout`(지급: `ym`, `amount`, 원본 그대로의 `status`·`approver`·`paid`) · `deposit`(회수) · `origin`(원본 파일: `path`, `sha`). 선 1~6은 `rep`·`addr`·`acct`(dealer → person·address·account), `deposit_of`·`deposit_into`, `payout_of`. 레코드 id에 `-`나 한글이 있으면 backtick(``dealer:`D-034` ``, ``person:`박상현` ``), 값으로 만들 때는 `type::record('dealer', $id)`.
+- **같은 값은 노드 하나**: 사람·주소·계좌의 id가 곧 값이다. 두 대리점이 관련자인지는 `rep`·`addr`·`acct`로 같은 노드를 몇 개 함께 가리키는지로 계산한다(저장하지 않는다). 사람을 나눌 때(동명이인 인정)는 새 id의 `person`을 만들고 `rep` 선을 옮긴다.
+- **선 1~3의 필드**: `since`(변경일) · `until`(다음 값으로 바뀐 날, 없으면 지금도 유효) · `known`(인지일, 없으면 미상) · `via`(경로: 신고·회수·소명·원본) · `excluded`(소명으로 제외됨). 원본에서 온 선은 `since` = 등록일, `known` 없음, `via` = 원본. 02의 목록·상세는 `until`·`excluded`를 가리지 않고 전부 보여 주므로, 값을 바꾸는 티켓(13)이 "지금 값"의 조건을 정한다.
+- **출처**: 모든 테이블에 `source`(원본·계산·가정·AI·시연). 원본에서 온 기록은 `file`(record<origin>)과 `row`(행 번호, 머리글이 1)를 함께 가진다. 새 테이블에도 `source`를 둔다.
+- **권한**: 02의 테이블은 모든 역할이 읽기만 한다. 쓰는 조치를 만드는 티켓이 자기 스키마 파일에서 `DEFINE TABLE OVERWRITE … PERMISSIONS`로 그 조치의 권한만 연다.
+- **조회 경로**: `GET /api/dealers`(목록) · `GET /api/dealers/{id}`(`{ dealer, registered[], payouts[] }`, 날짜는 `YYYY-MM-DD`, 인지일 미상은 `null`) · `GET /api/origin?file=<경로>&row=<행>`(원본의 한 행 `cells`와 `sha`). 지급의 `status`는 원본 값(승인·미지급·반려) 그대로이고, D19의 해석(미지급 → 대기)은 심사 티켓이 한다.
+- **공통 부품**: `ui/Table.tsx`(`Table` — `head`, `rows`, `right`(오른쪽 정렬 열), `current`(열어 둔 줄), 줄이 없으면 `없음`. `num()`은 금액 표기) · `ui/Title.tsx`(`Title` 제목 줄 — `name`, `sub`, children에 상태 표지·덧표시) · `ui/Source.tsx`(`Source` 출처 표지 — `kind`와 원본이면 `file`·`row`, 그 밖의 출처는 children에 열릴 내용).
+- **대리점 화면의 조각**: 목록은 `list`(메뉴 대리점), 상세는 `fact`에 `kind: L.대리점`으로 끼운다. 대리점 상세에 더할 것(관계, 정황, 변경)은 같은 `kind`의 조각으로 자기 폴더에서 끼운다(`order`로 자리를 정한다).

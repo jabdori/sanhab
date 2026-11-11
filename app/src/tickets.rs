@@ -27,4 +27,5 @@ macro_rules! tickets {
 
 tickets! {
     t01_base,
+    t02_dealer,
 }
