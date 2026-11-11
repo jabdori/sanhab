@@ -1,5 +1,5 @@
 //! 06 반려: 반려(조치 한 줄)와 재상신. 승인권자가 반려하면 영업지원에 재상신 작업이 생기고(이벤트 `t06_task`), 영업지원이 재상신하면 심사가 대기로 돌아간다(D42).
-//! 재상신은 역할의 세션으로 `resubmit`을 만드는 것이고, 누가 할 수 있는지는 DB(`fn::resubmittable`)가 정한다. 결정이 아니므로 재상신 뒤의 결정은 그 반려 결정에 이어진다(선 30).
+//! 재상신은 역할의 세션으로 `resubmit`을 만드는 것이고, 누가 할 수 있는지는 DB(`fn::resubmittable`)가 정한다. 사유가 필수다(D55). 결정이 아니므로 재상신 뒤의 결정은 그 반려 결정에 이어진다(선 30).
 use crate::check::Check;
 use crate::db::{Db, q, q1};
 use crate::{Body, Me, R, refuse};
@@ -15,28 +15,33 @@ pub fn routes() -> Router<Db> {
     Router::new().route("/reviews/{id}/resubmit", get(state)).route("/resubmit", post(resubmit))
 }
 
-/// 지금 역할이 그 심사를 재상신할 수 있는지(`can`)와 이력(`lines`: 결정과 재상신을 일어난 순서대로. 줄의 꼴은 04의 `history`와 같다)
+/// 지금 역할이 그 심사를 재상신할 수 있는지(`can`), 재상신의 사유에 고를 수 있는 분류(`classes`)와 이력(`lines`: 결정과 재상신을 일어난 순서대로. 줄의 꼴은 04의 `history`와 같다)
 async fn state(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
     let r = q1(&me.db, "
         LET $r = type::record('review', $id);
         LET $all = array::concat(
             (SELECT kind, role, IF at THEN time::format(at, '%Y-%m-%d') END AS at, reason, source, stamp FROM decision WHERE review = $r),
-            (SELECT '재상신' AS kind, role, time::format(at, '%Y-%m-%d') AS at, source, stamp FROM resubmit WHERE review = $r));
-        RETURN { can: fn::resubmittable($r), lines: (SELECT * FROM $all ORDER BY stamp) };", json!({ "id": id })).await?;
+            (SELECT '재상신' AS kind, role, time::format(at, '%Y-%m-%d') AS at, reason, source, stamp FROM resubmit WHERE review = $r));
+        RETURN { can: fn::resubmittable($r), classes: fn::resubmit_classes(), lines: (SELECT * FROM $all ORDER BY stamp) };", json!({ "id": id })).await?;
     Ok(Json(r))
 }
 
-/// 재상신: `{ id }`. 쓰기 전에 거절의 낱말을 정해 돌려주고(`refuse`: 대상 → 권한 → 상태), 역할의 세션으로 `resubmit`을 만든다. DB의 권한 규칙은 마지막 방어선이다
+/// 재상신: `{ id, reason }`. 쓰기 전에 거절의 낱말을 정해 돌려주고(`refuse`: 대상 → 권한 → 상태 → 사유), 역할의 세션으로 `resubmit`을 만든다. DB의 권한 규칙은 마지막 방어선이다
 async fn resubmit(Extension(me): Extension<Me>, Body(b): Body) -> R {
     let bad = || refuse("대상");
     let id = b["id"].as_str().filter(|i| !i.is_empty()).ok_or_else(bad)?;
+    let mut vars = json!({ "id": id });
+    if b["reason"].is_object() {
+        vars["reason"] = b["reason"].clone();
+    }
     let word = async || q1(&me.db, "
         LET $r = type::record('review', $id);
-        RETURN IF $r.id = NONE THEN '대상' ELSE IF $auth.role != '영업지원' THEN '권한' ELSE IF !fn::resubmittable($r) THEN '상태' END;", json!({ "id": id })).await.map_err(|_| bad());
+        RETURN IF $r.id = NONE THEN '대상' ELSE IF $auth.role != '영업지원' THEN '권한' ELSE IF !fn::resubmittable($r) THEN '상태'
+            ELSE IF !fn::reason(true, fn::resubmit_classes(), $reason) THEN '사유' END;", vars.clone()).await.map_err(|_| bad());
     if let Some(w) = word().await?.as_str() {
         return Err(refuse(w));
     }
-    let made = q1(&me.db, "CREATE resubmit SET review = type::record('review', $id) RETURN VALUE record::id(review);", json!({ "id": id })).await;
+    let made = q1(&me.db, "CREATE resubmit SET review = type::record('review', $id), reason = $reason RETURN VALUE record::id(review);", vars.clone()).await;
     if made.as_ref().ok().and_then(J::as_array).is_none_or(Vec::is_empty) {
         // 그 사이에 다른 재상신이 먼저 됐으면(동시에 보낸 재상신) 다시 따진 낱말(상태)을 돌려준다
         return Err(refuse(word().await?.as_str().unwrap_or("권한")));
@@ -62,7 +67,8 @@ pub async fn check(c: &Check) -> Result<()> {
         Ok(w)
     };
     let decide = async |role: &str, id: &str, kind: &str, reason: J| word(c.post(role, "/api/decide", json!({ "ids": [id], "kind": kind, "reason": reason })).await?);
-    let again = async |role: &str, id: &str| word(c.post(role, "/api/resubmit", json!({ "id": id })).await?);
+    let fix = json!({ "class": "서류", "memo": "계약서 첨부" });
+    let again = async |role: &str, id: &str| word(c.post(role, "/api/resubmit", json!({ "id": id, "reason": &fix })).await?);
     // 그 역할의 목록(mine·going)에서 그 심사를 가리키는 줄의 종류들
     let kinds = async |role: &str, list: &str, id: &str| -> Result<Vec<String>> {
         let t = c.get(role, "/api/tasks").await?;
@@ -101,6 +107,13 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(again(exec, group).await? == "권한" && again(acct, group).await? == "권한" && again(support, "2026-06-D-999").await? == "대상", "재상신의 거절");
     ensure!(c.post(support, "/api/resubmit", json!({ "id": 1 })).await? == (400, json!({ "error": "대상" })) && c.raw(support, "/api/resubmit", "", None).await? == (400, json!({ "error": "대상" })), "틀린 본문");
     ensure!(again(support, one).await? == "상태", "반려되지 않은 심사의 재상신");
+    // 재상신에도 사유의 분류가 필수다(D55): 없거나, 재상신의 분류(서류·금액·소명·기타)가 아니거나, 메모가 빈 기타는 거절되고 심사는 반려 그대로다
+    let s = state(support, group).await?;
+    ensure!(s["classes"] == json!(["서류", "금액", "소명", "기타"]), "재상신의 분류 {s}");
+    for reason in [J::Null, json!({}), json!({ "memo": "첨부" }), json!({ "class": "정황" }), json!({ "class": "기타", "memo": " " })] {
+        ensure!(word(c.post(support, "/api/resubmit", json!({ "id": group, "reason": reason })).await?)? == "사유", "재상신 {reason}");
+    }
+    ensure!(review(support, group).await?["review"]["status"] == "반려" && kinds(support, "mine", group).await? == ["재상신"], "거절된 재상신 뒤");
     // 재상신: 심사가 대기로 돌아가고 영업임원의 담당에 다시 나타난다. 합산과 승인권자는 그대로다. 재상신 작업은 끝난다
     ensure!(again(support, group).await? == "", "재상신");
     let d = review(exec, group).await?;
@@ -110,7 +123,7 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(again(support, group).await? == "상태" && state(support, group).await?["can"] == false, "대기인 심사의 재상신");
     // 반려 기록과 사유는 남는다. 이력은 결정과 재상신을 일어난 순서대로
     let s = state(exec, group).await?;
-    ensure!(names(&s) == ["반려", "재상신"] && s["lines"][0]["reason"] == why && s["lines"][1]["role"] == support && s["lines"][1]["at"] == "2026-07-01" && s["lines"][1]["source"] == "시연", "이력 {}", s["lines"]);
+    ensure!(names(&s) == ["반려", "재상신"] && s["lines"][0]["reason"] == why && s["lines"][1]["role"] == support && s["lines"][1]["reason"] == fix && s["lines"][1]["at"] == "2026-07-01" && s["lines"][1]["source"] == "시연", "이력 {}", s["lines"]);
 
     // 다시 반려 → 다시 재상신 → 승인. 결정은 바로 앞의 결정에 이어진다(선 30): 둘째 반려 → 첫 반려, 재상신 뒤의 승인 → 둘째 반려
     ensure!(decide(exec, group, "반려", json!({ "class": "금액" })).await? == "" && kinds(support, "mine", group).await? == ["재상신"], "둘째 반려");

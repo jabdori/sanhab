@@ -216,10 +216,10 @@ function Rules() {
   )
 }
 
-/** 결정 한 줄: 결정 · 사람 · 날짜 · 사유의 분류. 메모는 그 아래에 따로. 사유가 없는 조치(06의 재상신)는 사유 자리를 적지 않는다 */
+/** 결정 한 줄: 결정 · 사람 · 날짜 · 사유의 분류. 메모는 그 아래에 따로 */
 export const Line = ({ d }: { d: Decision }) => (
   <div className="text-body break-keep">
-    <p className="tabular-nums">{[d.kind, d.role, d.at ?? L.미상, ...(d.kind === L.재상신 ? [] : [d.reason?.class ?? `${L.사유} ${L.없음}${d.source === L.원본 ? `(${L.원본})` : ''}`])].join(' · ')}</p>
+    <p className="tabular-nums">{[d.kind, d.role, d.at ?? L.미상, d.reason?.class ?? `${L.사유} ${L.없음}${d.source === L.원본 ? `(${L.원본})` : ''}`].join(' · ')}</p>
     {d.reason?.memo && <p className="text-text-sub">{d.reason.memo}</p>}
   </div>
 )
