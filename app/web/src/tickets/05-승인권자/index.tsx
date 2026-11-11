@@ -7,7 +7,7 @@ import type { Piece } from '../../pieces'
 import { roleAtom } from '../../state'
 import { Empty } from '../../ui/Empty'
 import { Reason, blank } from '../../ui/Reason'
-import { reasonAtom, useReview } from '../04-심사/review'
+import { bundled, reasonAtom, useReview } from '../04-심사/review'
 
 /** 조치가 없으면(승인권자가 아니거나 이미 결정됨) 없음. 다른 심사를 열거나 역할이 바뀌거나 결정이 내려지면 쓰던 사유를 비운다 */
 function Box() {
@@ -16,7 +16,9 @@ function Box() {
   const [draft, setDraft] = useAtom(reasonAtom)
   useEffect(() => setDraft(blank), [r?.review.id, r?.history.length, role, setDraft])
   if (!r) return null
-  return r.actions.length ? <Reason groups={r.actions.map((a) => ({ of: a.kind, classes: a.classes }))} value={draft} onChange={setDraft} /> : <Empty />
+  // 한 건 화면에서 누를 수 없는 조치(묶음의 것)는 사유도 받지 않는다
+  const acts = r.actions.filter((a) => !bundled.includes(a.kind))
+  return acts.length ? <Reason groups={acts.map((a) => ({ of: a.kind, classes: a.classes }))} value={draft} onChange={setDraft} /> : <Empty />
 }
 
 export default [{ slot: 'reason', kind: L.심사, View: Box }] satisfies Piece[]
