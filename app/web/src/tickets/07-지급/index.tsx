@@ -17,12 +17,12 @@ import { Table, num } from '../../ui/Table'
 import { Title } from '../../ui/Title'
 import { usePay } from './pay'
 
-// 지급의 상태(대기·재심사·완료)와 그 색. 원본의 값(승인·미지급·반려)은 여기에 없다
-const tones = { [L.대기]: 'wait', [L.재심사]: 'again', [L.완료]: 'good' } as const
+// 지급의 상태(대기·재심사·이체·완료)와 그 색. 이체는 지급으로 표시했고 은행의 회신을 기다리는 것(D54). 원본의 값(승인·미지급·반려)은 여기에 없다
+const tones = { [L.대기]: 'wait', [L.재심사]: 'again', [L.이체]: 'wait', [L.완료]: 'good' } as const
 type State = keyof typeof tones
 const pill = (state: string) => <Pill tone={tones[state as State] ?? 'wait'}>{state}</Pill>
 
-/** 목록 위: 대기 n  재심사 n  완료 n. 하나를 누르면 그 상태의 지급이 아래에 펼쳐지고, 다시 누르면 접힌다 */
+/** 목록 위: 대기 n  재심사 n  이체 n  완료 n. 하나를 누르면 그 상태의 지급이 아래에 펼쳐지고, 다시 누르면 접힌다 */
 function Counts() {
   const d = useData<{ mine: boolean; counts: Record<State, number>; rows: { id: string; name: string; ym: string; amount: number; state: string }[] }>('/pays')
   const [target, setTarget] = useAtom(targetAtom)
@@ -116,7 +116,8 @@ function Action() {
   const p = usePay()
   if (!p) return null
   if (!p.can) {
-    if (p.history.length) return <Line h={p.history[p.history.length - 1]} />
+    // 회신이 실패해 대기로 돌아온 지급(08)은 지급 표시가 남아 있어도 다시 지급할 차례다
+    if (p.history.length && (p.pay.state === L.이체 || p.pay.state === L.완료)) return <Line h={p.history[p.history.length - 1]} />
     if (p.pay.state !== L.대기) return <Empty />
     return (
       <div className="flex items-baseline gap-2">
@@ -147,15 +148,9 @@ function Action() {
   )
 }
 
-function History() {
-  const p = usePay()
-  if (!p) return null
-  return p.history.length ? p.history.map((h, i) => <Line key={i} h={h} />) : <Empty />
-}
-
 export default [
   { slot: 'list', menu: L.작업, order: -1, View: Counts },
   { slot: 'fact', kind: L.지급, order: -40, View: Head },
   { slot: 'action', kind: L.지급, View: Action },
-  { slot: 'history', kind: L.지급, View: History },
+  // 이력은 08(대사)의 조각이 지급 표시와 회신을 일어난 순서대로 함께 보인다
 ] satisfies Piece[]
