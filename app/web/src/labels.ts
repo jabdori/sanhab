@@ -26,6 +26,7 @@ const words = [
   '구성', '종류', '대상', '표시', '선택', '조항', '규칙',
   '귀속월의 지급을 더하고 반려는 뺀다, 합산이 한도 이하이면 영업지원, 넘으면 영업임원',
   '관계', '관련자', '그룹', '식별자 일치 2 이상', '관련자의 전이',
+  '분류', '메모',
 ] as const
 
 export const L = Object.fromEntries(words.map((w) => [w, w])) as { [K in (typeof words)[number]]: K }
