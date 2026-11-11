@@ -145,16 +145,9 @@ function Rules() {
             [L.요청서, L.소명],
             [L.정리, L.서류],
             [L.설명, L.사건],
-            [L.판정, L.없음],
+            [L.결정, L.없음],
           ]}
-        >
-          <Source kind={L.계산} side="top">
-            <dl className="grid grid-cols-2 gap-x-2 gap-y-1">
-              <dt className={label}>{L.판정}</dt>
-              <dd>{[L.관련자, L.그룹, L.합산, L.승인권자, L.재검토].join(' · ')}</dd>
-            </dl>
-          </Source>
-        </Figures>
+        />
       </section>
     </>
   )
