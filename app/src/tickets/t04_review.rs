@@ -1,7 +1,7 @@
 //! 04 심사: 귀속월의 지급을 그룹별 심사로 묶고(합산·한도·승인권자), 작업과 심사 상세를 내놓고, 결정을 받는다.
 //! 계산은 `recalc()` 한 곳에 있다: 굳지 않은 심사를 03의 그룹과 규칙 버전으로 다시 만든다. 새 사건을 넣는 티켓은 끝에 이것을 부른다(D23).
 //! 결정은 역할의 세션으로 `decision`을 만드는 것이고, 누가 할 수 있는지는 DB(`fn::can`)가 정한다.
-use super::t03_related::{ITEMS, groups, links, matches};
+use super::t03_related::{ITEMS, Link, groups, links, matches};
 use crate::check::Check;
 use crate::db::{Db, as_user, q, q1};
 use crate::{Body, Me, R, attempt, err, orig, refuse};
@@ -76,35 +76,7 @@ pub fn plan(ym: &str, groups: &[Vec<String>], pays: &[Pay], limit: i64) -> Vec<J
 /// 굳지 않은 심사를 지금의 선과 규칙으로 다시 만든다(구성·합산·승인권자·규칙 버전, 심사 작업의 담당). 굳은 심사는 건드리지 않는다.
 /// 그룹이 바뀌어 없어진 심사는 그 작업과 함께 지운다. 상태와 표시는 남는다
 pub async fn recalc(db: &Db) -> Result<()> {
-    let r = q1(db, "
-        LET $taken = array::flatten((SELECT VALUE payouts FROM review WHERE fixed != NONE));
-        RETURN {
-            pays: (SELECT record::id(id) AS id, record::id((->payout_of->dealer)[0]) AS dealer, ym, amount, status, status = '미지급' AND id NOTINSIDE $taken AS open FROM payout),
-            rules: (SELECT record::id(id) AS id, name, value, IF since THEN time::format(since, '%Y-%m-%d') END AS since, IF until THEN time::format(until, '%Y-%m-%d') END AS until FROM rule),
-            names: (SELECT record::id(id) AS id, name FROM dealer),
-            fixed: (SELECT VALUE record::id(id) FROM review WHERE fixed != NONE),
-        };", json!({})).await?;
-    let pays: Vec<Pay> = serde_json::from_value(r["pays"].clone())?;
-    let rules: Vec<Rule> = serde_json::from_value(r["rules"].clone())?;
-    let name = |d: &J| r["names"].as_array().into_iter().flatten().find(|n| n["id"] == *d).map_or(String::new(), |n| n["name"].as_str().unwrap_or("").to_string());
-    let mut all = vec![];
-    for ym in pays.iter().filter(|p| p.open).map(|p| p.ym.as_str()).collect::<BTreeSet<_>>() {
-        let (from, to) = period(ym);
-        let used = pick(&rules, ym);
-        let limit = used.iter().find(|u| u.name == "한도").map(|u| u.value).ok_or_else(|| anyhow::anyhow!("{ym}에 시행 중인 한도가 없다"))?;
-        for mut p in plan(ym, &groups(&links(db, Some((&from, &to))).await?), &pays, limit) {
-            // 굳은 심사는 다시 쓰지 않는다: 같은 대리점·귀속월의 굳은 심사가 있으면 새 심사는 `…-2`, `…-3`이 된다
-            let base = p["id"].as_str().unwrap_or_default().to_string();
-            let taken = r["fixed"].as_array().into_iter().flatten().filter_map(J::as_str).filter(|f| *f == base || f.starts_with(&format!("{base}-"))).count();
-            if taken > 0 {
-                p["id"] = json!(format!("{base}-{}", taken + 1));
-            }
-            let n = p["members"].as_array().map_or(0, Vec::len);
-            p["name"] = json!(if n > 1 { format!("{} 외 {}", name(&p["members"][0]), n - 1) } else { name(&p["members"][0]) });
-            p["rules"] = json!(used.iter().map(|u| &u.id).collect::<Vec<_>>());
-            all.push(p);
-        }
-    }
+    let all = compute(db, &[]).await?;
     q(db, "
         BEGIN;
         LET $keep = $plan.map(|$p| type::record('review', $p.id));
@@ -123,7 +95,42 @@ pub async fn recalc(db: &Db) -> Result<()> {
             UPSERT type::record('task', $p.id) MERGE { kind: '심사', view: '심사', target: $r, role: $p.approver, also: ['영업지원'], source: '계산' };
         };
         COMMIT;", json!({ "plan": all })).await?;
-    Ok(())
+    // 가설에서 승인권자가 올라가는 심사의 담당을 맞춘다(12). 저장한 승인권자는 건드리지 않는다
+    super::t12_hypo::raise(db).await
+}
+
+/// 굳지 않은 심사로 만들 계획들(저장하지 않는다). `extra`는 지금의 선에 더해서 계산할 선이고, 가설(12)이 같은 계산을 그대로 쓴다
+pub async fn compute(db: &Db, extra: &[Link]) -> Result<Vec<J>> {
+    let r = q1(db, "
+        LET $taken = array::flatten((SELECT VALUE payouts FROM review WHERE fixed != NONE));
+        RETURN {
+            pays: (SELECT record::id(id) AS id, record::id((->payout_of->dealer)[0]) AS dealer, ym, amount, status, status = '미지급' AND id NOTINSIDE $taken AS open FROM payout),
+            rules: (SELECT record::id(id) AS id, name, value, IF since THEN time::format(since, '%Y-%m-%d') END AS since, IF until THEN time::format(until, '%Y-%m-%d') END AS until FROM rule),
+            names: (SELECT record::id(id) AS id, name FROM dealer),
+            fixed: (SELECT VALUE record::id(id) FROM review WHERE fixed != NONE),
+        };", json!({})).await?;
+    let pays: Vec<Pay> = serde_json::from_value(r["pays"].clone())?;
+    let rules: Vec<Rule> = serde_json::from_value(r["rules"].clone())?;
+    let name = |d: &J| r["names"].as_array().into_iter().flatten().find(|n| n["id"] == *d).map_or(String::new(), |n| n["name"].as_str().unwrap_or("").to_string());
+    let mut all = vec![];
+    for ym in pays.iter().filter(|p| p.open).map(|p| p.ym.as_str()).collect::<BTreeSet<_>>() {
+        let (from, to) = period(ym);
+        let used = pick(&rules, ym);
+        let limit = used.iter().find(|u| u.name == "한도").map(|u| u.value).ok_or_else(|| anyhow::anyhow!("{ym}에 시행 중인 한도가 없다"))?;
+        for mut p in plan(ym, &groups(&[links(db, Some((&from, &to))).await?, extra.to_vec()].concat()), &pays, limit) {
+            // 굳은 심사는 다시 쓰지 않는다: 같은 대리점·귀속월의 굳은 심사가 있으면 새 심사는 `…-2`, `…-3`이 된다
+            let base = p["id"].as_str().unwrap_or_default().to_string();
+            let taken = r["fixed"].as_array().into_iter().flatten().filter_map(J::as_str).filter(|f| *f == base || f.starts_with(&format!("{base}-"))).count();
+            if taken > 0 {
+                p["id"] = json!(format!("{base}-{}", taken + 1));
+            }
+            let n = p["members"].as_array().map_or(0, Vec::len);
+            p["name"] = json!(if n > 1 { format!("{} 외 {}", name(&p["members"][0]), n - 1) } else { name(&p["members"][0]) });
+            p["rules"] = json!(used.iter().map(|u| &u.id).collect::<Vec<_>>());
+            all.push(p);
+        }
+    }
+    Ok(all)
 }
 
 pub fn routes() -> Router<Db> {
@@ -150,7 +157,7 @@ async fn detail(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): Pa
     let mut r = q1(&me.db, "
         LET $r = type::record('review', $id);
         RETURN {
-            review: (SELECT record::id(id) AS id, name, ym, status, marks, total, limit, approver, IF fixed THEN time::format(fixed, '%Y-%m-%d') END AS fixed, source, file.path AS file, row, members.map(|$d| { id: record::id($d), name: $d.name }) AS members FROM $r)[0],
+            review: (SELECT record::id(id) AS id, name, ym, status, marks, total, limit, approver, fn::holder(id) AS holder, IF fixed THEN time::format(fixed, '%Y-%m-%d') END AS fixed, source, file.path AS file, row, members.map(|$d| { id: record::id($d), name: $d.name }) AS members FROM $r)[0],
             payouts: (SELECT record::id((->payout_of->dealer)[0]) AS dealer, amount, source, file.path AS file, row FROM payout WHERE id INSIDE $r.payouts),
             rules: (SELECT name, ver, value, record::id(clause) AS clause, clause.title AS title, clause.doc.path AS file, clause.first AS first, clause.last AS last, clause.text AS text, clause.source AS source FROM rule WHERE id INSIDE $r.rules ORDER BY name),
             actions: (SELECT record::id(id) AS kind, fn::must(record::id(id), $r) AS reason, fn::classes(record::id(id), $r) AS classes, seq FROM act WHERE fn::can(record::id(id), $r) ORDER BY seq, kind),
@@ -268,7 +275,7 @@ pub async fn check(c: &Check) -> Result<()> {
 
     // 대성상사1: 관련자 없음. 합산 988,932, 한도 2,000,000(규칙에서), 승인권자 영업지원
     let d = review(support, one).await?;
-    ensure!(d["review"] == json!({ "id": one, "name": "대성상사1", "ym": "2026-06", "status": "대기", "marks": [], "total": 988_932, "limit": 2_000_000, "approver": support, "fixed": null, "source": "계산", "file": null, "row": null }), "대성상사1의 심사 {}", d["review"]);
+    ensure!(d["review"] == json!({ "id": one, "name": "대성상사1", "ym": "2026-06", "status": "대기", "marks": [], "total": 988_932, "limit": 2_000_000, "approver": support, "holder": support, "fixed": null, "source": "계산", "file": null, "row": null }), "대성상사1의 심사 {}", d["review"]);
     ensure!(d["members"] == json!([{ "id": "D-001", "name": "대성상사1", "match": [], "pays": [{ "dealer": "D-001", "amount": 988_932, "source": "원본", "file": "01_corevia/sales/sales_rebate_payment_cv.csv", "row": 7 }] }]), "구성 {}", d["members"]);
     ensure!(d["relation"]["right"] == json!([]) && d["relation"]["mid"] == json!([]) && d["relation"]["lines"] == json!([]), "단독의 관계 {}", d["relation"]);
     ensure!(can(&d, "승인") == Some(false) && d["history"] == json!([]), "조치 {}", d["actions"]);

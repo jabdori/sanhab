@@ -251,8 +251,8 @@ function Action() {
       <Line d={last} />
     ) : (
       <div className="flex items-baseline gap-2">
-        <span className={label}>{L.승인권자}</span>
-        <span className="text-figure">{r.review.approver}</span>
+        <span className={label}>{r.review.holder === r.review.approver ? L.승인권자 : L.담당}</span>
+        <span className="text-figure">{r.review.holder}</span>
       </div>
     )
   return (
