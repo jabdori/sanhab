@@ -1,7 +1,7 @@
 //! 11 정황: 코드가 정해진 종류의 정황을 찾아(`detect`) 내부 감시의 작업에 올리고, 내부 감시가 요청 또는 기각한다(D18, D29).
 //! 정황은 합산과 승인권자 계산에 들어가지 않고 지급을 막지 않는다. 걸린 심사에 표시가 붙을 뿐이다(DB의 이벤트가 맞춘다).
 //! 요청·기각은 역할의 세션으로 `ruling`을 만드는 것이고, 누가 할 수 있는지는 DB(`fn::rulable`)가 정한다.
-use super::t03_related::{links, matches};
+use super::t03_related::{groups, links, matches};
 use crate::check::Check;
 use crate::db::{Db, as_user, q, q1};
 use crate::{Body, Me, R, err, refuse};
@@ -14,22 +14,25 @@ use serde_json::{Value as J, json};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const SCHEMA: &str = include_str!("../../db/11-정황.surql");
-/// 근접의 기준: 지급 금액이 이 범위(양 끝 포함)이면 한도 바로 아래로 본다. **가정**(D29) — 정황의 출처도 가정이다
-// ponytail: 금액을 그대로 적었다(한도 2,000,000과 그 90%). 한도의 규칙 버전이 바뀌는 장면을 만들면 그 귀속월의 한도에서 계산한다
+/// 근접의 기준(D51): 지급 금액이 이 범위(이상, 미만)이면 한도 바로 아래로 보고, 같은 대리점에서 귀속월이 다른 그런 지급이 `NEAR_TIMES`건 이상이면 정황이다. **가정** — 정황의 출처도 가정이다
+// ponytail: 금액을 그대로 적었다(D51의 값). 한도의 규칙 버전이 바뀌는 장면을 만들면 그 귀속월의 한도에서 계산한다
 pub const NEAR: (i64, i64) = (1_800_000, 2_000_000);
+pub const NEAR_TIMES: usize = 2;
 
 /// 정해진 종류의 정황을 지금의 기록에서 빠짐없이 찾아 접수한다. 같은 대상의 같은 종류는 하나이고, 이미 있는 정황에는 새 근거만 붙는다(여러 번 불러도 같다).
 /// 회수·식별자 선·지급을 넣거나 바꾸는 티켓은 끝에 이것을 부른다.
 /// - 계좌: 회수의 계좌가 그 대리점의 계좌가 아니고 다른 대리점이 등록한 계좌와 같다. 대상은 회수의 대리점
-/// - 동명: 두 대리점이 대표자만 일치한다(지금의 선으로). 대상은 그 이름
-/// - 근접: 지급 금액이 `NEAR` 안이다(과거의 지급도 본다). 대상은 그 대리점
+/// - 동명: 두 대리점이 대표자만 일치하고 같은 그룹이 아니다(지금의 선으로. 이미 같은 그룹이면 정황이 아니다 — D51). 대상은 그 이름
+/// - 근접: 한 대리점에 금액이 `NEAR` 안인 지급이 귀속월을 달리해 `NEAR_TIMES`건 이상 있다(과거의 지급도 본다. 한 번은 정황이 아니다 — D51). 대상은 그 대리점
+/// (대사는 여기서 찾지 않는다. 불일치가 기록될 때 이벤트 `t11_recon`이 접수한다)
 pub async fn detect(db: &Db) -> Result<()> {
     let all = links(db, None).await?;
+    let gs = groups(&all);
     let reps: Vec<_> = all.iter().filter(|l| l.item == 0).collect();
     let mut names: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
     for a in &reps {
         for b in reps.iter().filter(|b| b.node == a.node && b.dealer > a.dealer) {
-            if matches(&all, &a.dealer, &b.dealer) == [0] {
+            if matches(&all, &a.dealer, &b.dealer) == [0] && !gs.iter().any(|g| g.contains(&a.dealer) && g.contains(&b.dealer)) {
                 names.entry(&a.value).or_default().extend([a.dealer.as_str(), b.dealer.as_str()]);
             }
         }
@@ -46,10 +49,14 @@ pub async fn detect(db: &Db) -> Result<()> {
             LET $ds = $n.dealers.map(|$d| type::record('dealer', $d));
             fn::signal('동명', $n.name, $n.name, $ds, (SELECT VALUE id FROM rep WHERE in INSIDE $ds AND out.name = $n.name AND !excluded ORDER BY in), '계산');
         };
-        FOR $p IN (SELECT id, ym, (->payout_of->dealer)[0] AS dealer FROM payout WHERE amount >= $lo AND amount <= $hi ORDER BY ym, id) {
-            fn::signal('근접', record::id($p.dealer), $p.dealer.name, [$p.dealer], [$p.id], '가정');
+        LET $near = (SELECT id, ym, (->payout_of->dealer)[0] AS dealer FROM payout WHERE amount >= $lo AND amount < $hi ORDER BY ym, id);
+        FOR $d IN array::distinct($near.dealer) {
+            LET $mine = $near[WHERE dealer = $d];
+            IF array::len(array::distinct($mine.ym)) >= $times {
+                fn::signal('근접', record::id($d), $d.name, [$d], $mine.id, '가정');
+            };
         };",
-        json!({ "names": names.iter().map(|(name, dealers)| json!({ "name": name, "dealers": dealers })).collect::<Vec<_>>(), "lo": NEAR.0, "hi": NEAR.1 }),
+        json!({ "names": names.iter().map(|(name, dealers)| json!({ "name": name, "dealers": dealers })).collect::<Vec<_>>(), "lo": NEAR.0, "hi": NEAR.1, "times": NEAR_TIMES }),
     ).await?;
     Ok(())
 }
@@ -152,16 +159,20 @@ pub async fn check(c: &Check) -> Result<()> {
         Ok(word)
     };
     let ids = async |kind: &str| q1(&c.db, "RETURN (SELECT VALUE record::id(id) FROM signal WHERE kind = $kind ORDER BY id);", json!({ "kind": kind })).await;
-    let (bank, name, near, near6) = ("계좌-D-024", "동명-박준호", "근접-D-011", "근접-D-006");
+    let (bank, name, near) = ("계좌-D-024", "동명-박준호", "근접-D-011");
     let (file_d, file_p, file_a) = ("01_corevia/financials/fin_collection_history_cv.csv", "01_corevia/sales/sales_rebate_payment_cv.csv", "01_corevia/master/m_agency_cv.csv");
 
-    // 코드가 찾은 세 종류(원본 전체에서). 같은 대상의 같은 종류는 하나: 계좌 1(회수 2건), 근접 2(지급 3건 — 금강상사11의 2건은 한 정황)
-    ensure!(ids("계좌").await? == json!([bank]) && ids("근접").await? == json!([near6, near]), "계좌·근접 정황 {} {}", ids("계좌").await?, ids("근접").await?);
-    ensure!(rows(&ids("동명").await?).contains(&json!(name)), "동명 정황 {}", ids("동명").await?);
+    // 코드가 원본 전체에서 찾은 세 종류는 이것뿐이다. 같은 대상의 같은 종류는 하나: 계좌 1(회수 2건), 동명 1, 근접 1(지급 2건).
+    // 정황이 아닌 것(D51): 성일상사24↔대륙상사37은 대표자만 같지만 이미 같은 그룹, 대륙상사6의 근접 지급(4월 1,822,391)은 한 번뿐
+    for (kind, id) in [("계좌", bank), ("동명", name), ("근접", near)] {
+        ensure!(ids(kind).await? == json!([id]), "{kind} 정황 {}", ids(kind).await?);
+    }
+    ensure!(q1(&c.db, "RETURN (SELECT VALUE record::id(id) FROM payout WHERE amount >= 1800000 AND amount < 2000000 ORDER BY id);", json!({})).await? == json!(["RB-00028", "RB-00049", "RB-00053"]), "근접 지급 3건");
     // 다시 찾아도 늘지 않는다
-    let before = q1(&c.db, "RETURN [count(SELECT id FROM signal), count(SELECT id FROM task WHERE kind = '정황'), math::sum(SELECT VALUE array::len(evidence) FROM signal)];", json!({})).await?;
+    let count = async || q1(&c.db, "RETURN [count(SELECT id FROM signal), count(SELECT id FROM task WHERE kind = '정황'), math::sum(SELECT VALUE array::len(evidence) FROM signal)];", json!({})).await;
+    let before = count().await?;
     detect(&c.db).await?;
-    ensure!(q1(&c.db, "RETURN [count(SELECT id FROM signal), count(SELECT id FROM task WHERE kind = '정황'), math::sum(SELECT VALUE array::len(evidence) FROM signal)];", json!({})).await? == before, "다시 찾은 뒤");
+    ensure!(count().await? == before, "다시 찾은 뒤 {before}");
 
     // 계좌: 성일상사24의 회수 2건(2026-03-13, 2026-04-13. 원본의 14·15행)이 들어간 계좌가 금강상사11·대륙상사37의 등록 계좌와 같다. 근거 4, 대리점 3
     let d = signal(audit, bank).await?;
@@ -191,51 +202,50 @@ pub async fn check(c: &Check) -> Result<()> {
     ]), "동명 정황 {} {got:?}", d["signal"]);
     ensure!(rows(&d["relation"]["lines"]).len() == 2 && d["relation"]["hints"] == json!([]), "동명 정황의 관계 {}", d["relation"]);
 
-    // 근접: 금액이 1,800,000~2,000,000인 지급 3건(모두 승인된 과거의 지급). 기준은 가정이라 출처도 가정
+    // 근접: 금강상사11에 1,800,000 이상 2,000,000 미만인 지급이 두 달(1월, 5월). 기준은 가정이라 출처도 가정
     let d = signal(audit, near).await?;
     let got: Vec<J> = rows(&d["evidence"]).iter().map(line).collect();
     ensure!(d["signal"]["name"] == "근접 · 금강상사11" && d["signal"]["source"] == "가정" && d["near"] == json!([1_800_000, 2_000_000]) && json!(got) == json!([
         ["지급", "금강상사11", null, "2026-01", null, 1_867_253, "원본", file_p, 50],
         ["지급", "금강상사11", null, "2026-05", null, 1_854_851, "원본", file_p, 54],
-    ]), "근접 정황 {} {got:?}", d["signal"]);
-    let d = signal(audit, near6).await?;
-    ensure!(line(&d["evidence"][0]) == json!(["지급", "대륙상사6", null, "2026-04", null, 1_822_391, "원본", file_p, 29]) && rows(&d["evidence"]).len() == 1 && d["relation"]["mid"] == json!([]), "대륙상사6의 근접 {}", d["evidence"]);
+    ]) && d["relation"]["mid"] == json!([]), "근접 정황 {} {got:?}", d["signal"]);
+    ensure!(c.call(Some(c.token(audit)), "GET", "/api/signals/근접-D-006", None).await?.0 == 404, "한 번뿐인 근접");
 
     // 내부 감시의 담당에 정황 작업이 오른다. 다른 역할의 목록에는 없다
     let mine = |t: &J| rows(&t["mine"]).into_iter().filter(|m| m["kind"] == "정황").collect::<Vec<_>>();
     let t = mine(&c.get(audit, "/api/tasks").await?);
     let row = t.iter().find(|m| m["target"] == bank).cloned().unwrap_or_default();
     ensure!(row["view"] == "정황" && row["name"] == "계좌 · 성일상사24" && row["role"] == audit && row["pick"] == false, "정황 작업 {row}");
-    ensure!([name, near, near6].iter().all(|id| t.iter().any(|m| m["target"] == *id)), "정황 작업의 목록");
+    ensure!([name, near].iter().all(|id| t.iter().any(|m| m["target"] == *id)), "정황 작업의 목록");
     for role in [support, exec, acct] {
         let t = c.get(role, "/api/tasks").await?;
         ensure!(mine(&t).is_empty() && !rows(&t["going"]).iter().any(|m| m["kind"] == "정황"), "{role}의 정황 작업");
     }
 
-    // 정황이 걸린 심사에 표시가 붙고 목록의 위로 온다: 박상현 그룹(계좌), 한라인상사34·금강상사41(동명), 대륙상사6(근접). 걸리지 않은 심사와 과거의 굳은 심사에는 없다
-    let (group, r34, r41, r6, plain) = ("2026-06-D-011", "2026-06-D-034", "2026-06-D-041", "2026-06-D-006", "2026-06-D-001");
+    // 정황이 걸린 심사에 표시가 붙고 목록의 위로 온다: 박상현 그룹(계좌·근접), 한라인상사34·금강상사41(동명). 걸리지 않은 심사와 과거의 굳은 심사에는 없다(D51)
+    let (group, r34, r41, plain) = ("2026-06-D-011", "2026-06-D-034", "2026-06-D-041", "2026-06-D-001");
     let marked = async |id: &str| Ok::<_, anyhow::Error>(rows(&review(support, id).await?["review"]["marks"]).contains(&json!("정황")));
-    for id in [group, r34, r41, r6] {
+    for id in [group, r34, r41] {
         ensure!(marked(id).await?, "{id}에 정황 표시가 없음");
     }
-    ensure!(!marked(plain).await? && !marked("2026-01-D-011").await? && !marked("2026-04-D-006").await?, "걸리지 않은 심사의 표시");
+    ensure!(!marked(plain).await? && !marked("2026-06-D-006").await? && !marked("2026-01-D-011").await?, "걸리지 않은 심사의 표시");
     let t = c.get(support, "/api/tasks").await?;
     let flagged = |m: &J| rows(&m["marks"]).contains(&json!("정황"));
     let top: Vec<J> = rows(&t["mine"]).into_iter().take_while(flagged).collect();
-    ensure!([r34, r41, r6].iter().all(|id| top.iter().any(|m| m["target"] == *id && m["pick"] == false)), "정황이 걸린 줄이 위 {top:?}");
-    // 선택 칸은 정황이 없는 줄에만 있다
+    ensure!(top.len() == 2 && [r34, r41].iter().all(|id| top.iter().any(|m| m["target"] == *id && m["pick"] == false)), "정황이 걸린 줄이 위 {top:?}");
+    // 선택 칸은 정황이 없는 줄에만 있다. 섞어 보내면 거절된다
     ensure!(rows(&t["mine"]).iter().all(|m| m["kind"] != "심사" || m["pick"] == !flagged(m)) && rows(&t["mine"]).iter().any(|m| m["target"] == plain && m["pick"] == true), "선택 칸");
-    ensure!(c.post(support, "/api/decide", json!({ "ids": [plain, r6], "kind": "승인" })).await?.0 == 400, "정황이 걸린 줄을 섞은 선택");
+    ensure!(c.post(support, "/api/decide", json!({ "ids": [plain, r34], "kind": "승인" })).await?.0 == 400 && review(support, plain).await?["review"]["status"] == "대기", "정황이 걸린 줄을 섞은 선택");
     // 심사 상세의 정황 줄: 그 심사의 구성원에 걸린 정황
     let of = c.get(exec, &format!("/api/reviews/{group}/signals")).await?;
-    ensure!(rows(&of).contains(&json!({ "id": bank, "kind": "계좌", "name": "계좌 · 성일상사24", "state": "접수" })) && rows(&of).iter().any(|s| s["id"] == near), "심사의 정황 {of}");
+    ensure!(of == json!([{ "id": bank, "kind": "계좌", "name": "계좌 · 성일상사24", "state": "접수" }, { "id": near, "kind": "근접", "name": "근접 · 금강상사11", "state": "접수" }]), "심사의 정황 {of}");
     ensure!(c.get(support, &format!("/api/reviews/{plain}/signals")).await? == json!([]), "정황이 없는 심사");
 
     // 정황이 걸린 심사의 승인에는 사유가 필수다(D41). 정황이 없는 심사는 그대로 선택이다
     let must = |d: &J| d["actions"].as_array().into_iter().flatten().find(|a| a["kind"] == "승인").map(|a| a["reason"] == true);
-    ensure!(must(&review(exec, group).await?) == Some(true) && must(&review(support, r6).await?) == Some(true) && must(&review(support, plain).await?) == Some(false), "승인의 사유");
+    ensure!(must(&review(exec, group).await?) == Some(true) && must(&review(support, r34).await?) == Some(true) && must(&review(support, plain).await?) == Some(false), "승인의 사유");
     let approve = async |role: &str, id: &str, reason: J| c.post(role, "/api/decide", json!({ "ids": [id], "kind": "승인", "reason": reason })).await;
-    ensure!(approve(exec, group, J::Null).await? == (400, json!({ "error": "사유" })) && approve(support, r6, J::Null).await? == (400, json!({ "error": "사유" })), "사유 없는 승인");
+    ensure!(approve(exec, group, J::Null).await? == (400, json!({ "error": "사유" })) && approve(support, r34, J::Null).await? == (400, json!({ "error": "사유" })), "사유 없는 승인");
     // 정황은 지급을 막지 않는다(D8): 사유를 적으면 승인되고 지급 작업이 생긴다. 굳은 심사의 표시는 그대로 남는다
     ensure!(approve(exec, group, json!({ "class": "경미" })).await?.0 == 200, "정황이 걸린 심사의 승인");
     ensure!(rows(&c.get(acct, "/api/tasks").await?["mine"]).iter().filter(|m| m["kind"] == "지급").count() == 3, "정황이 걸린 심사의 지급 작업");
@@ -267,7 +277,7 @@ pub async fn check(c: &Check) -> Result<()> {
     for body in ["", "{", r#"{"id":5,"kind":"기각"}"#, r#"{"id":"동명-박준호"}"#, "[]"] {
         ensure!(c.raw(audit, "/api/rule", body, Some("application/json")).await? == (400, json!({ "error": "대상" })), "틀린 본문 {body:?}");
     }
-    ensure!(signal(audit, name).await? == d && q1(&c.db, "RETURN [count(SELECT id FROM ruling), signal:`기타-x`.id];", json!({})).await? == json!([0, null]), "거절 뒤");
+    ensure!(signal(audit, name).await? == d && q1(&c.db, "RETURN [count(SELECT id FROM ruling), signal:`기타-x`.id];", json!({})).await? == json!([0, null]) && count().await? == before, "거절 뒤");
 
     // 기각: 상태 기각, 누가·언제·사유가 남고(선 28) 작업이 끝난다. 남의 이름을 적어 보내도 DB가 채운 값이 남는다
     q(&s, "CREATE ruling SET signal = signal:`동명-박준호`, kind = '기각', reason = { class: '부족', memo: '이름 말고는 같은 것이 없음' }, role = '영업임원', by = staff:exec, at = d'2020-01-01T00:00:00Z', source = '원본';", json!({})).await?;
@@ -278,22 +288,20 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(q1(&c.db, "RETURN (SELECT VALUE by FROM ruling)[0] = staff:audit;", json!({})).await? == true, "결정한 직원");
     ensure!(!mine(&c.get(audit, "/api/tasks").await?).iter().any(|m| m["target"] == name), "기각 뒤의 작업");
     ensure!(rule(audit, name, "요청", J::Null).await? == "상태" && rule(audit, name, "기각", json!({ "class": "부족" })).await? == "상태", "기각된 정황의 조치");
-    // 기각되면 대기인 심사의 표시가 떨어지고 승인의 사유가 다시 선택이 된다. 다른 정황이 걸린 심사와 굳은 심사는 그대로다
-    ensure!(!marked(r34).await? && !marked(r41).await? && marked(r6).await? && marked(group).await?, "기각 뒤의 표시");
+    // 기각되면 대기인 심사의 표시가 떨어지고 승인의 사유가 다시 선택이 된다. 굳은 심사(정황이 걸린 채 승인된 것)는 그대로다
+    ensure!(!marked(r34).await? && !marked(r41).await? && marked(group).await?, "기각 뒤의 표시");
     ensure!(must(&review(support, r34).await?) == Some(false) && approve(support, r34, J::Null).await?.0 == 200, "기각 뒤의 승인");
+    // 근거가 그대로이면 다시 찾아도 기각된 채다(새 근거로 다시 올리는 것은 15)
+    detect(&c.db).await?;
+    ensure!(signal(audit, name).await?["signal"]["state"] == "기각" && !marked(r41).await?, "다시 찾은 뒤의 기각");
 
-    // 요청: 사유 없이도 된다. 상태 요청, 작업이 끝난다. 정황은 열려 있으므로 심사의 표시는 남는다. 17·18은 이 결정(ruling)에 뒤따를 일을 건다
-    ensure!(rule(audit, near6, "요청", J::Null).await? == "", "요청");
-    let d = signal(audit, near6).await?;
+    // 요청(화면의 길): 사유 없이도 된다. 상태 요청, 작업이 끝난다. 17·18은 이 결정(ruling)에 뒤따를 일을 건다
+    ensure!(rule(audit, bank, "요청", J::Null).await? == "", "요청");
+    let d = signal(audit, bank).await?;
     ensure!(d["signal"]["state"] == "요청" && d["actions"] == json!([]) && d["history"][0]["kind"] == "요청" && d["history"][0]["reason"].is_null(), "요청 뒤 {d}");
-    ensure!(marked(r6).await? && !mine(&c.get(audit, "/api/tasks").await?).iter().any(|m| m["target"] == near6), "요청 뒤의 표시와 작업");
-    // 화면의 길로 기각. 같은 정황에 둘을 동시에 보내면 하나만 된다
-    let both = tokio::join!(rule(audit, near, "기각", json!({ "class": "정상" })), rule(audit, near, "요청", json!({ "class": "기타", "memo": "확인" })));
-    let mut got = [both.0?, both.1?];
-    got.sort();
-    ensure!(got == ["", "상태"] && rows(&signal(audit, near).await?["history"]).len() == 1, "동시에 보낸 결정 {got:?}");
-
-    // 구성이 바뀌어 새로 만들어진 심사에도 표시가 따라온다: 한라인상사3이 성일상사24의 주소·계좌를 함께 쓰게 되면(6월 1일) 그 심사에 계좌 정황이 걸린다
+    ensure!(!mine(&c.get(audit, "/api/tasks").await?).iter().any(|m| m["target"] == bank), "요청 뒤의 작업");
+    // 요청인 정황은 열려 있다: 구성이 바뀌어 새로 만들어진 심사에도 표시가 따라온다.
+    // 한라인상사3이 성일상사24의 주소·계좌를 함께 쓰게 되면(6월 1일) 박상현 그룹에 들고, 그 심사에 계좌 정황이 걸린다
     ensure!(!marked("2026-06-D-003").await?, "바뀌기 전");
     q(&c.db, "
         LET $e = { since: d'2026-06-01T00:00:00Z', via: '신고', source: '시연' };
@@ -301,14 +309,28 @@ pub async fn check(c: &Check) -> Result<()> {
         RELATE dealer:`D-003`->acct->(SELECT VALUE out FROM acct WHERE in = dealer:`D-024`) CONTENT $e;", json!({})).await?;
     super::t04_review::recalc(&c.db).await?;
     let d = review(support, "2026-06-D-003").await?;
-    ensure!(rows(&d["members"]).len() > 1 && marked("2026-06-D-003").await?, "구성이 바뀐 심사의 표시 {}", d["review"]);
+    ensure!(rows(&d["members"]).len() == 4 && d["review"]["status"] == "대기" && marked("2026-06-D-003").await?, "구성이 바뀐 심사의 표시 {}", d["review"]);
+    // 같은 정황에 결정 둘을 동시에 보내면 하나만 된다
+    let both = tokio::join!(rule(audit, near, "기각", json!({ "class": "정상" })), rule(audit, near, "요청", json!({ "class": "기타", "memo": "확인" })));
+    let mut got = [both.0?, both.1?];
+    got.sort();
+    ensure!(got == ["", "상태"] && rows(&signal(audit, near).await?["history"]).len() == 1, "동시에 보낸 결정 {got:?}");
 
-    // 대사의 불일치가 들어올 자리(08): 같은 함수로 대사 정황이 접수되고 내부 감시의 작업에 오른다. 근거가 더 붙어도 정황은 하나다
-    q(&c.db, "
-        fn::signal('대사', 'RB-00006', '대성상사1', [dealer:`D-001`], [payout:`RB-00006`], '계산');
-        fn::signal('대사', 'RB-00006', '대성상사1', [dealer:`D-001`], [deposit:`DP-00001`], '계산');", json!({})).await?;
-    let d = signal(audit, "대사-RB-00006").await?;
-    ensure!(d["signal"]["name"] == "대사 · 대성상사1" && d["signal"]["state"] == "접수" && rows(&d["evidence"]).len() == 2 && rows(&d["actions"]).len() == 2, "대사 정황 {d}");
-    ensure!(mine(&c.get(audit, "/api/tasks").await?).iter().filter(|m| m["target"] == "대사-RB-00006").count() == 1, "대사 정황의 작업");
+    // 대사의 불일치는 대사 정황으로 접수된다(D45, D49): 대성상사1의 6월 지급(988,932)에 금액이 다른 회신이 들어오면
+    ensure!(approve(support, plain, J::Null).await?.0 == 200 && c.post(acct, "/api/pay", json!({ "id": "RB-00006" })).await?.0 == 200, "승인과 지급");
+    let own = q1(&c.db, "RETURN (SELECT VALUE out.value FROM acct WHERE in = dealer:`D-001`)[0];", json!({})).await?;
+    ensure!(ids("대사").await? == json!([]), "회신 전의 대사 정황");
+    ensure!(c.post(acct, "/api/reply", json!({ "id": "RB-00006", "amount": 900_000, "account": own, "result": "성공" })).await?.0 == 200, "회신");
+    let d = signal(audit, "대사-D-001").await?;
+    ensure!(ids("대사").await? == json!(["대사-D-001"]) && d["signal"]["name"] == "대사 · 대성상사1" && d["signal"]["state"] == "접수" && d["signal"]["source"] == "계산" && rows(&d["actions"]).len() == 2, "대사 정황 {}", d["signal"]);
+    let e = &d["evidence"][0];
+    ensure!(rows(&d["evidence"]).len() == 1 && e["item"] == "대사" && e["dealer"]["name"] == "대성상사1" && e["ym"] == "2026-06" && e["value"] == "금액" && e["source"] == "계산"
+        && e["want"] == json!({ "amount": 988_932, "accounts": [own] }) && e["got"] == json!({ "amount": 900_000, "account": own }), "대사 정황의 근거 {e}");
+    ensure!(mine(&c.get(audit, "/api/tasks").await?).iter().filter(|m| m["target"] == "대사-D-001").count() == 1, "대사 정황의 작업");
+    // 일치하는 회신은 정황이 아니다
+    let pay = "RB-00168";
+    ensure!(c.post(acct, "/api/pay", json!({ "id": pay })).await?.0 == 200, "한라인상사34의 지급");
+    let (amount, account) = (q1(&c.db, "RETURN payout:`RB-00168`.amount;", json!({})).await?, q1(&c.db, "RETURN (SELECT VALUE out.value FROM acct WHERE in = dealer:`D-034`)[0];", json!({})).await?);
+    ensure!(c.post(acct, "/api/reply", json!({ "id": pay, "amount": amount, "account": account, "result": "성공" })).await?.0 == 200 && ids("대사").await? == json!(["대사-D-001"]), "일치하는 회신");
     Ok(())
 }

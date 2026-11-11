@@ -345,9 +345,9 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(rows(&t["mine"]).len() == 36 && !rows(&t["mine"]).iter().any(|m| m["target"] == one), "승인 뒤 담당");
 
     // 여러 개를 한 번에: 정황이 없고 승인권자가 영업지원인 심사만. 하나라도 아니면 전부 안 된다
-    let (a, b, flagged) = ("2026-06-D-004", "2026-06-D-008", "2026-06-D-006");
+    let (a, b, flagged) = ("2026-06-D-004", "2026-06-D-008", "2026-06-D-041");
     ensure!(approve(support, &[a, group]).await? == (403, json!({ "error": "권한" })) && review(support, a).await?["review"]["status"] == "대기", "임원의 심사를 섞은 선택");
-    // 대륙상사6의 심사에는 정황이 걸려 있다(11: 근접). 선택 칸이 없고, 섞어 보내면 사유가 없어 거절된다
+    // 금강상사41의 심사에는 정황이 걸려 있다(11: 동명). 선택 칸이 없고, 섞어 보내면 사유가 없어 거절된다
     let t = c.get(support, "/api/tasks").await?;
     let row = rows(&t["mine"]).into_iter().find(|m| m["target"] == flagged).unwrap_or_default();
     ensure!(flag(&t["mine"][0]) && row["pick"] == false && row["marks"] == json!(["정황"]), "정황이 걸린 줄 {row}");

@@ -130,8 +130,8 @@ pub async fn check(c: &Check) -> Result<()> {
     let d = review(exec, big).await?;
     ensure!(d["review"]["status"] == "승인" && d["review"]["fixed"] == "2026-07-01" && d["review"]["approver"] == exec, "승인 뒤 {}", d["review"]);
 
-    // 11번이 켠 조건(승인의 need에 '정황'): 정황이 걸린 심사(대륙상사6 — 근접)의 승인에만 사유가 필수다
-    let (flagged, plain) = ("2026-06-D-006", "2026-06-D-007");
+    // 11번이 켠 조건(승인의 need에 '정황'): 정황이 걸린 심사(금강상사41 — 동명)의 승인에만 사유가 필수다
+    let (flagged, plain) = ("2026-06-D-041", "2026-06-D-007");
     let must = async |id: &str| Ok::<_, anyhow::Error>(review(support, id).await?["actions"][0]["reason"].clone());
     ensure!(must(flagged).await? == true && must(plain).await? == false, "정황이 걸린 심사의 사유");
     ensure!(decide(support, flagged, "승인", J::Null).await? == "사유" && decide(support, flagged, "승인", json!({ "class": "경미" })).await? == "", "정황이 걸린 심사의 승인");

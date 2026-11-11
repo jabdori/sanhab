@@ -3,7 +3,7 @@
 
 -- 정황: 같은 대상의 같은 종류는 하나다(id = `종류-대상의 id`). 근거가 더 나오면 같은 기록에 붙는다
 DEFINE TABLE signal SCHEMAFULL PERMISSIONS FOR select FULL;
-DEFINE FIELD kind ON signal TYPE string ASSERT $value IN ['계좌', '동명', '근접', '지연', '대사', '기타'];   -- 종류
+DEFINE FIELD kind ON signal TYPE string ASSERT $value IN ['계좌', '동명', '근접', '지연', '대사', '추인', '기타'];   -- 종류(추인은 D52: 거부된 추인)
 DEFINE FIELD name ON signal TYPE string;                      -- 제목과 작업 목록의 "대상"(계좌 · 성일상사24)
 DEFINE FIELD dealers ON signal TYPE array<record<dealer>>;    -- 선 14: 정황 → 대리점. 첫 번째가 대상이다
 DEFINE FIELD evidence ON signal TYPE array<record>;           -- 선 15: 정황 → 근거 기록(회수, 식별자 선, 지급 …). 값은 화면에 보일 때 그 기록에서 읽는다
@@ -11,7 +11,7 @@ DEFINE FIELD state ON signal TYPE string DEFAULT '접수' ASSERT $value IN ['접
 DEFINE FIELD source ON signal TYPE string;                    -- 계산. 기준이 가정인 종류(근접)는 가정
 
 -- 정황을 접수한다(코드와 이벤트만 부른다). 없으면 만들고 내부 감시의 정황 작업을 올린다. 있으면 대리점과 근거만 더한다.
--- 뒤 티켓: 15는 여기서 "기각된 정황에 새 근거가 붙었으면 다시 접수"를 더하고, 08의 불일치는 `fn::signal('대사', …)`로 들어온다
+-- 뒤 티켓: 15는 여기서 "기각된 정황에 새 근거가 붙었으면 다시 접수"를 더한다
 DEFINE FUNCTION fn::signal($kind: string, $of: string, $name: string, $dealers: array<record<dealer>>, $evidence: array<record>, $source: string) -> record<signal> {
     LET $s = type::record('signal', string::concat($kind, '-', $of));
     IF $s.id = NONE {
@@ -76,11 +76,19 @@ DEFINE FUNCTION fn::evidence($e: record) -> object {
     LET $v = IF $t = 'deposit' THEN { item: '회수', dealer: ($e->deposit_of->dealer)[0], at: time::format($e.date, '%Y-%m-%d'), node: ($e->deposit_into->account)[0], amount: $e.amount }
         ELSE IF $t = 'payout' THEN { item: '지급', dealer: ($e->payout_of->dealer)[0], ym: $e.ym, amount: $e.amount }
         ELSE IF $t INSIDE ['rep', 'addr', 'acct'] THEN { item: { rep: '대표자', addr: '주소', acct: '계좌' }[$t], dealer: $e.in, node: $e.out }
+        ELSE IF $t = 'recon' THEN { item: '대사', dealer: ($e.payout->payout_of->dealer)[0], ym: $e.payout.ym, value: array::join($e.diff, ' · '),
+            want: { amount: $e.amount, accounts: $e.accounts }, got: { amount: $e.reply.amount, account: $e.reply.account } }
         ELSE { item: $t } END;
     RETURN {
-        id: <string> $e, item: $v.item, at: $v.at, ym: $v.ym, amount: $v.amount,
+        id: <string> $e, item: $v.item, at: $v.at, ym: $v.ym, amount: $v.amount, value: $v.value, want: $v.want, got: $v.got,
         dealer: IF $v.dealer THEN { id: record::id($v.dealer), name: $v.dealer.name } END,
         node: IF $v.node THEN { id: <string> $v.node, name: $v.node.value ?? $v.node.name } END,
         source: $e.source, file: $e.file.path, row: $e.row,
     };
 } PERMISSIONS FULL;
+
+-- 대사의 불일치(08, D45·D49)는 대사 정황으로 접수된다. 대상은 그 대리점이고 근거는 그 대사 기록이다(같은 대리점의 불일치는 한 정황에 모인다)
+DEFINE EVENT t11_recon ON recon WHEN $event = 'CREATE' AND $after.verdict = '불일치' THEN {
+    LET $d = ($after.payout->payout_of->dealer)[0];
+    fn::signal('대사', record::id($d), $d.name, [$d], [$after.id], '계산');
+};

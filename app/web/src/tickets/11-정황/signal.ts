@@ -8,7 +8,23 @@ import type { Decision } from '../04-심사/review'
 
 type Dot = { id: string; name: string }
 /** 근거 한 줄: 가리키는 기록의 값(서버가 그 기록에서 읽는다). id는 그 기록의 id */
-export type Evidence = { id: string; item: string; dealer?: Dot | null; at?: string | null; ym?: string | null; node?: Dot | null; amount?: number | null; source: string; file?: string | null; row?: number | null }
+export type Evidence = {
+  id: string
+  /** 무엇인지: 회수, 계좌·주소·대표자(식별자의 등록), 지급, 대사 */
+  item: string
+  dealer?: Dot | null
+  at?: string | null
+  ym?: string | null
+  node?: Dot | null
+  amount?: number | null
+  /** 대사: 맞지 않은 항목(금액 · 계좌)과 맞춰 본 값(승인)·회신의 값 */
+  value?: string | null
+  want?: { amount: number; accounts: string[] } | null
+  got?: { amount: number; account: string } | null
+  source: string
+  file?: string | null
+  row?: number | null
+}
 export type Signal = {
   signal: { id: string; kind: string; name: string; state: string; source: string; dealers: Dot[] }
   evidence: Evidence[]

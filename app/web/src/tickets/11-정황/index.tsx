@@ -49,24 +49,37 @@ function Head() {
   )
 }
 
-/** 근거 표(ux-plan의 모양): 정황이 가리키는 기록마다 한 줄 — 무엇(회수·계좌·대표자·지급), 언제 또는 어느 대리점, 값(식별자 또는 금액), 출처.
- * 회수의 줄은 대상 대리점의 것이라 날짜를, 식별자의 줄은 그것을 등록한 대리점을 적는다. 회수의 금액 같은 나머지 값은 출처 표지가 여는 원본의 행에 있다 */
+/** 근거 표(ux-plan의 모양): 정황이 가리키는 기록마다 한 줄 — 무엇(회수·계좌·대표자·지급·대사), 언제 또는 어느 대리점, 값(식별자, 금액, 대사에서 맞지 않은 항목), 출처.
+ * 회수의 줄은 대상 대리점의 것이라 날짜를, 식별자의 줄은 그것을 등록한 대리점을 적는다. 회수의 금액 같은 나머지 값은 출처 표지가 여는 원본의 행에 있다.
+ * 대사의 줄은 출처가 계산이라 표지에 맞춰 본 값(승인)과 회신의 값이 열린다 */
 function Evidence() {
   const d = useSignal()
   if (!d) return null
   const rows = d.evidence
   const nodes = rows.some((e) => e.node)
+  const amounts = rows.every((e) => e.amount != null)
   return (
     <section className="mb-4 flex flex-col gap-2">
       <h2 className={label}>{L.근거}</h2>
       <Table
-        head={[L.근거, rows.every((e) => e.ym) ? L.귀속월 : '', nodes ? L.식별자 : L.금액, L.출처]}
-        right={nodes ? [] : [2]}
+        head={[L.근거, rows.every((e) => e.ym) ? L.귀속월 : '', nodes ? L.식별자 : amounts ? L.금액 : L.비교, L.출처]}
+        right={!nodes && amounts ? [2] : []}
         rows={rows.map((e) => [
           e.item,
           e.at ?? e.ym ?? e.dealer?.name,
-          nodes ? e.node?.name : e.amount == null ? null : num(e.amount),
-          <Source kind={e.source} file={e.file ?? undefined} row={e.row ?? undefined} />,
+          e.node?.name ?? (e.amount == null ? e.value : num(e.amount)),
+          <Source kind={e.source} file={e.file ?? undefined} row={e.row ?? undefined}>
+            {e.want && e.got && (
+              <dl className="grid grid-cols-2 gap-x-2 gap-y-1 tabular-nums">
+                <dt className={label}>{L.승인}</dt>
+                <dd>{[num(e.want.amount), ...e.want.accounts].join(' · ')}</dd>
+                <dt className={label}>{L.회신}</dt>
+                <dd>{[num(e.got.amount), e.got.account].join(' · ')}</dd>
+                <dt className={label}>{L.비교}</dt>
+                <dd>{e.value}</dd>
+              </dl>
+            )}
+          </Source>,
         ])}
       />
     </section>
