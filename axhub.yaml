@@ -1,0 +1,19 @@
+version: axhub/v1
+name: 합산
+build:
+  deploy_method: compose
+  compose_file: compose.yaml
+runtime:
+  entry_service: app
+env:
+  required:
+    - name: SURREAL_USER
+      scope: runtime
+    - name: SURREAL_PASS
+      scope: runtime
+    - name: DEMO_PASS
+      scope: runtime
+    - name: OPENAI_API_KEY
+      scope: runtime
+    - name: UPSTAGE_API_KEY
+      scope: runtime

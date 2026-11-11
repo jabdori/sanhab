@@ -1,27 +1,30 @@
 # AXHub·로컬 공용. db는 공개 이미지(이름:태그 고정), app은 이 저장소에서 빌드.
+# 값은 로컬에서는 .env, AXHub에서는 등록한 환경변수에서 온다. 이 파일에는 값을 적지 않는다.
 services:
   db:
     image: surrealdb/surrealdb:v4.0.1
+    # SURREAL_USER / SURREAL_PASS 는 SurrealDB가 환경변수에서 직접 읽는다.
     # VERSION 시점조회에 versioned surrealkv 필요 (메모리 엔진 불가)
-    command: start --user ${SURREAL_USER:?} --pass ${SURREAL_PASS:?} surrealkv:///data/db?versioned=true
+    command: start surrealkv:///data/db?versioned=true
+    env_file:
+      - path: .env
+        required: false
+    expose:
+      - "8000"   # AXHub: 포트를 적지 않은 서비스는 다른 서비스가 이름으로 부를 수 없다. 바깥에는 열지 않는다
     volumes:
-      - surreal-data:/data   # 재배포·재시작엔 유지, 크레딧 소진 일시정지 시 소실 → app이 원본에서 자동 재적재
+      - surreal-data:/data   # 재배포·재시작엔 유지, 앱 일시정지 시 소실 → app이 원본에서 자동 재적재
     restart: unless-stopped
-    # 포트 미공개: app만 내부망으로 접근
   app:
     build:
       context: .
       dockerfile: app/Dockerfile
+    env_file:
+      - path: .env
+        required: false
     environment:
       SURREAL_ADDR: db:8000   # HTTP 엔진 (WS 미사용)
-      SURREAL_USER: ${SURREAL_USER:?}
-      SURREAL_PASS: ${SURREAL_PASS:?}
-      DEMO_PASS: ${DEMO_PASS:?}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      UPSTAGE_API_KEY: ${UPSTAGE_API_KEY:-}
-      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-6.1-terra}
     ports:
-      - "3000:3000"
+      - "3000:3000"   # 바깥 주소에 연결되는 유일한 서비스
     depends_on: [db]
     restart: unless-stopped
 volumes:
