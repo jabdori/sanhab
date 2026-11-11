@@ -13,7 +13,7 @@ DEFINE FUNCTION fn::reason($must: bool, $classes: array<string>, $reason: option
 } PERMISSIONS FULL;
 
 -- 그 심사에 그 조치를 할 때 사유가 필수인지
-DEFINE FUNCTION fn::must($kind: string, $review: record<review>) -> bool {
+DEFINE FUNCTION OVERWRITE fn::must($kind: string, $review: record<review>) -> bool {
     LET $a = type::record('act', $kind);
     RETURN $a.reason = true OR ($a.need ?? []) ANYINSIDE array::concat($review.marks, [$review.status]);
 } PERMISSIONS FULL;
@@ -27,3 +27,7 @@ DEFINE TABLE OVERWRITE decision SCHEMAFULL PERMISSIONS
 DEFINE EVENT t05_hold ON decision WHEN $event = 'CREATE' AND $after.kind = '보류' THEN {
     UPDATE task SET state = '진행' WHERE target = $after.review AND kind = '심사';
 };
+
+-- 선 30: 결정 → 같은 심사의 바로 앞 결정(보류를 푼 승인은 그 보류에 이어진다). 역할의 결정은 DB가 채운다
+DEFINE FIELD prev ON decision TYPE option<record<decision>>
+    VALUE IF $auth.id OR $value = NONE THEN (SELECT id, stamp FROM decision WHERE review = $parent.review ORDER BY stamp DESC LIMIT 1)[0].id ELSE $value END READONLY;
