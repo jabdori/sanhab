@@ -130,17 +130,17 @@ pub fn routes() -> Router<Db> {
     Router::new().route("/tasks", get(tasks)).route("/reviews/{id}", get(detail)).route("/decide", post(decide))
 }
 
-/// 작업 목록: 담당(`mine`, 지금 내 역할이 처리할 것)과 진행(`going`, 내 역할이 관여했고 다른 역할의 차례인 것).
+/// 작업 목록: 담당(`mine`, 지금 내 역할이 처리할 것)과 진행(`going`, 내 역할이 관여했고 다른 역할의 차례인 것 + 내 담당이지만 `state`가 진행인 것 — 보류한 심사, D48).
 /// 대상의 이름·귀속월·합산·표시는 대상 기록의 `name`·`ym`·`total`·`marks`에서 읽는다. 정황이 걸린 줄이 위, 그다음은 합산이 큰 순.
 /// `pick`은 여러 개를 골라 한 번에 승인할 수 있는 줄: 정황이 없고 승인권자가 영업지원인 심사
 async fn tasks(Extension(me): Extension<Me>) -> R {
     let r = q1(&me.db, "
-        SELECT record::id(id) AS id, kind, view, record::id(target) AS target, target.name AS name, target.ym AS ym, target.total AS total, target.marks ?? [] AS marks, role,
+        SELECT record::id(id) AS id, kind, view, record::id(target) AS target, target.name AS name, target.ym AS ym, target.total AS total, target.marks ?? [] AS marks, role, state,
             IF kind = '심사' THEN target.approver = '영업지원' AND '정황' NOTINSIDE target.marks AND fn::can('승인', target) ELSE false END AS pick
         FROM task WHERE state INSIDE ['대기', '진행'] AND (role = $auth.role OR also CONTAINS $auth.role);", json!({})).await?;
     let mut rows: Vec<J> = r.as_array().cloned().unwrap_or_default();
     rows.sort_by_key(|t| (!t["marks"].as_array().is_some_and(|m| m.contains(&json!("정황"))), -t["total"].as_i64().unwrap_or(0), t["id"].as_str().map(String::from)));
-    let (mine, going): (Vec<J>, Vec<J>) = rows.into_iter().partition(|t| t["role"] == me.role.as_str());
+    let (mine, going): (Vec<J>, Vec<J>) = rows.into_iter().partition(|t| t["role"] == me.role.as_str() && t["state"] != "진행");
     Ok(Json(json!({ "mine": mine, "going": going })))
 }
 
@@ -153,7 +153,7 @@ async fn detail(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): Pa
             review: (SELECT record::id(id) AS id, name, ym, status, marks, total, limit, approver, IF fixed THEN time::format(fixed, '%Y-%m-%d') END AS fixed, source, members.map(|$d| { id: record::id($d), name: $d.name }) AS members FROM $r)[0],
             payouts: (SELECT record::id((->payout_of->dealer)[0]) AS dealer, amount, source, file.path AS file, row FROM payout WHERE id INSIDE $r.payouts),
             rules: (SELECT name, ver, value, clause.title AS title, clause.doc.path AS file, clause.first AS first, clause.last AS last, clause.text AS text, clause.source AS source FROM rule WHERE id INSIDE $r.rules ORDER BY name),
-            actions: (SELECT record::id(id) AS kind, reason FROM act WHERE fn::can(record::id(id), $r) ORDER BY kind),
+            actions: (SELECT record::id(id) AS kind, fn::must(record::id(id), $r) AS reason, fn::classes(record::id(id), $r) AS classes FROM act WHERE fn::can(record::id(id), $r) ORDER BY kind),
             history: (SELECT kind, role, time::format(at, '%Y-%m-%d') AS at, reason, source, stamp FROM decision WHERE review = $r ORDER BY stamp),
         };", json!({ "id": id })).await?;
     if r["review"].is_null() {
