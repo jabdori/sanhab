@@ -30,6 +30,7 @@ tickets! {
     t02_dealer,
     t03_related,
     t04_review,
+    t05_approver,
     t07_pay,
     t09_again,
     t22_rules,
