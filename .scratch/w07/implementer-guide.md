@@ -193,6 +193,14 @@
 - **공통 부품과 04에서 고친 것**: `ui/Relation.tsx`에 `hints`(등록된 선이 아닌 이어짐. 점선)를 더했다. 04의 `Line`(이력 한 줄)을 내보냈다(`import { Line } from '../04-심사'`). 작업 목록은 대상에 `total`이 없는 줄(정황)의 금액을 비워 둔다. `POST /api/decide`와 `POST /api/rule`은 동시에 보낸 결정에서 진 쪽의 낱말을 잠깐 기다리며 다시 본다(부하가 높을 때 `상태` 대신 `권한`이 나가 05의 검사가 흔들리던 것).
 - **상태 표지의 색**: 접수·요청·기각은 대기의 색, 해소는 좋음의 색(`tokens.md`에 기각·해소가 없어 11이 정했다).
 
+13 변경이 정한 것(D15, D30, D47).
+- **사건**(`app/db/13-변경.surql`): `incident`(`kind` 변경, `dealer`(선 22), `item` 대표자·주소·계좌, `value`, `since` 변경일, `known` 인지일, `via` 경로, `by`, `role`, `at`, `source`, `stamp`). 역할이 쓰는 것은 이것뿐이고(`fn::changeable()` = 영업지원), 인지일(오늘)·경로(신고)·출처(시연)는 DB가 채운다. 이벤트 `t13_change`가 그 항목의 열린 선(`until = NONE`)을 `until = 변경일`로 닫고 새 값의 노드(없으면 만든다)로 선을 잇는다. 새 선은 `incident`로 그 사건을 가리킨다(**16 경위는 여기서 거슬러 오른다**). 원본의 선에는 `incident`가 없다.
+- **조치의 경로**: `GET /api/change` → `{ can }` · `POST /api/change { id, item, value, since }`(`refuse`·`Body`·`attempt`. 대상: 없는 대리점·항목, 꼴이 틀린 날짜, 오늘보다 뒤의 변경일 / 권한: 영업지원이 아님 / 상태: 지금 값과 같거나 변경일이 지금 값의 변경일보다 뒤가 아님). 쓴 뒤에 root로 `recalc` → `remark` → `detect`를 부른다. 화면은 `tickets/13-변경`(`{ slot: 'action', kind: L.대리점 }`, 확인 창).
+- **지금 값**: `fn::current(대리점, 항목)` → `[{ since, value }]`(오늘 유효한 선). 02의 목록이 이것을 쓰고, 02의 상세 `registered[]`에 `until`(없으면 null)이 더해졌다(화면은 `until`이 있는 줄에 `이전`). **귀속월 안의 변경은 03의 `links(period)` 그대로 — 그 달에 하루라도 유효했던 값을 모두 본다(D47).**
+- **당시 미인지**: 09의 `GET /api/reviews/{id}/again`에 `late`(인지일이 `review.fixed`보다 뒤)가 더해졌다. 당시 / 현재의 인지일 줄은 `late`이면 `미인지 | 인지일`, 아니면 `인지일 또는 미상`.
+- **11의 계좌 정황은 회수 날짜에 유효한 등록만 본다**(자기 계좌도, 다른 대리점의 계좌도). 동명 정황은 같은 그룹이 되어도 `detect`가 닫지 않는다(접수된 채로 남아 합쳐진 심사에 정황 표시가 붙는다 — 유저 결정 대기).
+- **열린 선택(유저 결정 대기)**: 그룹이 바뀌어 대기 심사가 합쳐지거나 없어질 때 그 심사에 붙은 결정(보류·반려·재상신 작업)을 어떻게 할지. 지금은 04·06의 동작 그대로다 — 살아남는 id(귀속월-첫 대리점)의 심사는 상태·결정이 그대로 이어지고, 없어지는 쪽은 심사와 작업이 지워지고 결정은 가리킬 심사 없이 남는다.
+
 22 규정이 정한 것.
 - **조회 경로**: `GET /api/rules`(모든 역할, 같은 내용) → `{ clauses[{ id, title, file, sha, first, last, text, source }], rules[{ id, name, ver, value, clause, since, until, prev{ name, ver } | null, source }], assumes[{ id(결정 번호), title, text, file, row, used[{ view, kind, id }], source: "가정" }] }`. 조항·규칙은 04의 테이블을 읽기만 한다. `GET /api/reviews/{id}`의 `rules[]`에 `clause`(조항의 id)가 더해졌다.
 - **이전 버전(선 27)**: `rule.prev`(`app/db/22-규정.surql`). **새 규칙 버전을 만드는 쪽(23)이 앞 버전을 넣는다**(`prev = rule:\`한도-v1\``, 04가 적은 `since`·앞 버전의 `until`과 함께. 모의용 버전도 현재 버전에 잇는다). 화면은 `이전` 열에 `한도 v1`로, 시행은 `시행일 – 다음 버전의 시행일`로 보인다(시행일이 없으면 미상). 버전이 둘일 때의 본보기는 22의 검사에 있다(`rule:\`한도-t22\``).
