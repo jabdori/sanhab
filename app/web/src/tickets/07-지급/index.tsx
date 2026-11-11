@@ -1,5 +1,6 @@
 // 07 지급: 메뉴 "작업"의 목록 위에 지급의 상태별 수(회계·자금에게만. 누르면 그 상태의 지급이 펼쳐진다)와 지급 상세(가운데: 제목·숫자 줄 / 오른쪽: 조치, 이력).
 // 가운데의 조각은 order -40(제목·숫자 줄) 하나다. 뒤 티켓이 kind: L.지급으로 끼우는 조각은 order를 적지 않으면 그 아래에 놓인다(08의 대사).
+import { AlertDialog } from '@base-ui/react/alert-dialog'
 import { Toggle } from '@base-ui/react/toggle'
 import { ToggleGroup } from '@base-ui/react/toggle-group'
 import { useAtom, useSetAtom } from 'jotai'
@@ -8,9 +9,10 @@ import { L } from '../../labels'
 import type { Piece } from '../../pieces'
 import { api, changedAtom, store, targetAtom, useData } from '../../state'
 import { Empty } from '../../ui/Empty'
+import { Figures } from '../../ui/Figures'
 import { Pill } from '../../ui/Pill'
 import { Source } from '../../ui/Source'
-import { button, label } from '../../ui/styles'
+import { button, floating, label } from '../../ui/styles'
 import { Table, num } from '../../ui/Table'
 import { Title } from '../../ui/Title'
 import { usePay } from './pay'
@@ -40,14 +42,14 @@ function Counts() {
       </ToggleGroup>
       {shown.length > 0 && (
         <Table
-          head={[L.대리점, ...(target ? [] : [L.귀속월]), L.금액, L.상태]}
-          right={[target ? 1 : 2]}
+          head={[L.대리점, L.귀속월, L.금액, L.상태]}
+          right={[2]}
           current={list.findIndex((p) => target?.kind === L.지급 && p.id === target.id)}
           rows={list.map((p) => [
             <button className="cursor-pointer text-left text-action hover:text-action-hover" onClick={() => setTarget({ kind: L.지급, id: p.id })}>
               {p.name}
             </button>,
-            ...(target ? [] : [p.ym]),
+            p.ym,
             num(p.amount),
             pill(p.state),
           ])}
@@ -63,41 +65,44 @@ function Head() {
   const setTarget = useSetAtom(targetAtom)
   if (!p) return null
   const { pay } = p
+  const cell = 'flex items-baseline gap-2'
   return (
     <div className="mb-4 flex flex-col gap-2">
-      <Title name={pay.name} sub={pay.ym}>
+      <Title name={pay.name} sub={`· ${pay.ym}`}>
         {pill(pay.state)}
       </Title>
-      <dl className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
-        <div className="flex items-baseline gap-2">
-          <dt className={label}>{L.금액}</dt>
-          <dd className="text-figure tabular-nums">{num(pay.amount)}</dd>
-          <Source kind={pay.source} file={pay.file} row={pay.row} />
-        </div>
-        <div className="flex items-baseline gap-2">
-          <dt className={label}>{L.계좌}</dt>
-          {p.accounts.length ? (
-            p.accounts.map((a) => (
-              <dd key={a.value} className="flex items-baseline gap-2">
-                <span className="text-figure tabular-nums">{a.value}</span>
-                <Source kind={a.source} file={a.file} row={a.row} />
-              </dd>
-            ))
-          ) : (
-            <dd>
+      <Figures
+        items={[
+          [
+            L.금액,
+            <span className={cell}>
+              {num(pay.amount)}
+              <Source kind={pay.source} file={pay.file} row={pay.row} />
+            </span>,
+          ],
+          [
+            L.계좌,
+            p.accounts.length ? (
+              <span className={cell}>
+                {p.accounts.map((a) => (
+                  <span key={a.value} className={cell}>
+                    {a.value}
+                    <Source kind={a.source} file={a.file} row={a.row} />
+                  </span>
+                ))}
+              </span>
+            ) : (
               <Empty />
-            </dd>
-          )}
-        </div>
-        <div className="flex items-baseline gap-2">
-          <dt className={label}>{L.심사}</dt>
-          <dd>
+            ),
+          ],
+          [
+            L.심사,
             <button className="cursor-pointer text-body text-action hover:text-action-hover" onClick={() => setTarget({ kind: L.심사, id: pay.review.id })}>
               {pay.review.name}
-            </button>
-          </dd>
-        </div>
-      </dl>
+            </button>,
+          ],
+        ]}
+      />
     </div>
   )
 }
@@ -105,18 +110,40 @@ function Head() {
 /** 지급 표시 한 줄: 지급 · 사람 · 날짜 */
 const Line = ({ h }: { h: { role: string; at: string } }) => <p className="text-body tabular-nums">{[L.지급, h.role, h.at].join(' · ')}</p>
 
-/** 조치: 지급으로 표시할 수 있으면 버튼. 아니면 남긴 지급 표시, 그것도 없으면 없음(재심사이거나 담당이 아닌 역할).
+/** 조치: 지급으로 표시할 수 있으면 버튼(되돌릴 수 없으므로 확인 창을 거친다). 아니면 남긴 지급 표시, 대기인데 담당이 아닌 역할에게는 누구 차례인지, 재심사이면 없음.
  *  거절되어도 화면을 다시 읽어 지금 할 수 있는 조치를 보인다 */
 function Action() {
   const p = usePay()
   if (!p) return null
-  if (!p.can) return p.history.length ? <Line h={p.history[p.history.length - 1]} /> : <Empty />
+  if (!p.can) {
+    if (p.history.length) return <Line h={p.history[p.history.length - 1]} />
+    if (p.pay.state !== L.대기) return <Empty />
+    return (
+      <div className="flex items-baseline gap-2">
+        <span className={label}>{L.담당}</span>
+        <span className="text-figure">{p.role}</span>
+      </div>
+    )
+  }
   return (
-    <div className="flex gap-2">
-      <button className={button} onClick={() => api('/pay', { id: p.pay.id }).catch(() => store.set(changedAtom, (n) => n + 1))}>
-        {L.지급}
-      </button>
-    </div>
+    <AlertDialog.Root>
+      <AlertDialog.Trigger className={`${button} self-start`}>{L.지급}</AlertDialog.Trigger>
+      <AlertDialog.Portal>
+        <AlertDialog.Popup className={`${floating} fixed top-1/2 left-1/2 flex w-list -translate-x-1/2 -translate-y-1/2 flex-col gap-4 p-6`}>
+          <AlertDialog.Title className="flex items-baseline gap-2 text-title">
+            {L.지급}
+            <span>{p.pay.name}</span>
+            <span className="tabular-nums">{num(p.pay.amount)}</span>
+          </AlertDialog.Title>
+          <div className="flex justify-end gap-2">
+            <AlertDialog.Close className={button}>{L.취소}</AlertDialog.Close>
+            <AlertDialog.Close className={button} onClick={() => api('/pay', { id: p.pay.id }).catch(() => store.set(changedAtom, (n) => n + 1))}>
+              {L.지급}
+            </AlertDialog.Close>
+          </div>
+        </AlertDialog.Popup>
+      </AlertDialog.Portal>
+    </AlertDialog.Root>
   )
 }
 

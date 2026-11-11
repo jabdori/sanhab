@@ -14,7 +14,7 @@ type Row = { id: string; name: string; rep: string[]; address: string[]; account
 type Detail = {
   dealer: { id: string; name: string } & From
   registered: ({ item: string; value: string; same?: string; since: string; known: string | null; via: string } & From)[]
-  payouts: ({ ym: string; amount: number; status: string } & From)[]
+  payouts: ({ ym: string; amount: number; status: string; state?: string; state_source?: string } & From)[]
 }
 
 const src = (f: From) => <Source kind={f.source} file={f.file} row={f.row} />
@@ -94,9 +94,14 @@ function Payouts() {
         rows={d.payouts.map((p) => [
           p.ym,
           num(p.amount),
-          // 원본의 값 그대로. 승인·반려가 아닌 값(미지급)은 대기의 색
-          <Pill tone={p.status === L.승인 ? 'good' : p.status === L.반려 ? 'bad' : 'wait'}>{p.status}</Pill>,
-          src(p),
+          // 이 앱이 상태를 준 지급은 그 상태(대기·재심사·완료)와 그 상태의 출처, 아직 손대지 않은 지급은 원본의 값 그대로(승인·반려가 아닌 미지급은 대기의 색).
+          // 어느 쪽이든 출처 표지는 원본의 행을 연다
+          p.state ? (
+            <Pill tone={p.state === L.완료 ? 'good' : p.state === L.재심사 ? 'again' : 'wait'}>{p.state}</Pill>
+          ) : (
+            <Pill tone={p.status === L.승인 ? 'good' : p.status === L.반려 ? 'bad' : 'wait'}>{p.status}</Pill>
+          ),
+          src(p.state ? { ...p, source: p.state_source ?? p.source } : p),
         ])}
       />
     </section>

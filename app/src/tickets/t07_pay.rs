@@ -25,7 +25,7 @@ async fn list(Extension(me): Extension<Me>) -> R {
 }
 
 /// 지급 상세. 가운데: 대리점·귀속월·금액(`pay`), 지금 등록된 계좌(`accounts`), 이 지급을 승인한 심사(`pay.review`).
-/// 오른쪽: 지금 역할이 지급으로 표시할 수 있는지(`can`), 이력(`history`). 지급 작업이 아직 없는 지급은 404
+/// 오른쪽: 담당하는 역할(`role`), 지금 역할이 지급으로 표시할 수 있는지(`can`), 이력(`history`). 지급 작업이 아직 없는 지급은 404
 async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
     let r = q1(&me.db, "
         LET $p = type::record('payout', $id);
@@ -33,6 +33,7 @@ async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
         RETURN {
             pay: (SELECT record::id(id) AS id, name, record::id($d) AS dealer, ym, amount, state, { id: record::id(review), name: review.name } AS review, source, file.path AS file, row FROM $p WHERE state != NONE)[0],
             accounts: (SELECT out.value AS value, source, file.path AS file, row FROM acct WHERE in = $d AND since <= fn::today() AND (until = NONE OR until > fn::today()) ORDER BY since),
+            role: '회계·자금',
             can: fn::payable($p),
             history: (SELECT role, time::format(at, '%Y-%m-%d') AS at, source FROM remit WHERE payout = $p ORDER BY stamp),
         };", json!({ "id": id })).await?;
@@ -42,9 +43,12 @@ async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
     Ok(Json(r))
 }
 
-/// 지급으로 표시: `{ id }`. 역할의 세션으로 `remit`을 만들고, 권한이 없으면 DB가 거절한다(빈 결과 → 403)
+/// 지급으로 표시: `{ id }`. 역할의 세션으로 `remit`을 만들고, 권한이 없으면 DB가 거절한다(빈 결과 → 403). 본문의 꼴이 틀리면 400
 async fn pay(Extension(me): Extension<Me>, Json(b): Json<J>) -> R {
-    let made = q1(&me.db, "CREATE remit SET payout = type::record('payout', $id) RETURN VALUE record::id(payout);", json!({ "id": b["id"].as_str().unwrap_or("") })).await?;
+    // 본문의 꼴이 틀리면 400. DB의 문구는 밖으로 내보내지 않는다
+    let bad = || err(StatusCode::BAD_REQUEST, "대상");
+    let id = b["id"].as_str().filter(|i| !i.is_empty()).ok_or_else(bad)?;
+    let made = q1(&me.db, "CREATE remit SET payout = type::record('payout', $id) RETURN VALUE record::id(payout);", json!({ "id": id })).await.map_err(|_| bad())?;
     if made.as_array().is_none_or(Vec::is_empty) {
         return Err(err(StatusCode::FORBIDDEN, "권한"));
     }
@@ -84,7 +88,12 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(d["pay"] == json!({ "id": id, "name": "대성상사1", "dealer": "D-001", "ym": "2026-06", "amount": 988_932, "state": "대기", "review": { "id": one, "name": "대성상사1" },
         "source": "원본", "file": "01_corevia/sales/sales_rebate_payment_cv.csv", "row": 7 }), "지급 상세 {}", d["pay"]);
     ensure!(account["value"].is_string() && d["accounts"] == json!([{ "value": account["value"], "source": "원본", "file": "01_corevia/master/m_agency_cv.csv", "row": 2 }]), "계좌 {}", d["accounts"]);
-    ensure!(d["can"] == true && d["history"] == json!([]), "조치 {d}");
+    ensure!(d["can"] == true && d["role"] == acct && d["history"] == json!([]), "조치 {d}");
+    // 대리점 상세의 지급 줄: 이 앱이 상태를 준 6월분은 그 상태와 출처(시연), 손대지 않은 1~5월분은 원본의 값뿐. 원본의 값과 행은 그대로다
+    let line = async || -> Result<Vec<J>> { Ok(rows(&c.get(acct, "/api/dealers/D-001").await?["payouts"])) };
+    let l = line().await?;
+    ensure!(l.len() == 6 && l[..5].iter().all(|p| p["status"] == "승인" && p["state"].is_null()), "손대지 않은 지급 {l:?}");
+    ensure!(l[5]["state"] == "대기" && l[5]["state_source"] == "시연" && l[5]["status"] == "미지급" && l[5]["source"] == "원본" && l[5]["row"] == 7, "대리점 상세의 6월 줄 {}", l[5]);
     ensure!(c.get(support, &format!("/api/pays/{id}")).await?["can"] == false, "영업지원에게 조치가 보임");
 
     // 영업임원이 박상현 그룹의 심사를 승인 → 그 심사의 지급 3건마다 작업. 담당 4건(금액이 큰 순), 승인한 영업임원은 진행에서 3건을 본다
@@ -124,6 +133,13 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(counts().await? == json!({ "대기": 3, "재심사": 0, "완료": 1 }), "대기 3 완료 1");
     ensure!(pays(acct, "mine").await?.len() == 3 && pays(support, "going").await?.len() == 3, "지급 뒤의 작업");
     ensure!(pay(acct, &id).await?.0 == 403, "완료된 지급을 다시 지급");
+    let l = line().await?;
+    ensure!(l[5]["state"] == "완료" && l[5]["state_source"] == "시연" && l[5]["status"] == "미지급", "지급 뒤 대리점 상세의 6월 줄 {}", l[5]);
+    // 본문의 꼴이 틀린 요청은 400이고 DB의 문구가 나가지 않는다
+    for body in [json!({}), json!({ "id": 5 }), json!({ "id": "" }), json!([]), json!({ "id": ["x"] })] {
+        let (code, r) = c.post(acct, "/api/pay", body.clone()).await?;
+        ensure!(code == 400 && r == json!({ "error": "대상" }), "틀린 본문 {body} → {code} {r}");
+    }
     // 화면의 길로도 된다
     let (code, r) = pay(acct, &big).await?;
     ensure!(code == 200 && r["id"] == big.as_str() && counts().await? == json!({ "대기": 2, "재심사": 0, "완료": 2 }), "지급 {code} {r}");

@@ -10,6 +10,8 @@ export type Pay = {
   pay: { id: string; name: string; dealer: string; ym: string; amount: number; state: string; review: { id: string; name: string } } & From
   /** 대리점에 지금 등록된 계좌 */
   accounts: ({ value: string } & From)[]
+  /** 지급을 담당하는 역할 */
+  role: string
   /** 지금 역할이 지급으로 표시할 수 있는지 */
   can: boolean
   history: { role: string; at: string; source: string }[]

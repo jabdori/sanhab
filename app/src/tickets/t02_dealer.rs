@@ -25,7 +25,8 @@ async fn list(Extension(me): Extension<Me>) -> R {
     Ok(Json(q1(&me.db, sql, json!({})).await?))
 }
 
-/// 대리점 상세: 등록(식별자와 변경일·인지일·경로)과 귀속월별 지급. 인지일이 없으면(null) 미상이다
+/// 대리점 상세: 등록(식별자와 변경일·인지일·경로)과 귀속월별 지급. 인지일이 없으면(null) 미상이다.
+/// 지급의 `status`는 원본의 값, `state`·`state_source`는 이 앱이 준 지급의 상태와 그 출처(07. 없으면 아직 손대지 않은 지급)
 async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
     // 선의 공통 열. $item은 화면의 이름표, 값은 가리키는 노드에서 꺼낸다
     let edge = |item: &str, table: &str, value: &str| {
@@ -39,7 +40,7 @@ async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
         RETURN {{
             dealer: (SELECT record::id(id) AS id, name, source, file.path AS file, row FROM $d)[0],
             registered: array::concat({}, {}, {}),
-            payouts: (SELECT ym, amount, status, source, file.path AS file, row FROM payout WHERE ->payout_of->dealer CONTAINS $d ORDER BY ym)
+            payouts: (SELECT ym, amount, status, state, state_source, source, file.path AS file, row FROM payout WHERE ->payout_of->dealer CONTAINS $d ORDER BY ym)
         }};",
         edge("대표자", "rep", "out.name AS value, out.same AS same"),
         edge("주소", "addr", "out.value AS value"),

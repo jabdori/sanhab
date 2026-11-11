@@ -9,7 +9,8 @@ type Dot = { id: string; name: string }
 export type Decision = { kind: string; role: string; at: string; reason: { class?: string; memo?: string } | null; source: string }
 export type Review = {
   review: { id: string; name: string; ym: string; status: string; marks: string[]; total: number; limit: number; approver: string; fixed: string | null; source: string }
-  members: (Dot & { match: string[]; pay: ({ amount: number } & From) | null })[]
+  /** pays: 그 구성원의 이 귀속월 지급 전부(합산에 든 것). 없을 수 있다 */
+  members: (Dot & { match: string[]; pays: ({ amount: number } & From)[] })[]
   relation: { left: Dot[]; mid: Dot[]; right: Dot[]; lines: [string, string][] }
   rules: ({ name: string; ver: number; value: number; title: string; first: number; last: number; text: string } & From)[]
   /** 지금 역할이 할 수 있는 조치. reason은 사유(분류)가 필수인지 */

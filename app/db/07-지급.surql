@@ -3,6 +3,7 @@
 -- 역할이 쓰는 것은 지급 표시(remit) 하나뿐이고 나머지는 이벤트가 쓴다.
 
 DEFINE FIELD state ON payout TYPE option<string> ASSERT $value = NONE OR $value IN ['대기', '재심사', '완료'];   -- 지급의 상태. 없으면 아직 승인된 심사에 들지 않은 것
+DEFINE FIELD state_source ON payout TYPE option<string>;      -- 그 상태를 만든 것의 출처(사람의 조치면 시연). 대리점 상세가 상태 옆에 보인다
 DEFINE FIELD review ON payout TYPE option<record<review>>;   -- 이 지급을 승인한 심사
 DEFINE FIELD name ON payout TYPE option<string>;             -- 작업 목록의 "대상"(대리점 이름)
 DEFINE FIELD total ON payout TYPE option<int>;               -- 작업 목록의 금액 열(04의 목록이 대상의 total을 읽는다)
@@ -27,13 +28,13 @@ DEFINE INDEX remit_once ON remit FIELDS payout UNIQUE;
 -- 담당은 회계·자금, 접수한 영업지원과 승인한 역할은 진행에서 본다
 DEFINE EVENT t07_task ON decision WHEN $event = 'CREATE' AND $after.kind = '승인' THEN {
     FOR $p IN (SELECT VALUE id FROM payout WHERE id INSIDE $after.review.payouts AND status = '미지급' AND state = NONE) {
-        UPDATE $p SET state = '대기', review = $after.review, name = (->payout_of->dealer)[0].name, total = amount;
+        UPDATE $p SET state = '대기', state_source = $after.source, review = $after.review, name = (->payout_of->dealer)[0].name, total = amount;
         CREATE task SET kind = '지급', view = '지급', target = $p, role = '회계·자금', also = array::union(['영업지원'], [$after.role]), source = '계산';
     };
 };
 
 -- 지급으로 표시되면: 지급은 완료, 지급 작업도 끝난다. 뒤 티켓(08 대사)은 `DEFINE EVENT … ON remit WHEN $event = 'CREATE'`로 뒤따를 일을 건다
 DEFINE EVENT t07_done ON remit WHEN $event = 'CREATE' THEN {
-    UPDATE $after.payout SET state = '완료';
+    UPDATE $after.payout SET state = '완료', state_source = $after.source;
     UPDATE task SET state = '완료' WHERE target = $after.payout AND kind = '지급';
 };
