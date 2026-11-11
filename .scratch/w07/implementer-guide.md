@@ -70,7 +70,6 @@
 - **조회 경로**: `GET /api/dealers`(목록) · `GET /api/dealers/{id}`(`{ dealer, registered[], payouts[] }`, 날짜는 `YYYY-MM-DD`, 인지일 미상은 `null`) · `GET /api/origin?file=<경로>&row=<행>`(원본의 한 행 `cells`와 `sha`). 지급의 `status`는 원본 값(승인·미지급·반려) 그대로이고, D19의 해석(미지급 → 대기)은 심사 티켓이 한다.
 - **공통 부품**: `ui/Table.tsx`(`Table` — `head`, `rows`, `right`(오른쪽 정렬 열), `current`(열어 둔 줄), 줄이 없으면 `없음`. `num()`은 금액 표기) · `ui/Title.tsx`(`Title` 제목 줄 — `name`, `sub`, children에 상태 표지·덧표시) · `ui/Source.tsx`(`Source` 출처 표지 — `kind`와 원본이면 `file`·`row`, 그 밖의 출처는 children에 열릴 내용).
 - **대리점 화면의 조각**: 목록은 `list`(메뉴 대리점), 상세는 `fact`에 `kind: L.대리점`으로 끼운다. 가운데의 `order`는 제목 줄과 등록 100, 지급 300이다. 관계(03)는 200, 지급 아래에 놓일 것(정황, 소명)은 400부터 쓴다. `order`를 적지 않으면 티켓 순번(작은 수)이 되어 제목 줄 위에 놓이므로 대리점 상세에 끼우는 조각은 반드시 적는다. 조각 사이의 간격은 조각이 `mb-4`로 낸다.
-- **표**: `Table`의 칸은 줄을 바꾸지 않고, 좁으면 그 표만 가로로 민다(`tokens.md`). 출처 표지는 원본의 행을 받은 뒤에 열린다.
 
 03 관련자가 정한 것.
 - **계산은 한 곳**(`app/src/tickets/t03_related.rs`, 저장하는 것 없음): `links(db, period) -> Vec<Link>`가 계산에 쓸 식별자 선을 읽고, `matches(&links, a, b)`(일치하는 식별자의 종류, 둘 이상이면 관련자)와 `groups(&links)`(전이적으로 이은 그룹. 모든 대리점이 한 그룹에 들고 관련자가 없으면 혼자, 비대상 대리점 포함)가 그 선만으로 계산한다. 뒤 티켓은 `super::t03_related::{links, matches, groups, Link, ITEMS}`를 쓴다. `Link { dealer, name, item, node, value }`에서 `item`은 `ITEMS`(대표자·주소·계좌)의 자리, `node`는 가리키는 노드의 id 글자다. 일치는 같은 `node`인지로 본다(나뉜 동명이인은 다른 노드라 일치가 아니다).
@@ -79,7 +78,8 @@
 - **가설**(12번): `links()`의 결과에 `Link`를 더하거나 빼서 `groups()`·`matches()`를 다시 부른다. 두 함수는 DB를 읽지 않는다.
 - **조회 경로**: `GET /api/dealers/{id}/related` → `{ id, idents[{ id, item, value }], near[{ id, name, match[], related }], lines[[대리점 id, 식별자 id]], group[{ id, name }], source: "계산" }`. `near`는 식별자를 하나라도 함께 가리키는 대리점(관련자가 아닌 곳도 `related: false`로 들어 있다), `group`은 자기를 포함한다. 지금(오늘) 기준이다.
 - **공통 부품**: `ui/Relation.tsx`(`Relation` 관계 그림 — `left`(대상 대리점, 둥근 모양) · `mid`(사람·주소·계좌, 각진 모양) · `right`(이웃 대리점) · `lines`([대리점 id, 식별자 id]). 점은 `{ id, name }`. SVG로 직접 그리고 라이브러리는 없다. 같은 내용의 표는 쓰는 쪽이 함께 둔다). 심사는 `left`에 구성원 한 곳, `right`에 나머지를 넣으면 `ux-plan.md`의 그림이 된다.
-- **대리점 상세의 "관계"**: `fact`에 `kind: L.대리점`으로 끼웠다. 02의 등록·지급이 한 조각이라 그 사이에 끼울 수 없어 지급 아래에 놓인다.
+- **대리점 상세의 "관계"**: `fact`에 `kind: L.대리점`, `order: 200`으로 끼웠다(등록과 지급 사이).
+- **표**: `Table`의 칸은 줄을 바꾸지 않고, 좁으면 그 표만 가로로 민다(`tokens.md`). 출처 표지는 원본의 행을 받은 뒤에 열린다.
 
 04 심사가 정한 것. 05·07·09·22가 이 위에서 동시에 진행되므로, 아래의 자리에 **자기 파일에서 더하기만** 한다(04의 파일은 고치지 않는다).
 - **테이블**(`app/db/04-심사.surql`): `clause`(조항: `title`, `doc` → `origin`, `first`·`last` 행, `text`) · `rule`(규칙 버전: `name` 한도·합산, `ver`, `value`, `clause`, 시행 기간 `since`·`until`) · `review`(심사: `ym`, `name`, `members`, `payouts`, `rules`, `total`, `limit`, `approver`, `status`, `marks`, `fixed`) · `act`(조치) · `decision`(결정: `review`, `kind`, `by`, `role`, `at`, `reason`, `source`) · `task`(작업: `kind`, `view`, `target`, `role`, `also`, `state`). 선 7~13·23·24는 선 테이블이 아니라 기록을 가리키는 필드다(스키마의 주석에 선 번호). 역할이 쓸 수 있는 것은 `decision`의 생성뿐이고 나머지는 코드(root)와 이벤트만 쓴다.
@@ -95,4 +95,3 @@
 - **심사 상세에 조각을 끼우기**: 값은 `useReview()`(`tickets/04-심사/review.ts`)로 읽는다(조각마다 따로 부르지 않고 조치 뒤에 저절로 다시 읽힌다). 가운데의 04 조각은 `order` -40(제목·숫자 줄) · -30(구성) · -20(관계) · -10(규정)이다. 조각 사이의 간격은 02와 같이 조각이 `mb-4`로 낸다. `{ slot: 'fact', kind: L.심사 }`로 끼운 조각은 `order`를 적지 않으면 규정 아래에 놓이고(11의 정황 줄, 12의 가설), 사이에 끼우려면 그 사이의 값을 적는다(09의 당시/현재: -35). 서버의 값이 더 필요하면 자기 경로를 따로 둔다.
 - **규칙 버전(22)**: 새 버전은 `rule`에 `since`를 넣어 만들고 앞 버전의 `until`을 같은 날로 닫은 뒤 `recalc`를 부른다. 귀속월의 끝날에 시행 중인 버전이 적용된다(D14). 굳은 심사는 그때의 `rules`·`limit` 그대로다. 합산 규칙의 `value`(일치 수 2)는 기록이고, 03의 계산은 이 값을 읽지 않는다(2로 고정).
 - **공통 부품**: `ui/Mark.tsx`(`Mark` 덧표시 — 아이콘 + 글자, 색 없음).
-- **띄울 때 주의**: `CARGO_TARGET_DIR`을 같이 쓰면 `target/debug/w07`이 마지막에 빌드한 작업 트리의 것으로 바뀌고, 소스가 그대로이면 `cargo run`이 다시 만들지 않아 **다른 작업 트리의 실행 파일이 뜰 수 있다**. 띄우기 전에 `touch src/main.rs && cargo build`를 하고 바로 실행하거나 실행 파일을 복사해 쓴다.
