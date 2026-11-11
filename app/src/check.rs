@@ -49,6 +49,18 @@ impl Check {
         Ok((code, serde_json::from_str(&text).unwrap_or(J::String(text))))
     }
 
+    /// 본문을 글자 그대로 보낸다(JSON이 아닌 본문, `Content-Type` 없는 요청의 검사)
+    pub async fn raw(&self, role: &str, path: &str, body: &str, kind: Option<&str>) -> Result<(u16, J)> {
+        let mut req = self.http.post(format!("{}{path}", self.base)).bearer_auth(self.token(role)).body(body.to_string());
+        if let Some(k) = kind {
+            req = req.header("content-type", k);
+        }
+        let res = req.send().await?;
+        let code = res.status().as_u16();
+        let text = res.text().await?;
+        Ok((code, serde_json::from_str(&text).unwrap_or(J::String(text))))
+    }
+
     /// 역할로 조회. 200이 아니면 실패
     pub async fn get(&self, role: &str, path: &str) -> Result<J> {
         let (code, r) = self.call(Some(self.token(role)), "GET", path, None).await?;

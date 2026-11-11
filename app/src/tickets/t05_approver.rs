@@ -67,6 +67,14 @@ pub async fn check(c: &Check) -> Result<()> {
     // 없는 심사·없는 조치는 대상. 권한이 없으면 사유나 상태가 틀려도 권한이다
     ensure!(decide(exec, "2026-06-D-999", "보류", json!({ "class": "소명" })).await? == "대상" && decide(exec, group, "통과", J::Null).await? == "대상", "없는 대상");
     ensure!(c.post(exec, "/api/decide", json!({ "ids": "x" })).await? == (400, json!({ "error": "대상" })), "틀린 꼴");
+    // JSON이 아닌 본문, 빈 본문, Content-Type 없는 요청도 400 `대상`이고(서버의 문장이 나가지 않는다) 아무것도 바뀌지 않는다. 본문을 받는 다른 경로도 같다
+    let good = r#"{"ids":["2026-06-D-011"],"kind":"승인"}"#;
+    for (path, body, kind) in [("/api/decide", "승인", Some("application/json")), ("/api/decide", "", Some("application/json")), ("/api/decide", "{", None), ("/api/decide", "ids=x", Some("text/plain")), ("/api/pay", "", None), ("/api/enter", "x", None)] {
+        ensure!(c.raw(exec, path, body, kind).await? == (400, json!({ "error": "대상" })), "틀린 본문 {path} {body:?}");
+    }
+    // 꼴이 맞는 JSON은 Content-Type이 없어도 읽는다
+    ensure!(c.raw(support, "/api/decide", good, None).await? == (403, json!({ "error": "권한" })), "Content-Type 없는 JSON");
+    ensure!(review(exec, group).await?["review"]["status"] == "대기" && count().await? == json!([0, 0]), "틀린 본문 뒤");
 
     // 보류: 상태 보류, 굳지 않는다. 사유는 결정한 사람·날짜와 함께 남는다(선 13)
     ensure!(decide(exec, group, "보류", json!({ "class": "기타", "memo": "소명 대기" })).await? == "", "보류");
@@ -129,5 +137,11 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(must(flagged).await? == true && must(plain).await? == false, "정황이 걸린 심사의 사유");
     ensure!(decide(support, flagged, "승인", J::Null).await? == "사유" && decide(support, flagged, "승인", json!({ "class": "경미" })).await? == "", "정황이 걸린 심사의 승인");
     ensure!(decide(support, plain, "승인", J::Null).await? == "", "정황이 없는 심사의 승인");
+
+    // 같은 심사에 승인 둘을 동시에 보내면 하나만 되고, 진 쪽의 낱말은 상태다(이미 승인된 심사)
+    let both = tokio::join!(decide(support, "2026-06-D-009", "승인", J::Null), decide(support, "2026-06-D-009", "승인", J::Null));
+    let mut got = [both.0?, both.1?];
+    got.sort();
+    ensure!(got == ["", "상태"] && review(support, "2026-06-D-009").await?["history"].as_array().is_some_and(|h| h.len() == 1), "동시에 보낸 승인 {got:?}");
     Ok(())
 }

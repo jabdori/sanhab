@@ -2,7 +2,7 @@
 //! 지급으로 표시하는 것은 역할의 세션으로 `remit`을 만드는 것이고, 누가 할 수 있는지는 DB(`fn::payable`)가 정한다. 은행 연동은 없다(모의 처리).
 use crate::check::Check;
 use crate::db::{Db, as_user, q, q1};
-use crate::{Me, R, err, refuse};
+use crate::{Body, Me, R, err, refuse};
 use anyhow::{Result, ensure};
 use axum::extract::Path;
 use axum::http::StatusCode;
@@ -44,7 +44,7 @@ async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
 }
 
 /// 지급으로 표시: `{ id }`. 쓰기 전에 거절의 낱말을 정해 돌려주고(`refuse`: 대상 → 권한 → 상태), 역할의 세션으로 `remit`을 만든다. DB의 권한 규칙은 마지막 방어선이다
-async fn pay(Extension(me): Extension<Me>, Json(b): Json<J>) -> R {
+async fn pay(Extension(me): Extension<Me>, Body(b): Body) -> R {
     // 본문의 꼴이 틀리면 대상. DB의 문구는 밖으로 내보내지 않는다
     let bad = || refuse("대상");
     let id = b["id"].as_str().filter(|i| !i.is_empty()).ok_or_else(bad)?;

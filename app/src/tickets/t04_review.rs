@@ -4,7 +4,7 @@
 use super::t03_related::{ITEMS, groups, links, matches};
 use crate::check::Check;
 use crate::db::{Db, as_user, q, q1};
-use crate::{Me, R, err, orig, refuse};
+use crate::{Body, Me, R, err, orig, refuse};
 use anyhow::{Result, ensure};
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -190,7 +190,7 @@ async fn detail(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): Pa
 /// 결정: `{ ids, kind, reason? }`. 쓰기 전에 거절의 낱말을 정해 돌려주고(`refuse`: 권한 403, 사유·상태·대상 400), 역할의 세션으로 결정을 만든다.
 /// DB의 권한 규칙은 마지막 방어선이다. 여럿이면 전부 되거나 전부 안 된다.
 /// 여러 개를 한 번에 하는 것은 승인뿐이고, 대기이고 정황이 없고 승인권자가 영업지원이고 사유가 필수가 아닌 심사만 된다(U4)
-async fn decide(Extension(me): Extension<Me>, Json(b): Json<J>) -> R {
+async fn decide(Extension(me): Extension<Me>, Body(b): Body) -> R {
     let mut ids: Vec<&str> = b["ids"].as_array().into_iter().flatten().filter_map(J::as_str).collect();
     ids.sort_unstable();
     ids.dedup();
@@ -202,8 +202,8 @@ async fn decide(Extension(me): Extension<Me>, Json(b): Json<J>) -> R {
         vars["reason"] = b["reason"].clone();
     }
     // 심사마다의 거절 낱말 가운데 첫 번째. 꼴이 틀려 DB가 계산하지 못하면 대상
-    let word = q1(&me.db, "RETURN $ids.map(|$i| fn::refusal($kind, type::record('review', $i), $reason)).filter(|$w| $w != NONE)[0];", vars.clone()).await.map_err(|_| refuse("대상"))?;
-    if let Some(w) = word.as_str() {
+    let word = async || q1(&me.db, "RETURN $ids.map(|$i| fn::refusal($kind, type::record('review', $i), $reason)).filter(|$w| $w != NONE)[0];", vars.clone()).await.map_err(|_| refuse("대상"));
+    if let Some(w) = word().await?.as_str() {
         return Err(refuse(w));
     }
     if ids.len() > 1 {
@@ -217,9 +217,10 @@ async fn decide(Extension(me): Extension<Me>, Json(b): Json<J>) -> R {
         BEGIN;
         LET $made = INSERT INTO decision $ids.map(|$i| { review: type::record('review', $i), kind: $kind, reason: $reason });
         IF array::len($made) != array::len($ids) { THROW '권한' };
-        COMMIT;").bind(vars).await.map_err(|_| refuse("대상"))?;
+        COMMIT;").bind(vars.clone()).await.map_err(|_| refuse("대상"))?;
     if !res.take_errors().is_empty() {
-        return Err(refuse("권한"));
+        // 그 사이에 다른 결정이 먼저 내려졌으면(같은 심사에 동시에 보낸 승인) 다시 따진 낱말(상태)을 돌려준다
+        return Err(refuse(word().await?.as_str().unwrap_or("권한")));
     }
     Ok(Json(json!({ "ids": ids })))
 }
