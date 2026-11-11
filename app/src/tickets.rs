@@ -32,4 +32,5 @@ tickets! {
     t04_review,
     t07_pay,
     t09_again,
+    t22_rules,
 }

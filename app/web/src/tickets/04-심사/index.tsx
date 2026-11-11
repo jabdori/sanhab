@@ -3,11 +3,11 @@
 import { AlertDialog } from '@base-ui/react/alert-dialog'
 import { Checkbox } from '@base-ui/react/checkbox'
 import { Tabs } from '@base-ui/react/tabs'
-import { useAtom } from 'jotai'
+import { useAtom, useSetAtom } from 'jotai'
 import { useState } from 'react'
 import { L } from '../../labels'
 import type { Piece } from '../../pieces'
-import { api, changedAtom, store, targetAtom, useData } from '../../state'
+import { api, changedAtom, menuAtom, store, targetAtom, useData } from '../../state'
 import { Empty } from '../../ui/Empty'
 import { Figures } from '../../ui/Figures'
 import { Mark } from '../../ui/Mark'
@@ -188,8 +188,11 @@ function Links() {
   )
 }
 
+/** 규정 줄. 조항을 누르면 메뉴 "규정"의 그 조항이 열린다(22) */
 function Rules() {
   const r = useReview()
+  const setMenu = useSetAtom(menuAtom)
+  const setTarget = useSetAtom(targetAtom)
   if (!r) return null
   return (
     <section className="mb-4 flex flex-col gap-2">
@@ -197,7 +200,12 @@ function Rules() {
       <Table
         head={[L.조항, L.규칙, L.출처]}
         rows={r.rules.map((x) => [
-          x.title,
+          <button className="cursor-pointer text-action hover:text-action-hover" onClick={() => {
+              setMenu(L.규정)
+              setTarget({ kind: L.규정, id: x.clause })
+            }}>
+            {x.title}
+          </button>,
           `${x.name} v${x.ver}`,
           <Source kind={x.source}>
             <div className="flex justify-between gap-2">
