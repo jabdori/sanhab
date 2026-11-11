@@ -63,8 +63,9 @@ function Fact() {
   if (!d) return null
   const { recon } = d
   const last = d.history.at(-1)
-  // 일치·불일치가 난 뒤에는 더 올 회신이 없다
-  const tries: (Recon['history'][number] | null)[] = recon ? d.history : [...d.history, null]
+  // 회신을 기다리는 시도(지급 전 포함)에만 빈 줄을 둔다. 실패한 뒤 아직 다시 지급하지 않았으면 다음 줄은 없다
+  const waits = !recon && (d.state === L.완료 || !d.history.length)
+  const tries: (Recon['history'][number] | null)[] = waits ? [...d.history, null] : d.history
   const accounts = d.want.accounts.length ? d.want.accounts.join(' · ') : none
   const name = (i: number, item: string) => (
     <span className="flex items-baseline gap-2">
@@ -107,6 +108,10 @@ function Fact() {
               <dl className="grid grid-cols-2 gap-x-2 gap-y-1">
                 <dt className={label}>{L.일치}</dt>
                 <dd>{L['결과 성공, 금액과 계좌 같음']}</dd>
+                <dt className={label}>{L.불일치}</dt>
+                <dd>{L['결과 성공, 금액이나 계좌 다름']}</dd>
+                <dt className={label}>{L.실패}</dt>
+                <dd>{L['결과 실패']}</dd>
               </dl>
             </Source>,
           ],
@@ -127,11 +132,13 @@ const field = 'h-head min-w-0 flex-1 rounded-box border border-line bg-bg px-2 t
 
 /** 은행 회신 입력: 금액, 계좌, 결과. 승인된 값이 미리 들어 있고 고쳐서 보낸다(모의 처리). 고칠 수 없는 조치라 확인 창을 거치고, 보낸 뒤 새 값을 받을 때까지는 다시 눌리지 않는다 */
 function Form({ d }: { d: Recon }) {
-  const [amount, setAmount] = useState(String(d.want.amount))
+  const [amount, setAmount] = useState(num(d.want.amount))
   const [account, setAccount] = useState(d.want.accounts[0] ?? '')
   const [result, setResult] = useState<string>(L.성공)
   const [sent, setSent] = useState<unknown>(null)
-  const ok = /^\d+$/.test(amount.trim()) && account.trim() !== ''
+  // 금액은 쉼표가 있는 꼴로 보이고 받는다. 보낼 때 쉼표를 뺀다. 1 이상이어야 한다
+  const won = /^[\d,]+$/.test(amount.trim()) ? Number(amount.replace(/,/g, '')) : 0
+  const ok = won >= 1 && account.trim() !== ''
   return (
     <div className="flex flex-col gap-2">
       <label className={row}>
@@ -164,7 +171,7 @@ function Form({ d }: { d: Recon }) {
             <AlertDialog.Title className="flex flex-wrap items-baseline gap-2 text-title">
               {L.회신}
               <span>{d.name}</span>
-              <span className="tabular-nums">{ok && num(Number(amount.trim()))}</span>
+              <span className="tabular-nums">{ok && num(won)}</span>
               <span>{result}</span>
             </AlertDialog.Title>
             <div className="flex justify-end gap-2">
@@ -173,7 +180,7 @@ function Form({ d }: { d: Recon }) {
                 className={button}
                 onClick={() => {
                   setSent(d)
-                  api('/reply', { id: d.id, amount: Number(amount.trim()), account: account.trim(), result }).catch(() => store.set(changedAtom, (n) => n + 1))
+                  api('/reply', { id: d.id, amount: won, account: account.trim(), result }).catch(() => store.set(changedAtom, (n) => n + 1))
                 }}
               >
                 {L.회신}

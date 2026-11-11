@@ -14,7 +14,7 @@ DEFINE FUNCTION fn::repliable($p: record<payout>) -> bool {
 -- 은행 회신: 은행이 알려 준 실제 지급 결과. 만들기만 하고 고치거나 지우지 못한다. 누가·언제는 DB가 채운다
 DEFINE TABLE reply SCHEMAFULL PERMISSIONS FOR select FULL FOR create WHERE fn::repliable(payout);
 DEFINE FIELD payout ON reply TYPE record<payout>;
-DEFINE FIELD amount ON reply TYPE int ASSERT $value >= 0;               -- 지급 금액
+DEFINE FIELD amount ON reply TYPE int ASSERT $value >= 1;               -- 지급 금액(0원인 이체는 없다)
 DEFINE FIELD account ON reply TYPE string ASSERT string::len($value) > 0;  -- 수취 계좌
 DEFINE FIELD result ON reply TYPE string ASSERT $value IN ['성공', '실패'];  -- 처리 결과
 DEFINE FIELD by ON reply TYPE option<record<staff>> VALUE $auth.id;
