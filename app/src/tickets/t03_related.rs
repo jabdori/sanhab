@@ -98,10 +98,13 @@ pub fn routes() -> Router<Db> {
 async fn related(State(db): State<Db>, Path(id): Path<String>) -> R {
     let all = links(&db, None).await?;
     let mine: Vec<&Link> = all.iter().filter(|l| l.dealer == id).collect();
-    if mine.is_empty() {
+    // 유효한 선이 하나도 없는 대리점(모두 제외되었거나 기간이 지남)도 있는 대리점이다: 이웃 없이 자기만 든 그룹
+    let me = q1(&db, "RETURN type::record('dealer', $id).name;", json!({ "id": id })).await?;
+    let Some(me) = me.as_str() else {
         return Err(err(StatusCode::NOT_FOUND, "없음"));
-    }
-    let name: BTreeMap<&str, &str> = all.iter().map(|l| (l.dealer.as_str(), l.name.as_str())).collect();
+    };
+    let mut name: BTreeMap<&str, &str> = all.iter().map(|l| (l.dealer.as_str(), l.name.as_str())).collect();
+    name.insert(&id, me);
     let dealer = |d: &str| json!({ "id": d, "name": name[d] });
     let touching: Vec<&Link> = all.iter().filter(|l| l.dealer != id && mine.iter().any(|m| m.node == l.node)).collect();
     let near: Vec<J> = touching.iter().map(|l| l.dealer.as_str()).collect::<BTreeSet<_>>().into_iter()
@@ -110,7 +113,7 @@ async fn related(State(db): State<Db>, Path(id): Path<String>) -> R {
             json!({ "id": d, "name": name[d], "match": m.iter().map(|i| ITEMS[*i]).collect::<Vec<_>>(), "related": m.len() >= 2 })
         })
         .collect();
-    let group = groups(&all).into_iter().find(|g| g.contains(&id)).unwrap_or_default();
+    let group = groups(&all).into_iter().find(|g| g.contains(&id)).unwrap_or_else(|| vec![id.clone()]);
     Ok(Json(json!({
         "id": id,
         "idents": mine.iter().map(|l| json!({ "id": l.node, "item": ITEMS[l.item], "value": l.value })).collect::<Vec<_>>(),
@@ -179,6 +182,11 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(d["near"][1] == near("D-037", "대륙상사37", &["대표자"], false) && ids(&d["group"]) == ["D-011", "D-024"], "제외된 선 {d}");
     ensure!(ids(&get("D-037").await?["group"]) == ["D-037"], "제외 뒤 대륙상사37");
     q(&c.db, "UPDATE acct SET excluded = false WHERE in = dealer:`D-037`;", json!({})).await?;
+
+    // 유효한 선이 하나도 없는 대리점: 404가 아니라 이웃 없음, 자기만 든 그룹
+    q(&c.db, "UPDATE rep, addr, acct SET excluded = true WHERE in = dealer:`D-034`;", json!({})).await?;
+    let d = get("D-034").await?;
+    ensure!(d["near"] == json!([]) && d["idents"] == json!([]) && d["lines"] == json!([]) && d["group"] == json!([{ "id": "D-034", "name": "한라인상사34" }]), "선이 없는 대리점 {d}");
 
     // 뒤 티켓이 채울 값 ②: 선의 유효 기간(13번). 성일상사24의 주소가 2026-03-10에 다른 값으로 바뀌었다면
     // 3월(하루라도 겹침)까지는 그룹이고 4월과 지금(2026-07-01)은 아니다. 등록 전의 기간에는 선이 없다
