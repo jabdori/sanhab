@@ -256,7 +256,9 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(row["name"] == "대성상사1" && row["total"] == 988_932 && row["marks"] == json!([]), "대성상사1의 줄 {row}");
     ensure!(going[0]["target"] == group && going[0]["name"] == "금강상사11 외 2" && going[0]["total"] == 3_888_097 && going[0]["role"] == exec && going[0]["pick"] == false, "박상현 그룹의 줄 {}", going[0]);
     let t = c.get(exec, "/api/tasks").await?;
-    ensure!(rows(&t["mine"]).len() == 1 && t["mine"][0]["target"] == group && t["mine"][0]["pick"] == false && rows(&t["going"]).is_empty(), "영업임원의 작업 {t}");
+    // 심사 작업만 본다(영업임원의 담당에는 뒤 티켓의 작업도 있다: 10의 추인)
+    let own: Vec<J> = rows(&t["mine"]).into_iter().filter(|m| m["kind"] == "심사").collect();
+    ensure!(own.len() == 1 && own[0]["target"] == group && own[0]["pick"] == false && rows(&t["going"]).is_empty(), "영업임원의 작업 {t}");
     for role in ["내부 감시", "회계·자금"] {
         let t = c.get(role, "/api/tasks").await?;
         ensure!(!rows(&t["mine"]).iter().chain(&rows(&t["going"])).any(|m| m["kind"] == "심사"), "{role}의 작업");

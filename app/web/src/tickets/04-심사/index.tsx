@@ -18,7 +18,7 @@ import { Source } from '../../ui/Source'
 import { button, floating, label } from '../../ui/styles'
 import { Table, num } from '../../ui/Table'
 import { Title } from '../../ui/Title'
-import { type Decision, reasonAtom, useReview } from './review'
+import { type Decision, bundled, reasonAtom, useReview } from './review'
 
 type Task = { id: string; kind: string; view: string; target: string; name?: string; ym?: string; total?: number | null; marks: string[]; role: string; pick: boolean }
 
@@ -40,7 +40,6 @@ function Tasks() {
   const list = d[tab]
   // 고른 줄 가운데 아직 고를 수 있는 것만 센다(승인되면 목록에서 빠진다)
   const chosen = picked.filter((id) => d.mine.some((t) => t.pick && t.target === id))
-  const open = !!target
   return (
     <div className="flex flex-col gap-2">
       <Tabs.Root value={tab} onValueChange={setTab}>
@@ -54,8 +53,8 @@ function Tasks() {
         </Tabs.List>
       </Tabs.Root>
       <Table
-        head={['', L.종류, L.대상, ...(open ? [] : [L.귀속월]), L.금액, ...(open ? [] : [L.표시]), ...(tab === 'going' && !open ? [L.담당] : [])]}
-        right={[open ? 3 : 4]}
+        head={['', L.종류, L.대상, L.귀속월, L.금액, L.표시, ...(tab === 'going' ? [L.담당] : [])]}
+        right={[4]}
         current={list.findIndex((t) => t.view === target?.kind && t.target === target?.id)}
         rows={list.map((t) => [
           t.pick && (
@@ -72,10 +71,10 @@ function Tasks() {
           <button className="cursor-pointer text-left text-action hover:text-action-hover" onClick={() => setTarget({ kind: t.view, id: t.target })}>
             {t.name}
           </button>,
-          ...(open ? [] : [t.ym]),
+          t.ym,
           t.total == null ? null : num(t.total),
-          ...(open ? [] : [<span className="flex gap-2">{marks(t.marks)}</span>]),
-          ...(tab === 'going' && !open ? [t.role] : []),
+          <span className="flex gap-2">{marks(t.marks)}</span>,
+          ...(tab === 'going' ? [t.role] : []),
         ])}
       />
       {tab === 'mine' && chosen.length > 0 && (
@@ -228,7 +227,7 @@ function Rules() {
 export const Line = ({ d }: { d: Decision }) => (
   <div className="text-body break-keep">
     <p className="tabular-nums">{[d.kind, d.role, d.at ?? L.미상, d.reason?.class ?? `${L.사유} ${L.없음}${d.source === L.원본 ? `(${L.원본})` : ''}`].join(' · ')}</p>
-    {d.reason?.memo && <p className="text-text-sub">{d.reason.memo}</p>}
+    {d.reason?.memo && <p className="text-text-sub wrap-anywhere">{d.reason.memo}</p>}
   </div>
 )
 
@@ -244,8 +243,10 @@ function Action() {
   const id = r?.review.id
   useEffect(() => setBad(null), [id])
   if (!r) return null
+  // 묶음에 내리는 조치(추인·거부·종결·이견)는 한 건 화면에서 누르지 않는다. 묶음으로 가는 길은 10이 낸다
+  const acts = r.actions.filter((a) => !bundled.includes(a.kind))
   const last = r.history.at(-1)
-  if (!r.actions.length)
+  if (!acts.length)
     return last ? (
       <Line d={last} />
     ) : (
@@ -256,7 +257,7 @@ function Action() {
     )
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {r.actions.map((a) => (
+      {acts.map((a) => (
         <button key={a.kind} className={button} disabled={sent === r || !ready(a.kind, a.reason, reason)}
           onClick={() => {
             setSent(r)
