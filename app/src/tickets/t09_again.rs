@@ -86,7 +86,7 @@ pub fn routes() -> Router<Db> {
 }
 
 /// 당시 / 현재: 굳은 승인의 당시 값(`then`: 구성원 수, 합산, 승인권자)과 현재 계산(`now`: 구성원, 합산, 한도, 승인권자, 규칙 버전).
-/// `known`은 현재의 구성을 만든 식별자 선의 인지일 가운데 가장 늦은 날(모두 미상이면 null). 굳은 승인이 아니면 404
+/// `known`은 현재의 구성을 만든 식별자 선의 인지일 가운데 가장 늦은 날(모두 미상이면 null), `paid`는 그 심사의 지급 가운데 원본에 지급일이 있는 것. 굳은 승인이 아니면 404
 async fn again(State(db): State<Db>, Path(id): Path<String>) -> R {
     let Some(n) = current(&db).await?.remove(&id) else {
         return Err(err(StatusCode::NOT_FOUND, "없음"));
@@ -107,25 +107,28 @@ async fn again(State(db): State<Db>, Path(id): Path<String>) -> R {
             members: (SELECT record::id(id) AS id, name FROM $m),
             rules: (SELECT name, ver FROM $rules.map(|$x| type::record('rule', $x)) ORDER BY name),
             known: IF array::len($k) > 0 THEN time::format(time::max($k), '%Y-%m-%d') END,
+            paid: (SELECT time::format(paid, '%Y-%m-%d') AS at, source, file.path AS file, row FROM $r.payouts WHERE paid != NONE ORDER BY at),
         };", json!({ "id": id, "members": n.members, "nodes": nodes, "rules": n.rules })).await?;
     Ok(Json(json!({
-        "id": id, "again": n.again, "then": r["then"], "known": r["known"], "source": "계산",
+        "id": id, "again": n.again, "then": r["then"], "known": r["known"], "paid": r["paid"], "source": "계산",
         "now": { "members": r["members"], "total": n.total, "limit": n.limit, "approver": n.approver, "rules": r["rules"] },
     })))
 }
 
 pub async fn seed(db: &Db) -> Result<()> {
     // 원본의 승인·반려마다 심사 하나(당시 구성 = 그 대리점 단독)와 결정 하나. 승인권자는 원본의 값(영업지원팀 → 역할 영업지원), 사유는 없다.
-    // 원본에는 승인한 날이 따로 없어 결정의 날짜는 지급일이고, 반려는 날짜가 없다(미상).
-    // 반려의 `fixed`는 적재한 날(시스템의 오늘)이다: 다시 계산하지 않게 하는 표시일 뿐 화면에 보이지 않는다
+    // 원본에는 승인하거나 반려한 날이 없다: 결정의 날짜는 비운다(미상). 지급일은 지급(`payout.paid`)의 값으로 따로 보인다.
+    // 심사의 `fixed`는 화면에 보이지 않는 값이다: 승인은 지급일(승인은 지급보다 늦을 수 없으므로 승인 시점의 상한), 반려는 적재한 날.
+    // 승인 결정이 만들어질 때 04의 이벤트가 `fixed`를 결정의 날짜(없음)로 바꾸므로 결정을 만든 뒤에 넣는다
     q(db, "
         FOR $p IN (SELECT id, ym, amount, status, approver, paid, file, row, (->payout_of->dealer)[0] AS dealer FROM payout WHERE status INSIDE ['승인', '반려']) {
             LET $r = type::record('review', string::concat($p.ym, '-', record::id($p.dealer)));
             LET $who = string::replace($p.approver, '팀', '');
             CREATE $r SET ym = $p.ym, name = $p.dealer.name, members = [$p.dealer], payouts = [$p.id], rules = [], total = $p.amount,
-                approver = $who, status = $p.status, fixed = $p.paid ?? fn::today(), source = '원본', file = $p.file, row = $p.row;
+                approver = $who, status = $p.status, fixed = fn::today(), source = '원본', file = $p.file, row = $p.row;
             UPDATE $p.id SET review = $r;
-            CREATE decision SET review = $r, kind = $p.status, role = $who, at = $p.paid, source = '원본', file = $p.file, row = $p.row;
+            CREATE decision SET review = $r, kind = $p.status, role = $who, source = '원본', file = $p.file, row = $p.row;
+            UPDATE $r SET fixed = $p.paid ?? fn::today();
         };", json!({})).await?;
     remark(db).await
 }
@@ -145,7 +148,7 @@ pub async fn check(c: &Check) -> Result<()> {
         count(SELECT id FROM decision WHERE role != '영업지원' OR reason != NONE OR source != '원본' OR by != NONE OR file = NONE OR row = NONE),
         count(SELECT id FROM review WHERE status = '승인' AND fixed != NONE), count(SELECT id FROM review WHERE status = '반려' AND fixed != NONE),
         count(SELECT id FROM review WHERE fixed != NONE AND (array::len(members) != 1 OR array::len(payouts) != 1 OR rules != [] OR limit != NONE OR approver != '영업지원' OR source != '원본' OR total != payouts[0].amount)),
-        count(SELECT id FROM decision WHERE kind = '승인' AND at != review.payouts[0].paid), count(SELECT id FROM decision WHERE kind = '반려' AND at != NONE),
+        count(SELECT id FROM review WHERE status = '승인' AND fixed != NONE AND fixed != payouts[0].paid), count(SELECT id FROM decision WHERE at != NONE),
     ];", json!({})).await?;
     ensure!(n == json!([196, 4, 0, 196, 4, 0, 0, 0]), "과거의 결정 {n}");
     // 원본의 식별자는 인지일이 미상이다
@@ -175,12 +178,13 @@ pub async fn check(c: &Check) -> Result<()> {
         }
     }
     ensure!(count == 15 && sum == 22_238_349, "해당 지급 {count}건 {sum}");
-    // 과거의 승인 한 건: 원본의 행(지급일 2026-02-04), 사유 없음, 출처 원본
+    // 과거의 승인 한 건: 원본의 행, 사유 없음, 출처 원본. 승인한 날은 원본에 없어 미상이고, 지급일(2026-02-04)은 지급일로 따로 나온다
     let first = review("2026-01-D-011").await?;
     ensure!(first["review"]["total"] == 1_867_253 && first["review"]["fixed"] == "2026-02-04" && first["review"]["file"] == "01_corevia/sales/sales_rebate_payment_cv.csv" && first["review"]["row"] == 50, "금강상사11의 1월 {}", first["review"]);
     let mut h = first["history"].clone();
     h[0].as_object_mut().map(|o| o.remove("stamp"));
-    ensure!(h == json!([{ "kind": "승인", "role": support, "at": "2026-02-04", "reason": null, "source": "원본" }]), "이력 {h}");
+    ensure!(h == json!([{ "kind": "승인", "role": support, "at": null, "reason": null, "source": "원본" }]), "이력 {h}");
+    ensure!(again("2026-01-D-011").await?["paid"] == json!([{ "at": "2026-02-04", "source": "원본", "file": "01_corevia/sales/sales_rebate_payment_cv.csv", "row": 50 }]), "지급일");
     // 재검토가 아닌 과거의 승인: 현재도 단독, 같은 합산. 과거의 반려: 날짜 미상, 현재 계산을 붙이지 않는다. 대기인 심사에도 없다
     let a = again("2026-01-D-001").await?;
     ensure!(a["again"] == false && a["then"] == json!({ "members": 1, "total": 925_709, "approver": support }) && a["now"]["total"] == 925_709 && a["now"]["approver"] == support && a["now"]["members"] == json!([{ "id": "D-001", "name": "대성상사1" }]), "대성상사1의 1월 {a}");
@@ -204,7 +208,7 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(c.post(exec, "/api/decide", json!({ "ids": ["2026-06-D-011"], "kind": "승인" })).await?.0 == 200, "그룹의 승인");
     remark(&c.db).await?;
     let a = again("2026-06-D-011").await?;
-    ensure!(a["again"] == false && a["now"]["total"] == 3_888_097 && a["then"] == json!({ "members": 3, "total": 3_888_097, "approver": exec }) && review("2026-06-D-011").await?["review"]["marks"] == json!([]), "임원이 승인한 그룹 {a}");
+    ensure!(a["again"] == false && a["paid"] == json!([]) && a["now"]["total"] == 3_888_097 && a["then"] == json!({ "members": 3, "total": 3_888_097, "approver": exec }) && review("2026-06-D-011").await?["review"]["marks"] == json!([]), "임원이 승인한 그룹 {a}");
 
     // 뒤 티켓이 끼우는 자리 ①(20 소명): 선이 제외되면 다시 계산해 표시가 풀린다. 성일상사24의 주소가 제외되면 금강상사11과는 대표자만 일치 → 그룹은 두 곳
     q(&c.db, "UPDATE addr SET excluded = true WHERE in = dealer:`D-024`;", json!({})).await?;
