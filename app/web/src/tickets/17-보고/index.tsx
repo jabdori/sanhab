@@ -53,14 +53,16 @@ function Head() {
   const bump = useSetAtom(tickAtom)
   const [busy, setBusy] = useState(false)
   const [bad, setBad] = useState<string | null>(null)
-  const [id, state] = [signal?.signal.id, d?.report?.state]
+  const id = signal?.signal.id
+  // 보고가 아직 없거나 대기이면 AI가 쓰는 동안이다
+  const waiting = !!d && (!d.report || d.report.state === L.대기)
   useEffect(() => setBad(null), [id])
   // 대기인 보고는 AI가 쓰는 동안 몇 초마다 다시 읽는다
   useEffect(() => {
-    if (state !== L.대기) return
+    if (!waiting) return
     const t = setInterval(() => bump((n) => n + 1), 3000)
     return () => clearInterval(t)
-  }, [state, bump])
+  }, [waiting, bump])
   if (!d || !id) return null
   const r = d.report
   return (
@@ -108,7 +110,7 @@ function Body() {
         <ol className="flex flex-col gap-1">
           {r.facts.map((f, i) => (
             <li key={i} className={text}>
-              {f.text}{' '}
+              {f.parts.map(([t, v], j) => (v ? <span key={j} className="whitespace-nowrap">{t}</span> : t))}{' '}
               <button aria-label={L.근거} className="cursor-pointer text-action hover:text-action-hover" onClick={() => show(f.ref)}>
                 ↗
               </button>

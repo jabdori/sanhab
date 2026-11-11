@@ -15,7 +15,7 @@ export type Report = {
     reads: number
     at: string
     /** 사실: 가리킨 기록(근거 표의 줄과 같은 id)과, 코드가 그 기록에서 값을 채운 글. 오류·대기이면 비어 있다 */
-    facts: { ref: string; text: string }[]
+    facts: { ref: string; text: string; parts: [string, boolean][] }[]
     guess: string[]
     unknown: string[]
     /** 의견: 고른 조치와 글. 조치를 내린 뒤에야 열리는 정황에서 조치 전에는 null */
@@ -28,6 +28,8 @@ export type Report = {
   decision: (Decision & { opinion: string | null; acted: string | null; same: boolean | null }) | null
   /** 지금 역할이 할 수 있는 조치(채택 · 불채택) */
   actions: { kind: string; reason: boolean; classes: string[] }[]
+  /** 그 정황의 보고에 남은 채택 · 불채택 전부(이력에 함께 보인다). stamp는 순서를 가리는 값 */
+  trail: (Decision & { stamp: string })[]
   /** 의견이 열려 있는가 */
   opened: boolean
   /** 지금 역할이 조사를 누를 수 있는가 */

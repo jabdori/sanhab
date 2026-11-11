@@ -158,7 +158,7 @@ function Box() {
   const r = useReport()
   const role = useAtomValue(roleAtom)
   const [draft, setDraft] = useAtom(reasonAtom)
-  useEffect(() => setDraft(blank), [d?.signal.id, d?.history.length, r?.report?.id, r?.report?.state, role, setDraft])
+  useEffect(() => setDraft(blank), [d?.signal.id, d?.history.length, r?.trail.length, role, setDraft])
   if (!d) return null
   const groups = [...d.actions, ...(r?.actions ?? [])].map((a) => ({ of: a.kind, classes: a.classes }))
   return groups.length ? <Reason groups={groups} value={draft} onChange={setDraft} /> : <Empty />
@@ -166,8 +166,11 @@ function Box() {
 
 function History() {
   const d = useSignal()
+  const r = useReport()
   if (!d) return null
-  return d.history.length ? d.history.map((h, i) => <Line key={i} d={h} />) : <Empty />
+  // 요청 · 기각과 보고의 채택 · 불채택(17)을 일어난 순서대로
+  const all = [...d.history.map((h) => ({ ...h, stamp: (h as { stamp?: string }).stamp ?? '' })), ...(r?.trail ?? [])].sort((a, b) => a.stamp.localeCompare(b.stamp))
+  return all.length ? all.map((h, i) => <Line key={i} d={h} />) : <Empty />
 }
 
 /** 심사 상세의 "정황": 그 심사의 구성원에 걸린 정황. 누르면 그 정황이 열린다. 표시가 붙은 심사에만 보인다 */

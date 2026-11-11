@@ -93,19 +93,24 @@ fn comma(n: i64) -> String {
 }
 /// 틀의 값 자리를 그 기록(`fn::evidence`의 값)에서 읽어 채운다. 그 기록에 없는 값은 `없음`
 fn fill(text: &str, ev: &J) -> String {
+    parts(text, ev).into_iter().map(|(t, _)| t).collect()
+}
+/// `fill`을 조각으로: (글, 코드가 채운 값인가). 화면은 값 조각을 줄바꿈 없이 보인다
+fn parts(text: &str, ev: &J) -> Vec<(String, bool)> {
     let get = |k: &str| match k {
         "dealer" | "node" => ev[k]["name"].as_str().map(String::from),
         "amount" => ev[k].as_i64().map(comma),
         _ => ev[k].as_str().map(String::from),
     };
-    let (mut out, mut rest) = (String::new(), text);
+    let (mut out, mut rest) = (vec![], text);
     while let Some(i) = rest.find('{') {
         let Some(j) = rest[i..].find('}') else { break };
-        out += &rest[..i];
-        out += &get(&rest[i + 1..i + j]).unwrap_or_else(|| "없음".into());
+        out.push((rest[..i].to_string(), false));
+        out.push((get(&rest[i + 1..i + j]).unwrap_or_else(|| "없음".into()), true));
         rest = &rest[i + j + 1..];
     }
-    out + rest
+    out.push((rest.to_string(), false));
+    out
 }
 
 /// AI의 답(글)에서 JSON을 꺼내 꼴을 본다. 틀린 곳이 있으면 오류의 낱말: 꼴(JSON이나 칸이 틀림) · 값(문장 틀이 틀림) · 기록(없는 기록을 가리킴)
@@ -208,8 +213,8 @@ fn canned(model: &str, b: &J) -> Option<String> {
     let tpl = |e: &J| match e["item"].as_str() {
         Some("회수") => "{dealer}의 {at} 회수가 {node}에 들어갔다",
         Some("지급") => "{dealer}의 {ym} 지급 {amount}",
-        Some("대사") => "{dealer}의 {ym} 대사에서 {value}이 맞지 않았다",
-        _ => "{dealer}가 {node}를 {item}로 등록했다",
+        Some("대사") => "{dealer}의 {ym} 대사 불일치 {value}",
+        _ => "{dealer}의 {item} 등록 {node}",
     };
     let mut facts: Vec<J> = ev.iter().take(3).map(|e| json!({ "ref": e["id"], "text": tpl(e) })).collect();
     let mut opinion = json!({ "action": "요청", "text": "근거가 서로 이어져 있어 대리점에 소명을 청해 볼 만하다" });
@@ -312,6 +317,7 @@ async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
                 facts.map(|$f| { ref: <string> $f.ref, text: $f.text, cited: fn::evidence($f.ref) }) AS facts FROM $r)[0] END,
             decision: IF $r != NONE THEN (SELECT kind, role, time::format(at, '%Y-%m-%d') AS at, reason, source, opinion, acted, same, stamp FROM adoption WHERE report = $r ORDER BY stamp DESC LIMIT 1)[0] END,
             actions: IF $r != NONE AND fn::adoptable($r) THEN ['채택', '불채택'].map(|$k| { kind: $k, reason: $k = '불채택', classes: fn::adoption_classes($k) }) ELSE [] END,
+            trail: (SELECT kind, role, time::format(at, '%Y-%m-%d') AS at, reason, source, stamp FROM adoption WHERE report.target = $s ORDER BY stamp),
             opened: fn::opened($s),
             earlier: (SELECT record::id(id) AS id, state, time::format(at, '%Y-%m-%d') AS at FROM report WHERE target = $s AND id != $r ORDER BY born DESC),
         };", json!({ "id": id })).await?;
@@ -335,7 +341,7 @@ async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
             x["opinion"] = J::Null;
             x["counter"] = J::Null;
         }
-        let facts: Vec<J> = x["facts"].as_array().into_iter().flatten().map(|f| json!({ "ref": f["ref"], "text": fill(f["text"].as_str().unwrap_or_default(), &f["cited"]) })).collect();
+        let facts: Vec<J> = x["facts"].as_array().into_iter().flatten().map(|f| { let t = f["text"].as_str().unwrap_or_default(); json!({ "ref": f["ref"], "text": fill(t, &f["cited"]), "parts": parts(t, &f["cited"]) }) }).collect();
         x["facts"] = json!(facts);
         x["stale"] = json!(stale);
         x
@@ -448,10 +454,12 @@ pub async fn check(c: &Check) -> Result<()> {
         let s = d["report"].clone();
         let ev = c.get(audit, &format!("/api/signals/{bank}")).await?["evidence"].clone();
         ensure!(s["state"] == "검토" && s["model"] == "fixture" && s["at"] == "2026-07-01" && s["stale"] == false && d["run"] == false, "보고 {s}");
-        ensure!(s["facts"] == json!([
+        let bare = |f: &J| json!(rows(f).iter().map(|x| json!({ "ref": x["ref"], "text": x["text"] })).collect::<Vec<_>>());
+        ensure!(s["facts"][0]["parts"] == json!([["", false], ["성일상사24", true], ["의 ", false], ["2026-03-13", true], [" 회수가 ", false], ["국민 412-27-556310", true], ["에 들어갔다", false]]), "값 조각 {}", s["facts"][0]);
+        ensure!(bare(&s["facts"]) == json!([
             { "ref": ev[0]["id"], "text": "성일상사24의 2026-03-13 회수가 국민 412-27-556310에 들어갔다" },
             { "ref": ev[1]["id"], "text": "성일상사24의 2026-04-13 회수가 국민 412-27-556310에 들어갔다" },
-            { "ref": ev[2]["id"], "text": "금강상사11가 국민 412-27-556310를 계좌로 등록했다" },
+            { "ref": ev[2]["id"], "text": "금강상사11의 계좌 등록 국민 412-27-556310" },
         ]), "사실 {}", s["facts"]);
         ensure!(s["guess"].as_array().is_some_and(|g| g.len() == 1) && s["unknown"] == json!(["계좌 예금주"]) && s["opinion"]["action"] == "요청" && s["counter"].is_string() && s.get("input").is_none(), "추정·미확인·의견 {s}");
         ensure!(d["actions"] == json!([{ "kind": "채택", "reason": false, "classes": ["기타"] }, { "kind": "불채택", "reason": true, "classes": ["추정", "의견", "기타"] }]) && d["decision"].is_null(), "조치 {}", d["actions"]);
@@ -486,6 +494,7 @@ pub async fn check(c: &Check) -> Result<()> {
         ensure!(d["report"]["state"] == "채택" && d["actions"] == json!([]) && d["run"] == false
             && dec == json!({ "kind": "채택", "role": audit, "at": "2026-07-01", "reason": null, "source": "시연", "opinion": "요청", "acted": "요청", "same": true }), "채택 뒤 {d}");
         ensure!(q1(&c.db, "RETURN (SELECT VALUE by FROM adoption)[0] = staff:audit;", json!({})).await? == true, "결정한 직원");
+        ensure!(d["trail"].as_array().is_some_and(|t| t.len() == 1 && t[0]["kind"] == "채택" && t[0]["role"] == audit && t[0]["at"] == "2026-07-01" && t[0]["stamp"].is_string()), "이력에 오를 결정 {}", d["trail"]);
         ensure!(adopt(audit, &id, "채택", J::Null).await? == "상태" && adopt(audit, &id, "불채택", json!({ "class": "추정" })).await? == "상태", "두 번째 결정");
         // 의견과 다른 조치(기각)를 내린 뒤 불채택: 사유가 필수이고 같지 않음이 남는다
         ensure!(c.post(audit, "/api/rule", json!({ "id": near, "kind": "기각", "reason": { "class": "정상" } })).await?.0 == 200, "기각");
