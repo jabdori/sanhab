@@ -56,24 +56,3 @@ pub async fn q(db: &Db, sql: &str, vars: Json) -> Result<Vec<Json>> {
 pub async fn q1(db: &Db, sql: &str, vars: Json) -> Result<Json> {
     Ok(q(db, sql, vars).await?.pop().unwrap_or(Json::Null))
 }
-
-/// 외부 입력 레코드 ID("decision:`RB-00054`" 등) → (table, key). 테이블은 화이트리스트.
-pub fn rid(s: &str) -> Result<(String, String)> {
-    const TABLES: &[&str] = &["decision", "work", "agency", "related", "approval", "rebate", "deposit", "vindication", "clause", "rule"];
-    let (tb, key) = s.split_once(':').context("bad id")?;
-    let key = key.trim_matches(|c| c == '`' || c == '⟨' || c == '⟩');
-    if !TABLES.contains(&tb) || key.is_empty() || !key.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
-        bail!("bad id");
-    }
-    Ok((tb.into(), key.into()))
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn rid_whitelist() {
-        assert_eq!(super::rid("decision:`RB-00054`").unwrap(), ("decision".into(), "RB-00054".into()));
-        assert!(super::rid("staff:exec").is_err());
-        assert!(super::rid("decision:x;REMOVE").is_err());
-    }
-}

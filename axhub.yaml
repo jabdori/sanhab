@@ -1,5 +1,5 @@
 version: axhub/v1
-name: 합산
+name: SanHab
 build:
   deploy_method: compose
   compose_file: compose.yaml

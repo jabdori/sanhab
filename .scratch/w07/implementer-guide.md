@@ -41,4 +41,21 @@
 - 정하지 못해 남긴 선택, 다음 티켓이 알아야 할 것(→ 아래 "규약"에 한 줄씩 더하고 커밋)
 
 ## 규약 (앞 티켓이 정한 것 — 티켓이 끝날 때 더한다)
-(아직 없음)
+01 바탕이 정한 것. 티켓 NN은 아래의 자기 파일만 만들고, 여럿이 같이 쓰는 파일에는 한 줄만 더한다.
+- **서버의 티켓 파일**: `app/src/tickets/tNN_이름.rs` 하나가 `SCHEMA`(= `include_str!("../../db/NN-이름.surql")`), `routes() -> Router<Db>`, `seed(&Db)`, `check(&Check)` 넷을 내놓는다. `app/src/tickets.rs`의 `tickets! { … }`에 `tNN_이름,` 한 줄을 번호 순서 자리에 더한다(스키마와 적재는 이 순서로 실행된다). 본보기: `t01_base.rs`.
+- **스키마**: `app/db/NN-이름.surql`. 다른 티켓의 스키마 파일은 고치지 않고, 앞 티켓의 테이블에 더할 것은 자기 파일에서 `DEFINE FIELD`·`DEFINE EVENT`로 더한다. 스키마 글자가 바뀌면 부팅 때 저절로 다시 적재되고, 그대로이면 DB를 건드리지 않는다.
+- **초기화와 적재**: 초기화는 DB를 지우고 모든 스키마 → 모든 `seed()`를 다시 실행한다. 원본에서 만들어지는 것은 전부 `seed()`에 둔다(볼륨이 사라져도 같은 상태가 된다). 원본 파일은 `app/src/orig.rs`에 상수 한 줄 + `app/Dockerfile`의 `COPY` 한 줄로 더하고 `orig::csv()`로 읽는다.
+- **시계**: 시스템의 오늘은 `meta:v.today`. SurrealQL에서는 `fn::today()`를 쓰고 `time::now()`로 업무 날짜를 찍지 않는다. 화면에는 `GET /api/state` → `{ role, today: "2026-07-01" }`.
+- **주고받는 방식**: `/api` 아래 JSON. 조회는 GET, 조치는 POST. `routes()`의 경로는 `/api` 아래에 붙고 전부 접속한 역할만 통과한다(문은 `main.rs`의 `gate`, 토큰 없으면 401). 처리기는 `Extension<Me>`로 `me.role`과 `me.db`(그 역할의 DB 세션)를 받는다. **조치는 반드시 `me.db`로 실행**해 테이블의 `PERMISSIONS`(`$auth.role`)가 권한을 강제하게 한다. 거절은 오류가 아니라 빈 결과이므로 빈 결과면 403을 돌려준다. 계산용 조회만 `State<Db>`(root)를 쓴다. 반환형은 `R`, 오류는 `err(StatusCode, "낱말")`. 사용자 입력은 쿼리 글자에 넣지 않고 바인딩한다.
+- **역할**: 이름은 `영업지원`, `영업임원`, `내부 감시`, `회계·자금`(DB의 `$auth.role`, 화면, 검사 모두 이 글자). 계정은 `staff:support|exec|audit|acct`. `POST /api/enter { pass }`와 `POST /api/reset`은 `{ roles: [{ role, token }] }`을 돌려준다(초기화하면 토큰이 새로 나온다).
+- **실시간**: 웹소켓을 쓰지 않는다. 화면은 조치 뒤와 역할을 바꿀 때 다시 읽는다(`useData`). 주기적으로 읽어야 하는 티켓은 자기 조각 안에서 한다.
+- **자동 검사**: `check(c)`는 화면과 같은 길로 검사한다 — `c.get(역할, 경로)`, `c.post(역할, 경로, 본문) → (상태 코드, 본문)`, `c.call(토큰, …)`. `c.db`(root)는 준비에만 쓴다. 티켓의 검사 앞에서 DB가 초기화된다. 완료 조건의 숫자를 여기에 적는다. DB가 필요 없는 것은 같은 파일의 `#[cfg(test)]`.
+- **검사 명령**(작업 트리의 `app/`에서, `CARGO_TARGET_DIR`을 잡고): `npm --prefix web ci && npm --prefix web run build`(화면 규약 검사 + 타입 검사 + 빌드. **`cargo`보다 먼저** — 실행 파일이 `web/dist`를 포함한다) → `cargo test` → `SURREAL_ADDR=localhost:<18100+NN> cargo run -- check`(전체) 또는 `cargo run -- check tNN`(그 티켓만).
+- **로컬에서 띄우기**: 시험용 DB를 띄운 뒤 `SURREAL_ADDR=localhost:<18100+NN> PORT=<3100+NN> cargo run` → `http://localhost:<3100+NN>`, 접속 패스워드는 `DEMO_PASS`(없으면 `demo`). 화면만 고칠 때는 `API=http://localhost:<3100+NN> npm --prefix web run dev`. compose 전체는 `app/README.md`.
+- **화면의 폴더**: `app/web/src/tickets/NN-이름/index.tsx`가 `Piece[]`를 default로 내놓으면 저절로 모인다(등록하는 파일 없음, `pieces.tsx`). 조각은 자리(`slot`)에 끼운다: `list`(목록, `menu`로 메뉴를 고른다) / `fact`(가운데) / `action`·`reason`·`report`·`trail`·`history`(오른쪽, 순서 고정) / `chat`(대화). `kind`는 열어 둔 대상의 종류와 맞을 때만 보이게 한다. 조각이 없는 자리는 `없음`이 된다. AI가 쓴 글은 `fact`에 끼우지 않는다.
+- **화면의 상태**(`state.ts`): `roleAtom`, `menuAtom`, `targetAtom`(`{ kind, id }` — 목록에서 줄을 고르면 넣는다. 목록 조각이 있고 대상이 없으면 목록이 넓게 쓴다), `api(경로, 본문?)`(본문이 있으면 POST), `useData(경로)`(역할이 바뀌거나 조치가 끝나면 다시 읽는다). 자기 티켓만의 상태는 자기 폴더에 atom으로 둔다.
+- **낱말 파일**: `app/web/src/labels.ts`. 부품에서는 `L.낱말`, `L['두 낱말']`로만 쓴다(`copy.md`의 표는 이미 들어 있다). 없는 낱말은 `GLOSSARY.md`에 먼저 더하고 목록 맨 아래에 한 줄로 더한다. 서버가 주는 값(역할 이름, 원본의 값)은 그대로 보여 준다.
+- **색 파일**: `app/web/src/theme.css`(`tokens.md`의 값 전부). 부품은 Tailwind의 이름만 쓴다: 색 `bg-surface`·`text-text-sub`·`border-line`·`text-action`, 상태 `bg-good-bg text-good`(wait·good·hold·bad·again), 글자 `text-title|figure|body|table|label`, 폭 `w-menu|list|right|chat`, 높이 `h-band|row|head`, 모서리 `rounded-box|pill`, 그림자 `shadow-float`. `w-[360px]` 같은 직접 값, `#색`, `style=`은 `npm run lint`가 막는다.
+- **공통 부품**: `app/web/src/ui/`(`Pill` 상태 표지, `Empty` 없음, `styles.ts`의 `button`·`label`·`floating`). `components.md`의 부품을 새로 만들면 `ui/부품이름.tsx` 한 파일로 두고 여기에 한 줄 더한다. 동작이 있는 부품은 `@base-ui/react/<부품>`에서 가져온다(사용법: `app/web/node_modules/@base-ui/react/docs/react/components/*.md`).
+- **같이 쓰는 파일**: `app/src/tickets.rs`와 `app/web/src/labels.ts`는 합칠 때 양쪽 줄이 모두 남는다(`app/.gitattributes`의 `merge=union`). 줄을 **더하기만** 하고 있는 줄은 고치지 않는다. `main.rs`, `App.tsx`, `Band.tsx`, `state.ts`, `pieces.tsx`, `theme.css`는 그 티켓의 완료 조건이 요구할 때만 고친다(예: 21번의 띠 날짜).
+- **배포 구성**: `compose.yaml`, `axhub.yaml`, `app/db.Dockerfile`은 그대로 둔다(`cargo test`의 `deploy_constraints`가 지킨다). 화면 파일 이름은 `app.js`, `app.css`, `PretendardVariable.woff2`로 고정이다(`vite.config.ts` ↔ `main.rs`). 화면에 파일을 더 실으려면 `main.rs`에 경로를 더한다.

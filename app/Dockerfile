@@ -1,3 +1,11 @@
+# 화면(app/web): 정적 파일로 빌드해 아래 Rust 빌드가 실행 파일에 포함한다
+FROM node:24-slim AS web
+WORKDIR /web
+COPY app/web/package.json app/web/package-lock.json ./
+RUN npm ci
+COPY app/web ./
+RUN npm run build
+
 # 빌드 컨텍스트 = 프로젝트 루트. 원본 데이터는 include_str!로 바이너리에 포함(경로 ../../01_참가자_배포용/...)
 FROM rust:1.97-slim-trixie AS build
 WORKDIR /src/app
@@ -9,7 +17,7 @@ COPY ["01_참가자_배포용/04_원본데이터/01_corevia/master/m_agency_cv.c
 COPY ["01_참가자_배포용/04_원본데이터/01_corevia/sales/sales_rebate_payment_cv.csv", "/src/01_참가자_배포용/04_원본데이터/01_corevia/sales/"]
 COPY ["01_참가자_배포용/04_원본데이터/01_corevia/financials/fin_collection_history_cv.csv", "/src/01_참가자_배포용/04_원본데이터/01_corevia/financials/"]
 COPY app/db ./db
-COPY app/public ./public
+COPY --from=web /web/dist ./web/dist
 COPY app/src ./src
 RUN cargo build --release
 

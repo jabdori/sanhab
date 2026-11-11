@@ -1,0 +1,78 @@
+/* 색·글자·간격은 모두 이 파일에 있다(docs/design/tokens.md). 부품은 여기의 이름만 쓴다. */
+@import 'tailwindcss';
+
+@font-face {
+  font-family: Pretendard;
+  font-weight: 45 920;
+  font-display: swap;
+  src: url('../node_modules/pretendard/dist/web/variable/woff2/PretendardVariable.woff2') format('woff2-variations');
+}
+
+@theme {
+  /* 색: 아래 이름만 남긴다 */
+  --color-*: initial;
+  --color-bg: #ffffff;
+  --color-surface: #f7f7f8;
+  --color-line: #e4e4e7;
+  --color-text: #18181b;
+  --color-text-sub: #52525b;
+  --color-text-mute: #a1a1aa;
+  --color-action: #1d4ed8;
+  --color-action-hover: #1e40af;
+  --color-mark: #fef9c3;
+  /* 상태 표지(알약)에만: 대기 wait · 좋음 good · 멈춤 hold · 아님 bad · 다시 again */
+  --color-wait-bg: #f4f4f5;
+  --color-wait: #3f3f46;
+  --color-good-bg: #dcfce7;
+  --color-good: #166534;
+  --color-hold-bg: #fef3c7;
+  --color-hold: #92400e;
+  --color-bad-bg: #fee2e2;
+  --color-bad: #991b1b;
+  --color-again-bg: #ede9fe;
+  --color-again: #5b21b6;
+
+  /* 글자 */
+  --font-sans: Pretendard, system-ui, -apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  --text-*: initial;
+  --text-title: 16px;
+  --text-title--line-height: 24px;
+  --text-title--font-weight: 600;
+  --text-figure: 14px;
+  --text-figure--line-height: 20px;
+  --text-figure--font-weight: 600;
+  --text-body: 14px;
+  --text-body--line-height: 20px;
+  --text-body--font-weight: 400;
+  --text-table: 13px;
+  --text-table--line-height: 18px;
+  --text-table--font-weight: 400;
+  --text-label: 12px;
+  --text-label--line-height: 16px;
+  --text-label--font-weight: 500;
+
+  /* 간격은 4의 배수만: 1(4) 2(8) 3(12) 4(16) 6(24) 8(32) */
+  --spacing: 4px;
+  /* 자리의 폭과 높이 */
+  --spacing-band: 44px;
+  --spacing-menu: 96px;
+  --spacing-list: 360px;
+  --spacing-right: 360px;
+  --spacing-chat: 40px;
+  --spacing-chat-open: 380px;
+  --spacing-page: 1280px;
+  --spacing-row: 36px;
+  --spacing-head: 32px;
+
+  /* 모양 */
+  --radius-*: initial;
+  --radius-box: 4px;
+  --radius-pill: 999px;
+  --shadow-*: initial;
+  --shadow-float: 0 4px 16px rgb(0 0 0 / 0.12);
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
