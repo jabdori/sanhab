@@ -152,13 +152,13 @@ function Action() {
   )
 }
 
-/** 사유: 조치가 없으면 없음. 요청 · 기각과 보고의 채택 · 불채택(17)이 같은 칸을 쓴다. 다른 정황을 열거나 역할이 바뀌거나 결정이 내려지면 쓰던 사유를 비운다 */
+/** 사유: 조치가 없으면 없음. 요청 · 기각과 보고의 채택 · 불채택(17)이 같은 칸을 쓴다. 다른 정황을 열거나 역할이 바뀌거나 결정이 내려지면 쓰던 사유를 비운다(보고가 처음 오면 trail이 undefined → [] 로 바뀌므로 길이는 0으로 본다) */
 function Box() {
   const d = useSignal()
   const r = useReport()
   const role = useAtomValue(roleAtom)
   const [draft, setDraft] = useAtom(reasonAtom)
-  useEffect(() => setDraft(blank), [d?.signal.id, d?.history.length, r?.trail.length, role, setDraft])
+  useEffect(() => setDraft(blank), [d?.signal.id, d?.history.length, r?.trail.length ?? 0, role, setDraft])
   if (!d) return null
   const groups = [...d.actions, ...(r?.actions ?? [])].map((a) => ({ of: a.kind, classes: a.classes }))
   return groups.length ? <Reason groups={groups} value={draft} onChange={setDraft} /> : <Empty />
