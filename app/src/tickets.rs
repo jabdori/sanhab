@@ -29,4 +29,5 @@ tickets! {
     t01_base,
     t02_dealer,
     t03_related,
+    t04_review,
 }
