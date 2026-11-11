@@ -4,11 +4,11 @@ import { L } from '../labels'
 import { api } from '../state'
 import { floating, label } from './styles'
 
-/** 출처 표지: 테두리 글자. 누르면 어디서 왔는지 열린다. 원본이면 `file`·`row`만 주면 되고, 그 밖의 출처는 children에 내용을 넣는다 */
+/** 출처 표지: 테두리 글자. 누르면 어디서 왔는지 열린다(`side`로 열리는 쪽을 고른다. 없으면 아래). 원본이면 `file`·`row`만 주면 되고, 그 밖의 출처는 children에 내용을 넣는다 */
 type Row = { sha: string; cells: [string, string][] }
 
-/** 출처 표지: 테두리 글자. 누르면 어디서 왔는지 열린다. 원본이면 `file`·`row`만 주면 되고(행을 받은 뒤에 연다), 그 밖의 출처는 children에 내용을 넣는다 */
-export function Source({ kind, file, row, children }: { kind: string; file?: string; row?: number; children?: ReactNode }) {
+/** 출처 표지: 테두리 글자. 누르면 어디서 왔는지 열린다(`side`로 열리는 쪽을 고른다. 없으면 아래). 원본이면 `file`·`row`만 주면 되고(행을 받은 뒤에 연다), 그 밖의 출처는 children에 내용을 넣는다 */
+export function Source({ kind, file, row, side, children }: { kind: string; file?: string; row?: number; side?: 'right' | 'top'; children?: ReactNode }) {
   const [open, setOpen] = useState(false)
   const [o, setO] = useState<Row>()
   return (
@@ -24,7 +24,7 @@ export function Source({ kind, file, row, children }: { kind: string; file?: str
     >
       <Popover.Trigger className={`shrink-0 cursor-pointer rounded-box border border-line px-1 whitespace-nowrap ${label}`}>{kind}</Popover.Trigger>
       <Popover.Portal>
-        <Popover.Positioner sideOffset={4} className="z-10">
+        <Popover.Positioner side={side} sideOffset={4} className="z-10">
           <Popover.Popup className={`${floating} flex w-list flex-col gap-2 p-3 text-table`}>
             {file && row && o ? <Origin file={file} row={row} o={o} /> : children}
           </Popover.Popup>

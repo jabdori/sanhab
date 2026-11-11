@@ -22,6 +22,7 @@ const words = [
   // 대화
   '대화', '임시', '실행', '조치 카드',
   '식별자', '등록', '동일인', '미상', '귀속월', '금액', '상태', '출처', '행', '해시',
+  '관계', '관련자', '그룹', '식별자 일치 2 이상', '관련자의 전이',
 ] as const
 
 export const L = Object.fromEntries(words.map((w) => [w, w])) as { [K in (typeof words)[number]]: K }
