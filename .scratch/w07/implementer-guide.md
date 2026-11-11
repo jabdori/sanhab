@@ -214,6 +214,7 @@
 12 가설이 정한 것(기준은 D3, D29, D51. 출처는 가정).
 - **계산은 새로 만들지 않았다**(`t12_hypo.rs`): `analyze(db, 정황 id)`가 03의 `links`에 정황이 더할 선(계좌 정황은 근거의 회수마다 `(회수의 대리점, 그 계좌)`, 동명·근접은 없다)을 더해 `matches`·`groups`와 04의 `compute(db, extra)`(`recalc`에서 계산만 떼어 낸 것)를 다시 부른다. 합산과 저장된 승인권자에는 들어가지 않는다. 한 정황의 가설을 더하려면 `extra()`의 갈래만 더한다.
 - **승인권자가 올라가는 심사(가정)**: 열린 정황(접수·요청)의 가설에서 승인권자가 영업지원 → 영업임원이 되는 굳지 않은 심사는 `review.raised = true`, 정황은 `signal.raised = true`다(`raise(db)`가 맞춘다. `recalc`·`detect`·`POST /api/rule`의 끝에서 저절로 불린다). 저장된 `approver`·`total`은 그대로이고 **작업의 담당(`task.role`)만 영업임원**이 된다. 승인권자의 조치(승인·보류·반려 …)를 하는 역할은 `fn::holder(심사)`(= raised이면 영업임원, 아니면 `approver`)이고 `fn::can`·`fn::refusal`이 이것을 쓴다(`12-가설.surql`에서 `OVERWRITE`). **승인권자를 따지는 새 조건은 `review.approver`가 아니라 `fn::holder`를 쓴다.** 심사 상세의 `review.holder`가 그 값이다. 정황이 걸린 심사라 승인은 사유 필수이고 선택 칸은 없다(11).
+- **`fn::can`을 덮는 티켓(10이 `without`을 더했듯)은 `12-가설.surql`의 `fn::can`에도 같은 조건을 더한다**(나중 파일이 앞의 것을 덮는다).
 - **17의 `fn::gated`는 `signal.raised`다**(`12-가설.surql`에서 덮었다): 올라가는 정황은 내부 감시가 조치를 내리기 전까지 의견이 닫혀 있다.
 - **조회**: `GET /api/signals/{id}/hypo`·`GET /api/reviews/{id}/hypo` → `{ id, name, source: "가정", adds[], match[{ dealer, cur[], hyp[] }], group[현재, 가설], approver[현재, 가설], up }`(심사는 열린 정황마다의 배열. 그룹·승인권자는 그 심사의 값이고 굳은 심사는 빈 배열). 화면은 정황·심사 상세의 `{ slot: 'fact' }` 조각 하나(`12-가설`)가 `ui/Compare`로 그린다.
 - **새 가설을 낼 티켓(소명의 해소·불인정 …)**: 선을 바꾸면 `recalc`가 끝에 `raise`를 부르므로 따로 할 일이 없다.

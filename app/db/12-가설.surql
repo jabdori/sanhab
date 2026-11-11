@@ -9,12 +9,13 @@ DEFINE FUNCTION fn::holder($r: record<review>) -> string {
     RETURN IF $r.raised THEN '영업임원' ELSE $r.approver END;
 } PERMISSIONS FULL;
 
--- 04·05의 조건과 같고 승인권자 자리만 fn::holder로 바꿨다
+-- 04·10의 조건과 같고 승인권자 자리만 fn::holder로 바꿨다(다른 티켓이 fn::can에 조건을 더하면 여기에도 더한다)
 DEFINE FUNCTION OVERWRITE fn::can($kind: string, $review: record<review>) -> bool {
     LET $a = type::record('act', $kind);
     RETURN $a.states CONTAINS $review.status
         AND ($a.who = $auth.role OR ($a.who = '승인권자' AND fn::holder($review) = $auth.role))
-        AND ($a.mark = NONE OR $review.marks CONTAINS $a.mark);
+        AND ($a.mark = NONE OR $review.marks CONTAINS $a.mark)
+        AND !(($a.without ?? []) ANYINSIDE $review.marks);
 } PERMISSIONS FULL;
 
 DEFINE FUNCTION OVERWRITE fn::refusal($kind: string, $review: record<review>, $reason: option<object>) -> option<string> {
