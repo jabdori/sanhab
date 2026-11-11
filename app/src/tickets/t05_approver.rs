@@ -24,9 +24,10 @@ async fn reasons(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
 }
 
 pub async fn seed(db: &Db) -> Result<()> {
-    // 보류: 대기인 심사를 그 심사의 승인권자가(D8의 5). 사유 필수(D41). 승인의 사유는 선택이고 분류만 둔다
+    // 보류: 대기인 심사를 그 심사의 승인권자가(D8의 5). 사유 필수(D41).
+    // 승인: 보류된 심사도 승인권자가 언제든 승인할 수 있고 그때는 사유가 필수다(D48). 대기인 심사의 승인은 사유가 선택이다
     q(db, "
-        UPDATE act:`승인` SET classes = ['정상', '경미', '기일', '기타'];
+        UPDATE act:`승인` SET states = ['대기', '보류'], need = ['보류'], classes = ['정상', '경미', '소명 전', '소명 뒤', '기타'];
         CREATE act:`보류` SET states = ['대기'], to = '보류', who = '승인권자', reason = true, classes = ['소명', '정황', '서류', '기타'];", json!({})).await?;
     Ok(())
 }
@@ -37,7 +38,7 @@ pub async fn check(c: &Check) -> Result<()> {
     let review = async |role: &str, id: &str| c.get(role, &format!("/api/reviews/{id}")).await;
     let decide = async |role: &str, id: &str, kind: &str, reason: J| Ok::<_, anyhow::Error>(c.post(role, "/api/decide", json!({ "ids": [id], "kind": kind, "reason": reason })).await?.0);
     let count = async || q1(&c.db, "RETURN [count(SELECT id FROM decision), count(SELECT id FROM task WHERE kind = '지급')];", json!({})).await;
-    let (hold, pass) = (json!(["소명", "정황", "서류", "기타"]), json!(["정상", "경미", "기일", "기타"]));
+    let (hold, pass) = (json!(["소명", "정황", "서류", "기타"]), json!(["정상", "경미", "소명 전", "소명 뒤", "기타"]));
 
     // 박상현 그룹의 6월 심사: 합산 3,888,097 · 한도 2,000,000 · 승인권자 영업임원. 일치 열에 대표자·주소·계좌 / 대표자·주소 / 대표자·계좌
     let d = review(support, group).await?;
@@ -79,7 +80,23 @@ pub async fn check(c: &Check) -> Result<()> {
     super::t04_review::recalc(&c.db).await?;
     let d = review(exec, group).await?;
     ensure!(d["review"]["status"] == "보류" && d["review"]["total"] == 3_888_097 && d["members"].as_array().is_some_and(|m| m.iter().all(|x| x["pay"]["amount"].is_i64())), "보류 뒤의 합산 {}", d["review"]);
-    ensure!(count().await? == json!([1, 0]) && c.get("회계·자금", "/api/tasks").await?["mine"] == json!([]), "보류 뒤의 지급 작업");
+    ensure!(count().await? == json!([1, 0]) && c.get("회계·자금", "/api/tasks").await? == json!({ "mine": [], "going": [] }), "보류 뒤의 지급 작업");
+
+    // 보류한 동안 그 심사의 작업은 진행이다(D48). 목록의 갈래(담당·진행)는 04의 /api/tasks가 나눈다
+    ensure!(q1(&c.db, "RETURN task:`2026-06-D-011`.state;", json!({})).await? == "진행", "보류 뒤의 작업");
+    ensure!([&c.get(exec, "/api/tasks").await?, &c.get(support, "/api/tasks").await?].iter().all(|t| ["mine", "going"].iter().any(|k| t[k].as_array().is_some_and(|l| l.iter().any(|x| x["target"] == group)))), "보류 뒤의 목록");
+    // 보류된 심사는 승인권자가 언제든 승인할 수 있고, 그 승인에는 사유가 필수다(D48). 승인하면 굳고 작업이 끝난다
+    ensure!(c.get(exec, &format!("/api/reviews/{group}/reasons")).await? == json!([{ "kind": "승인", "must": true, "classes": pass }]), "보류된 심사의 사유 칸");
+    ensure!(c.get(support, &format!("/api/reviews/{group}/reasons")).await? == json!([]), "보류된 심사의 영업지원");
+    for reason in [J::Null, json!({ "class": "소명" }), json!({ "class": "기타" })] {
+        ensure!(decide(exec, group, "승인", reason.clone()).await? == 403, "보류된 심사의 승인 {reason}");
+    }
+    ensure!(decide(support, group, "승인", json!({ "class": "소명 전" })).await? == 403 && decide(exec, group, "보류", json!({ "class": "소명" })).await? == 403, "보류된 심사의 다른 조치");
+    ensure!(decide(exec, group, "승인", json!({ "class": "소명 전", "memo": "지급 기일" })).await? == 200, "보류된 심사의 승인");
+    let d = review(exec, group).await?;
+    ensure!(d["review"]["status"] == "승인" && d["review"]["fixed"] == "2026-07-01" && d["review"]["total"] == 3_888_097 && d["actions"] == json!([]), "보류를 푼 뒤 {}", d["review"]);
+    ensure!(d["history"][1]["kind"] == "승인" && d["history"][1]["reason"] == json!({ "class": "소명 전", "memo": "지급 기일" }) && d["history"].as_array().is_some_and(|h| h.len() == 2), "보류를 푼 이력 {}", d["history"]);
+    ensure!(q1(&c.db, "RETURN task:`2026-06-D-011`.state;", json!({})).await? == "완료", "보류를 푼 뒤의 작업");
 
     // 정황이 없는 심사의 승인에는 사유가 없어도 되고, 적으면 남는다. 영업지원도 자기가 승인권자인 심사는 보류할 수 있다
     ensure!(decide(support, one, "승인", J::Null).await? == 200 && review(support, one).await?["history"][0]["reason"].is_null(), "사유 없는 승인");
@@ -94,9 +111,9 @@ pub async fn check(c: &Check) -> Result<()> {
     let d = review(exec, big).await?;
     ensure!(d["review"]["status"] == "승인" && d["review"]["fixed"] == "2026-07-01" && d["review"]["approver"] == exec, "승인 뒤 {}", d["review"]);
 
-    // 11번이 켤 조건: 승인에 need = ['정황']을 두면 정황이 걸린 심사의 승인에만 사유가 필수가 된다
+    // 11번이 켤 조건: 승인의 need에 '정황'을 더하면 정황이 걸린 심사의 승인에만 사유가 필수가 된다
     let (flagged, plain) = ("2026-06-D-006", "2026-06-D-007");
-    q(&c.db, "UPDATE act:`승인` SET need = ['정황']; UPDATE review:`2026-06-D-006` SET marks += '정황';", json!({})).await?;
+    q(&c.db, "UPDATE act:`승인` SET need += '정황'; UPDATE review:`2026-06-D-006` SET marks += '정황';", json!({})).await?;
     let must = async |id: &str| Ok::<_, anyhow::Error>(c.get(support, &format!("/api/reviews/{id}/reasons")).await?[1]["must"].clone());
     ensure!(must(flagged).await? == true && must(plain).await? == false, "정황이 걸린 심사의 사유");
     ensure!(decide(support, flagged, "승인", J::Null).await? == 403 && decide(support, flagged, "승인", json!({ "class": "경미" })).await? == 200, "정황이 걸린 심사의 승인");
