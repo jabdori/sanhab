@@ -31,6 +31,7 @@ tickets! {
     t03_related,
     t04_review,
     t05_approver,
+    t06_back,
     t07_pay,
     t08_recon,
     t09_again,
