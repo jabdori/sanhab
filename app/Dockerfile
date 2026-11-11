@@ -16,6 +16,8 @@ COPY ["01_참가자_배포용/04_원본데이터/00_common/approval_authority_po
 COPY ["01_참가자_배포용/04_원본데이터/01_corevia/master/m_agency_cv.csv", "/src/01_참가자_배포용/04_원본데이터/01_corevia/master/"]
 COPY ["01_참가자_배포용/04_원본데이터/01_corevia/sales/sales_rebate_payment_cv.csv", "/src/01_참가자_배포용/04_원본데이터/01_corevia/sales/"]
 COPY ["01_참가자_배포용/04_원본데이터/01_corevia/financials/fin_collection_history_cv.csv", "/src/01_참가자_배포용/04_원본데이터/01_corevia/financials/"]
+# 가정의 원문(22 규정이 스펙에서 직접 모은다)
+COPY docs/graph-spec.md /src/docs/
 COPY app/db ./db
 COPY --from=web /web/dist ./web/dist
 COPY app/src ./src
