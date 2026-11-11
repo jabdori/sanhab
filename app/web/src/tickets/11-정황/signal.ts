@@ -56,3 +56,6 @@ export function useSignal() {
 
 /** 요청·기각에 붙일 사유(쓰고 있는 것) */
 export const reasonAtom = atom<Draft>(blank)
+
+/** 근거 표에서 강조할 줄(그 기록의 id). 근거 연결(17 보고의 사실)이 정하고 1.2초 뒤 비운다 */
+export const markAtom = atom<string | null>(null)

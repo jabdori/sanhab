@@ -6,6 +6,7 @@ use anyhow::{Context, Result};
 use axum::Router;
 
 pub use t01_base::ROLES;
+pub use t17_report::work as ai_worker;
 
 macro_rules! tickets {
     ($($m:ident,)*) => {
@@ -35,5 +36,6 @@ tickets! {
     t08_recon,
     t09_again,
     t11_signal,
+    t17_report,
     t22_rules,
 }
