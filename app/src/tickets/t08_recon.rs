@@ -105,8 +105,16 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(send(acct, &id, 988_932, &account, "성공").await? == state, "지급 전에 회신");
     ensure!(send(acct, "검사-없는지급", 1, "검사-계좌", "성공").await? == (400, json!({ "error": "대상" })) && send(acct, "RB-00168", 1, "검사-계좌", "성공").await? == (400, json!({ "error": "대상" })), "없는 지급에 회신");
 
-    // 지급이 완료되면 대사 작업이 생긴다: 담당 회계·자금, 영업지원은 진행에서 본다. 고르면 같은 지급이 열린다
+    // 지급으로 표시하면 지급은 이체가 되고 대사 작업이 생긴다: 담당 회계·자금, 영업지원은 진행에서 본다. 고르면 같은 지급이 열린다
     ensure!(pay(&id).await?.0 == 200, "지급");
+    // 그때마다 목록 위의 수와 대리점 상세의 6월 줄이 같은 낱말이다
+    let seen = async || -> Result<J> {
+        let line = rows(&c.get(acct, "/api/dealers/D-001").await?["payouts"]).into_iter().find(|l| l["ym"] == "2026-06").unwrap_or_default();
+        let p = c.get(acct, "/api/pays").await?;
+        Ok(json!([recon(&id).await?["state"], c.get(acct, &format!("/api/pays/{id}")).await?["pay"]["state"], line["state"], line["state_source"], p["counts"]["대기"], p["counts"]["이체"], p["counts"]["완료"]]))
+    };
+    ensure!(seen().await? == json!(["이체", "이체", "이체", "시연", 0, 1, 0]), "지급 직후 {}", seen().await?);
+    ensure!(pay(&id).await? == (400, json!({ "error": "상태" })), "이체인 지급을 다시 지급");
     let mine = tasks(acct, "mine").await?;
     ensure!(mine.len() == 1 && mine[0]["view"] == "지급" && mine[0]["target"] == id.as_str() && mine[0]["name"] == "대성상사1" && mine[0]["ym"] == "2026-06" && mine[0]["total"] == 988_932 && mine[0]["role"] == acct, "대사 작업 {mine:?}");
     ensure!(tasks(support, "going").await?.len() == 1 && tasks(exec, "going").await?.is_empty() && tasks(support, "mine").await?.is_empty(), "다른 역할의 대사 작업");
@@ -147,17 +155,14 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(c.get(acct, &format!("/api/pays/{id}")).await?["can"] == true && send(acct, &id, 988_932, &account, "성공").await? == state, "실패 뒤의 조치");
     ensure!(q1(&c.db, "RETURN count(SELECT id FROM recon);", json!({})).await? == 0, "실패한 회신에 대사가 남음");
     // 07이 보이는 것도 다시 대기다: 목록 위의 수, 대리점 상세의 지급 줄, 다른 역할에게는 조치가 없다
-    let p = c.get(acct, "/api/pays").await?;
-    ensure!(p["counts"]["대기"] == 1 && p["counts"]["완료"] == 0, "실패 뒤 목록 위의 수 {}", p["counts"]);
-    let line = rows(&c.get(acct, "/api/dealers/D-001").await?["payouts"]).into_iter().find(|l| l["ym"] == "2026-06").unwrap_or_default();
-    ensure!(line["state"] == "대기" && line["state_source"] == "시연", "실패 뒤 대리점 상세의 지급 줄 {line}");
+    ensure!(seen().await? == json!(["대기", "대기", "대기", "시연", 1, 0, 0]), "실패 뒤 {}", seen().await?);
     let p = c.get(support, &format!("/api/pays/{id}")).await?;
     ensure!(p["pay"]["state"] == "대기" && p["can"] == false, "실패 뒤 영업지원이 보는 지급 {p}");
 
     // 다시 지급하면 대사 작업이 다시 생기고, 승인된 금액·등록된 계좌 그대로 성공을 넣으면: 일치, 대사 작업이 끝나고, 심사에 정산 표시가 붙는다
     ensure!(pay(&id).await?.0 == 200 && tasks(acct, "mine").await?.len() == 1 && pays().await?.is_empty(), "다시 지급");
     let d = recon(&id).await?;
-    ensure!(d["state"] == "완료" && d["can"] == true && d["reply"].is_null(), "다시 지급한 뒤 {d}");
+    ensure!(d["state"] == "이체" && d["can"] == true && d["reply"].is_null(), "다시 지급한 뒤 {d}");
     let (code, r) = send(acct, &id, 988_932, &account, "성공").await?;
     ensure!(code == 200 && r["id"] == id.as_str(), "회신 {code} {r}");
     let d = recon(&id).await?;
@@ -168,7 +173,8 @@ pub async fn check(c: &Check) -> Result<()> {
     let line = |kind: &str, result: Option<&str>| json!({ "kind": kind, "result": result, "role": acct, "at": "2026-07-01", "source": "시연" });
     ensure!(d["lines"] == json!([line("지급", None), line("회신", Some("실패")), line("지급", None), line("회신", Some("성공"))]), "이력의 순서 {}", d["lines"]);
     ensure!(tasks(acct, "mine").await?.is_empty() && tasks(support, "going").await?.is_empty() && settled(one).await?, "일치 뒤의 작업과 정산 표시");
-    // 회신은 지급 시도 하나에 한 번뿐이다
+    ensure!(seen().await? == json!(["완료", "완료", "완료", "시연", 0, 0, 1]), "성공한 회신 뒤 {}", seen().await?);
+    // 회신은 지급 시도 하나에 한 번뿐이다(완료인 지급에 회신 → 상태)
     ensure!(send(acct, &id, 1, "검사-계좌", "성공").await? == state && recon(&id).await?["recon"]["verdict"] == "일치", "두 번째 회신");
 
     // 박상현 그룹의 심사(지급 3건): 지급이 모두 일치여야 정산이다. 하나만 일치로는 붙지 않는다

@@ -64,7 +64,7 @@ function Fact() {
   const { recon } = d
   const last = d.history.at(-1)
   // 회신을 기다리는 시도(지급 전 포함)에만 빈 줄을 둔다. 실패한 뒤 아직 다시 지급하지 않았으면 다음 줄은 없다
-  const waits = !recon && (d.state === L.완료 || !d.history.length)
+  const waits = d.state === L.이체 || (!recon && !d.history.length)
   const tries: (Recon['history'][number] | null)[] = waits ? [...d.history, null] : d.history
   const accounts = d.want.accounts.length ? d.want.accounts.join(' · ') : none
   const name = (i: number, item: string) => (
@@ -199,7 +199,7 @@ function Action() {
   if (!d) return null
   if (d.can) return <Form key={d.id} d={d} />
   if (d.reply) return <Line r={d.reply} />
-  if (d.state !== L.완료) return null
+  if (d.state !== L.이체) return null
   return (
     <div className="flex items-baseline gap-2">
       <span className={label}>{L.담당}</span>
