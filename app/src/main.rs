@@ -1,4 +1,4 @@
-//! W07 합산 — axum 서버. 화면(app/web의 빌드 결과)과 /api를 한 실행 파일로 낸다.
+//! W07 SanHab — axum 서버. 화면(app/web의 빌드 결과)과 /api를 한 실행 파일로 낸다.
 //! 티켓의 기능은 `tickets/`에 있고 여기는 접속, 초기화, 화면 파일만 다룬다. lounge가 웹소켓을 지원하지 않으므로 화면은 HTTP로만 부른다.
 mod check;
 mod db;

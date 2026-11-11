@@ -1,7 +1,7 @@
 import { AlertDialog } from '@base-ui/react/alert-dialog'
 import { Select } from '@base-ui/react/select'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { L } from './labels'
+import { APP, L } from './labels'
 import { api, roleAtom, rolesAtom, targetAtom, useData } from './state'
 import { button, floating, label } from './ui/styles'
 
@@ -13,7 +13,7 @@ export function Band() {
   const state = useData<{ today: string }>('/state')
   return (
     <header className="flex h-band shrink-0 items-center gap-6 border-b border-line bg-surface px-4">
-      <span className="text-title">{L.합산}</span>
+      <span className="text-title">{APP}</span>
       <div className="flex items-center gap-2">
         <span className={label}>{L.역할}</span>
         <Select.Root

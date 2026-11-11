@@ -1,4 +1,4 @@
-# 합산 (W07) — 앱
+# SanHab (W07) — 앱
 
 규약(폴더, 주고받는 방식, 검사, 띄우기)은 `.scratch/w07/implementer-guide.md`의 "규약"에 있다.
 

@@ -1,6 +1,6 @@
 import { useAtomValue, useSetAtom } from 'jotai'
 import { useState } from 'react'
-import { L } from './labels'
+import { APP, L } from './labels'
 import { api, roleAtom, rolesAtom } from './state'
 import { Pill } from './ui/Pill'
 import { button, label } from './ui/styles'
@@ -13,7 +13,7 @@ export function Enter() {
   return (
     <main className="flex h-screen items-center justify-center bg-bg">
       <div className="flex w-list flex-col gap-4 rounded-box border border-line bg-bg p-6">
-        <h1 className="text-title">{L.합산}</h1>
+        <h1 className="text-title">{APP}</h1>
         {roles.length === 0 ? (
           <form
             className="flex flex-col gap-4"
