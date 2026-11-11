@@ -4,7 +4,7 @@ import { AlertDialog } from '@base-ui/react/alert-dialog'
 import { Checkbox } from '@base-ui/react/checkbox'
 import { Tabs } from '@base-ui/react/tabs'
 import { useAtom } from 'jotai'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { L } from '../../labels'
 import type { Piece } from '../../pieces'
 import { api, changedAtom, store, targetAtom, useData } from '../../state'
@@ -12,6 +12,7 @@ import { Empty } from '../../ui/Empty'
 import { Figures } from '../../ui/Figures'
 import { Mark } from '../../ui/Mark'
 import { Pill } from '../../ui/Pill'
+import { blank, ready, sent as filled } from '../../ui/Reason'
 import { Relation } from '../../ui/Relation'
 import { Source } from '../../ui/Source'
 import { button, floating, label } from '../../ui/styles'
@@ -215,19 +216,25 @@ function Rules() {
   )
 }
 
-/** 결정 한 줄: 결정 · 사람 · 날짜 · 사유 */
+/** 결정 한 줄: 결정 · 사람 · 날짜 · 사유의 분류. 메모는 그 아래에 따로 */
 const Line = ({ d }: { d: Decision }) => (
-  <p className="text-body tabular-nums">
-    {[d.kind, d.role, d.at ?? L.미상, d.reason?.class ? [d.reason.class, d.reason.memo].filter(Boolean).join(' ') : `${L.사유} ${L.없음}${d.source === L.원본 ? `(${L.원본})` : ''}`].join(' · ')}
-  </p>
+  <div className="text-body break-keep">
+    <p className="tabular-nums">{[d.kind, d.role, d.at ?? L.미상, d.reason?.class ?? `${L.사유} ${L.없음}${d.source === L.원본 ? `(${L.원본})` : ''}`].join(' · ')}</p>
+    {d.reason?.memo && <p className="text-text-sub">{d.reason.memo}</p>}
+  </div>
 )
 
-/** 조치: 지금 역할이 할 수 있는 것만 버튼으로. 없으면 내려진 결정, 그것도 없으면 승인권자 */
+/** 조치: 지금 역할이 할 수 있는 것만 버튼으로. 없으면 내려진 결정, 그것도 없으면 승인권자.
+ * 버튼은 사유가 그 조치의 규칙에 맞을 때만 눌린다(필수이면 그 조치의 분류, 기타이면 메모까지). 서버가 거절하면 그 낱말을 보인다 */
 function Action() {
   const r = useReview()
   const [reason, setReason] = useAtom(reasonAtom)
   // 결정을 보낸 때의 심사. 새 값을 받을 때까지는 다시 누를 수 없다
   const [sent, setSent] = useState<unknown>(null)
+  // 서버가 거절한 까닭의 낱말(권한·사유·상태·대상). 다음 조치를 누르거나 다른 대상을 열면 사라진다
+  const [bad, setBad] = useState<string | null>(null)
+  const id = r?.review.id
+  useEffect(() => setBad(null), [id])
   if (!r) return null
   const last = r.history.at(-1)
   if (!r.actions.length)
@@ -240,17 +247,25 @@ function Action() {
       </div>
     )
   return (
-    <div className="flex gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       {r.actions.map((a) => (
-        <button key={a.kind} className={button} disabled={sent === r || (a.reason && !reason?.class)}
+        <button key={a.kind} className={button} disabled={sent === r || !ready(a.kind, a.reason, reason)}
           onClick={() => {
             setSent(r)
-            decide([r.review.id], a.kind, reason).then(() => setReason(null))
+            setBad(null)
+            api('/decide', { ids: [r.review.id], kind: a.kind, reason: filled(reason) ?? undefined }).then(
+              () => setReason(blank),
+              (e: Error) => {
+                setBad(e.message)
+                store.set(changedAtom, (n) => n + 1)
+              },
+            )
           }}
         >
           {a.kind}
         </button>
       ))}
+      {bad && <Pill tone="bad">{bad}</Pill>}
     </div>
   )
 }
