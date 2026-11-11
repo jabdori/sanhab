@@ -4,7 +4,7 @@
 use super::t03_related::{ITEMS, groups, links, matches};
 use crate::check::Check;
 use crate::db::{Db, as_user, q, q1};
-use crate::{Body, Me, R, err, orig, refuse};
+use crate::{Body, Me, R, attempt, err, orig, refuse};
 use anyhow::{Result, ensure};
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -201,27 +201,15 @@ async fn decide(Extension(me): Extension<Me>, Body(b): Body) -> R {
     if b["reason"].is_object() {
         vars["reason"] = b["reason"].clone();
     }
-    // 심사마다의 거절 낱말 가운데 첫 번째. 꼴이 틀려 DB가 계산하지 못하면 대상
-    let word = async || q1(&me.db, "RETURN $ids.map(|$i| fn::refusal($kind, type::record('review', $i), $reason)).filter(|$w| $w != NONE)[0];", vars.clone()).await.map_err(|_| refuse("대상"));
-    if let Some(w) = word().await?.as_str() {
-        return Err(refuse(w));
-    }
-    if ids.len() > 1 {
-        let n = q1(&me.db, "RETURN count(SELECT id FROM $ids.map(|$i| type::record('review', $i)) WHERE status = '대기' AND approver = '영업지원' AND '정황' NOTINSIDE marks AND !fn::must('승인', id));", json!({ "ids": ids })).await?;
-        if kind != "승인" || n != ids.len() {
-            return Err(refuse("대상"));
-        }
-    }
-    // DB의 거절은 오류가 아니라 빈 결과다. 하나라도 만들어지지 않으면 전부 되돌린다
-    let mut res = me.db.query("
+    // 낱말: 심사마다의 거절 낱말 가운데 첫 번째, 없으면 여러 개를 고른 것이 규칙에 맞는지(대상).
+    // 쓰기: DB의 거절은 오류가 아니라 빈 결과다. 하나라도 만들어지지 않으면 전부 되돌린다
+    attempt(&me.db, "
+        RETURN $ids.map(|$i| fn::refusal($kind, type::record('review', $i), $reason)).filter(|$w| $w != NONE)[0]
+            ?? IF array::len($ids) > 1 AND ($kind != '승인' OR count(SELECT id FROM $ids.map(|$i| type::record('review', $i)) WHERE status = '대기' AND approver = '영업지원' AND '정황' NOTINSIDE marks AND !fn::must('승인', id)) != array::len($ids)) THEN '대상' END;", "
         BEGIN;
         LET $made = INSERT INTO decision $ids.map(|$i| { review: type::record('review', $i), kind: $kind, reason: $reason });
         IF array::len($made) != array::len($ids) { THROW '권한' };
-        COMMIT;").bind(vars.clone()).await.map_err(|_| refuse("대상"))?;
-    if !res.take_errors().is_empty() {
-        // 그 사이에 다른 결정이 먼저 내려졌으면(같은 심사에 동시에 보낸 승인) 다시 따진 낱말(상태)을 돌려준다
-        return Err(refuse(word().await?.as_str().unwrap_or("권한")));
-    }
+        COMMIT;", vars).await?;
     Ok(Json(json!({ "ids": ids })))
 }
 
@@ -259,15 +247,21 @@ pub async fn check(c: &Check) -> Result<()> {
     let t = c.get(support, "/api/tasks").await?;
     let (mine, going) = (rows(&t["mine"]), rows(&t["going"]));
     ensure!(mine.len() == 37 && going.len() == 1, "영업지원의 작업 {} {}", mine.len(), going.len());
-    ensure!(mine.iter().all(|m| m["kind"] == "심사" && m["view"] == "심사" && m["ym"] == "2026-06" && m["role"] == support && m["pick"] == true), "담당의 줄");
-    ensure!(mine.iter().map(|m| m["total"].as_i64().unwrap_or(0)).is_sorted_by(|a, b| a >= b), "합산이 큰 순");
+    ensure!(mine.iter().all(|m| m["kind"] == "심사" && m["view"] == "심사" && m["ym"] == "2026-06" && m["role"] == support), "담당의 줄");
+    // 정황이 걸린 줄(11)이 위, 그 안에서는 합산이 큰 순. 선택 칸은 정황이 없는 줄에만 있다
+    let flag = |m: &J| rows(&m["marks"]).contains(&json!("정황"));
+    ensure!(mine.iter().map(|m| (flag(m), m["total"].as_i64().unwrap_or(0))).is_sorted_by(|a, b| a >= b), "정황이 걸린 줄이 위, 합산이 큰 순");
+    ensure!(mine.iter().all(|m| m["pick"] == !flag(m)), "선택 칸");
     let row = mine.iter().find(|m| m["target"] == one).cloned().unwrap_or_default();
     ensure!(row["name"] == "대성상사1" && row["total"] == 988_932 && row["marks"] == json!([]), "대성상사1의 줄 {row}");
     ensure!(going[0]["target"] == group && going[0]["name"] == "금강상사11 외 2" && going[0]["total"] == 3_888_097 && going[0]["role"] == exec && going[0]["pick"] == false, "박상현 그룹의 줄 {}", going[0]);
     let t = c.get(exec, "/api/tasks").await?;
-    ensure!(rows(&t["mine"]).len() == 1 && t["mine"][0]["target"] == group && t["mine"][0]["pick"] == false && rows(&t["going"]).is_empty(), "영업임원의 작업 {t}");
+    // 심사 작업만 본다(영업임원의 담당에는 뒤 티켓의 작업도 있다: 10의 추인)
+    let own: Vec<J> = rows(&t["mine"]).into_iter().filter(|m| m["kind"] == "심사").collect();
+    ensure!(own.len() == 1 && own[0]["target"] == group && own[0]["pick"] == false && rows(&t["going"]).is_empty(), "영업임원의 작업 {t}");
     for role in ["내부 감시", "회계·자금"] {
-        ensure!(c.get(role, "/api/tasks").await? == json!({ "mine": [], "going": [] }), "{role}의 작업");
+        let t = c.get(role, "/api/tasks").await?;
+        ensure!(!rows(&t["mine"]).iter().chain(&rows(&t["going"])).any(|m| m["kind"] == "심사"), "{role}의 작업");
     }
     let n = q1(&c.db, "RETURN [count(SELECT id FROM review WHERE ym = '2026-06'), count(SELECT id FROM review WHERE ym = '2026-06' AND array::len(members) = 3), math::sum(SELECT VALUE array::len(payouts) FROM review WHERE ym = '2026-06'), count(SELECT id FROM payout WHERE status = '미지급')];", json!({})).await?;
     ensure!(n == json!([38, 1, 40, 40]), "심사 수 {n}");
@@ -297,7 +291,8 @@ pub async fn check(c: &Check) -> Result<()> {
     mid.sort();
     ensure!(mid == ["국민 412-27-556310", "박상현", "성남시 상공로 128"] && rows(&d["relation"]["lines"]).len() == 7, "그림의 식별자 {mid:?}");
     ensure!(can(&d, "승인").is_none(), "영업지원에게 그룹의 승인이 보임");
-    ensure!(can(&review(exec, group).await?, "승인") == Some(false) && can(&review(exec, one).await?, "승인").is_none(), "영업임원의 조치");
+    // 박상현 그룹에는 정황이 걸려 있어(11) 승인에 사유가 필수다
+    ensure!(can(&review(exec, group).await?, "승인") == Some(true) && can(&review(exec, one).await?, "승인").is_none(), "영업임원의 조치");
 
     // 권한은 DB가 강제한다: 승인권자가 아닌 역할의 요청은 거절되고 아무것도 바뀌지 않는다
     ensure!(approve(support, &[group]).await?.0 == 403, "영업지원이 한도를 넘는 심사를 승인");
@@ -317,7 +312,7 @@ pub async fn check(c: &Check) -> Result<()> {
         q(&s, sql, json!({})).await.ok();
     }
     ensure!(approve(support, &[group]).await?.0 == 403 && review(exec, group).await? == before, "직접 쓴 뒤");
-    let n = q1(&c.db, "RETURN [count(SELECT id FROM review WHERE status = '대기' AND fixed = NONE), count(SELECT id FROM task WHERE state = '대기'), count(SELECT id FROM decision WHERE source != '원본'), [act:`승인`.who, act:`통과`.id], rule:`한도-v1`.value, review:`2026-06-D-011`.approver];", json!({})).await?;
+    let n = q1(&c.db, "RETURN [count(SELECT id FROM review WHERE status = '대기' AND fixed = NONE), count(SELECT id FROM task WHERE state = '대기' AND kind = '심사'), count(SELECT id FROM decision WHERE source != '원본'), [act:`승인`.who, act:`통과`.id], rule:`한도-v1`.value, review:`2026-06-D-011`.approver];", json!({})).await?;
     ensure!(n == json!([38, 38, 0, ["승인권자", null], 2_000_000, exec]), "직접 쓴 뒤의 상태 {n}");
 
     // 영업지원이 대성상사1의 심사를 승인: 상태 승인, 굳은 날, 이력에 사람과 날짜. 남의 이름을 적어 보내도 DB가 채운 값이 남는다
@@ -333,12 +328,13 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(rows(&t["mine"]).len() == 36 && !rows(&t["mine"]).iter().any(|m| m["target"] == one), "승인 뒤 담당");
 
     // 여러 개를 한 번에: 정황이 없고 승인권자가 영업지원인 심사만. 하나라도 아니면 전부 안 된다
-    let (a, b, flagged) = ("2026-06-D-004", "2026-06-D-008", "2026-06-D-006");
+    let (a, b, flagged) = ("2026-06-D-004", "2026-06-D-008", "2026-06-D-041");
     ensure!(approve(support, &[a, group]).await? == (403, json!({ "error": "권한" })) && review(support, a).await?["review"]["status"] == "대기", "임원의 심사를 섞은 선택");
-    q(&c.db, "UPDATE review:`2026-06-D-006` SET marks = ['정황'];", json!({})).await?;
+    // 금강상사41의 심사에는 정황이 걸려 있다(11: 동명). 선택 칸이 없고, 섞어 보내면 사유가 없어 거절된다
     let t = c.get(support, "/api/tasks").await?;
-    ensure!(t["mine"][0]["target"] == flagged && t["mine"][0]["pick"] == false && t["mine"][0]["marks"] == json!(["정황"]), "정황이 걸린 줄 {}", t["mine"][0]);
-    ensure!(approve(support, &[a, flagged]).await? == (400, json!({ "error": "대상" })) && review(support, a).await?["review"]["status"] == "대기", "정황이 걸린 심사를 섞은 선택");
+    let row = rows(&t["mine"]).into_iter().find(|m| m["target"] == flagged).unwrap_or_default();
+    ensure!(flag(&t["mine"][0]) && row["pick"] == false && row["marks"] == json!(["정황"]), "정황이 걸린 줄 {row}");
+    ensure!(approve(support, &[a, flagged]).await? == (400, json!({ "error": "사유" })) && review(support, a).await?["review"]["status"] == "대기", "정황이 걸린 심사를 섞은 선택");
     ensure!(approve(support, &[a, one]).await?.0 == 400 && review(support, a).await?["review"]["status"] == "대기", "이미 승인된 심사를 섞은 선택");
     ensure!(approve(exec, &[a, b]).await?.0 == 403, "영업임원의 선택");
     let (code, r) = approve(support, &[a, b, a]).await?;
@@ -347,8 +343,9 @@ pub async fn check(c: &Check) -> Result<()> {
         let d = review(support, id).await?;
         ensure!(d["review"]["status"] == "승인" && rows(&d["history"]).len() == 1, "선택 승인 뒤 {id}");
     }
-    // 정황이 걸린 심사도 하나씩은 승인권자가 승인한다(정황은 지급을 막지 않는다, D8)
-    ensure!(approve(support, &[flagged]).await?.0 == 200, "정황이 걸린 심사의 승인");
+    // 정황이 걸린 심사도 하나씩은 승인권자가 승인한다(정황은 지급을 막지 않는다, D8). 사유는 필수다(D41)
+    ensure!(approve(support, &[flagged]).await? == (400, json!({ "error": "사유" })), "정황이 걸린 심사를 사유 없이 승인");
+    ensure!(c.post(support, "/api/decide", json!({ "ids": [flagged], "kind": "승인", "reason": { "class": "경미" } })).await?.0 == 200, "정황이 걸린 심사의 승인");
     ensure!(rows(&c.get(support, "/api/tasks").await?["mine"]).len() == 33, "담당 33");
 
     // 굳히기: 승인 뒤에 그룹과 규칙이 바뀌어도 승인된 심사는 그때의 구성·합산·승인권자·규칙 버전 그대로이고, 대기인 심사는 따라 바뀐다.
@@ -379,7 +376,7 @@ pub async fn check(c: &Check) -> Result<()> {
     q(&c.db, "CREATE act:`본보기멈춤` SET states = ['대기'], to = '보류', who = '승인권자', reason = true;
         CREATE act:`본보기확인` SET states = ['승인'], who = '영업임원', mark = '본보기표시', reason = true;", json!({})).await?;
     let stop = "본보기멈춤";
-    ensure!(can(&review(exec, group).await?, stop) == Some(true) && can(&review(exec, group).await?, "승인") == Some(false), "더한 조치");
+    ensure!(can(&review(exec, group).await?, stop) == Some(true) && can(&review(exec, group).await?, "승인").is_some(), "더한 조치");
     ensure!(can(&review(support, group).await?, stop).is_none(), "영업지원에게 더한 조치가 보임");
     ensure!(c.post(exec, "/api/decide", json!({ "ids": [group], "kind": stop })).await? == (400, json!({ "error": "사유" })), "사유 없는 조치");
     ensure!(c.post(support, "/api/decide", json!({ "ids": [group], "kind": stop, "reason": { "class": "기타", "memo": "소명 대기" } })).await?.0 == 403, "영업지원의 조치");
@@ -407,7 +404,7 @@ pub async fn check(c: &Check) -> Result<()> {
     recalc(&c.db).await?;
     let d = review(support, "2026-06-D-034").await?;
     ensure!(d["review"]["total"] == 1_353_657 && d["review"]["status"] == "대기" && d["members"][0]["name"] == "한라인상사34" && d["members"][0]["pays"][0]["amount"] == 1_353_657, "선이 없는 대리점의 심사 {d}");
-    ensure!(rows(&c.get(support, "/api/tasks").await?["mine"]).iter().any(|m| m["target"] == "2026-06-D-034") && can(&d, "승인") == Some(false), "선이 없는 대리점의 작업");
+    ensure!(rows(&c.get(support, "/api/tasks").await?["mine"]).iter().any(|m| m["target"] == "2026-06-D-034") && can(&d, "승인").is_some(), "선이 없는 대리점의 작업");
 
     // 굳은 심사는 다시 계산해도 그대로다: 승인된 대성상사1에 같은 귀속월의 새 미지급이 생기면 굳은 심사와 겹치지 않는 새 심사가 만들어진다
     let fixed = review(support, one).await?;
