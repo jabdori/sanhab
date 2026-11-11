@@ -1,0 +1,3 @@
+# 한 줄씩 더하는 파일: 여러 티켓이 같은 자리에 줄을 더해도 양쪽을 모두 남긴다
+src/tickets.rs merge=union
+web/src/labels.ts merge=union

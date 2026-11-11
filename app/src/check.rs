@@ -1,63 +1,70 @@
-//! 시연 시나리오 + DB 권한 자기검증. `w07 check` (DB를 원본 기준으로 재적재함)
-use crate::db::{Db, as_user, q, q1, signin};
-use crate::seed::boot;
-use anyhow::{Result, ensure};
+//! 자동 검사의 도구. 검사는 화면과 같은 길(HTTP)로 한다: 실제 서버를 빈 포트에 띄우고 역할의 토큰으로 부른다.
+use crate::db::Db;
+use anyhow::{Context, Result, ensure};
 use serde_json::{Value as J, json};
+use std::collections::HashMap;
 
-fn len(v: &J) -> usize { v.as_array().map_or(0, Vec::len) }
-
-async fn approve(db: &Db, token: &str, key: &str) -> Result<usize> {
-    let s = as_user(db, token).await?;
-    Ok(len(&q1(&s, "CREATE approval SET decision = type::record('decision', $key);", json!({ "key": key })).await?))
+pub struct Check {
+    /// root 세션. 검사 준비(시계 돌리기 등)에만 쓴다
+    pub db: Db,
+    base: String,
+    http: reqwest::Client,
+    tokens: HashMap<String, String>,
 }
 
-pub async fn run(db: &Db) -> Result<()> {
-    boot(db, true).await?;
-    let pass = std::env::var("DEMO_PASS").unwrap_or_else(|_| "demo".into());
-    let (support, exec) = (signin(db, "support", &pass).await?, signin(db, "exec", &pass).await?);
-    let one = |sql: &'static str| q1(db, sql, json!({}));
+impl Check {
+    pub async fn start(db: Db) -> Result<Self> {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+        let base = format!("http://{}", listener.local_addr()?);
+        let app = crate::app(db.clone());
+        tokio::spawn(async move { axum::serve(listener, app).await });
+        Ok(Self { db, base, http: reqwest::Client::new(), tokens: HashMap::new() })
+    }
 
-    // 원본 발견: D-011 그룹 1~5월 15건은 알 수 있었던 위반, 그룹 합산은 이전 분석과 일치
-    ensure!(len(&one("SELECT VALUE id FROM decision WHERE knowledge = 'control_violation';").await?) == 15);
-    ensure!(one("RETURN decision:`RB-00049`.group_total;").await? == json!(4870186));
+    /// 원본 상태로 되돌리고 네 역할로 다시 접속한다
+    pub async fn reset(&mut self) -> Result<()> {
+        crate::boot(&self.db, true).await?;
+        let (code, r) = self.call(None, "POST", "/api/enter", Some(json!({ "pass": crate::demo_pass() }))).await?;
+        ensure!(code == 200, "접속 실패 {code}");
+        self.tokens = roles(&r);
+        Ok(())
+    }
 
-    // ① 정상: 단독 거래처 6월분, 영업지원팀 전결 → 지급 Work
-    let n = one("RETURN (SELECT VALUE record::id(id) FROM decision WHERE acceptance = 'pending' AND fn::check(id, time::now()).required = '영업지원팀'
-        AND array::len(fn::check(id, time::now()).blockers) = 0 LIMIT 1)[0];").await?;
-    let n = n.as_str().unwrap_or_default().to_string();
-    ensure!(approve(db, &support, &n).await? == 1, "정상 승인 실패");
-    ensure!(q1(db, "SELECT VALUE kind FROM work WHERE target = type::record('decision', $k);", json!({ "k": n })).await? == json!(["payment"]));
+    pub fn token(&self, role: &str) -> &str {
+        self.tokens.get(role).map_or("", String::as_str)
+    }
 
-    // ② 그룹 합산: D-011 6월분(개별 137만, 그룹 389만) — 영업지원팀 침묵 거부, 영업임원 승인
-    ensure!(approve(db, &support, "RB-00054").await? == 0, "영업지원팀이 한도 초과를 승인함");
-    ensure!(approve(db, &exec, "RB-00054").await? == 1);
-    // 시스템(root) 세션은 $auth가 없어 승인 레코드를 만들 수 없음
-    ensure!(q(db, "CREATE approval SET decision = decision:`RB-00180`;", json!({})).await.is_err(), "root가 승인함");
+    /// (상태 코드, 본문). `bearer`가 None이면 토큰 없이 부른다
+    pub async fn call(&self, bearer: Option<&str>, method: &str, path: &str, body: Option<J>) -> Result<(u16, J)> {
+        let mut req = self.http.request(method.parse()?, format!("{}{path}", self.base));
+        if let Some(t) = bearer {
+            req = req.bearer_auth(t);
+        }
+        if let Some(b) = body {
+            req = req.header("content-type", "application/json").body(b.to_string());
+        }
+        let res = req.send().await?;
+        let code = res.status().as_u16();
+        let text = res.text().await?;
+        Ok((code, serde_json::from_str(&text).unwrap_or(J::String(text))))
+    }
 
-    // ③ 정보 부족: D-024 계좌 불일치 증빙 미해결 → 임원도 거부, 해소 후 승인
-    ensure!(approve(db, &exec, "RB-00120").await? == 0, "증빙 미해결인데 승인됨");
-    one("UPDATE work SET state = 'settled' WHERE kind = 'evidence_check' AND target = agency:`D-024`;").await?;
-    ensure!(approve(db, &exec, "RB-00120").await? == 1);
+    /// 역할로 조회. 200이 아니면 실패
+    pub async fn get(&self, role: &str, path: &str) -> Result<J> {
+        let (code, r) = self.call(Some(self.token(role)), "GET", path, None).await?;
+        ensure!(code == 200, "GET {path} ({role}) → {code} {r}");
+        Ok(r)
+    }
 
-    // ④ 조건 변경: D-034 주소가 D-041과 같아짐 — 이사일 3/1, 신고(인지) 5/10
-    one("fn::change_ident(agency:`D-034`, 'address', '고양시 중앙로 128', d'2026-03-01', d'2026-05-10', { kind: 'assumption', note: '시연용 조건 변경' });").await?;
-    let k = one("SELECT period, knowledge FROM decision WHERE agency IN [agency:`D-034`, agency:`D-041`] AND acceptance = 'stale' ORDER BY period;").await?;
-    println!("D-034/041 재판정: {k}");
-    let k = k.as_array().cloned().unwrap_or_default();
-    ensure!(!k.is_empty() && k.iter().all(|x| x["period"].as_str() >= Some("2026-03")), "이사일 이전 월이 재판정됨(과잉 stale)");
-    ensure!(k.iter().any(|x| x["knowledge"] == "outcome_error"));
+    /// 역할로 조치. 거절도 검사할 수 있게 상태 코드를 함께 준다
+    pub async fn post(&self, role: &str, path: &str, body: J) -> Result<(u16, J)> {
+        self.call(Some(self.token(role)), "POST", path, Some(body)).await.with_context(|| format!("POST {path}"))
+    }
+}
 
-    // ⑤ 정정의 정정: 소명으로 이사일 4/15 → 3월분 재판정 해소
-    one("CREATE vindication CONTENT { edge: (SELECT VALUE id FROM related WHERE in = agency:`D-034` OR out = agency:`D-034`)[0],
-        effect: 'correct_valid_from', valid_from: d'2026-04-15', evidence: '임대차계약서(가정)' };").await?;
-    let mar = one("SELECT VALUE acceptance FROM decision WHERE agency IN [agency:`D-034`, agency:`D-041`] AND period = '2026-03';").await?;
-    ensure!(mar.as_array().is_some_and(|a| a.iter().all(|x| x == "accepted")), "소명 후에도 3월분 stale");
-
-    // 역추적: 위반 보고 Work가 왜 생겼나 → 판정 → 관련자 엣지
-    let why = one("SELECT VALUE @.{..+collect}(<-caused<-?) FROM ONLY (SELECT VALUE id FROM work WHERE kind = 'violation_report' LIMIT 1)[0];").await?;
-    let why: Vec<&str> = why.as_array().map(|a| a.iter().filter_map(J::as_str).collect()).unwrap_or_default();
-    ensure!(why.iter().any(|x| x.starts_with("decision:")) && why.iter().any(|x| x.starts_with("related:")), "역추적 실패: {why:?}");
-
-    println!("check OK");
-    Ok(())
+/// 접속 응답 `{ roles: [{ role, token }] }` → 역할 → 토큰
+pub fn roles(r: &J) -> HashMap<String, String> {
+    r["roles"].as_array().into_iter().flatten()
+        .filter_map(|x| Some((x["role"].as_str()?.to_string(), x["token"].as_str()?.to_string())))
+        .collect()
 }
