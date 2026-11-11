@@ -4,7 +4,7 @@ import { AlertDialog } from '@base-ui/react/alert-dialog'
 import { Checkbox } from '@base-ui/react/checkbox'
 import { Tabs } from '@base-ui/react/tabs'
 import { useAtom } from 'jotai'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { L } from '../../labels'
 import type { Piece } from '../../pieces'
 import { api, changedAtom, store, targetAtom, useData } from '../../state'
@@ -215,11 +215,12 @@ function Rules() {
   )
 }
 
-/** 결정 한 줄: 결정 · 사람 · 날짜 · 사유 */
+/** 결정 한 줄: 결정 · 사람 · 날짜 · 사유의 분류. 메모는 그 아래에 따로 */
 const Line = ({ d }: { d: Decision }) => (
-  <p className="text-body break-keep tabular-nums">
-    {[d.kind, d.role, d.at, d.reason?.class ? [d.reason.class, d.reason.memo].filter(Boolean).join(' ') : `${L.사유} ${L.없음}${d.source === L.원본 ? `(${L.원본})` : ''}`].join(' · ')}
-  </p>
+  <div className="text-body break-keep">
+    <p className="tabular-nums">{[d.kind, d.role, d.at, d.reason?.class ?? `${L.사유} ${L.없음}${d.source === L.원본 ? `(${L.원본})` : ''}`].join(' · ')}</p>
+    {d.reason?.memo && <p className="text-text-sub">{d.reason.memo}</p>}
+  </div>
 )
 
 /** 조치: 지금 역할이 할 수 있는 것만 버튼으로. 없으면 내려진 결정, 그것도 없으면 승인권자.
@@ -229,8 +230,10 @@ function Action() {
   const [reason, setReason] = useAtom(reasonAtom)
   // 결정을 보낸 때의 심사. 새 값을 받을 때까지는 다시 누를 수 없다
   const [sent, setSent] = useState<unknown>(null)
-  // 거절된 심사와 서버의 낱말
-  const [bad, setBad] = useState<{ id: string; word: string } | null>(null)
+  // 서버가 거절한 까닭의 낱말(권한·사유·상태·대상). 다음 조치를 누르거나 다른 대상을 열면 사라진다
+  const [bad, setBad] = useState<string | null>(null)
+  const id = r?.review.id
+  useEffect(() => setBad(null), [id])
   if (!r) return null
   const last = r.history.at(-1)
   if (!r.actions.length)
@@ -252,7 +255,7 @@ function Action() {
             api('/decide', { ids: [r.review.id], kind: a.kind, reason: filled(reason) ?? undefined }).then(
               () => setReason(blank),
               (e: Error) => {
-                setBad({ id: r.review.id, word: e.message })
+                setBad(e.message)
                 store.set(changedAtom, (n) => n + 1)
               },
             )
@@ -261,7 +264,7 @@ function Action() {
           {a.kind}
         </button>
       ))}
-      {bad?.id === r.review.id && <Pill tone="bad">{bad.word}</Pill>}
+      {bad && <Pill tone="bad">{bad}</Pill>}
     </div>
   )
 }

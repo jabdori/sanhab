@@ -4,7 +4,7 @@
 use super::t03_related::{ITEMS, groups, links, matches};
 use crate::check::Check;
 use crate::db::{Db, as_user, q, q1};
-use crate::{Me, R, err, orig};
+use crate::{Me, R, err, orig, refuse};
 use anyhow::{Result, ensure};
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -132,11 +132,11 @@ pub fn routes() -> Router<Db> {
 
 /// 작업 목록: 담당(`mine`, 지금 내 역할이 처리할 것)과 진행(`going`, 내 역할이 관여했고 다른 역할의 차례인 것 + 내 담당이지만 `state`가 진행인 것 — 보류한 심사, D48).
 /// 대상의 이름·귀속월·합산·표시는 대상 기록의 `name`·`ym`·`total`·`marks`에서 읽는다. 정황이 걸린 줄이 위, 그다음은 합산이 큰 순.
-/// `pick`은 여러 개를 골라 한 번에 승인할 수 있는 줄: 정황이 없고 승인권자가 영업지원인 심사
+/// `pick`은 여러 개를 골라 한 번에 승인할 수 있는 줄: 담당에 있고, 대기이고, 정황이 없고, 승인권자가 영업지원이고, 승인에 사유가 필수가 아닌 심사(보류된 줄은 아니다)
 async fn tasks(Extension(me): Extension<Me>) -> R {
     let r = q1(&me.db, "
         SELECT record::id(id) AS id, kind, view, record::id(target) AS target, target.name AS name, target.ym AS ym, target.total AS total, target.marks ?? [] AS marks, role, state,
-            IF kind = '심사' THEN target.approver = '영업지원' AND '정황' NOTINSIDE target.marks AND fn::can('승인', target) ELSE false END AS pick
+            IF kind = '심사' THEN state = '대기' AND target.status = '대기' AND target.approver = '영업지원' AND '정황' NOTINSIDE target.marks AND fn::can('승인', target) AND !fn::must('승인', target) ELSE false END AS pick
         FROM task WHERE state INSIDE ['대기', '진행'] AND (role = $auth.role OR also CONTAINS $auth.role);", json!({})).await?;
     let mut rows: Vec<J> = r.as_array().cloned().unwrap_or_default();
     rows.sort_by_key(|t| (!t["marks"].as_array().is_some_and(|m| m.contains(&json!("정황"))), -t["total"].as_i64().unwrap_or(0), t["id"].as_str().map(String::from)));
@@ -153,7 +153,7 @@ async fn detail(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): Pa
             review: (SELECT record::id(id) AS id, name, ym, status, marks, total, limit, approver, IF fixed THEN time::format(fixed, '%Y-%m-%d') END AS fixed, source, members.map(|$d| { id: record::id($d), name: $d.name }) AS members FROM $r)[0],
             payouts: (SELECT record::id((->payout_of->dealer)[0]) AS dealer, amount, source, file.path AS file, row FROM payout WHERE id INSIDE $r.payouts),
             rules: (SELECT name, ver, value, clause.title AS title, clause.doc.path AS file, clause.first AS first, clause.last AS last, clause.text AS text, clause.source AS source FROM rule WHERE id INSIDE $r.rules ORDER BY name),
-            actions: (SELECT record::id(id) AS kind, fn::must(record::id(id), $r) AS reason, fn::classes(record::id(id), $r) AS classes FROM act WHERE fn::can(record::id(id), $r) ORDER BY kind),
+            actions: (SELECT record::id(id) AS kind, fn::must(record::id(id), $r) AS reason, fn::classes(record::id(id), $r) AS classes, seq FROM act WHERE fn::can(record::id(id), $r) ORDER BY seq, kind),
             history: (SELECT kind, role, time::format(at, '%Y-%m-%d') AS at, reason, source, stamp FROM decision WHERE review = $r ORDER BY stamp),
         };", json!({ "id": id })).await?;
     if r["review"].is_null() {
@@ -187,38 +187,39 @@ async fn detail(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): Pa
     Ok(Json(r))
 }
 
-/// 결정: `{ ids, kind, reason? }`. 역할의 세션으로 결정을 만들고, 권한이 없으면 DB가 거절한다(403). 여럿이면 전부 되거나 전부 안 된다.
-/// 여러 개를 한 번에 하는 것은 승인뿐이고, 정황이 없고 승인권자가 영업지원인 심사만 된다(U4)
+/// 결정: `{ ids, kind, reason? }`. 쓰기 전에 거절의 낱말을 정해 돌려주고(`refuse`: 권한 403, 사유·상태·대상 400), 역할의 세션으로 결정을 만든다.
+/// DB의 권한 규칙은 마지막 방어선이다. 여럿이면 전부 되거나 전부 안 된다.
+/// 여러 개를 한 번에 하는 것은 승인뿐이고, 대기이고 정황이 없고 승인권자가 영업지원이고 사유가 필수가 아닌 심사만 된다(U4)
 async fn decide(Extension(me): Extension<Me>, Json(b): Json<J>) -> R {
     let mut ids: Vec<&str> = b["ids"].as_array().into_iter().flatten().filter_map(J::as_str).collect();
     ids.sort_unstable();
     ids.dedup();
-    let kind = b["kind"].as_str().unwrap_or("");
-    if ids.is_empty() {
-        return Err(err(StatusCode::BAD_REQUEST, "대상"));
-    }
-    if ids.len() > 1 {
-        let n = q1(&me.db, "RETURN count(SELECT id FROM $ids.map(|$i| type::record('review', $i)) WHERE approver = '영업지원' AND '정황' NOTINSIDE marks);", json!({ "ids": ids })).await?;
-        if kind != "승인" || n != ids.len() {
-            return Err(err(StatusCode::BAD_REQUEST, "선택"));
-        }
-    }
+    let (Some(kind), false) = (b["kind"].as_str(), ids.is_empty()) else {
+        return Err(refuse("대상"));
+    };
     let mut vars = json!({ "ids": ids, "kind": kind });
     if b["reason"].is_object() {
         vars["reason"] = b["reason"].clone();
     }
-    // 거절은 오류가 아니라 빈 결과다. 하나라도 만들어지지 않으면 전부 되돌린다
+    // 심사마다의 거절 낱말 가운데 첫 번째. 꼴이 틀려 DB가 계산하지 못하면 대상
+    let word = q1(&me.db, "RETURN $ids.map(|$i| fn::refusal($kind, type::record('review', $i), $reason)).filter(|$w| $w != NONE)[0];", vars.clone()).await.map_err(|_| refuse("대상"))?;
+    if let Some(w) = word.as_str() {
+        return Err(refuse(w));
+    }
+    if ids.len() > 1 {
+        let n = q1(&me.db, "RETURN count(SELECT id FROM $ids.map(|$i| type::record('review', $i)) WHERE status = '대기' AND approver = '영업지원' AND '정황' NOTINSIDE marks AND !fn::must('승인', id));", json!({ "ids": ids })).await?;
+        if kind != "승인" || n != ids.len() {
+            return Err(refuse("대상"));
+        }
+    }
+    // DB의 거절은 오류가 아니라 빈 결과다. 하나라도 만들어지지 않으면 전부 되돌린다
     let mut res = me.db.query("
         BEGIN;
         LET $made = INSERT INTO decision $ids.map(|$i| { review: type::record('review', $i), kind: $kind, reason: $reason });
         IF array::len($made) != array::len($ids) { THROW '권한' };
-        COMMIT;").bind(vars).await.map_err(anyhow::Error::from)?;
-    let errors = res.take_errors();
-    if errors.values().any(|e| e.to_string().contains("권한")) {
-        return Err(err(StatusCode::FORBIDDEN, "권한"));
-    }
-    if let Some(e) = errors.into_values().next() {
-        return Err(anyhow::Error::from(e).into());
+        COMMIT;").bind(vars).await.map_err(|_| refuse("대상"))?;
+    if !res.take_errors().is_empty() {
+        return Err(refuse("권한"));
     }
     Ok(Json(json!({ "ids": ids })))
 }
@@ -326,18 +327,18 @@ pub async fn check(c: &Check) -> Result<()> {
     h[0].as_object_mut().map(|o| o.remove("stamp"));
     ensure!(h == json!([{ "kind": "승인", "role": support, "at": "2026-07-01", "reason": null, "source": "시연" }]), "이력 {h}");
     ensure!(q1(&c.db, "RETURN (SELECT VALUE by FROM decision)[0] = staff:support;", json!({})).await? == true, "결정한 직원");
-    ensure!(approve(support, &[one]).await?.0 == 403, "승인된 심사를 다시 승인");
+    ensure!(approve(support, &[one]).await? == (400, json!({ "error": "상태" })), "승인된 심사를 다시 승인");
     let t = c.get(support, "/api/tasks").await?;
     ensure!(rows(&t["mine"]).len() == 36 && !rows(&t["mine"]).iter().any(|m| m["target"] == one), "승인 뒤 담당");
 
     // 여러 개를 한 번에: 정황이 없고 승인권자가 영업지원인 심사만. 하나라도 아니면 전부 안 된다
     let (a, b, flagged) = ("2026-06-D-004", "2026-06-D-008", "2026-06-D-006");
-    ensure!(approve(support, &[a, group]).await?.0 == 400 && review(support, a).await?["review"]["status"] == "대기", "임원의 심사를 섞은 선택");
+    ensure!(approve(support, &[a, group]).await? == (403, json!({ "error": "권한" })) && review(support, a).await?["review"]["status"] == "대기", "임원의 심사를 섞은 선택");
     q(&c.db, "UPDATE review:`2026-06-D-006` SET marks = ['정황'];", json!({})).await?;
     let t = c.get(support, "/api/tasks").await?;
     ensure!(t["mine"][0]["target"] == flagged && t["mine"][0]["pick"] == false && t["mine"][0]["marks"] == json!(["정황"]), "정황이 걸린 줄 {}", t["mine"][0]);
-    ensure!(approve(support, &[a, flagged]).await?.0 == 400 && review(support, a).await?["review"]["status"] == "대기", "정황이 걸린 심사를 섞은 선택");
-    ensure!(approve(support, &[a, one]).await?.0 == 403 && review(support, a).await?["review"]["status"] == "대기", "이미 승인된 심사를 섞은 선택");
+    ensure!(approve(support, &[a, flagged]).await? == (400, json!({ "error": "대상" })) && review(support, a).await?["review"]["status"] == "대기", "정황이 걸린 심사를 섞은 선택");
+    ensure!(approve(support, &[a, one]).await?.0 == 400 && review(support, a).await?["review"]["status"] == "대기", "이미 승인된 심사를 섞은 선택");
     ensure!(approve(exec, &[a, b]).await?.0 == 403, "영업임원의 선택");
     let (code, r) = approve(support, &[a, b, a]).await?;
     ensure!(code == 200 && r["ids"] == json!([a, b]), "선택 승인 {code} {r}");
@@ -379,7 +380,7 @@ pub async fn check(c: &Check) -> Result<()> {
     let stop = "본보기멈춤";
     ensure!(can(&review(exec, group).await?, stop) == Some(true) && can(&review(exec, group).await?, "승인") == Some(false), "더한 조치");
     ensure!(can(&review(support, group).await?, stop).is_none(), "영업지원에게 더한 조치가 보임");
-    ensure!(c.post(exec, "/api/decide", json!({ "ids": [group], "kind": stop })).await?.0 == 403, "사유 없는 조치");
+    ensure!(c.post(exec, "/api/decide", json!({ "ids": [group], "kind": stop })).await? == (400, json!({ "error": "사유" })), "사유 없는 조치");
     ensure!(c.post(support, "/api/decide", json!({ "ids": [group], "kind": stop, "reason": { "class": "기타", "memo": "소명 대기" } })).await?.0 == 403, "영업지원의 조치");
     ensure!(c.post(exec, "/api/decide", json!({ "ids": [group], "kind": stop, "reason": { "class": "기타", "memo": "소명 대기" } })).await?.0 == 200, "더한 조치의 결정");
     let d = review(exec, group).await?;

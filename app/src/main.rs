@@ -29,6 +29,9 @@ impl From<anyhow::Error> for ApiError {
     fn from(e: anyhow::Error) -> Self { ApiError(StatusCode::INTERNAL_SERVER_ERROR, json!({ "error": format!("{e:#}") })) }
 }
 pub fn err(code: StatusCode, msg: &str) -> ApiError { ApiError(code, json!({ "error": msg })) }
+/// 조치의 거절. 낱말은 넷뿐이다: 권한(그 역할이 할 수 없다, 403) · 사유(사유가 규칙에 맞지 않다) · 상태(그 상태에서는 할 수 없다) · 대상(없거나 꼴이 틀리다) — 뒤의 셋은 400.
+/// 처리기는 쓰기 전에 낱말을 정하고(대상 → 권한 → 상태 → 사유 순으로 따진다), DB의 권한 규칙은 마지막 방어선으로 남긴다. DB의 문구는 내보내지 않는다
+pub fn refuse(word: &str) -> ApiError { err(if word == "권한" { StatusCode::FORBIDDEN } else { StatusCode::BAD_REQUEST }, word) }
 /// 처리기의 반환형
 pub type R = Result<Json<J>, ApiError>;
 

@@ -2,7 +2,7 @@
 //! 지급으로 표시하는 것은 역할의 세션으로 `remit`을 만드는 것이고, 누가 할 수 있는지는 DB(`fn::payable`)가 정한다. 은행 연동은 없다(모의 처리).
 use crate::check::Check;
 use crate::db::{Db, as_user, q, q1};
-use crate::{Me, R, err};
+use crate::{Me, R, err, refuse};
 use anyhow::{Result, ensure};
 use axum::extract::Path;
 use axum::http::StatusCode;
@@ -43,14 +43,20 @@ async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
     Ok(Json(r))
 }
 
-/// 지급으로 표시: `{ id }`. 역할의 세션으로 `remit`을 만들고, 권한이 없으면 DB가 거절한다(빈 결과 → 403). 본문의 꼴이 틀리면 400
+/// 지급으로 표시: `{ id }`. 쓰기 전에 거절의 낱말을 정해 돌려주고(`refuse`: 대상 → 권한 → 상태), 역할의 세션으로 `remit`을 만든다. DB의 권한 규칙은 마지막 방어선이다
 async fn pay(Extension(me): Extension<Me>, Json(b): Json<J>) -> R {
-    // 본문의 꼴이 틀리면 400. DB의 문구는 밖으로 내보내지 않는다
-    let bad = || err(StatusCode::BAD_REQUEST, "대상");
+    // 본문의 꼴이 틀리면 대상. DB의 문구는 밖으로 내보내지 않는다
+    let bad = || refuse("대상");
     let id = b["id"].as_str().filter(|i| !i.is_empty()).ok_or_else(bad)?;
+    let word = q1(&me.db, "
+        LET $p = type::record('payout', $id);
+        RETURN IF $p.id = NONE THEN '대상' ELSE IF $auth.role != '회계·자금' THEN '권한' ELSE IF !fn::payable($p) THEN '상태' END;", json!({ "id": id })).await.map_err(|_| bad())?;
+    if let Some(w) = word.as_str() {
+        return Err(refuse(w));
+    }
     let made = q1(&me.db, "CREATE remit SET payout = type::record('payout', $id) RETURN VALUE record::id(payout);", json!({ "id": id })).await.map_err(|_| bad())?;
     if made.as_array().is_none_or(Vec::is_empty) {
-        return Err(err(StatusCode::FORBIDDEN, "권한"));
+        return Err(refuse("권한"));
     }
     Ok(Json(json!({ "id": made[0] })))
 }
@@ -112,7 +118,7 @@ pub async fn check(c: &Check) -> Result<()> {
 
     // 다른 역할은 지급할 수 없다. 화면을 거치지 않고 DB에 직접 써도 마찬가지다(회계·자금도 지급 표시 말고는 쓰지 못한다)
     for role in [support, exec, "내부 감시"] {
-        ensure!(pay(role, &id).await?.0 == 403, "{role}이 지급");
+        ensure!(pay(role, &id).await? == (403, json!({ "error": "권한" })), "{role}이 지급");
         let s = as_user(&c.db, c.token(role)).await?;
         q(&s, "CREATE remit SET payout = type::record('payout', $id); UPDATE payout SET state = '완료';", json!({ "id": id })).await.ok();
         q(&s, "INSERT INTO remit (SELECT id AS payout FROM payout WHERE state = '대기');", json!({})).await.ok();
@@ -121,7 +127,7 @@ pub async fn check(c: &Check) -> Result<()> {
     for sql in ["UPDATE payout SET state = '완료', amount = 1;", "UPDATE task SET state = '완료';", "CREATE remit SET payout = payout:`RB-00168`;", "DELETE task; DELETE payout;"] {
         q(&s, sql, json!({})).await.ok();
     }
-    ensure!(pay(acct, "RB-00168").await?.0 == 403 && pay(acct, "x").await?.0 == 403, "승인되지 않은 지급을 지급");
+    ensure!(pay(acct, "RB-00168").await? == (400, json!({ "error": "상태" })) && pay(acct, "x").await? == (400, json!({ "error": "대상" })), "승인되지 않은 지급을 지급");
     ensure!(counts().await? == json!({ "대기": 4, "재심사": 0, "완료": 0 }) && pays(acct, "mine").await?.len() == 4 && c.get(acct, &format!("/api/pays/{id}")).await? == d, "직접 쓴 뒤");
     ensure!(q1(&c.db, "RETURN count(SELECT id FROM remit);", json!({})).await? == 0, "지급 표시가 만들어짐");
 
@@ -132,7 +138,7 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(q1(&c.db, "RETURN (SELECT VALUE by FROM remit)[0] = staff:acct;", json!({})).await? == true, "지급한 직원");
     ensure!(counts().await? == json!({ "대기": 3, "재심사": 0, "완료": 1 }), "대기 3 완료 1");
     ensure!(pays(acct, "mine").await?.len() == 3 && pays(support, "going").await?.len() == 3, "지급 뒤의 작업");
-    ensure!(pay(acct, &id).await?.0 == 403, "완료된 지급을 다시 지급");
+    ensure!(pay(acct, &id).await? == (400, json!({ "error": "상태" })), "완료된 지급을 다시 지급");
     let l = line().await?;
     ensure!(l[5]["state"] == "완료" && l[5]["state_source"] == "시연" && l[5]["status"] == "미지급", "지급 뒤 대리점 상세의 6월 줄 {}", l[5]);
     // 본문의 꼴이 틀린 요청은 400이고 DB의 문구가 나가지 않는다
@@ -148,7 +154,7 @@ pub async fn check(c: &Check) -> Result<()> {
     let again = pays(acct, "mine").await?[0]["target"].as_str().unwrap_or("").to_string();
     q(&c.db, "UPDATE type::record('payout', $id) SET state = '재심사';", json!({ "id": again })).await?;
     let d = c.get(acct, &format!("/api/pays/{again}")).await?;
-    ensure!(d["pay"]["state"] == "재심사" && d["can"] == false && pay(acct, &again).await?.0 == 403, "재심사인 지급 {d}");
+    ensure!(d["pay"]["state"] == "재심사" && d["can"] == false && pay(acct, &again).await?.0 == 400, "재심사인 지급 {d}");
     ensure!(counts().await? == json!({ "대기": 1, "재심사": 1, "완료": 2 }) && pays(acct, "mine").await?.len() == 2, "재심사 1");
 
     // 한 지급에 작업은 하나: 뒤에 대성상사1과 한 그룹이 된 두 곳의 심사는 대성상사1의 지급까지 합산하지만(04), 승인되어도 그 지급의 작업을 다시 만들지 않는다

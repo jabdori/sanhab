@@ -3,6 +3,7 @@
 
 DEFINE FIELD classes ON act TYPE array<string> DEFAULT [];   -- 이 조치에 고를 수 있는 사유의 분류. 비어 있으면 가리지 않는다
 DEFINE FIELD over ON act TYPE option<object> FLEXIBLE;         -- 심사의 상태가 이 열쇠이면 classes 대신 이 목록을 쓴다(보류된 심사의 승인: { 보류: [...] }, D48)
+DEFINE FIELD seq ON act TYPE int DEFAULT 9;                   -- 조치 버튼의 순서(작은 것이 앞: 승인 1, 보류 2, 반려 3)
 DEFINE FIELD need ON act TYPE array<string> DEFAULT [];      -- 심사의 상태나 표시가 이 가운데 하나이면 사유 필수(보류된 심사의 승인, D48. 11: UPDATE act:`승인` SET need += '정황')
 
 -- 사유가 규칙에 맞는지: 필수이면 분류가 있어야 하고, 분류는 목록 안의 것이어야 하고, 기타이면 메모가 있어야 한다.
@@ -38,3 +39,14 @@ DEFINE EVENT t05_hold ON decision WHEN $event = 'CREATE' AND $after.kind = '보�
 -- 선 30: 결정 → 같은 심사의 바로 앞 결정(보류를 푼 승인은 그 보류에 이어진다). 역할의 결정은 DB가 채운다
 DEFINE FIELD prev ON decision TYPE option<record<decision>>
     VALUE IF $auth.id OR $value = NONE THEN (SELECT id, stamp FROM decision WHERE review = $parent.review ORDER BY stamp DESC LIMIT 1)[0].id ELSE $value END READONLY;
+
+-- 지금 역할이 그 심사에 그 조치를 그 사유로 하려 할 때 거절되는 까닭의 낱말. 없으면 할 수 있다.
+-- 대상(없는 심사·조치) → 권한(그 역할이 할 수 없다) → 상태(그 상태·표시에서는 할 수 없다) → 사유 순으로 따진다. 권한 규칙(fn::can, fn::reason)과 같은 것을 낱말로 나눈 것이다
+DEFINE FUNCTION fn::refusal($kind: string, $review: record<review>, $reason: option<object>) -> option<string> {
+    LET $a = type::record('act', $kind);
+    RETURN IF $a.id = NONE OR $review.id = NONE THEN '대상'
+        ELSE IF !($a.who = $auth.role OR ($a.who = '승인권자' AND $review.approver = $auth.role)) THEN '권한'
+        ELSE IF !fn::can($kind, $review) THEN '상태'
+        ELSE IF !fn::reason(fn::must($kind, $review), fn::classes($kind, $review), $reason) THEN '사유'
+        END;
+} PERMISSIONS FULL;
