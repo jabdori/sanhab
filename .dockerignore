@@ -2,6 +2,7 @@
 *
 !app/
 !01_참가자_배포용/04_원본데이터/
+!docs/graph-spec.md
 app/target
 app/web/node_modules
 app/web/dist
