@@ -18,15 +18,19 @@ pub fn routes() -> Router<Db> {
 }
 
 /// 지급의 대사. `want`는 승인된 금액과 등록된 계좌(맞춰 본 뒤에는 그때 굳힌 값), `reply`는 지금 지급 시도의 은행 회신, `recon`은 맞춰 본 결과(없으면 아직 회신 전이거나 실패한 회신).
-/// `can`은 지금 역할이 회신을 넣을 수 있는지, `role`은 담당하는 역할, `history`는 지금까지의 회신 전부(지급 시도마다 하나, 실패한 것 포함). 지급 작업이 없는 지급은 404
+/// `can`은 지금 역할이 회신을 넣을 수 있는지, `role`은 담당하는 역할, `history`는 지금까지의 회신 전부(지급 시도마다 하나, 실패한 것 포함),
+/// `lines`는 이력 — 지급 표시와 회신을 일어난 순서대로. 지급 작업이 없는 지급은 404
 async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
     let r = q1(&me.db, "
         LET $p = type::record('payout', $id);
         LET $c = (SELECT amount, accounts, diff, verdict, source FROM recon WHERE payout = $p)[0];
         LET $m = (SELECT stamp FROM remit WHERE payout = $p ORDER BY stamp DESC LIMIT 1)[0].stamp;
         LET $all = (SELECT amount, account, result, role, time::format(at, '%Y-%m-%d') AS at, source, stamp FROM reply WHERE payout = $p ORDER BY stamp);
+        LET $pays = (SELECT '지급' AS kind, role, time::format(at, '%Y-%m-%d') AS at, source, stamp FROM remit WHERE payout = $p);
+        LET $said = (SELECT '회신' AS kind, result, role, at, source, stamp FROM $all);
         RETURN {
             id: $id,
+            name: $p.name,
             state: $p.state,
             role: '회계·자금',
             can: fn::repliable($p),
@@ -34,6 +38,7 @@ async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
             reply: (SELECT amount, account, result, role, at, source FROM $all WHERE stamp > $m)[0],
             recon: IF $c THEN { diff: $c.diff, verdict: $c.verdict, source: $c.source } END,
             history: $all.{ amount, account, result, role, at, source },
+            lines: (SELECT kind, result, role, at, source FROM array::concat($pays, $said) ORDER BY stamp),
         };", json!({ "id": id })).await?;
     if r["state"].is_null() {
         return Err(err(StatusCode::NOT_FOUND, "없음"));
@@ -41,10 +46,10 @@ async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
     Ok(Json(r))
 }
 
-/// 은행 회신을 넣는다: `{ id, amount, account, result }`. 역할의 세션으로 `reply`를 만들고, 권한이 없으면 DB가 거절한다(빈 결과 → 403).
-/// 본문의 꼴이 틀리면 400이고 DB의 문구는 밖으로 내보내지 않는다
+/// 은행 회신을 넣는다: `{ id, amount, account, result }`. 역할의 세션으로 `reply`를 만들고, 넣을 수 있는지는 DB(`fn::repliable`)가 정한다.
+/// 거절의 낱말: 본문의 꼴이 틀리거나 없는 지급이면 400 `대상`, 회계·자금이 아니면 403 `권한`, 지급 전이거나 이미 회신한 시도이면 400 `상태`. DB의 문구는 밖으로 내보내지 않는다
 async fn reply(Extension(me): Extension<Me>, Json(b): Json<J>) -> R {
-    let bad = || err(StatusCode::BAD_REQUEST, "회신");
+    let bad = || err(StatusCode::BAD_REQUEST, "대상");
     let id = b["id"].as_str().filter(|i| !i.is_empty()).ok_or_else(bad)?;
     let amount = b["amount"].as_i64().filter(|a| *a >= 0).ok_or_else(bad)?;
     let account = b["account"].as_str().map(str::trim).filter(|a| !a.is_empty()).ok_or_else(bad)?;
@@ -52,7 +57,12 @@ async fn reply(Extension(me): Extension<Me>, Json(b): Json<J>) -> R {
     let made = q1(&me.db, "CREATE reply SET payout = type::record('payout', $id), amount = $amount, account = $account, result = $result RETURN VALUE record::id(payout);",
         json!({ "id": id, "amount": amount, "account": account, "result": result })).await.map_err(|_| bad())?;
     if made.as_array().is_none_or(Vec::is_empty) {
-        return Err(err(StatusCode::FORBIDDEN, "권한"));
+        // DB가 거절했다. 무엇 때문인지만 가려 낱말을 고른다
+        if me.role != "회계·자금" {
+            return Err(err(StatusCode::FORBIDDEN, "권한"));
+        }
+        let state = q1(&me.db, "RETURN type::record('payout', $id).state;", json!({ "id": id })).await?;
+        return Err(err(StatusCode::BAD_REQUEST, if state.is_null() { "대상" } else { "상태" }));
     }
     Ok(Json(json!({ "id": made[0] })))
 }
@@ -88,8 +98,10 @@ pub async fn check(c: &Check) -> Result<()> {
     let account = rows(&c.get(acct, "/api/dealers/D-001").await?["registered"]).into_iter().find(|r| r["item"] == "계좌").unwrap_or_default()["value"].as_str().unwrap_or("").to_string();
     ensure!(!account.is_empty() && tasks(acct, "mine").await?.is_empty(), "지급 전의 대사 작업");
     let d = recon(&id).await?;
-    ensure!(d["id"] == id.as_str() && d["state"] == "대기" && d["can"] == false && d["role"] == acct && d["want"] == json!({ "amount": 988_932, "accounts": [account] }) && d["reply"].is_null() && d["recon"].is_null() && d["history"] == json!([]), "지급 전의 대사 {d}");
-    ensure!(send(acct, &id, 988_932, &account, "성공").await?.0 == 403, "지급 전에 회신");
+    ensure!(d["id"] == id.as_str() && d["name"] == "대성상사1" && d["state"] == "대기" && d["can"] == false && d["role"] == acct && d["want"] == json!({ "amount": 988_932, "accounts": [account] }) && d["reply"].is_null() && d["recon"].is_null() && d["history"] == json!([]), "지급 전의 대사 {d}");
+    let state = (400, json!({ "error": "상태" }));
+    ensure!(send(acct, &id, 988_932, &account, "성공").await? == state, "지급 전에 회신");
+    ensure!(send(acct, "검사-없는지급", 1, "검사-계좌", "성공").await? == (400, json!({ "error": "대상" })) && send(acct, "RB-00168", 1, "검사-계좌", "성공").await? == (400, json!({ "error": "대상" })), "없는 지급에 회신");
 
     // 지급이 완료되면 대사 작업이 생긴다: 담당 회계·자금, 영업지원은 진행에서 본다. 고르면 같은 지급이 열린다
     ensure!(pay(&id).await?.0 == 200, "지급");
@@ -100,7 +112,7 @@ pub async fn check(c: &Check) -> Result<()> {
 
     // 다른 역할은 회신을 넣을 수 없다. 화면을 거치지 않고 DB에 직접 써도 마찬가지다(회계·자금도 회신 말고는 쓰지 못한다)
     for role in [support, exec, "내부 감시"] {
-        ensure!(send(role, &id, 988_932, &account, "성공").await?.0 == 403, "{role}이 회신");
+        ensure!(send(role, &id, 988_932, &account, "성공").await? == (403, json!({ "error": "권한" })), "{role}이 회신");
         let s = as_user(&c.db, c.token(role)).await?;
         q(&s, "CREATE reply SET payout = type::record('payout', $id), amount = 1, account = '검사-계좌', result = '성공';", json!({ "id": id })).await.ok();
     }
@@ -114,7 +126,7 @@ pub async fn check(c: &Check) -> Result<()> {
     for body in [json!({}), json!([]), json!({ "id": id, "amount": "x", "account": account, "result": "성공" }), json!({ "id": id, "amount": -1, "account": account, "result": "성공" }),
         json!({ "id": id, "amount": 1, "account": " ", "result": "성공" }), json!({ "id": id, "amount": 1, "account": account, "result": "검사-결과" }), json!({ "id": 5, "amount": 1, "account": account, "result": "성공" })] {
         let (code, r) = c.post(acct, "/api/reply", body.clone()).await?;
-        ensure!(code == 400 && r == json!({ "error": "회신" }), "틀린 본문 {body} → {code} {r}");
+        ensure!(code == 400 && r == json!({ "error": "대상" }), "틀린 본문 {body} → {code} {r}");
     }
 
     // 결과가 실패인 회신: 돈이 나가지 않았다. 지급은 대기로 돌아가고 지급 작업이 다시 담당에 놓인다. 대사 작업은 끝나고 대사(일치·불일치)는 남지 않는다
@@ -126,7 +138,7 @@ pub async fn check(c: &Check) -> Result<()> {
     let failed = json!({ "amount": 988_932, "account": account, "result": "실패", "role": acct, "at": "2026-07-01", "source": "시연" });
     ensure!(d["state"] == "대기" && d["can"] == false && d["recon"].is_null() && d["reply"]["result"] == "실패" && d["history"] == json!([failed]), "실패 뒤 {d}");
     ensure!(pays().await?.len() == 1 && tasks(acct, "mine").await?.is_empty() && !settled(one).await?, "실패 뒤의 작업");
-    ensure!(c.get(acct, &format!("/api/pays/{id}")).await?["can"] == true && send(acct, &id, 988_932, &account, "성공").await?.0 == 403, "실패 뒤의 조치");
+    ensure!(c.get(acct, &format!("/api/pays/{id}")).await?["can"] == true && send(acct, &id, 988_932, &account, "성공").await? == state, "실패 뒤의 조치");
     ensure!(q1(&c.db, "RETURN count(SELECT id FROM recon);", json!({})).await? == 0, "실패한 회신에 대사가 남음");
     // 07이 보이는 것도 다시 대기다: 목록 위의 수, 대리점 상세의 지급 줄, 다른 역할에게는 조치가 없다
     let p = c.get(acct, "/api/pays").await?;
@@ -146,9 +158,12 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(d["reply"] == json!({ "amount": 988_932, "account": account, "result": "성공", "role": acct, "at": "2026-07-01", "source": "시연" }), "회신 {}", d["reply"]);
     ensure!(d["recon"] == json!({ "diff": [], "verdict": "일치", "source": "계산" }) && d["can"] == false && d["want"] == json!({ "amount": 988_932, "accounts": [account] }), "일치 {d}");
     ensure!(d["history"] == json!([failed, { "amount": 988_932, "account": account, "result": "성공", "role": acct, "at": "2026-07-01", "source": "시연" }]), "회신의 이력 {}", d["history"]);
+    // 이력은 일어난 순서대로: 지급 → 회신(실패) → 지급 → 회신(성공)
+    let line = |kind: &str, result: Option<&str>| json!({ "kind": kind, "result": result, "role": acct, "at": "2026-07-01", "source": "시연" });
+    ensure!(d["lines"] == json!([line("지급", None), line("회신", Some("실패")), line("지급", None), line("회신", Some("성공"))]), "이력의 순서 {}", d["lines"]);
     ensure!(tasks(acct, "mine").await?.is_empty() && tasks(support, "going").await?.is_empty() && settled(one).await?, "일치 뒤의 작업과 정산 표시");
     // 회신은 지급 시도 하나에 한 번뿐이다
-    ensure!(send(acct, &id, 1, "검사-계좌", "성공").await?.0 == 403 && recon(&id).await?["recon"]["verdict"] == "일치", "두 번째 회신");
+    ensure!(send(acct, &id, 1, "검사-계좌", "성공").await? == state && recon(&id).await?["recon"]["verdict"] == "일치", "두 번째 회신");
 
     // 박상현 그룹의 심사(지급 3건): 지급이 모두 일치여야 정산이다. 하나만 일치로는 붙지 않는다
     ensure!(approve(exec, group).await?.0 == 200, "그룹의 승인");

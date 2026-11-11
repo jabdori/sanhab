@@ -1,5 +1,6 @@
-// 08 대사: 지급 상세의 가운데에 "대사" 표(승인 / 회신 / 비교, 지급 시도마다 줄), 오른쪽 조치에 은행 회신 입력(금액, 계좌, 결과), 이력에 회신 한 줄.
+// 08 대사: 지급 상세의 가운데에 "대사" 표(승인 / 회신 / 비교, 지급 시도마다 줄), 오른쪽 조치에 은행 회신 입력(금액, 계좌, 결과), 이력에 지급 표시와 회신을 일어난 순서대로.
 // 회신은 사람이 넣은 것(출처 시연), 비교는 코드가 맞춰 본 것(출처 계산)이다.
+import { AlertDialog } from '@base-ui/react/alert-dialog'
 import { Input } from '@base-ui/react/input'
 import { Radio } from '@base-ui/react/radio'
 import { RadioGroup } from '@base-ui/react/radio-group'
@@ -9,13 +10,16 @@ import { useState } from 'react'
 import { L } from '../../labels'
 import type { Piece } from '../../pieces'
 import { api, changedAtom, roleAtom, store, targetAtom } from '../../state'
+import { Empty } from '../../ui/Empty'
 import { Pill } from '../../ui/Pill'
 import { Source } from '../../ui/Source'
-import { button, label } from '../../ui/styles'
+import { button, floating, label } from '../../ui/styles'
 import { Table, num } from '../../ui/Table'
 
 type Recon = {
   id: string
+  /** 대리점 이름 */
+  name: string
   /** 지급의 상태 */
   state: string
   /** 대사를 담당하는 역할 */
@@ -30,6 +34,8 @@ type Recon = {
   recon?: { diff: string[]; verdict: string; source: string }
   /** 지금까지의 회신 전부(실패한 것 포함) */
   history: { amount: number; account: string; result: string; role: string; at: string; source: string }[]
+  /** 이력: 지급 표시와 회신을 일어난 순서대로. result는 회신에만 있다 */
+  lines: { kind: string; result: string | null; role: string; at: string }[]
 }
 
 // 열어 둔 지급의 대사. 세 조각이 같은 값을 읽고, 조치 뒤에 저절로 다시 읽힌다
@@ -110,14 +116,16 @@ function Fact() {
   )
 }
 
-/** 회신 한 줄: 회신 · 결과 · 사람 · 날짜 */
-const Line = ({ r }: { r: { result: string; role: string; at: string } }) => <p className="text-body tabular-nums">{[L.회신, r.result, r.role, r.at].join(' · ')}</p>
+/** 이력 한 줄: 지급 · 사람 · 날짜 / 회신 · 결과 · 사람 · 날짜 */
+const Line = ({ r }: { r: { kind?: string; result?: string | null; role: string; at: string } }) => (
+  <p className="text-body tabular-nums">{[r.kind ?? L.회신, r.result, r.role, r.at].filter(Boolean).join(' · ')}</p>
+)
 
 const row = 'flex items-center gap-2'
 const name = `w-8 shrink-0 ${label}`
 const field = 'h-head min-w-0 flex-1 rounded-box border border-line bg-bg px-2 text-body tabular-nums outline-none focus:border-text-sub'
 
-/** 은행 회신 입력: 금액, 계좌, 결과. 승인된 값이 미리 들어 있고 고쳐서 보낸다(모의 처리). 보낸 뒤 새 값을 받을 때까지는 다시 눌리지 않는다 */
+/** 은행 회신 입력: 금액, 계좌, 결과. 승인된 값이 미리 들어 있고 고쳐서 보낸다(모의 처리). 고칠 수 없는 조치라 확인 창을 거치고, 보낸 뒤 새 값을 받을 때까지는 다시 눌리지 않는다 */
 function Form({ d }: { d: Recon }) {
   const [amount, setAmount] = useState(String(d.want.amount))
   const [account, setAccount] = useState(d.want.accounts[0] ?? '')
@@ -147,16 +155,33 @@ function Form({ d }: { d: Recon }) {
           ))}
         </RadioGroup>
       </div>
-      <button
-        className={`${button} self-start`}
-        disabled={!ok || sent === d}
-        onClick={() => {
-          setSent(d)
-          api('/reply', { id: d.id, amount: Number(amount.trim()), account: account.trim(), result }).catch(() => store.set(changedAtom, (n) => n + 1))
-        }}
-      >
-        {L.회신}
-      </button>
+      <AlertDialog.Root>
+        <AlertDialog.Trigger className={`${button} self-start`} disabled={!ok || sent === d}>
+          {L.회신}
+        </AlertDialog.Trigger>
+        <AlertDialog.Portal>
+          <AlertDialog.Popup className={`${floating} fixed top-1/2 left-1/2 flex w-list -translate-x-1/2 -translate-y-1/2 flex-col gap-4 p-6`}>
+            <AlertDialog.Title className="flex flex-wrap items-baseline gap-2 text-title">
+              {L.회신}
+              <span>{d.name}</span>
+              <span className="tabular-nums">{ok && num(Number(amount.trim()))}</span>
+              <span>{result}</span>
+            </AlertDialog.Title>
+            <div className="flex justify-end gap-2">
+              <AlertDialog.Close className={button}>{L.취소}</AlertDialog.Close>
+              <AlertDialog.Close
+                className={button}
+                onClick={() => {
+                  setSent(d)
+                  api('/reply', { id: d.id, amount: Number(amount.trim()), account: account.trim(), result }).catch(() => store.set(changedAtom, (n) => n + 1))
+                }}
+              >
+                {L.회신}
+              </AlertDialog.Close>
+            </div>
+          </AlertDialog.Popup>
+        </AlertDialog.Portal>
+      </AlertDialog.Root>
     </div>
   )
 }
@@ -178,7 +203,8 @@ function Action() {
 
 function History() {
   const d = useRecon()
-  return d?.history.map((r, i) => <Line key={i} r={r} />) ?? null
+  if (!d) return null
+  return d.lines.length ? d.lines.map((r, i) => <Line key={i} r={r} />) : <Empty />
 }
 
 export default [

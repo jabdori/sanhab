@@ -148,15 +148,9 @@ function Action() {
   )
 }
 
-function History() {
-  const p = usePay()
-  if (!p) return null
-  return p.history.length ? p.history.map((h, i) => <Line key={i} h={h} />) : <Empty />
-}
-
 export default [
   { slot: 'list', menu: L.작업, order: -1, View: Counts },
   { slot: 'fact', kind: L.지급, order: -40, View: Head },
   { slot: 'action', kind: L.지급, View: Action },
-  { slot: 'history', kind: L.지급, View: History },
+  // 이력은 08(대사)의 조각이 지급 표시와 회신을 일어난 순서대로 함께 보인다
 ] satisfies Piece[]
