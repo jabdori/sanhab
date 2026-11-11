@@ -14,7 +14,8 @@ type From = { source: string; file?: string; row?: number }
 type Row = { id: string; name: string; rep: string[]; address: string[]; account: string[] }
 type Detail = {
   dealer: { id: string; name: string } & From
-  registered: ({ item: string; value: string; same?: string; since: string; known: string | null; via: string } & From)[]
+  /** until: 다음 값으로 바뀐 날(13의 변경). 있으면 이전 값이다 */
+  registered: ({ item: string; value: string; same?: string; since: string; until: string | null; known: string | null; via: string } & From)[]
   /** review: 그 지급의 심사(과거의 결정이거나 승인된 것). 누르면 그 심사가 열린다 */
   payouts: ({ ym: string; amount: number; status: string; state?: string; state_source?: string; review?: { id: string; name: string; marks: string[] } | null } & From)[]
 }
@@ -67,6 +68,7 @@ function Registered() {
             r.item,
             <span className="flex items-center gap-2">
               {r.value}
+              {r.until && <span className={label}>{L.이전}</span>}
               {r.same && (
                 <span className={label}>
                   {L.동일인} {r.same}
