@@ -37,6 +37,8 @@ const WAYS: &[(&str, &str, &str)] = &[
     ("재검토", "심사", "(SELECT record::id(id) AS id, ym FROM review WHERE marks CONTAINS '재검토' ORDER BY ym DESC, id LIMIT 1)[0].id"),
     // 대사(08): 가장 최근에 회신을 맞춰 본 지급. 지급 상세의 "대사" 표가 열린다
     ("대사", "지급", "(SELECT record::id(payout) AS id, at FROM recon ORDER BY at DESC, id LIMIT 1)[0].id"),
+    // 정황(11): 기준이 가정인 정황(근접)이 먼저 — 출처가 가정인 것이 앞에 온다
+    ("정황", "정황", "(SELECT record::id(id) AS id, source FROM signal ORDER BY source, id LIMIT 1)[0].id"),
 ];
 
 /// 가정의 표(D46)의 머리글. 이 줄 아래의 표에서 줄마다 가정 하나를 모은다
