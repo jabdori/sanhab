@@ -1,5 +1,5 @@
 //! 08 대사: 지급이 끝나면 회계·자금의 대사 작업이 생기고(이벤트 `t08_task`), 회계·자금이 은행 회신을 넣으면
-//! 코드가 승인된 금액·등록된 계좌와 맞춰 일치 / 불일치를 남긴다(이벤트 `t08_match`). 심사가 승인한 지급이 모두 일치이면 심사에 정산 표시가 붙는다.
+//! 코드가 승인된 금액·등록된 계좌와 맞춰 일치 / 불일치를 남긴다(이벤트 `t08_match`, D49). 실패한 회신이면 지급이 대기로 돌아간다. 심사가 승인한 지급이 모두 일치이면 심사에 정산 표시가 붙는다.
 //! 회신을 넣는 것은 역할의 세션으로 `reply`를 만드는 것이고, 누가 할 수 있는지는 DB(`fn::repliable`)가 정한다. 은행 연동은 없다(모의 처리).
 use crate::check::Check;
 use crate::db::{Db, as_user, q, q1};
@@ -17,24 +17,23 @@ pub fn routes() -> Router<Db> {
     Router::new().route("/pays/{id}/recon", get(detail)).route("/reply", post(reply))
 }
 
-/// 지급의 대사. `want`는 승인된 금액과 등록된 계좌(맞춰 본 뒤에는 그때 굳힌 값), `reply`는 은행 회신, `recon`은 맞춰 본 결과(없으면 아직 회신 전).
-/// `can`은 지금 역할이 회신을 넣을 수 있는지, `role`은 담당하는 역할. 지급 작업이 없는 지급은 404
+/// 지급의 대사. `want`는 승인된 금액과 등록된 계좌(맞춰 본 뒤에는 그때 굳힌 값), `reply`는 지금 지급 시도의 은행 회신, `recon`은 맞춰 본 결과(없으면 아직 회신 전이거나 실패한 회신).
+/// `can`은 지금 역할이 회신을 넣을 수 있는지, `role`은 담당하는 역할, `history`는 지금까지의 회신 전부(실패한 것 포함). 지급 작업이 없는 지급은 404
 async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
     let r = q1(&me.db, "
         LET $p = type::record('payout', $id);
-        LET $d = (SELECT VALUE out FROM payout_of WHERE in = $p)[0];
         LET $c = (SELECT amount, accounts, diff, verdict, source FROM recon WHERE payout = $p)[0];
+        LET $m = (SELECT stamp FROM remit WHERE payout = $p ORDER BY stamp DESC LIMIT 1)[0].stamp;
+        LET $all = (SELECT amount, account, result, role, time::format(at, '%Y-%m-%d') AS at, source, stamp FROM reply WHERE payout = $p ORDER BY stamp);
         RETURN {
             id: $id,
             state: $p.state,
             role: '회계·자금',
             can: fn::repliable($p),
-            want: {
-                amount: $c.amount ?? $p.amount,
-                accounts: $c.accounts ?? (SELECT VALUE out.value FROM acct WHERE in = $d AND since <= fn::today() AND (until = NONE OR until > fn::today())),
-            },
-            reply: (SELECT amount, account, result, role, time::format(at, '%Y-%m-%d') AS at, source FROM reply WHERE payout = $p)[0],
+            want: { amount: $c.amount ?? $p.amount, accounts: $c.accounts ?? fn::paid_accounts($p) },
+            reply: (SELECT amount, account, result, role, at, source FROM $all WHERE stamp > $m)[0],
             recon: IF $c THEN { diff: $c.diff, verdict: $c.verdict, source: $c.source } END,
+            history: $all.{ result, role, at, source },
         };", json!({ "id": id })).await?;
     if r["state"].is_null() {
         return Err(err(StatusCode::NOT_FOUND, "없음"));
@@ -89,7 +88,7 @@ pub async fn check(c: &Check) -> Result<()> {
     let account = rows(&c.get(acct, "/api/dealers/D-001").await?["registered"]).into_iter().find(|r| r["item"] == "계좌").unwrap_or_default()["value"].as_str().unwrap_or("").to_string();
     ensure!(!account.is_empty() && tasks(acct, "mine").await?.is_empty(), "지급 전의 대사 작업");
     let d = recon(&id).await?;
-    ensure!(d["id"] == id.as_str() && d["state"] == "대기" && d["can"] == false && d["role"] == acct && d["want"] == json!({ "amount": 988_932, "accounts": [account] }) && d["reply"].is_null() && d["recon"].is_null(), "지급 전의 대사 {d}");
+    ensure!(d["id"] == id.as_str() && d["state"] == "대기" && d["can"] == false && d["role"] == acct && d["want"] == json!({ "amount": 988_932, "accounts": [account] }) && d["reply"].is_null() && d["recon"].is_null() && d["history"] == json!([]), "지급 전의 대사 {d}");
     ensure!(send(acct, &id, 988_932, &account, "성공").await?.0 == 403, "지급 전에 회신");
 
     // 지급이 완료되면 대사 작업이 생긴다: 담당 회계·자금, 영업지원은 진행에서 본다. 고르면 같은 지급이 열린다
@@ -118,15 +117,31 @@ pub async fn check(c: &Check) -> Result<()> {
         ensure!(code == 400 && r == json!({ "error": "회신" }), "틀린 본문 {body} → {code} {r}");
     }
 
-    // 회계·자금이 승인된 금액·등록된 계좌 그대로 성공을 넣으면: 일치, 대사 작업이 끝나고, 심사에 정산 표시가 붙는다
+    // 결과가 실패인 회신: 돈이 나가지 않았다. 지급은 대기로 돌아가고 지급 작업이 다시 담당에 놓인다. 대사 작업은 끝나고 대사(일치·불일치)는 남지 않는다
+    let pays = async || -> Result<Vec<J>> { Ok(rows(&c.get(acct, "/api/tasks").await?["mine"]).into_iter().filter(|m| m["kind"] == "지급" && m["target"] == id.as_str()).collect()) };
+    ensure!(pays().await?.is_empty(), "지급 뒤의 지급 작업");
+    let (code, r) = send(acct, &id, 988_932, &account, "실패").await?;
+    ensure!(code == 200 && r["id"] == id.as_str(), "실패한 회신 {code} {r}");
+    let d = recon(&id).await?;
+    let failed = json!({ "result": "실패", "role": acct, "at": "2026-07-01", "source": "시연" });
+    ensure!(d["state"] == "대기" && d["can"] == false && d["recon"].is_null() && d["reply"]["result"] == "실패" && d["history"] == json!([failed]), "실패 뒤 {d}");
+    ensure!(pays().await?.len() == 1 && tasks(acct, "mine").await?.is_empty() && !settled(one).await?, "실패 뒤의 작업");
+    ensure!(c.get(acct, &format!("/api/pays/{id}")).await?["can"] == true && send(acct, &id, 988_932, &account, "성공").await?.0 == 403, "실패 뒤의 조치");
+    ensure!(q1(&c.db, "RETURN count(SELECT id FROM recon);", json!({})).await? == 0, "실패한 회신에 대사가 남음");
+
+    // 다시 지급하면 대사 작업이 다시 생기고, 승인된 금액·등록된 계좌 그대로 성공을 넣으면: 일치, 대사 작업이 끝나고, 심사에 정산 표시가 붙는다
+    ensure!(pay(&id).await?.0 == 200 && tasks(acct, "mine").await?.len() == 1 && pays().await?.is_empty(), "다시 지급");
+    let d = recon(&id).await?;
+    ensure!(d["state"] == "완료" && d["can"] == true && d["reply"].is_null(), "다시 지급한 뒤 {d}");
     let (code, r) = send(acct, &id, 988_932, &account, "성공").await?;
     ensure!(code == 200 && r["id"] == id.as_str(), "회신 {code} {r}");
     let d = recon(&id).await?;
     ensure!(d["reply"] == json!({ "amount": 988_932, "account": account, "result": "성공", "role": acct, "at": "2026-07-01", "source": "시연" }), "회신 {}", d["reply"]);
     ensure!(d["recon"] == json!({ "diff": [], "verdict": "일치", "source": "계산" }) && d["can"] == false && d["want"] == json!({ "amount": 988_932, "accounts": [account] }), "일치 {d}");
+    ensure!(d["history"] == json!([failed, { "result": "성공", "role": acct, "at": "2026-07-01", "source": "시연" }]), "회신의 이력 {}", d["history"]);
     ensure!(tasks(acct, "mine").await?.is_empty() && tasks(support, "going").await?.is_empty() && settled(one).await?, "일치 뒤의 작업과 정산 표시");
-    // 회신은 한 번뿐이다
-    ensure!(send(acct, &id, 1, "검사-계좌", "실패").await?.0 == 403 && recon(&id).await?["recon"]["verdict"] == "일치", "두 번째 회신");
+    // 회신은 지급 시도 하나에 한 번뿐이다
+    ensure!(send(acct, &id, 1, "검사-계좌", "성공").await?.0 == 403 && recon(&id).await?["recon"]["verdict"] == "일치", "두 번째 회신");
 
     // 박상현 그룹의 심사(지급 3건): 지급이 모두 일치여야 정산이다. 하나만 일치로는 붙지 않는다
     ensure!(approve(exec, group).await?.0 == 200, "그룹의 승인");
@@ -140,17 +155,27 @@ pub async fn check(c: &Check) -> Result<()> {
         ids.push((p, a));
     }
     ensure!(tasks(acct, "mine").await?.len() == 3 && tasks(exec, "going").await?.len() == 3, "그룹의 대사 작업");
-    ensure!(send(acct, &ids[0].0, 1_373_515, &ids[0].1, "성공").await?.0 == 200 && recon(&ids[0].0).await?["recon"]["verdict"] == "일치" && !settled(group).await?, "하나만 일치");
-    // 금액이 다르면 불일치(금액). 계좌가 다르고 결과가 실패이면 불일치(계좌, 결과). 대사 작업은 끝나고 정산 표시는 붙지 않는다
+    // 맞춰 보는 계좌는 그 지급을 한 날의 것이다: 지급 뒤에 금강상사11의 계좌가 바뀌고 날짜가 지나도, 지급한 날의 계좌로 온 회신이 일치다
+    q(&c.db, "
+        UPDATE acct SET until = d'2026-07-02T00:00:00Z' WHERE in = dealer:`D-011`;
+        UPSERT account:`검사-새계좌` SET value = '검사-새계좌', source = '시연';
+        RELATE dealer:`D-011`->acct->account:`검사-새계좌` SET since = d'2026-07-02T00:00:00Z', via = '신고', source = '시연';
+        UPDATE meta:v SET today = d'2026-07-03T00:00:00Z';", json!({})).await?;
+    ensure!(c.get(acct, &format!("/api/pays/{}", ids[0].0)).await?["accounts"][0]["value"] == "검사-새계좌", "바뀐 계좌");
+    ensure!(recon(&ids[0].0).await?["want"]["accounts"] == json!([ids[0].1]), "지급한 날의 계좌");
+    ensure!(send(acct, &ids[0].0, 1_373_515, &ids[0].1, "성공").await?.0 == 200, "회신");
+    let d = recon(&ids[0].0).await?;
+    ensure!(d["recon"]["verdict"] == "일치" && d["reply"]["at"] == "2026-07-03" && d["want"]["accounts"] == json!([ids[0].1]) && !settled(group).await?, "하나만 일치 {d}");
+    // 결과는 성공인데 금액이 다르면 불일치(금액), 계좌가 다르면 불일치(계좌). 지급은 완료로 남고 대사 작업은 끝나며 정산 표시는 붙지 않는다
     ensure!(send(acct, &ids[1].0, 1_325_535, &ids[1].1, "성공").await?.0 == 200, "금액이 다른 회신");
     ensure!(recon(&ids[1].0).await?["recon"] == json!({ "diff": ["금액"], "verdict": "불일치", "source": "계산" }), "금액 불일치");
-    ensure!(send(acct, &ids[2].0, 1_189_046, "검사-계좌", "실패").await?.0 == 200, "계좌가 다른 회신");
+    ensure!(send(acct, &ids[2].0, 1_189_046, "검사-계좌", "성공").await?.0 == 200, "계좌가 다른 회신");
     let d = recon(&ids[2].0).await?;
-    ensure!(d["recon"] == json!({ "diff": ["계좌", "결과"], "verdict": "불일치", "source": "계산" }) && d["want"] == json!({ "amount": 1_189_046, "accounts": [ids[2].1] }) && d["reply"]["account"] == "검사-계좌", "계좌 불일치 {d}");
+    ensure!(d["recon"] == json!({ "diff": ["계좌"], "verdict": "불일치", "source": "계산" }) && d["state"] == "완료" && d["want"] == json!({ "amount": 1_189_046, "accounts": [ids[2].1] }) && d["reply"]["account"] == "검사-계좌", "계좌 불일치 {d}");
     ensure!(tasks(acct, "mine").await?.is_empty() && !settled(group).await? && settled(one).await?, "불일치 뒤");
     // 불일치는 기록으로 남는다(11이 정황으로 올릴 것): 어느 지급·심사의 무엇이 달랐는지
     let left = q1(&c.db, "RETURN (SELECT VALUE [record::id(payout), record::id(review), diff] FROM recon WHERE verdict = '불일치' ORDER BY payout);", json!({})).await?;
-    let mut want = vec![json!([ids[1].0, group, ["금액"]]), json!([ids[2].0, group, ["계좌", "결과"]])];
+    let mut want = vec![json!([ids[1].0, group, ["금액"]]), json!([ids[2].0, group, ["계좌"]])];
     want.sort_by_key(|w| w[0].as_str().unwrap_or("").to_string());
     ensure!(left == json!(want), "불일치의 기록 {left}");
     // 지급의 상태와 원본의 값은 그대로다

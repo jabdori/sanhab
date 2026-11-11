@@ -24,9 +24,12 @@ type Recon = {
   can: boolean
   /** 승인된 금액과 등록된 계좌(맞춰 본 뒤에는 그때의 값) */
   want: { amount: number; accounts: string[] }
+  /** 지금 지급 시도의 회신. 실패한 회신이면 지급이 대기로 돌아가 있다 */
   reply?: { amount: number; account: string; result: string; role: string; at: string; source: string }
-  /** diff는 맞지 않은 항목(금액·계좌·결과), verdict는 일치·불일치 */
+  /** 성공한 회신을 맞춰 본 결과. diff는 맞지 않은 항목(금액·계좌), verdict는 일치·불일치 */
   recon?: { diff: string[]; verdict: string; source: string }
+  /** 지금까지의 회신 전부(실패한 것 포함) */
+  history: { result: string; role: string; at: string }[]
 }
 
 // 열어 둔 지급의 대사. 세 조각이 같은 값을 읽고, 조치 뒤에 저절로 다시 읽힌다
@@ -66,7 +69,7 @@ function Fact() {
         rows={[
           [L.금액, num(d.want.amount), said(reply && num(reply.amount)), cmp(L.금액)],
           [L.계좌, d.want.accounts.length ? d.want.accounts.join(' · ') : none, said(reply?.account), cmp(L.계좌)],
-          [L.결과, null, said(reply?.result), cmp(L.결과)],
+          [L.결과, null, said(reply?.result), null],
           // 열마다의 출처: 회신은 사람이 넣은 것(누가 언제), 비교는 코드가 맞춰 본 것(무엇이 같으면 일치인지). 승인의 금액과 계좌는 위의 숫자 줄에 출처가 있다
           [
             L.출처,
@@ -86,7 +89,7 @@ function Fact() {
             <Source kind={L.계산} side="top">
               <dl className="grid grid-cols-2 gap-x-2 gap-y-1">
                 <dt className={label}>{L.일치}</dt>
-                <dd>{L['금액과 계좌 같음, 결과 성공']}</dd>
+                <dd>{L['결과 성공, 금액과 계좌 같음']}</dd>
               </dl>
             </Source>,
           ],
@@ -96,8 +99,8 @@ function Fact() {
   )
 }
 
-/** 회신 한 줄: 회신 · 사람 · 날짜 */
-const Line = ({ r }: { r: { role: string; at: string } }) => <p className="text-body tabular-nums">{[L.회신, r.role, r.at].join(' · ')}</p>
+/** 회신 한 줄: 회신 · 결과 · 사람 · 날짜 */
+const Line = ({ r }: { r: { result: string; role: string; at: string } }) => <p className="text-body tabular-nums">{[L.회신, r.result, r.role, r.at].join(' · ')}</p>
 
 const row = 'flex items-center gap-2'
 const name = `w-8 shrink-0 ${label}`
@@ -147,7 +150,7 @@ function Form({ d }: { d: Recon }) {
   )
 }
 
-/** 조치: 회신을 넣을 수 있으면 입력, 넣은 뒤에는 남긴 회신 한 줄, 지급은 끝났는데 담당이 아닌 역할에게는 누구 차례인지. 지급 전에는 07의 조치만 보인다 */
+/** 조치: 회신을 넣을 수 있으면 입력, 넣은 뒤에는 남긴 회신 한 줄(실패한 회신이면 그 위에 07의 지급 버튼이 다시 보인다), 지급은 끝났는데 담당이 아닌 역할에게는 누구 차례인지. 지급 전에는 07의 조치만 보인다 */
 function Action() {
   const d = useRecon()
   if (!d) return null
@@ -164,7 +167,7 @@ function Action() {
 
 function History() {
   const d = useRecon()
-  return d?.reply ? <Line r={d.reply} /> : null
+  return d?.history.map((r, i) => <Line key={i} r={r} />) ?? null
 }
 
 export default [
