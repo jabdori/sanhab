@@ -246,19 +246,21 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(decide(exec, "2026-04-D-037", "거부", json!({ "class": "정황", "memo": "거래 확인" })).await? == "", "거부");
     for d in group {
         let r = review(&format!("2026-04-{d}")).await?;
-        ensure!(r["review"]["status"] == "승인" && r["review"]["marks"] == json!(["재검토"]) && rows(&r["history"]).iter().map(|h| h["kind"].as_str().unwrap_or("")).eq(["승인", "거부"]) && r["history"][1]["reason"] == json!({ "class": "정황", "memo": "거래 확인" }) && r["history"][1]["role"] == exec, "{d}의 거부 뒤 {r}");
+        ensure!(r["review"]["status"] == "승인" && r["review"]["marks"] == json!(["재검토", "거부"]) && rows(&r["history"]).iter().map(|h| h["kind"].as_str().unwrap_or("")).eq(["승인", "거부"]) && r["history"][1]["reason"] == json!({ "class": "정황", "memo": "거래 확인" }) && r["history"][1]["role"] == exec, "{d}의 거부 뒤 {r}");
     }
     let b = bundle(exec, "2026-04-D-011").await?;
-    ensure!(b["actions"] == json!([]) && b["ratify"]["marks"] == json!(["재검토"]) && b["role"] == audit && rows(&b["history"]).len() == 1 && b["history"][0]["kind"] == "거부" && bundle(audit, "2026-04-D-011").await?["actions"] == json!([]), "거부된 묶음 {b}");
+    ensure!(b["actions"] == json!([]) && b["ratify"]["marks"] == json!(["재검토", "거부"]) && b["role"] == audit && rows(&b["history"]).len() == 1 && b["history"][0]["kind"] == "거부" && c.get(support, "/api/dealers/D-024").await?["payouts"][3]["review"]["marks"] == json!(["재검토", "거부"]) && bundle(audit, "2026-04-D-011").await?["actions"] == json!([]), "거부된 묶음 {b}");
     ensure!(!tasks(exec, "mine", "추인").await?.iter().any(|t| t["target"] == "2026-04-D-011") && tasks(audit, "mine", "종결").await?.len() == closing, "거부 뒤의 작업");
     // 거부한 뒤에는 다시 추인하거나 거부할 수 없고, 표시를 다시 맞춰도 추인 작업이 되살아나지 않는다
     ensure!(decide(exec, "2026-04-D-011", "추인", json!({ "class": "정상" })).await? == "상태" && decide(exec, "2026-04-D-024", "거부", json!({ "class": "정황" })).await? == "상태", "거부 뒤의 추인");
     super::t09_again::remark(&c.db).await?;
     ensure!(!tasks(exec, "mine", "추인").await?.iter().any(|t| t["ym"] == "2026-04" && t["name"] == "금강상사11 외 2") && bundle(exec, "2026-04-D-011").await? == b, "거부 뒤에 다시 맞춤");
-    // D53의 자리: 거부된 묶음의 심사 하나에 종결이 (코드로) 남으면 세 건과 묶음에 종결 표시가 붙는다. 추인 없이 종결된 것이 이력에 드러난다
-    q(&c.db, "CREATE decision SET review = review:`2026-04-D-011`, kind = '종결', role = '내부 감시', at = fn::today(), reason = { class: '부족' }, source = '시연';", json!({})).await?;
+    // D53의 자리: 거부된 묶음을 `fn::ratify_close`로 닫으면 세 건과 묶음에 종결 표시가 붙는다. 추인 없이 종결된 것이 이력에 드러난다
+    // 거부되지 않은 묶음(추인 전인 3월)은 닫히지 않는다
+    q(&c.db, "LET $f = { role: '내부 감시', at: fn::today(), reason: { class: '부족' }, source: '시연' }; fn::ratify_close(ratify:`2026-03-D-011`, $f); fn::ratify_close(ratify:`2026-04-D-011`, $f); fn::ratify_close(ratify:`2026-04-D-011`, $f);", json!({})).await?;
+    ensure!(bundle(exec, "2026-03-D-011").await?["ratify"]["marks"] == json!(["재검토"]) && q1(&c.db, "RETURN count(SELECT id FROM decision WHERE kind = '종결' AND review.ym = '2026-04');", json!({})).await? == 3, "닫는 함수");
     let b = bundle(audit, "2026-04-D-011").await?;
-    ensure!(b["ratify"]["marks"] == json!(["재검토", "종결"]) && b["role"].is_null() && rows(&b["history"]).iter().map(|h| h["kind"].as_str().unwrap_or("")).eq(["거부", "종결"]) && review("2026-04-D-024").await?["review"]["marks"] == json!(["재검토", "종결"]), "거부 뒤의 종결 {b}");
+    ensure!(b["ratify"]["marks"] == json!(["재검토", "거부", "종결"]) && b["role"].is_null() && rows(&b["history"]).iter().map(|h| h["kind"].as_str().unwrap_or("")).eq(["거부", "종결"]) && review("2026-04-D-024").await?["review"]["marks"] == json!(["재검토", "거부", "종결"]) && rows(&b["history"])[1]["reason"] == json!({ "class": "부족" }), "거부 뒤의 종결 {b}");
 
     // 역할은 묶음과 작업을 직접 고치지 못한다
     let s = crate::db::as_user(&c.db, c.token(exec)).await?;
