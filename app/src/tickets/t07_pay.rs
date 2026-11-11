@@ -2,7 +2,7 @@
 //! 지급으로 표시하는 것은 역할의 세션으로 `remit`을 만드는 것이고, 누가 할 수 있는지는 DB(`fn::payable`)가 정한다. 은행 연동은 없다(모의 처리).
 use crate::check::Check;
 use crate::db::{Db, as_user, q, q1};
-use crate::{Body, Me, R, err, refuse};
+use crate::{Body, Me, R, attempt, err, refuse};
 use anyhow::{Result, ensure};
 use axum::extract::Path;
 use axum::http::StatusCode;
@@ -49,16 +49,10 @@ async fn pay(Extension(me): Extension<Me>, Body(b): Body) -> R {
     // 본문의 꼴이 틀리면 대상. DB의 문구는 밖으로 내보내지 않는다
     let bad = || refuse("대상");
     let id = b["id"].as_str().filter(|i| !i.is_empty()).ok_or_else(bad)?;
-    let word = q1(&me.db, "
+    let made = attempt(&me.db, "
         LET $p = type::record('payout', $id);
-        RETURN IF $p.id = NONE THEN '대상' ELSE IF $auth.role != '회계·자금' THEN '권한' ELSE IF !fn::payable($p) THEN '상태' END;", json!({ "id": id })).await.map_err(|_| bad())?;
-    if let Some(w) = word.as_str() {
-        return Err(refuse(w));
-    }
-    let made = q1(&me.db, "CREATE remit SET payout = type::record('payout', $id) RETURN VALUE record::id(payout);", json!({ "id": id })).await.map_err(|_| bad())?;
-    if made.as_array().is_none_or(Vec::is_empty) {
-        return Err(refuse("권한"));
-    }
+        RETURN IF $p.id = NONE THEN '대상' ELSE IF $auth.role != '회계·자금' THEN '권한' ELSE IF !fn::payable($p) THEN '상태' END;",
+        "CREATE remit SET payout = type::record('payout', $id) RETURN VALUE record::id(payout);", json!({ "id": id })).await?;
     Ok(Json(json!({ "id": made[0] })))
 }
 
@@ -147,8 +141,12 @@ pub async fn check(c: &Check) -> Result<()> {
         let (code, r) = c.post(acct, "/api/pay", body.clone()).await?;
         ensure!(code == 400 && r == json!({ "error": "대상" }), "틀린 본문 {body} → {code} {r}");
     }
-    // 화면의 길로도 된다
-    let (code, r) = pay(acct, &big).await?;
+    // 화면의 길로도 된다. 같은 지급에 셋을 동시에 보내면 하나만 되고 진 쪽은 상태다(이미 지급으로 표시된 지급)
+    let all = tokio::join!(pay(acct, &big), pay(acct, &big), pay(acct, &big));
+    let mut got = [all.0?, all.1?, all.2?];
+    got.sort_by_key(|g| g.0);
+    let (code, r) = got[0].clone();
+    ensure!(got[1] == (400, json!({ "error": "상태" })) && got[1] == got[2] && q1(&c.db, "RETURN count(SELECT id FROM remit WHERE payout = type::record('payout', $id));", json!({ "id": big })).await? == 1, "동시에 보낸 지급 {got:?}");
     ensure!(code == 200 && r["id"] == big.as_str() && counts().await? == json!({ "대기": 2, "재심사": 0, "이체": 2, "완료": 0 }), "지급 {code} {r}");
 
     // 뒤 티켓이 끼우는 자리(14): 지급의 상태를 재심사로 바꾸면 조치가 사라지고 지급할 수 없다. 대기로 돌리면 다시 된다
