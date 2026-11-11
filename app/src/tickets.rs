@@ -33,4 +33,5 @@ tickets! {
     t05_approver,
     t07_pay,
     t09_again,
+    t11_signal,
 }
