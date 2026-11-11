@@ -1,8 +1,8 @@
--- 07 지급: 승인된 심사의 지급마다 회계·자금의 지급 작업이 생기고, 회계·자금이 지급으로 표시하면 완료가 된다(D39, D40. 은행 연동은 없다 — 모의 처리).
+-- 07 지급: 승인된 심사의 지급마다 회계·자금의 지급 작업이 생기고, 회계·자금이 지급으로 표시하면 이체가 된다(D39, D40, D54. 완료는 08의 회신이 성공일 때다. 은행 연동은 없다 — 모의 처리).
 -- 지급 작업의 대상은 원본의 지급(payout) 그대로다. 원본의 값(status: 승인·미지급·반려)은 건드리지 않고, 이 시스템의 상태는 state에 따로 둔다.
 -- 역할이 쓰는 것은 지급 표시(remit) 하나뿐이고 나머지는 이벤트가 쓴다.
 
-DEFINE FIELD state ON payout TYPE option<string> ASSERT $value = NONE OR $value IN ['대기', '재심사', '완료'];   -- 지급의 상태. 없으면 아직 승인된 심사에 들지 않은 것
+DEFINE FIELD state ON payout TYPE option<string> ASSERT $value = NONE OR $value IN ['대기', '재심사', '이체', '완료'];   -- 지급의 상태. 없으면 아직 승인된 심사에 들지 않은 것
 DEFINE FIELD state_source ON payout TYPE option<string>;      -- 그 상태를 만든 것의 출처(사람의 조치면 시연). 대리점 상세가 상태 옆에 보인다
 DEFINE FIELD review ON payout TYPE option<record<review>>;   -- 이 지급을 승인한 심사
 DEFINE FIELD name ON payout TYPE option<string>;             -- 작업 목록의 "대상"(대리점 이름)
@@ -33,8 +33,8 @@ DEFINE EVENT t07_task ON decision WHEN $event = 'CREATE' AND $after.kind = '승�
     };
 };
 
--- 지급으로 표시되면: 지급은 완료, 지급 작업도 끝난다. 뒤 티켓(08 대사)은 `DEFINE EVENT … ON remit WHEN $event = 'CREATE'`로 뒤따를 일을 건다
+-- 지급으로 표시되면: 지급은 이체(은행에 보냈고 회신을 기다린다. D54), 지급 작업은 끝난다. 뒤 티켓(08 대사)은 `DEFINE EVENT … ON remit WHEN $event = 'CREATE'`로 뒤따를 일을 건다
 DEFINE EVENT t07_done ON remit WHEN $event = 'CREATE' THEN {
-    UPDATE $after.payout SET state = '완료', state_source = $after.source;
+    UPDATE $after.payout SET state = '이체', state_source = $after.source;
     UPDATE task SET state = '완료' WHERE target = $after.payout AND kind = '지급';
 };
