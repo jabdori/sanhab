@@ -15,6 +15,7 @@ DEFINE FIELD due ON clarify TYPE option<datetime>;                    -- 기한:
 DEFINE FIELD draft ON clarify TYPE option<string>;                    -- AI가 쓴 요청서 초안(값 자리 {dealer}만 있는 글). 사람이 채택하기 전에는 아무것도 바꾸지 않는다
 DEFINE FIELD draft_model ON clarify TYPE option<string>;
 DEFINE FIELD draft_tried ON clarify TYPE option<datetime>;            -- 초안을 마지막으로 시도한 때(AI가 멈춰 있으면 간격을 두고 다시 시도한다)
+DEFINE FIELD born ON clarify TYPE datetime DEFAULT time::now() READONLY;   -- 열린 때(순서를 가리는 데만 쓴다)
 DEFINE FIELD source ON clarify TYPE string;
 
 -- 요청이 내려지면: 소명이 요청 상태로 열리고(id = 그 결정의 id), 영업지원의 발송 작업이 생긴다. 내부 감시는 진행에서 본다

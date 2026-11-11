@@ -39,8 +39,8 @@ const WAYS: &[(&str, &str, &str)] = &[
     ("대사", "지급", "(SELECT record::id(payout) AS id, at FROM recon ORDER BY at DESC, id LIMIT 1)[0].id"),
     // 정황(11): 기준이 가정인 정황(근접)이 먼저 — 출처가 가정인 것이 앞에 온다
     ("정황", "정황", "(SELECT record::id(id) AS id, source FROM signal ORDER BY source, id LIMIT 1)[0].id"),
-    // 소명(18): 가장 먼저 열린 소명. 서류 목록(D17)과 기한(D32)이 보인다
-    ("소명", "소명", "(SELECT record::id(id) AS id FROM clarify ORDER BY id LIMIT 1)[0].id"),
+    // 소명(18): 가장 먼저 열린 소명(만든 때 순). 서류 목록(D17)과 기한(D32)이 보인다
+    ("소명", "소명", "(SELECT record::id(id) AS id FROM clarify ORDER BY born, id LIMIT 1)[0].id"),
 ];
 
 /// 가정의 표(D46)의 머리글. 이 줄 아래의 표에서 줄마다 가정 하나를 모은다

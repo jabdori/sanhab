@@ -90,6 +90,7 @@ const SYSTEM: &str = "너는 판매장려금 심사에서 영업지원을 돕는
 - 정중한 한국어로 두세 문장. 소명을 청하는 이유를 쓰되 의심한다거나 잘못이라고 단정하는 표현은 쓰지 않는다.
 - 대리점 이름은 {dealer}로만 적는다(다른 {…}는 쓰지 않는다).
 - 숫자(날짜, 금액, 기한, 건수)는 어디에도 쓰지 않는다. 서류 목록과 기한은 코드가 따로 붙인다.
+- 요청할 서류가 없으면 서류를 말하지 않고 설명을 청한다.
 - 글만 답한다(제목, 목록, 코드 울타리 없이).";
 
 /// 초안의 꼴: 비어 있지 않고, 너무 길지 않고, 숫자가 없고, 값 자리는 {dealer}뿐이다
@@ -108,6 +109,7 @@ async fn ask(model: &str, key: Option<&str>, name: &str, docs: &[[String; 2]]) -
         return match m {
             "-down" => None,
             "-digit" => Some("{dealer} 귀하, 3일 안에 서류를 내 주십시오.".into()),
+            _ if docs.is_empty() => Some("{dealer} 귀하, 확인이 필요한 사항이 있어 설명을 요청드립니다. 살펴본 뒤 결과를 알려 드리겠습니다.".into()),
             _ => Some("{dealer} 귀하, 확인이 필요한 사항이 있어 아래 서류의 제출을 요청드립니다. 서류를 살펴본 뒤 결과를 알려 드리겠습니다.".into()),
         };
     }
@@ -124,22 +126,26 @@ async fn ask(model: &str, key: Option<&str>, name: &str, docs: &[[String; 2]]) -
 }
 
 /// 그 소명의 초안을 쓴다. 시도한 때를 먼저 남기고(간격 동안 다시 부르지 않는다), 꼴이 맞는 글만 남긴다. 남겼으면 true
-pub async fn draft(db: &Db, id: &str) -> Result<bool> {
+pub async fn draft(db: &Db, id: &str, key: Option<&str>) -> Result<bool> {
     let Some((c, _, docs)) = row(db, id).await? else { return Ok(false) };
     q(db, "UPDATE type::record('clarify', $id) SET draft_tried = time::now();", json!({ "id": id })).await?;
     CALLS.fetch_add(1, Ordering::Relaxed);
-    let (model, key) = (model(), std::env::var("OPENAI_API_KEY").ok());
-    let Some(text) = ask(&model, key.as_deref(), c["dealer_name"].as_str().unwrap_or_default(), &docs).await.map(|t| t.trim().to_string()).filter(|t| plain(t)) else { return Ok(false) };
+    let model = model();
+    let Some(text) = ask(&model, key, c["dealer_name"].as_str().unwrap_or_default(), &docs).await.map(|t| t.trim().to_string()).filter(|t| plain(t)) else { return Ok(false) };
     q(db, "UPDATE type::record('clarify', $id) SET draft = $text, draft_model = $model;", json!({ "id": id, "text": text, "model": model })).await?;
     Ok(true)
 }
 
 /// 발송 전이고 초안이 없는 소명의 초안을 쓴다(앱이 도는 동안 몇 초마다 17의 일꾼이 부른다). AI가 멈춰 있으면 `RETRY` 간격으로만 다시 시도하고, 그동안에도 발송은 된다
 pub async fn sweep(db: &Db) -> Result<()> {
+    sweep_with(db, std::env::var("OPENAI_API_KEY").ok().as_deref()).await
+}
+/// `sweep`의 키를 인자로 뗀 것(자동 검사는 환경과 상관없이 키 없음을 탄다)
+async fn sweep_with(db: &Db, key: Option<&str>) -> Result<()> {
     let ids = q1(db, &format!("
         RETURN (SELECT VALUE record::id(id) FROM clarify WHERE sent = NONE AND draft = NONE AND state = '요청' AND (draft_tried = NONE OR (time::now() - draft_tried) > {RETRY}s) ORDER BY id);"), json!({})).await?;
     for id in ids.as_array().into_iter().flatten().filter_map(|i| i.as_str()) {
-        draft(db, id).await.ok();
+        draft(db, id, key).await.ok();
     }
     Ok(())
 }
@@ -281,18 +287,18 @@ pub async fn check(c: &Check) -> Result<()> {
     // 요청서 초안(AI): 자동 검사는 OpenAI를 부르지 않는다. 응답이 없으면 초안 없이 시도한 때만 남고, 간격 안에는 다시 부르지 않는다
     let base = draft_calls();
     *USE.lock().unwrap() = Some("fixture-down".into());
-    sweep(&c.db).await?;
-    sweep(&c.db).await?;
+    sweep_with(&c.db, None).await?;
+    sweep_with(&c.db, None).await?;
     ensure!(draft_calls() == base + 1 && c.get(support, &format!("/api/clarifies/{cid}")).await?["draft"].is_null(), "응답 없음 {}", draft_calls() - base);
     // 키가 없을 때(기본 모델)도 같다: 간격이 지나면 다시 시도하지만 초안은 없다
     none();
     q(&c.db, "UPDATE clarify SET draft_tried = NONE;", json!({})).await?;
-    sweep(&c.db).await?;
+    sweep_with(&c.db, None).await?;
     ensure!(draft_calls() == base + 2 && q1(&c.db, "RETURN (SELECT VALUE draft FROM clarify)[0];", json!({})).await?.is_null(), "키 없음");
     // 숫자가 든 글은 남기지 않는다
     *USE.lock().unwrap() = Some("fixture-digit".into());
     q(&c.db, "UPDATE clarify SET draft_tried = NONE;", json!({})).await?;
-    sweep(&c.db).await?;
+    sweep_with(&c.db, None).await?;
     ensure!(draft_calls() == base + 3 && q1(&c.db, "RETURN (SELECT VALUE draft FROM clarify)[0];", json!({})).await?.is_null(), "숫자가 든 초안");
 
     // AI가 멈춰 있어도 목록만으로 발송할 수 있다(글 없이). 다른 역할은 발송할 수 없고, 꼴이 틀린 요청은 대상이다
@@ -342,12 +348,13 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(send(support, &near_id, json!({})).await? == (400, json!({ "error": "대상" })) && send(support, &near_id, json!({ "body": "  " })).await? == (400, json!({ "error": "대상" })), "보낼 것 없음");
     *USE.lock().unwrap() = Some("fixture".into());
     let base = draft_calls();
-    sweep(&c.db).await?;
-    sweep(&c.db).await?;
+    sweep_with(&c.db, None).await?;
+    sweep_with(&c.db, None).await?;
     ensure!(draft_calls() == base + 1, "초안은 한 번만 쓴다 {}", draft_calls() - base);
     let d = c.get(support, &format!("/api/clarifies/{near_id}")).await?;
     let text = d["draft"]["text"].as_str().unwrap_or_default().to_string();
     ensure!(text.starts_with("금강상사11 귀하") && !text.contains('{') && d["draft"]["model"] == "fixture" && d["draft"]["source"] == "AI", "초안 {}", d["draft"]);
+    ensure!(!text.contains("서류"), "서류가 없는 소명의 초안이 서류를 말함");
     ensure!(q1(&c.db, "RETURN (SELECT VALUE draft FROM clarify WHERE id = type::record('clarify', $id))[0];", json!({ "id": near_id })).await?.as_str().is_some_and(|t| t.starts_with("{dealer}")), "저장된 초안은 값 자리");
     // 이미 발송한 소명은 초안을 다시 쓰지 않는다
     ensure!(q1(&c.db, "RETURN (SELECT VALUE draft FROM clarify WHERE id = type::record('clarify', $id))[0];", json!({ "id": cid })).await?.is_null(), "발송한 소명의 초안");
