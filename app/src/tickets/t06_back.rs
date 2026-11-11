@@ -127,7 +127,7 @@ pub async fn check(c: &Check) -> Result<()> {
 
     // 다시 반려 → 다시 재상신 → 승인. 결정은 바로 앞의 결정에 이어진다(선 30): 둘째 반려 → 첫 반려, 재상신 뒤의 승인 → 둘째 반려
     ensure!(decide(exec, group, "반려", json!({ "class": "금액" })).await? == "" && kinds(support, "mine", group).await? == ["재상신"], "둘째 반려");
-    ensure!(again(support, group).await? == "" && decide(exec, group, "승인", J::Null).await? == "", "재상신 뒤의 승인");
+    ensure!(again(support, group).await? == "" && decide(exec, group, "승인", json!({ "class": "경미" })).await? == "", "재상신 뒤의 승인");
     let link = q1(&c.db, "LET $d = (SELECT id, kind, prev, stamp FROM decision WHERE review = review:`2026-06-D-011` ORDER BY stamp);
         RETURN [$d.kind, $d[0].prev, $d[1].prev = $d[0].id, $d[2].prev = $d[1].id];", json!({})).await?;
     ensure!(link == json!([["반려", "반려", "승인"], null, true, true]), "결정의 이어짐 {link}");
