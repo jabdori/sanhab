@@ -152,7 +152,7 @@ async fn detail(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): Pa
         RETURN {
             review: (SELECT record::id(id) AS id, name, ym, status, marks, total, limit, approver, IF fixed THEN time::format(fixed, '%Y-%m-%d') END AS fixed, source, file.path AS file, row, members.map(|$d| { id: record::id($d), name: $d.name }) AS members FROM $r)[0],
             payouts: (SELECT record::id((->payout_of->dealer)[0]) AS dealer, amount, source, file.path AS file, row FROM payout WHERE id INSIDE $r.payouts),
-            rules: (SELECT name, ver, value, clause.title AS title, clause.doc.path AS file, clause.first AS first, clause.last AS last, clause.text AS text, clause.source AS source FROM rule WHERE id INSIDE $r.rules ORDER BY name),
+            rules: (SELECT name, ver, value, record::id(clause) AS clause, clause.title AS title, clause.doc.path AS file, clause.first AS first, clause.last AS last, clause.text AS text, clause.source AS source FROM rule WHERE id INSIDE $r.rules ORDER BY name),
             actions: (SELECT record::id(id) AS kind, fn::must(record::id(id), $r) AS reason, fn::classes(record::id(id), $r) AS classes, seq FROM act WHERE fn::can(record::id(id), $r) ORDER BY seq, kind),
             history: (SELECT kind, role, IF at THEN time::format(at, '%Y-%m-%d') END AS at, reason, source, stamp FROM decision WHERE review = $r ORDER BY stamp),
         };", json!({ "id": id })).await?;
@@ -281,7 +281,7 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(d["relation"]["right"] == json!([]) && d["relation"]["mid"] == json!([]) && d["relation"]["lines"] == json!([]), "단독의 관계 {}", d["relation"]);
     ensure!(can(&d, "승인") == Some(false) && d["history"] == json!([]), "조치 {}", d["actions"]);
     // 규정: 심사 → 규칙 버전 → 조항 → 문서(선 11, 8, 7). 조항은 규정 문서의 41~45행
-    let clause = |name: &str, value: i64| json!({ "name": name, "ver": 1, "value": value, "title": "판매장려금 지급 한도", "file": "00_common/approval_authority_policy.md", "first": 41, "last": 45, "text": d["rules"][0]["text"], "source": "원본" });
+    let clause = |name: &str, value: i64| json!({ "name": name, "ver": 1, "value": value, "clause": "지급한도", "title": "판매장려금 지급 한도", "file": "00_common/approval_authority_policy.md", "first": 41, "last": 45, "text": d["rules"][0]["text"], "source": "원본" });
     ensure!(d["rules"] == json!([clause("한도", 2_000_000), clause("합산", 2)]), "규정 {}", d["rules"]);
     let text = d["rules"][0]["text"].as_str().unwrap_or("");
     ensure!(text.starts_with("## 판매장려금 지급 한도") && text.contains("2백만원 이하") && text.ends_with("관련자 그룹 여부를 확인한다."), "조항의 원문 {text}");

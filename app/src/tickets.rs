@@ -35,4 +35,5 @@ tickets! {
     t08_recon,
     t09_again,
     t10_ratify,
+    t22_rules,
 }
