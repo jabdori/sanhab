@@ -140,7 +140,10 @@ async fn main() -> anyhow::Result<std::process::ExitCode> {
     let db = connect_retry().await?;
     if cmd == "check" {
         let mut c = check::Check::start(db).await?;
-        tickets::check(&mut c, args.next().as_deref()).await?;
+        let r = tickets::check(&mut c, args.next().as_deref()).await;
+        // 검사는 DB를 바꾼다. 통과하든 실패하든 원본 상태로 돌려놓아, 같은 DB로 앱을 띄워도 원본이 보이게 한다
+        c.reset().await?;
+        r?;
         println!("check OK");
     } else {
         println!("boot seeded: {}", boot(&db, false).await?);

@@ -50,7 +50,7 @@
 - **주고받는 방식**: `/api` 아래 JSON. 조회는 GET, 조치는 POST. `routes()`의 경로는 `/api` 아래에 붙고 전부 접속한 역할만 통과한다(문은 `main.rs`의 `gate`, 토큰 없으면 401). 처리기는 `Extension<Me>`로 `me.role`과 `me.db`(그 역할의 DB 세션)를 받는다. **조치는 반드시 `me.db`로 실행**해 테이블의 `PERMISSIONS`(`$auth.role`)가 권한을 강제하게 한다. 거절은 오류가 아니라 빈 결과이므로 빈 결과면 403을 돌려준다. 계산용 조회만 `State<Db>`(root)를 쓴다. 반환형은 `R`, 오류는 `err(StatusCode, "낱말")`. 사용자 입력은 쿼리 글자에 넣지 않고 바인딩한다.
 - **역할**: 이름은 `영업지원`, `영업임원`, `내부 감시`, `회계·자금`(DB의 `$auth.role`, 화면, 검사 모두 이 글자). 계정은 `staff:support|exec|audit|acct`. `POST /api/enter { pass }`와 `POST /api/reset`은 `{ roles: [{ role, token }] }`을 돌려준다(초기화하면 토큰이 새로 나온다).
 - **실시간**: 웹소켓을 쓰지 않는다. 화면은 조치 뒤와 역할을 바꿀 때 다시 읽는다(`useData`). 주기적으로 읽어야 하는 티켓은 자기 조각 안에서 한다.
-- **자동 검사**: `check(c)`는 화면과 같은 길로 검사한다 — `c.get(역할, 경로)`, `c.post(역할, 경로, 본문) → (상태 코드, 본문)`, `c.call(토큰, …)`. `c.db`(root)는 준비에만 쓴다. 티켓의 검사 앞에서 DB가 초기화된다. 완료 조건의 숫자를 여기에 적는다. DB가 필요 없는 것은 같은 파일의 `#[cfg(test)]`.
+- **자동 검사**: `check(c)`는 화면과 같은 길로 검사한다 — `c.get(역할, 경로)`, `c.post(역할, 경로, 본문) → (상태 코드, 본문)`, `c.call(토큰, …)`. `c.db`(root)는 준비에만 쓴다. 티켓의 검사 앞에서 DB가 초기화되고, 마지막 검사가 끝난 뒤에도(실패해도, 한 티켓만 돌려도) 한 번 더 초기화되어 원본 상태로 남는다. 그래서 검사는 `c.db`로 바꾼 것을 되돌리지 않아도 된다. 완료 조건의 숫자를 여기에 적는다. DB가 필요 없는 것은 같은 파일의 `#[cfg(test)]`.
 - **검사 명령**(작업 트리의 `app/`에서, `CARGO_TARGET_DIR`을 잡고): `npm --prefix web ci && npm --prefix web run build`(화면 규약 검사 + 타입 검사 + 빌드. **`cargo`보다 먼저** — 실행 파일이 `web/dist`를 포함한다) → `cargo test` → `SURREAL_ADDR=localhost:<18100+NN> cargo run -- check`(전체) 또는 `cargo run -- check tNN`(그 티켓만).
 - **로컬에서 띄우기**: 시험용 DB를 띄운 뒤 `SURREAL_ADDR=localhost:<18100+NN> PORT=<3100+NN> cargo run` → `http://localhost:<3100+NN>`, 접속 패스워드는 `DEMO_PASS`(없으면 `demo`). 화면만 고칠 때는 `API=http://localhost:<3100+NN> npm --prefix web run dev`. compose 전체는 `app/README.md`.
 - **화면의 폴더**: `app/web/src/tickets/NN-이름/index.tsx`가 `Piece[]`를 default로 내놓으면 저절로 모인다(등록하는 파일 없음, `pieces.tsx`). 조각은 자리(`slot`)에 끼운다: `list`(목록, `menu`로 메뉴를 고른다) / `fact`(가운데) / `action`·`reason`·`report`·`trail`·`history`(오른쪽, 순서 고정) / `chat`(대화). `kind`는 열어 둔 대상의 종류와 맞을 때만 보이게 한다. 조각이 없는 자리는 `없음`이 된다. AI가 쓴 글은 `fact`에 끼우지 않는다.
@@ -77,6 +77,6 @@
 - **소명으로 제외**: `excluded = true`인 선은 `links()`가 읽지 않는다. 20번은 선의 `excluded`만 바꾸면 된다.
 - **가설**(12번): `links()`의 결과에 `Link`를 더하거나 빼서 `groups()`·`matches()`를 다시 부른다. 두 함수는 DB를 읽지 않는다.
 - **조회 경로**: `GET /api/dealers/{id}/related` → `{ id, idents[{ id, item, value }], near[{ id, name, match[], related }], lines[[대리점 id, 식별자 id]], group[{ id, name }], source: "계산" }`. `near`는 식별자를 하나라도 함께 가리키는 대리점(관련자가 아닌 곳도 `related: false`로 들어 있다), `group`은 자기를 포함한다. 지금(오늘) 기준이다.
-- **공통 부품**: `ui/Relation.tsx`(`Relation` 관계 그림 — `left`(대상 대리점, 둥근 모양) · `mid`(사람·주소·계좌, 각진 모양) · `right`(이웃 대리점) · `lines`([대리점 id, 식별자 id]). 점은 `{ id, name }`. SVG로 직접 그리고 라이브러리는 없다. 같은 내용의 표는 쓰는 쪽이 함께 둔다). 심사는 `left`에 구성원 한 곳, `right`에 나머지를 넣으면 `ux-plan.md`의 그림이 된다.
+- **공통 부품**: `ui/Relation.tsx`(`Relation` 관계 그림 — `left`(대상 대리점, 둥근 모양) · `mid`(사람·주소·계좌, 각진 모양) · `right`(이웃 대리점) · `lines`([대리점 id, 식별자 id]). 점은 `{ id, name }`. SVG로 직접 그리고 라이브러리는 없다. 같은 내용의 표는 쓰는 쪽이 함께 둔다). `ui/Source.tsx`에 `side`(`right`·`top`, 말풍선이 열리는 쪽. 없으면 아래)를 더했다. 심사는 `left`에 구성원 한 곳, `right`에 나머지를 넣으면 `ux-plan.md`의 그림이 된다.
 - **대리점 상세의 "관계"**: `fact`에 `kind: L.대리점`, `order: 200`으로 끼웠다(등록과 지급 사이).
 - **표**: `Table`의 칸은 줄을 바꾸지 않고, 좁으면 그 표만 가로로 민다(`tokens.md`). 출처 표지는 원본의 행을 받은 뒤에 열린다.

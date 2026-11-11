@@ -28,7 +28,14 @@ function Fact() {
     <section className="mb-4 flex flex-col gap-2">
       <div className="flex items-center gap-2">
         <h2 className={label}>{L.관계}</h2>
-        <Source kind={d.source}>{L['식별자 셋 중 둘 이상이 일치하면 관련자, 관련자를 이으면 그룹']}</Source>
+        <Source kind={d.source} side="right">
+          <dl className="grid grid-cols-2 gap-x-2 gap-y-1">
+            <dt className={label}>{L.관련자}</dt>
+            <dd>{L['식별자 일치 2 이상']}</dd>
+            <dt className={label}>{L.그룹}</dt>
+            <dd>{L['관련자의 전이']}</dd>
+          </dl>
+        </Source>
       </div>
       {d.near.length === 0 || !me ? (
         <Empty />
