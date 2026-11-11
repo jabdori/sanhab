@@ -41,7 +41,7 @@ DEFINE INDEX recon_once ON recon FIELDS payout UNIQUE;
 DEFINE FUNCTION fn::paid_accounts($p: record<payout>) -> array<string> {
     LET $at = IF $p.state = '완료' THEN (SELECT at, stamp FROM remit WHERE payout = $p ORDER BY stamp DESC LIMIT 1)[0].at END ?? fn::today();
     LET $d = (SELECT VALUE out FROM payout_of WHERE in = $p)[0];
-    RETURN (SELECT VALUE out.value FROM acct WHERE in = $d AND since <= $at AND (until = NONE OR until > $at));
+    RETURN (SELECT out.value AS value, since FROM acct WHERE in = $d AND since <= $at AND (until = NONE OR until > $at) ORDER BY since).value;
 } PERMISSIONS FULL;
 
 -- 지급으로 표시되면: 회계·자금의 대사 작업이 생긴다. 진행으로 보는 역할은 그 지급의 지급 작업과 같다
