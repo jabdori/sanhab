@@ -37,9 +37,9 @@ static CALLS: AtomicUsize = AtomicUsize::new(0);
 /// 한 번에 하나만 쓴다(같은 입력의 보고가 둘 생기지 않게)
 static BUSY: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 /// 자동 검사가 모델을 갈아 끼우는 자리
-static USE: Mutex<Option<String>> = Mutex::new(None);
+pub(super) static USE: Mutex<Option<String>> = Mutex::new(None);
 
-fn model() -> String {
+pub(super) fn model() -> String {
     USE.lock().unwrap().clone().or_else(|| std::env::var("OPENAI_MODEL").ok().filter(|m| !m.is_empty())).unwrap_or_else(|| MODEL.into())
 }
 /// AI 접속 계정의 패스워드. DB 접속 패스워드에서 정해지므로 따로 둘 것이 없다(접속 경로는 서버뿐이다)
@@ -298,6 +298,7 @@ pub async fn sweep(db: &Db) -> Result<()> {
 pub async fn work(db: Db) {
     loop {
         sweep(&db).await.ok();
+        super::t18_send::sweep(&db).await.ok();
         tokio::time::sleep(Duration::from_secs(10)).await;
     }
 }

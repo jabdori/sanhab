@@ -39,6 +39,7 @@ tickets! {
     t10_ratify,
     t11_signal,
     t17_report,
+    t18_send,
     t12_hypo,
     t22_rules,
 }
