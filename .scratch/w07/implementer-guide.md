@@ -19,7 +19,7 @@
 - **`git push` 금지.** 올리면 AXHub 배포가 시작되고 요금이 나간다. 배포는 27번 티켓에서만 한다.
 - `.claude`, `.codex`, `.agents` 폴더와 루트 `.gitignore`는 건드리지 않는다.
 - 비밀 값: `.env`는 `/Users/code/Desktop/axwar-samilpwc/.env`에만 있다(작업 트리에는 없다). `set -a; . /Users/code/Desktop/axwar-samilpwc/.env; set +a`로 읽고, **값을 출력하지 않는다**(echo, printenv, 로그, 커밋 모두 금지).
-- Rust 빌드 산출물은 작업 트리마다 따로 두지 않는다: `export CARGO_TARGET_DIR=/Users/code/Desktop/axwar-samilpwc/app/target` (디스크가 한 번 가득 찼다. 여러 에이전트가 동시에 빌드하면 잠금으로 차례를 기다린다).
+- Rust 빌드 산출물은 **작업 트리마다 따로** 둔다(`CARGO_TARGET_DIR`을 잡지 않는다 → `<작업 트리>/app/target`). 여럿이 한 폴더를 같이 쓰면 마지막에 빌드한 쪽의 실행 파일이 남아, 다른 작업 트리의 앱이 띄워질 수 있다. 처음 빌드를 빨리 하려면 `cp -cR /Users/code/Desktop/axwar-samilpwc/app/target <작업 트리>/app/target`으로 복제해서 시작한다(APFS 복제라 바로 끝나고 디스크를 더 쓰지 않는다). 디스크가 한 번 가득 찼으므로, 티켓이 끝나면 자기 작업 트리의 `app/target`과 `app/web/node_modules`를 지운다.
 - 시험용 DB는 자기 것을 띄운다(다른 에이전트와 섞이지 않게). 포트는 18100 + 티켓 번호:
   `docker run -d --rm --name w07-t<NN> -p <포트>:8000 surrealdb/surrealdb:v4.0.1 start --user root --pass root 'surrealkv:///tmp/db?versioned=true'`. 끝나면 지운다.
 - 앱을 띄울 때의 포트는 3100 + 티켓 번호.
@@ -29,6 +29,7 @@
 - 사람의 조치는 그 사람의 역할 권한으로 실행되고, 권한은 DB가 강제한다.
 - 화면의 낱말은 한 파일에만 둔다. 부품 안에 글자를 직접 적지 않는다. 색·크기도 한 파일의 이름만 쓴다.
 - 가운데(사실)에는 AI가 쓴 글을 넣지 않는다. 오른쪽(판단)은 조치 → 사유 → 보고 → 경위 → 이력 순서를 지킨다.
+- **브라우저 창을 띄우지 않는다.** Playwright MCP 도구(`mcp__plugin_playwright_*`)는 창이 유저의 화면 앞으로 올라오므로 쓰지 않는다. 화면을 직접 봐야 하면 `agent-browser`를 창 없이(headless, `--headed` 금지) 쓴다.
 - 화면 검수는 스스로 하지 않는다. 별도 에이전트가 한다. 끝낼 때 검수하는 쪽이 앱을 띄울 수 있도록 **띄우는 명령과 포트, 따라갈 시나리오 단계**를 보고에 적는다.
 - 스펙으로 정해지지 않는 선택이 나오면: **계산, 권한, 상태, 누가 무엇을 할 수 있는지**에 관한 것이면 정하지 말고 멈춰서 선택지를 보고한다. 낱말·배치·모양의 작은 선택은 문서의 규칙 안에서 정하고 보고에 적는다.
 - 프로세스를 내릴 때 `pkill -f`처럼 넓게 종료하지 않는다. 자기가 띄운 PID와 컨테이너 이름으로만 내린다.
@@ -68,7 +69,8 @@
 - **권한**: 02의 테이블은 모든 역할이 읽기만 한다. 쓰는 조치를 만드는 티켓이 자기 스키마 파일에서 `DEFINE TABLE OVERWRITE … PERMISSIONS`로 그 조치의 권한만 연다.
 - **조회 경로**: `GET /api/dealers`(목록) · `GET /api/dealers/{id}`(`{ dealer, registered[], payouts[] }`, 날짜는 `YYYY-MM-DD`, 인지일 미상은 `null`) · `GET /api/origin?file=<경로>&row=<행>`(원본의 한 행 `cells`와 `sha`). 지급의 `status`는 원본 값(승인·미지급·반려) 그대로이고, D19의 해석(미지급 → 대기)은 심사 티켓이 한다.
 - **공통 부품**: `ui/Table.tsx`(`Table` — `head`, `rows`, `right`(오른쪽 정렬 열), `current`(열어 둔 줄), 줄이 없으면 `없음`. `num()`은 금액 표기) · `ui/Title.tsx`(`Title` 제목 줄 — `name`, `sub`, children에 상태 표지·덧표시) · `ui/Source.tsx`(`Source` 출처 표지 — `kind`와 원본이면 `file`·`row`, 그 밖의 출처는 children에 열릴 내용).
-- **대리점 화면의 조각**: 목록은 `list`(메뉴 대리점), 상세는 `fact`에 `kind: L.대리점`으로 끼운다. 대리점 상세에 더할 것(관계, 정황, 변경)은 같은 `kind`의 조각으로 자기 폴더에서 끼운다(`order`로 자리를 정한다).
+- **대리점 화면의 조각**: 목록은 `list`(메뉴 대리점), 상세는 `fact`에 `kind: L.대리점`으로 끼운다. 가운데의 `order`는 제목 줄과 등록 100, 지급 300이다. 관계(03)는 200, 지급 아래에 놓일 것(정황, 소명)은 400부터 쓴다. `order`를 적지 않으면 티켓 순번(작은 수)이 되어 제목 줄 위에 놓이므로 대리점 상세에 끼우는 조각은 반드시 적는다. 조각 사이의 간격은 조각이 `mb-4`로 낸다.
+- **표**: `Table`의 칸은 줄을 바꾸지 않고, 좁으면 그 표만 가로로 민다(`tokens.md`). 출처 표지는 원본의 행을 받은 뒤에 열린다.
 
 03 관련자가 정한 것.
 - **계산은 한 곳**(`app/src/tickets/t03_related.rs`, 저장하는 것 없음): `links(db, period) -> Vec<Link>`가 계산에 쓸 식별자 선을 읽고, `matches(&links, a, b)`(일치하는 식별자의 종류, 둘 이상이면 관련자)와 `groups(&links)`(전이적으로 이은 그룹. 모든 대리점이 한 그룹에 들고 관련자가 없으면 혼자, 비대상 대리점 포함)가 그 선만으로 계산한다. 뒤 티켓은 `super::t03_related::{links, matches, groups, Link, ITEMS}`를 쓴다. `Link { dealer, name, item, node, value }`에서 `item`은 `ITEMS`(대표자·주소·계좌)의 자리, `node`는 가리키는 노드의 id 글자다. 일치는 같은 `node`인지로 본다(나뉜 동명이인은 다른 노드라 일치가 아니다).
@@ -90,7 +92,7 @@
 - **작업을 더하기**: `CREATE task SET kind = '지급', view = '지급', target = <기록>, role = '회계·자금', also = [관여한 역할], source = '계산'`. `role`의 역할에게 "담당", `also`의 역할에게 "진행"으로 보인다(`state`가 대기·진행일 때). 끝나면 `state = '완료'`. `view`는 줄을 고르면 열리는 화면의 낱말(`targetAtom.kind`)이고 id는 `target`의 id다. 목록의 대상·귀속월·합산·표시는 **대상 기록의 `name`·`ym`·`total`·`marks`**에서 읽으므로, 심사가 아닌 대상을 가리키는 작업은 그 테이블에 이 필드를 둔다(없으면 빈칸). 심사 작업은 승인되면 `완료`가 되고, 보류·반려 뒤의 작업은 그 조치를 만드는 티켓이 정한다.
 - **심사의 표시를 더하기(09 재검토, 11 정황 …)**: `UPDATE review SET marks += '재검토'`. 목록의 "표시" 열과 상세의 제목 줄에 덧표시로 보인다. 아이콘은 `ui/Mark.tsx`의 `icons`에 한 줄. **`marks`에 `'정황'`이 있는 심사는 여러 개를 골라 승인하는 데서 빠진다**(목록의 `pick`과 `POST /api/decide`가 같이 본다) — 11번은 표시만 붙이면 된다.
 - **조회와 조치의 경로**: `GET /api/tasks` → `{ mine[], going[] }`(줄: `id, kind, view, target, name, ym, total, marks, role, pick`. 정황이 걸린 줄이 위, 그다음 합산이 큰 순) · `GET /api/reviews/{id}` → `{ review, members[{ id, name, match[], pay }], relation{ left, mid, right, lines }, rules[], actions[{ kind, reason }], history[] }` · `POST /api/decide { ids[], kind, reason? }`(권한이 없으면 403. 여럿이면 승인만 되고, 정황이 없고 승인권자가 영업지원인 심사가 아니면 400. 전부 되거나 전부 안 된다).
-- **심사 상세에 조각을 끼우기**: 값은 `useReview()`(`tickets/04-심사/review.ts`)로 읽는다(조각마다 따로 부르지 않고 조치 뒤에 저절로 다시 읽힌다). 가운데의 04 조각은 `order` -40(제목·숫자 줄) · -30(구성) · -20(관계) · -10(규정)이다. `{ slot: 'fact', kind: L.심사 }`로 끼운 조각은 `order`를 적지 않으면 규정 아래에 놓이고(11의 정황 줄, 12의 가설), 사이에 끼우려면 그 사이의 값을 적는다(09의 당시/현재: -35). 서버의 값이 더 필요하면 자기 경로를 따로 둔다.
+- **심사 상세에 조각을 끼우기**: 값은 `useReview()`(`tickets/04-심사/review.ts`)로 읽는다(조각마다 따로 부르지 않고 조치 뒤에 저절로 다시 읽힌다). 가운데의 04 조각은 `order` -40(제목·숫자 줄) · -30(구성) · -20(관계) · -10(규정)이다. 조각 사이의 간격은 02와 같이 조각이 `mb-4`로 낸다. `{ slot: 'fact', kind: L.심사 }`로 끼운 조각은 `order`를 적지 않으면 규정 아래에 놓이고(11의 정황 줄, 12의 가설), 사이에 끼우려면 그 사이의 값을 적는다(09의 당시/현재: -35). 서버의 값이 더 필요하면 자기 경로를 따로 둔다.
 - **규칙 버전(22)**: 새 버전은 `rule`에 `since`를 넣어 만들고 앞 버전의 `until`을 같은 날로 닫은 뒤 `recalc`를 부른다. 귀속월의 끝날에 시행 중인 버전이 적용된다(D14). 굳은 심사는 그때의 `rules`·`limit` 그대로다. 합산 규칙의 `value`(일치 수 2)는 기록이고, 03의 계산은 이 값을 읽지 않는다(2로 고정).
 - **공통 부품**: `ui/Mark.tsx`(`Mark` 덧표시 — 아이콘 + 글자, 색 없음).
 - **띄울 때 주의**: `CARGO_TARGET_DIR`을 같이 쓰면 `target/debug/w07`이 마지막에 빌드한 작업 트리의 것으로 바뀌고, 소스가 그대로이면 `cargo run`이 다시 만들지 않아 **다른 작업 트리의 실행 파일이 뜰 수 있다**. 띄우기 전에 `touch src/main.rs && cargo build`를 하고 바로 실행하거나 실행 파일을 복사해 쓴다.

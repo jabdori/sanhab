@@ -104,7 +104,7 @@ function Head() {
   const r = useReview()?.review
   if (!r) return null
   return (
-    <div className="flex flex-col gap-2">
+    <div className="mb-4 flex flex-col gap-2">
       <Title name={r.name} sub={r.ym}>
         <Pill tone={tones[r.status as keyof typeof tones] ?? 'wait'}>{r.status}</Pill>
         {marks(r.marks)}
@@ -130,7 +130,7 @@ function Members() {
   const r = useReview()
   if (!r) return null
   return (
-    <section className="mt-4 flex flex-col gap-2">
+    <section className="mb-4 flex flex-col gap-2">
       <h2 className={label}>{L.구성}</h2>
       <Table
         head={[L.대리점, L.금액, L.일치, L.출처]}
@@ -154,7 +154,7 @@ function Links() {
   const r = useReview()
   if (!r) return null
   return (
-    <section className="mt-4 flex flex-col gap-2">
+    <section className="mb-4 flex flex-col gap-2">
       <div className="flex items-center gap-2">
         <h2 className={label}>{L.관계}</h2>
         <Source kind={L.계산}>{L['식별자 셋 중 둘 이상이 일치하면 관련자, 관련자를 이으면 그룹']}</Source>
@@ -168,7 +168,7 @@ function Rules() {
   const r = useReview()
   if (!r) return null
   return (
-    <section className="mt-4 flex flex-col gap-2">
+    <section className="mb-4 flex flex-col gap-2">
       <h2 className={label}>{L.규정}</h2>
       <Table
         head={[L.조항, L.규칙, L.출처]}

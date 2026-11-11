@@ -42,12 +42,18 @@ function List() {
   )
 }
 
-function Fact() {
+/** 열어 둔 대리점의 상세. 읽기 전이거나 다른 대리점의 것이면 undefined */
+function useDetail() {
   const target = useAtomValue(targetAtom)
   const d = useData<Detail>(target && `/dealers/${target.id}`)
-  if (!d || d.dealer.id !== target?.id) return null
+  return d?.dealer.id === target?.id ? d : undefined
+}
+
+function Registered() {
+  const d = useDetail()
+  if (!d) return null
   return (
-    <div className="flex flex-col gap-4">
+    <div className="mb-4 flex flex-col gap-4">
       <Title name={d.dealer.name} sub={d.dealer.id}>
         {src(d.dealer)}
       </Title>
@@ -72,25 +78,34 @@ function Fact() {
           ])}
         />
       </section>
-      <section className="flex flex-col gap-2">
-        <h2 className={label}>{L.지급}</h2>
-        <Table
-          head={[L.귀속월, L.금액, L.상태, L.출처]}
-          right={[1]}
-          rows={d.payouts.map((p) => [
-            p.ym,
-            num(p.amount),
-            // 원본의 값 그대로. 승인·반려가 아닌 값(미지급)은 대기의 색
-            <Pill tone={p.status === L.승인 ? 'good' : p.status === L.반려 ? 'bad' : 'wait'}>{p.status}</Pill>,
-            src(p),
-          ])}
-        />
-      </section>
     </div>
   )
 }
 
+function Payouts() {
+  const d = useDetail()
+  if (!d) return null
+  return (
+    <section className="mb-4 flex flex-col gap-2">
+      <h2 className={label}>{L.지급}</h2>
+      <Table
+        head={[L.귀속월, L.금액, L.상태, L.출처]}
+        right={[1]}
+        rows={d.payouts.map((p) => [
+          p.ym,
+          num(p.amount),
+          // 원본의 값 그대로. 승인·반려가 아닌 값(미지급)은 대기의 색
+          <Pill tone={p.status === L.승인 ? 'good' : p.status === L.반려 ? 'bad' : 'wait'}>{p.status}</Pill>,
+          src(p),
+        ])}
+      />
+    </section>
+  )
+}
+
+// 가운데의 순서: 등록 100, 지급 300. 사이와 뒤에 다른 티켓이 끼운다(관계 200)
 export default [
   { slot: 'list', menu: L.대리점, View: List },
-  { slot: 'fact', kind: L.대리점, View: Fact },
+  { slot: 'fact', kind: L.대리점, order: 100, View: Registered },
+  { slot: 'fact', kind: L.대리점, order: 300, View: Payouts },
 ] satisfies Piece[]
