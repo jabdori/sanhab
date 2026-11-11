@@ -19,7 +19,7 @@
 - **`git push` 금지.** 올리면 AXHub 배포가 시작되고 요금이 나간다. 배포는 27번 티켓에서만 한다.
 - `.claude`, `.codex`, `.agents` 폴더와 루트 `.gitignore`는 건드리지 않는다.
 - 비밀 값: `.env`는 `/Users/code/Desktop/axwar-samilpwc/.env`에만 있다(작업 트리에는 없다). `set -a; . /Users/code/Desktop/axwar-samilpwc/.env; set +a`로 읽고, **값을 출력하지 않는다**(echo, printenv, 로그, 커밋 모두 금지).
-- Rust 빌드 산출물은 작업 트리마다 따로 두지 않는다: `export CARGO_TARGET_DIR=/Users/code/Desktop/axwar-samilpwc/app/target` (디스크가 한 번 가득 찼다. 여러 에이전트가 동시에 빌드하면 잠금으로 차례를 기다린다).
+- Rust 빌드 산출물은 **작업 트리마다 따로** 둔다(`CARGO_TARGET_DIR`을 잡지 않는다 → `<작업 트리>/app/target`). 여럿이 한 폴더를 같이 쓰면 마지막에 빌드한 쪽의 실행 파일이 남아, 다른 작업 트리의 앱이 띄워질 수 있다. 처음 빌드를 빨리 하려면 `cp -cR /Users/code/Desktop/axwar-samilpwc/app/target <작업 트리>/app/target`으로 복제해서 시작한다(APFS 복제라 바로 끝나고 디스크를 더 쓰지 않는다). 디스크가 한 번 가득 찼으므로, 티켓이 끝나면 자기 작업 트리의 `app/target`과 `app/web/node_modules`를 지운다.
 - 시험용 DB는 자기 것을 띄운다(다른 에이전트와 섞이지 않게). 포트는 18100 + 티켓 번호:
   `docker run -d --rm --name w07-t<NN> -p <포트>:8000 surrealdb/surrealdb:v4.0.1 start --user root --pass root 'surrealkv:///tmp/db?versioned=true'`. 끝나면 지운다.
 - 앱을 띄울 때의 포트는 3100 + 티켓 번호.
