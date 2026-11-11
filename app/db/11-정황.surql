@@ -92,3 +92,12 @@ DEFINE EVENT t11_recon ON recon WHEN $event = 'CREATE' AND $after.verdict = '불
     LET $d = ($after.payout->payout_of->dealer)[0];
     fn::signal('대사', record::id($d), $d.name, [$d], [$after.id], '계산');
 };
+
+-- 10과 11을 잇는다(정황의 id는 `추인-묶음-<묶음 id>` — 10의 추인 작업 `task:추인-<묶음 id>`와 겹치지 않게). D52: 영업임원이 재검토 묶음을 거부하면 그 묶음(그룹 × 귀속월)이 추인 정황으로 접수된다
+DEFINE EVENT t11_refused ON ratify WHEN $event = 'UPDATE' AND $after.marks CONTAINS '거부' AND $before.marks CONTAINSNOT '거부' THEN {
+    fn::signal('추인', string::concat('묶음-', record::id($after.id)), string::concat($after.name, ' ', $after.ym), $after.members, $after.reviews, '계산');
+};
+-- D53: 내부 감시가 추인 정황을 기각하면 그 묶음은 종결된다(영업임원에게 추인 작업이 다시 가지 않는다)
+DEFINE EVENT t11_refused_close ON ruling WHEN $event = 'CREATE' AND $after.kind = '기각' AND $after.signal.kind = '추인' THEN {
+    fn::ratify_close(type::record('ratify', string::replace(record::id($after.signal), '추인-묶음-', '')), $after);
+};

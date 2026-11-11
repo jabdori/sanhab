@@ -270,7 +270,11 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(!tasks(exec, "mine", "추인").await?.iter().any(|t| t["ym"] == "2026-04" && t["name"] == "금강상사11 외 2") && bundle(exec, "2026-04-D-011").await? == b, "거부 뒤에 다시 맞춤");
     // D53의 자리: 거부된 묶음을 `fn::ratify_close`로 닫으면 세 건과 묶음에 종결 표시가 붙는다. 추인 없이 종결된 것이 이력에 드러난다
     // 거부되지 않은 묶음(추인 전인 3월)은 닫히지 않는다
-    q(&c.db, "LET $f = { role: '내부 감시', at: fn::today(), reason: { class: '부족' }, source: '시연' }; fn::ratify_close(ratify:`2026-03-D-011`, $f); fn::ratify_close(ratify:`2026-04-D-011`, $f); fn::ratify_close(ratify:`2026-04-D-011`, $f);", json!({})).await?;
+    q(&c.db, "LET $f = { role: '내부 감시', at: fn::today(), reason: { class: '부족' }, source: '시연' }; fn::ratify_close(ratify:`2026-03-D-011`, $f);", json!({})).await?;
+    // D52: 거부된 묶음은 추인 정황으로 접수되어 내부 감시의 담당에 올라간다. D53: 내부 감시가 그 정황을 기각하면 묶음이 종결된다(다시 기각해도 한 번만)
+    let s = c.get(audit, "/api/signals/추인-묶음-2026-04-D-011").await?;
+    ensure!(s["signal"]["kind"] == "추인" && s["signal"]["state"] == "접수", "거부 뒤의 추인 정황 {}", s["signal"]);
+    ensure!(c.post(audit, "/api/rule", json!({ "id": "추인-묶음-2026-04-D-011", "kind": "기각", "reason": { "class": "부족" } })).await?.0 == 200, "추인 정황의 기각");
     ensure!(bundle(exec, "2026-03-D-011").await?["ratify"]["marks"] == json!(["재검토"]) && q1(&c.db, "RETURN count(SELECT id FROM decision WHERE kind = '종결' AND review.ym = '2026-04');", json!({})).await? == 3, "닫는 함수");
     let b = bundle(audit, "2026-04-D-011").await?;
     ensure!(b["ratify"]["marks"] == json!(["재검토", "거부", "종결"]) && b["role"].is_null() && rows(&b["history"]).iter().map(|h| h["kind"].as_str().unwrap_or("")).eq(["거부", "종결"]) && review("2026-04-D-024").await?["review"]["marks"] == json!(["재검토", "거부", "종결"]) && rows(&b["history"])[1]["reason"] == json!({ "class": "부족" }), "거부 뒤의 종결 {b}");
