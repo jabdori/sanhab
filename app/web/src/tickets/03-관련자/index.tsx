@@ -25,7 +25,7 @@ function Fact() {
   if (!d || d.id !== target?.id) return null
   const me = d.group.find((g) => g.id === d.id)
   return (
-    <section className="mt-4 flex flex-col gap-2">
+    <section className="mb-4 flex flex-col gap-2">
       <div className="flex items-center gap-2">
         <h2 className={label}>{L.관계}</h2>
         <Source kind={d.source}>{L['식별자 셋 중 둘 이상이 일치하면 관련자, 관련자를 이으면 그룹']}</Source>
@@ -58,4 +58,4 @@ function Fact() {
   )
 }
 
-export default [{ slot: 'fact', kind: L.대리점, View: Fact }] satisfies Piece[]
+export default [{ slot: 'fact', kind: L.대리점, order: 200, View: Fact }] satisfies Piece[]
