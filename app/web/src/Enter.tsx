@@ -11,7 +11,7 @@ export function Enter() {
   const setRole = useSetAtom(roleAtom)
   const [bad, setBad] = useState(false)
   return (
-    <main className="flex h-screen items-center justify-center bg-surface">
+    <main className="flex h-screen items-center justify-center bg-bg">
       <div className="flex w-list flex-col gap-4 rounded-box border border-line bg-bg p-6">
         <h1 className="text-title">{L.합산}</h1>
         {roles.length === 0 ? (
