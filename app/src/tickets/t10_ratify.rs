@@ -93,10 +93,10 @@ pub async fn seed(db: &Db) -> Result<()> {
     // 종결: 추인된 심사를 내부 감시가, 사유 선택. 이견: 종결하지 않고 사유를 남긴다(D25), 사유 필수. 종결된 뒤에는 둘 다 없다.
     // 네 조치 모두 심사의 상태를 옮기지 않는다(`to` 없음)
     q(db, "
-        CREATE act:`추인` SET seq = 4, states = ['승인'], who = '영업임원', mark = '재검토', once = ['추인', '거부'], reason = true, classes = ['정상', '미인지', '기타'];
-        CREATE act:`거부` SET seq = 5, states = ['승인'], who = '영업임원', mark = '재검토', once = ['추인', '거부'], reason = true, classes = ['정황', '기타'];
-        CREATE act:`종결` SET seq = 6, states = ['승인'], who = '내부 감시', mark = '추인', once = ['종결'], classes = ['정상', '기타'];
-        CREATE act:`이견` SET seq = 7, states = ['승인'], who = '내부 감시', mark = '추인', once = ['종결'], reason = true, classes = ['소명', '근거', '기타'];", json!({})).await?;
+        CREATE act:`추인` SET seq = 4, states = ['승인'], who = '영업임원', mark = '재검토', without = ['추인', '거부'], reason = true, classes = ['정상', '미인지', '기타'];
+        CREATE act:`거부` SET seq = 5, states = ['승인'], who = '영업임원', mark = '재검토', without = ['추인', '거부'], reason = true, classes = ['정황', '기타'];
+        CREATE act:`종결` SET seq = 6, states = ['승인'], who = '내부 감시', mark = '추인', without = ['종결'], classes = ['정상', '기타'];
+        CREATE act:`이견` SET seq = 7, states = ['승인'], who = '내부 감시', mark = '추인', without = ['종결'], reason = true, classes = ['소명', '근거', '기타'];", json!({})).await?;
     Ok(())
 }
 
