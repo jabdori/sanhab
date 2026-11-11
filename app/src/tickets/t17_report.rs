@@ -299,6 +299,7 @@ pub async fn work(db: Db) {
     loop {
         sweep(&db).await.ok();
         super::t18_send::sweep(&db).await.ok();
+        super::t19_docs::sweep(&db).await.ok();
         tokio::time::sleep(Duration::from_secs(10)).await;
     }
 }
