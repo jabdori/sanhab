@@ -131,7 +131,7 @@ function Head() {
             <dt className={label}>{L.합산}</dt>
             <dd>{L['귀속월 지급의 합, 반려 제외']}</dd>
             <dt className={label}>{L.승인권자}</dt>
-            <dd>{L['합산이 한도 이하 영업지원, 초과 영업임원']}</dd>
+            <dd>{L['한도 이하 영업지원, 초과 영업임원']}</dd>
           </dl>
         </Source>
       </Figures>
