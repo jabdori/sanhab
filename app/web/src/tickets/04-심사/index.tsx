@@ -148,15 +148,18 @@ function Members() {
       <Table
         head={[L.대리점, L.금액, L.일치, L.출처]}
         right={[1]}
-        rows={r.members.map((m) => [
-          <span className="flex items-center gap-2">
-            {m.name}
-            <span className="text-text-sub">{m.id}</span>
-          </span>,
-          m.pay ? num(m.pay.amount) : <Empty />,
-          m.match.length ? m.match.join(' · ') : <span className="text-text-mute">{L.없음}</span>,
-          m.pay && <Source kind={m.pay.source} file={m.pay.file} row={m.pay.row} />,
-        ])}
+        rows={r.members.flatMap((m) =>
+          // 지급마다 한 줄(금액의 합이 합산과 같다). 지급이 없는 구성원도 한 줄
+          (m.pays.length ? m.pays : [null]).map((p) => [
+            <span className="flex items-center gap-2">
+              {m.name}
+              <span className="text-text-sub">{m.id}</span>
+            </span>,
+            p ? num(p.amount) : <Empty />,
+            m.match.length ? m.match.join(' · ') : <span className="text-text-mute">{L.없음}</span>,
+            p && <Source kind={p.source} file={p.file} row={p.row} />,
+          ]),
+        )}
       />
     </section>
   )

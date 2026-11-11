@@ -53,8 +53,15 @@ pub struct Pay {
 
 /// 한 귀속월의 심사들: 기다리는 지급이 있는 그룹마다 하나. 구성은 그룹 전체(지급이 없는 곳도 든다, D21),
 /// 합산은 구성원의 그 귀속월 지급에서 반려만 뺀 합(D7, D19), 승인권자는 합산이 한도 이하이면 영업지원, 넘으면 영업임원.
-/// id는 `귀속월-기다리는 지급이 있는 첫 대리점`
+/// id는 `귀속월-기다리는 지급이 있는 첫 대리점`(굳은 심사와 겹치면 `recalc`가 번호를 붙인다)
 pub fn plan(ym: &str, groups: &[Vec<String>], pays: &[Pay], limit: i64) -> Vec<J> {
+    // 그 귀속월에 지급이 있는데 어느 그룹에도 없는 대리점(유효한 식별자 선이 하나도 없는 곳)은 자기만 든 그룹이다(D2, D21)
+    let mut groups = groups.to_vec();
+    for p in pays.iter().filter(|p| p.ym == ym) {
+        if !groups.iter().any(|g| g.contains(&p.dealer)) {
+            groups.push(vec![p.dealer.clone()]);
+        }
+    }
     groups.iter().filter_map(|g| {
         let ps: Vec<&Pay> = pays.iter().filter(|p| p.ym == ym && p.status != "반려" && g.contains(&p.dealer)).collect();
         let first = ps.iter().filter(|p| p.open).map(|p| p.dealer.as_str()).min()?;
@@ -75,6 +82,7 @@ pub async fn recalc(db: &Db) -> Result<()> {
             pays: (SELECT record::id(id) AS id, record::id((->payout_of->dealer)[0]) AS dealer, ym, amount, status, status = '미지급' AND id NOTINSIDE $taken AS open FROM payout),
             rules: (SELECT record::id(id) AS id, name, value, IF since THEN time::format(since, '%Y-%m-%d') END AS since, IF until THEN time::format(until, '%Y-%m-%d') END AS until FROM rule),
             names: (SELECT record::id(id) AS id, name FROM dealer),
+            fixed: (SELECT VALUE record::id(id) FROM review WHERE fixed != NONE),
         };", json!({})).await?;
     let pays: Vec<Pay> = serde_json::from_value(r["pays"].clone())?;
     let rules: Vec<Rule> = serde_json::from_value(r["rules"].clone())?;
@@ -85,6 +93,12 @@ pub async fn recalc(db: &Db) -> Result<()> {
         let used = pick(&rules, ym);
         let limit = used.iter().find(|u| u.name == "한도").map(|u| u.value).ok_or_else(|| anyhow::anyhow!("{ym}에 시행 중인 한도가 없다"))?;
         for mut p in plan(ym, &groups(&links(db, Some((&from, &to))).await?), &pays, limit) {
+            // 굳은 심사는 다시 쓰지 않는다: 같은 대리점·귀속월의 굳은 심사가 있으면 새 심사는 `…-2`, `…-3`이 된다
+            let base = p["id"].as_str().unwrap_or_default().to_string();
+            let taken = r["fixed"].as_array().into_iter().flatten().filter_map(J::as_str).filter(|f| *f == base || f.starts_with(&format!("{base}-"))).count();
+            if taken > 0 {
+                p["id"] = json!(format!("{base}-{}", taken + 1));
+            }
             let n = p["members"].as_array().map_or(0, Vec::len);
             p["name"] = json!(if n > 1 { format!("{} 외 {}", name(&p["members"][0]), n - 1) } else { name(&p["members"][0]) });
             p["rules"] = json!(used.iter().map(|u| &u.id).collect::<Vec<_>>());
@@ -98,6 +112,7 @@ pub async fn recalc(db: &Db) -> Result<()> {
         DELETE review WHERE fixed = NONE AND id NOTINSIDE $keep;
         FOR $p IN $plan {
             LET $r = type::record('review', $p.id);
+            IF $r.fixed != NONE { THROW '굳은 심사를 다시 쓰려 함' };
             UPSERT $r MERGE {
                 ym: $p.ym, name: $p.name, total: $p.total, limit: $p.limit, approver: $p.approver, source: '계산',
                 members: $p.members.map(|$d| type::record('dealer', $d)),
@@ -129,13 +144,13 @@ async fn tasks(Extension(me): Extension<Me>) -> R {
     Ok(Json(json!({ "mine": mine, "going": going })))
 }
 
-/// 심사 상세. 가운데: 제목과 숫자 줄(`review`), 구성(`members`: 금액과 다른 구성원과 일치하는 식별자), 관계(`relation`), 규정(`rules`).
+/// 심사 상세. 가운데: 제목과 숫자 줄(`review`), 구성(`members`: 그 귀속월의 지급 전부(`pays`)와 다른 구성원과 일치하는 식별자), 관계(`relation`), 규정(`rules`).
 /// 오른쪽: 지금 역할이 할 수 있는 조치(`actions`), 이력(`history`). 일치와 관계는 그 귀속월의 선으로 계산한다
 async fn detail(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
     let mut r = q1(&me.db, "
         LET $r = type::record('review', $id);
         RETURN {
-            review: (SELECT record::id(id) AS id, name, ym, status, marks, total, limit, approver, IF fixed THEN time::format(fixed, '%Y-%m-%d') END AS fixed, source, members.map(|$d| record::id($d)) AS members FROM $r)[0],
+            review: (SELECT record::id(id) AS id, name, ym, status, marks, total, limit, approver, IF fixed THEN time::format(fixed, '%Y-%m-%d') END AS fixed, source, members.map(|$d| { id: record::id($d), name: $d.name }) AS members FROM $r)[0],
             payouts: (SELECT record::id((->payout_of->dealer)[0]) AS dealer, amount, source, file.path AS file, row FROM payout WHERE id INSIDE $r.payouts),
             rules: (SELECT name, ver, value, clause.title AS title, clause.doc.path AS file, clause.first AS first, clause.last AS last, clause.text AS text, clause.source AS source FROM rule WHERE id INSIDE $r.rules ORDER BY name),
             actions: (SELECT record::id(id) AS kind, reason FROM act WHERE fn::can(record::id(id), $r) ORDER BY kind),
@@ -144,18 +159,18 @@ async fn detail(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): Pa
     if r["review"].is_null() {
         return Err(err(StatusCode::NOT_FOUND, "없음"));
     }
-    let ids: Vec<String> = serde_json::from_value(r["review"].as_object_mut().and_then(|o| o.remove("members")).unwrap_or_default()).map_err(anyhow::Error::from)?;
+    let dots: Vec<J> = r["review"].as_object_mut().and_then(|o| o.remove("members")).and_then(|m| m.as_array().cloned()).unwrap_or_default();
+    let ids: Vec<String> = dots.iter().filter_map(|d| d["id"].as_str().map(String::from)).collect();
     let (from, to) = period(r["review"]["ym"].as_str().unwrap_or("0000-01"));
     let all = links(&db, Some((&from, &to))).await?;
     let mine: Vec<_> = all.iter().filter(|l| ids.contains(&l.dealer)).collect();
-    let name: BTreeMap<&str, &str> = mine.iter().map(|l| (l.dealer.as_str(), l.name.as_str())).collect();
-    let dot = |d: &String| json!({ "id": d, "name": name.get(d.as_str()).unwrap_or(&"") });
+    let dot = |d: &String| dots.iter().find(|x| x["id"] == d.as_str()).cloned().unwrap_or_default();
     let members: Vec<J> = ids.iter().map(|d| {
         let same: BTreeSet<usize> = ids.iter().filter(|o| *o != d).flat_map(|o| matches(&all, d, o)).collect();
-        let pay = r["payouts"].as_array().into_iter().flatten().find(|p| p["dealer"] == d.as_str());
+        let pays: Vec<&J> = r["payouts"].as_array().into_iter().flatten().filter(|p| p["dealer"] == d.as_str()).collect();
         let mut m = dot(d);
         m["match"] = json!(same.iter().map(|i| ITEMS[*i]).collect::<Vec<_>>());
-        m["pay"] = json!(pay);
+        m["pays"] = json!(pays);
         m
     }).collect();
     // 그림: 구성원 둘 이상이 함께 가리키는 사람·주소·계좌만. 첫 구성원이 왼쪽, 나머지가 오른쪽
@@ -258,7 +273,7 @@ pub async fn check(c: &Check) -> Result<()> {
     // 대성상사1: 관련자 없음. 합산 988,932, 한도 2,000,000(규칙에서), 승인권자 영업지원
     let d = review(support, one).await?;
     ensure!(d["review"] == json!({ "id": one, "name": "대성상사1", "ym": "2026-06", "status": "대기", "marks": [], "total": 988_932, "limit": 2_000_000, "approver": support, "fixed": null, "source": "계산" }), "대성상사1의 심사 {}", d["review"]);
-    ensure!(d["members"] == json!([{ "id": "D-001", "name": "대성상사1", "match": [], "pay": { "dealer": "D-001", "amount": 988_932, "source": "원본", "file": "01_corevia/sales/sales_rebate_payment_cv.csv", "row": 7 } }]), "구성 {}", d["members"]);
+    ensure!(d["members"] == json!([{ "id": "D-001", "name": "대성상사1", "match": [], "pays": [{ "dealer": "D-001", "amount": 988_932, "source": "원본", "file": "01_corevia/sales/sales_rebate_payment_cv.csv", "row": 7 }] }]), "구성 {}", d["members"]);
     ensure!(d["relation"]["right"] == json!([]) && d["relation"]["mid"] == json!([]) && d["relation"]["lines"] == json!([]), "단독의 관계 {}", d["relation"]);
     ensure!(can(&d, "승인") == Some(false) && d["history"] == json!([]), "조치 {}", d["actions"]);
     // 규정: 심사 → 규칙 버전 → 조항 → 문서(선 11, 8, 7). 조항은 규정 문서의 41~45행
@@ -272,7 +287,7 @@ pub async fn check(c: &Check) -> Result<()> {
     // 박상현 그룹: 1,373,515 + 1,189,046 + 1,325,536 = 3,888,097 > 한도 → 승인권자 영업임원. 영업지원에게는 조치가 없다
     let d = review(support, group).await?;
     ensure!(d["review"]["total"] == 3_888_097 && d["review"]["limit"] == 2_000_000 && d["review"]["approver"] == exec && d["review"]["name"] == "금강상사11 외 2", "그룹의 심사 {}", d["review"]);
-    let got: Vec<J> = rows(&d["members"]).iter().map(|m| json!([m["name"], m["pay"]["amount"], m["match"]])).collect();
+    let got: Vec<J> = rows(&d["members"]).iter().map(|m| json!([m["name"], m["pays"][0]["amount"], m["match"]])).collect();
     ensure!(json!(got) == json!([["금강상사11", 1_373_515, ["대표자", "주소", "계좌"]], ["성일상사24", 1_189_046, ["대표자", "주소"]], ["대륙상사37", 1_325_536, ["대표자", "계좌"]]]), "그룹의 구성 {got:?}");
     let names = |v: &J| rows(v).iter().filter_map(|x| x["name"].as_str().map(String::from)).collect::<Vec<_>>();
     ensure!(names(&d["relation"]["left"]) == ["금강상사11"] && names(&d["relation"]["right"]) == ["성일상사24", "대륙상사37"], "그림의 대리점");
@@ -384,6 +399,27 @@ pub async fn check(c: &Check) -> Result<()> {
     let mine = |m: &J| m["kind"] == "본보기" && m["target"] == "2026-06-D-007" && m["total"] == 1_389_435;
     ensure!(rows(&c.get("회계·자금", "/api/tasks").await?["mine"]).iter().any(mine), "뒤따른 작업");
     ensure!(rows(&c.get(support, "/api/tasks").await?["going"]).iter().any(mine), "영업지원의 진행");
+
+    // 유효한 식별자 선이 하나도 없는 대리점도 자기만 든 그룹으로 심사가 남는다(한라인상사34의 세 선이 모두 제외됐다면)
+    q(&c.db, "UPDATE rep, addr, acct SET excluded = true WHERE in = dealer:`D-034`;", json!({})).await?;
+    recalc(&c.db).await?;
+    let d = review(support, "2026-06-D-034").await?;
+    ensure!(d["review"]["total"] == 1_353_657 && d["review"]["status"] == "대기" && d["members"][0]["name"] == "한라인상사34" && d["members"][0]["pays"][0]["amount"] == 1_353_657, "선이 없는 대리점의 심사 {d}");
+    ensure!(rows(&c.get(support, "/api/tasks").await?["mine"]).iter().any(|m| m["target"] == "2026-06-D-034") && can(&d, "승인") == Some(false), "선이 없는 대리점의 작업");
+
+    // 굳은 심사는 다시 계산해도 그대로다: 승인된 대성상사1에 같은 귀속월의 새 미지급이 생기면 굳은 심사와 겹치지 않는 새 심사가 만들어진다
+    let fixed = review(support, one).await?;
+    q(&c.db, "CREATE payout:`RB-추가` SET ym = '2026-06', sales = 0, amount = 100000, status = '미지급', source = '시연';
+        RELATE payout:`RB-추가`->payout_of->dealer:`D-001` SET source = '시연';", json!({})).await?;
+    recalc(&c.db).await?;
+    recalc(&c.db).await?;
+    ensure!(review(support, one).await? == fixed, "굳은 심사가 다시 쓰임");
+    let d = review(exec, "2026-06-D-001-2").await?;
+    ensure!(d["review"]["status"] == "대기" && d["review"]["fixed"].is_null() && d["review"]["total"] == 2_543_780, "굳은 심사 옆의 새 심사 {}", d["review"]);
+    ensure!(rows(&c.get(exec, "/api/tasks").await?["mine"]).iter().any(|m| m["target"] == "2026-06-D-001-2"), "새 심사의 작업");
+    // 구성 표는 구성원의 지급을 모두 보여 금액의 합이 합산과 같다(대성상사1은 두 건)
+    let amounts: Vec<i64> = rows(&d["members"]).iter().flat_map(|m| rows(&m["pays"])).filter_map(|p| p["amount"].as_i64()).collect();
+    ensure!(rows(&d["members"][0]["pays"]).len() == 2 && amounts.len() == 4 && amounts.iter().sum::<i64>() == 2_543_780, "구성의 금액 {amounts:?}");
     Ok(())
 }
 
@@ -407,10 +443,10 @@ mod tests {
             pay("F", "2026-06", 100_000, "승인", false), // 기다리는 지급이 없으면 심사도 없다
             pay("A", "2026-05", 9_000_000, "미지급", true), // 다른 귀속월
         ];
-        let groups = [g(&["A", "B", "N"]), g(&["C"]), g(&["D", "E"]), g(&["F"])];
+        let groups = [g(&["A", "B", "N"]), g(&["D", "E"]), g(&["F"])]; // C는 유효한 선이 없어 어느 그룹에도 없다 → 자기만 든 그룹
         let p = plan("2026-06", &groups, &pays, 2_000_000);
         let got: Vec<_> = p.iter().map(|x| (x["id"].as_str().unwrap(), x["total"].as_i64().unwrap(), x["approver"].as_str().unwrap(), x["members"].as_array().unwrap().len(), x["payouts"].as_array().unwrap().len())).collect();
-        assert_eq!(got, [("2026-06-A", 2_000_000, "영업지원", 3, 2), ("2026-06-C", 2_000_001, "영업임원", 1, 1), ("2026-06-D", 1_500_000, "영업지원", 2, 1)]);
+        assert_eq!(got, [("2026-06-A", 2_000_000, "영업지원", 3, 2), ("2026-06-D", 1_500_000, "영업지원", 2, 1), ("2026-06-C", 2_000_001, "영업임원", 1, 1)]);
     }
 
     #[test]
