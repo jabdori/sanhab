@@ -39,7 +39,7 @@ pub async fn detect(db: &Db) -> Result<()> {
     }
     q(db, "
         FOR $d IN (SELECT id, date, (->deposit_of->dealer)[0] AS dealer, (->deposit_into->account)[0] AS account FROM deposit ORDER BY date, id) {
-            LET $own = (SELECT VALUE id FROM acct WHERE in = $d.dealer AND out = $d.account);
+            LET $own = (SELECT VALUE id FROM acct WHERE in = $d.dealer AND out = $d.account AND !excluded); -- ponytail: 등록의 유효 기간은 보지 않는다. 13(변경)이 계좌 변경을 넣을 때 회수 날짜에 유효한 등록만 보게 한다
             LET $others = (SELECT id, in FROM acct WHERE out = $d.account AND in != $d.dealer AND !excluded ORDER BY in);
             IF array::len($own) = 0 AND array::len($others) > 0 {
                 fn::signal('계좌', record::id($d.dealer), $d.dealer.name, array::concat([$d.dealer], $others.in), array::concat([$d.id], $others.id), '계산');

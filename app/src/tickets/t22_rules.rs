@@ -134,9 +134,9 @@ pub async fn check(c: &Check) -> Result<()> {
     // 숫자가 기대는 가정(D46의 표): 가정 아님과 이미 모은 D7의 줄은 없다
     let titles: Vec<J> = of("D46").iter().map(|x| x["title"].clone()).collect();
     ensure!(json!(titles) == json!(["대표자 이름이 같으면 일치로 본다", "주소·계좌는 지금 등록된 값이 1~5월에도 같았다", "한도 200만원이 1~5월에도 시행 중이었다"]), "D46의 가정 {titles:?}");
-    // 쓰인 곳: 이미 있는 화면(심사, 재검토)은 그 기록으로 가고, 아직 없는 화면(정황)은 글자뿐이다. 만들지 않은 것(D34)은 쓰인 곳이 없다
+    // 쓰인 곳: 이미 있는 화면(심사, 재검토, 정황)은 그 기록으로 가고(정황은 출처가 가정인 근접이 먼저), 만들지 않은 것(D34)은 쓰인 곳이 없다
     ensure!(a[0]["used"] == json!([{ "view": "심사", "kind": "심사", "id": "2026-06-D-011" }, { "view": "재검토", "kind": "심사", "id": "2026-05-D-011" }]), "D7이 쓰인 곳 {}", a[0]["used"]);
-    ensure!(of("D8")[0]["used"] == json!([{ "view": "정황", "kind": null, "id": null }]) && of("D34")[0]["used"] == json!([]) && of("D51")[0]["used"][0]["view"] == "정황", "글자뿐인 곳");
+    ensure!(of("D8")[0]["used"] == json!([{ "view": "정황", "kind": "정황", "id": "근접-D-011" }]) && of("D34")[0]["used"] == json!([]) && of("D51")[0]["used"][0]["view"] == "정황", "정황이 쓰인 곳");
     for u in rows(&a[0]["used"]) {
         c.get("내부 감시", &format!("/api/reviews/{}", u["id"].as_str().unwrap_or(""))).await?;
     }
