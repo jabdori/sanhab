@@ -68,4 +68,5 @@
 - **권한**: 02의 테이블은 모든 역할이 읽기만 한다. 쓰는 조치를 만드는 티켓이 자기 스키마 파일에서 `DEFINE TABLE OVERWRITE … PERMISSIONS`로 그 조치의 권한만 연다.
 - **조회 경로**: `GET /api/dealers`(목록) · `GET /api/dealers/{id}`(`{ dealer, registered[], payouts[] }`, 날짜는 `YYYY-MM-DD`, 인지일 미상은 `null`) · `GET /api/origin?file=<경로>&row=<행>`(원본의 한 행 `cells`와 `sha`). 지급의 `status`는 원본 값(승인·미지급·반려) 그대로이고, D19의 해석(미지급 → 대기)은 심사 티켓이 한다.
 - **공통 부품**: `ui/Table.tsx`(`Table` — `head`, `rows`, `right`(오른쪽 정렬 열), `current`(열어 둔 줄), 줄이 없으면 `없음`. `num()`은 금액 표기) · `ui/Title.tsx`(`Title` 제목 줄 — `name`, `sub`, children에 상태 표지·덧표시) · `ui/Source.tsx`(`Source` 출처 표지 — `kind`와 원본이면 `file`·`row`, 그 밖의 출처는 children에 열릴 내용).
-- **대리점 화면의 조각**: 목록은 `list`(메뉴 대리점), 상세는 `fact`에 `kind: L.대리점`으로 끼운다. 대리점 상세에 더할 것(관계, 정황, 변경)은 같은 `kind`의 조각으로 자기 폴더에서 끼운다(`order`로 자리를 정한다).
+- **대리점 화면의 조각**: 목록은 `list`(메뉴 대리점), 상세는 `fact`에 `kind: L.대리점`으로 끼운다. 가운데의 `order`는 제목 줄과 등록 100, 지급 300이다. 관계(03)는 200, 지급 아래에 놓일 것(정황, 소명)은 400부터 쓴다. `order`를 적지 않으면 티켓 순번(작은 수)이 되어 제목 줄 위에 놓이므로 대리점 상세에 끼우는 조각은 반드시 적는다. 조각 사이의 간격은 조각이 `mb-4`로 낸다.
+- **표**: `Table`의 칸은 줄을 바꾸지 않고, 좁으면 그 표만 가로로 민다(`tokens.md`). 출처 표지는 원본의 행을 받은 뒤에 열린다.
