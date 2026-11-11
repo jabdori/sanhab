@@ -159,7 +159,7 @@ pub async fn check(c: &Check) -> Result<()> {
 
     // 박상현 그룹의 1~5월이 재검토다: 15건, 당시 합산의 합 22,238,349(D46). 다른 대리점의 과거 승인에는 없다
     ensure!(marked().await? == json!([15, 22_238_349]), "재검토 {}", marked().await?);
-    let others = q1(&c.db, "RETURN count(SELECT id FROM review WHERE marks != [] AND members[0] NOTINSIDE [dealer:`D-011`, dealer:`D-024`, dealer:`D-037`]);", json!({})).await?;
+    let others = q1(&c.db, "RETURN count(SELECT id FROM review WHERE marks CONTAINS '재검토' AND members[0] NOTINSIDE [dealer:`D-011`, dealer:`D-024`, dealer:`D-037`]);", json!({})).await?;
     ensure!(others == 0, "다른 대리점의 표시 {others}");
     let group = json!([{ "id": "D-011", "name": "금강상사11" }, { "id": "D-024", "name": "성일상사24" }, { "id": "D-037", "name": "대륙상사37" }]);
     let (mut count, mut sum) = (0, 0);
@@ -205,10 +205,10 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(q1(&c.db, "RETURN count(SELECT id FROM decision WHERE role = '영업지원' AND source = '원본');", json!({})).await? == 200, "역할이 결정을 고침");
 
     // 이 시스템에서 영업임원이 승인한 6월의 그룹은 한도를 넘어도 재검토가 아니다(승인권자가 맞다)
-    ensure!(c.post(exec, "/api/decide", json!({ "ids": ["2026-06-D-011"], "kind": "승인" })).await?.0 == 200, "그룹의 승인");
+    ensure!(c.post(exec, "/api/decide", json!({ "ids": ["2026-06-D-011"], "kind": "승인", "reason": { "class": "경미" } })).await?.0 == 200, "그룹의 승인");
     remark(&c.db).await?;
     let a = again("2026-06-D-011").await?;
-    ensure!(a["again"] == false && a["paid"] == json!([]) && a["now"]["total"] == 3_888_097 && a["then"] == json!({ "members": 3, "total": 3_888_097, "approver": exec }) && review("2026-06-D-011").await?["review"]["marks"] == json!([]), "임원이 승인한 그룹 {a}");
+    ensure!(a["again"] == false && a["paid"] == json!([]) && a["now"]["total"] == 3_888_097 && a["then"] == json!({ "members": 3, "total": 3_888_097, "approver": exec }) && !rows(&review("2026-06-D-011").await?["review"]["marks"]).contains(&json!("재검토")), "임원이 승인한 그룹 {a}");
 
     // 뒤 티켓이 끼우는 자리 ①(20 소명): 선이 제외되면 다시 계산해 표시가 풀린다. 성일상사24의 주소가 제외되면 금강상사11과는 대표자만 일치 → 그룹은 두 곳
     q(&c.db, "UPDATE addr SET excluded = true WHERE in = dealer:`D-024`;", json!({})).await?;

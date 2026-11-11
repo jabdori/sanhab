@@ -49,10 +49,10 @@ pub async fn check(c: &Check) -> Result<()> {
         ensure!(decide(support, group, kind, reason).await? == "권한", "영업지원의 {kind}");
     }
 
-    // 영업임원은 승인 또는 보류를 고른다. 보류는 사유 필수, 승인은 선택. 분류는 조치마다 따로
+    // 영업임원은 승인 또는 보류를 고른다. 보류는 사유 필수. 이 심사에는 정황이 걸려 있어(11) 승인도 사유 필수다. 분류는 조치마다 따로
     let r = review(exec, group).await?["actions"].clone();
     // 버튼의 순서는 조치의 seq: 승인, 보류
-    ensure!(r == json!([{ "kind": "승인", "reason": false, "classes": pass, "seq": 1 }, { "kind": "보류", "reason": true, "classes": hold, "seq": 2 }]), "영업임원의 조치 {r}");
+    ensure!(r == json!([{ "kind": "승인", "reason": true, "classes": pass, "seq": 1 }, { "kind": "보류", "reason": true, "classes": hold, "seq": 2 }]), "영업임원의 조치 {r}");
 
     // 사유의 규칙은 DB가 강제한다: 분류가 없는 보류, 목록에 없는 분류, 메모가 빈 기타는 거절되고 아무것도 바뀌지 않는다
     for (kind, reason) in [
@@ -119,7 +119,7 @@ pub async fn check(c: &Check) -> Result<()> {
     // 영업지원이 보류한 줄은 진행에 놓이고 선택 칸이 없다(여러 개 승인은 담당의 대기인 줄만). 섞어 보내도 거절된다
     let t = c.get(support, "/api/tasks").await?;
     let row = t["going"].as_array().into_iter().flatten().find(|x| x["target"] == "2026-06-D-008").cloned().unwrap_or_default();
-    ensure!(row["pick"] == false && row["state"] == "진행" && t["mine"].as_array().is_some_and(|l| l.iter().all(|x| x["pick"] == true && x["target"] != "2026-06-D-008")), "보류한 줄의 선택 칸 {row}");
+    ensure!(row["pick"] == false && row["state"] == "진행" && t["mine"].as_array().is_some_and(|l| l.iter().all(|x| x["pick"] == !x["marks"].as_array().is_some_and(|m| m.contains(&json!("정황"))) && x["target"] != "2026-06-D-008")), "보류한 줄의 선택 칸 {row}");
     ensure!(c.post(support, "/api/decide", json!({ "ids": ["2026-06-D-007", "2026-06-D-008"], "kind": "승인" })).await? == (400, json!({ "error": "사유" })), "보류한 줄을 섞은 선택");
     ensure!(review(support, "2026-06-D-007").await?["review"]["status"] == "대기", "섞은 선택 뒤");
     // 영업임원의 승인: 한도가 1,500,000이 되어 영업임원에게 온 심사(D-018, 1,537,170)를 사유 없이 승인한다
@@ -130,9 +130,8 @@ pub async fn check(c: &Check) -> Result<()> {
     let d = review(exec, big).await?;
     ensure!(d["review"]["status"] == "승인" && d["review"]["fixed"] == "2026-07-01" && d["review"]["approver"] == exec, "승인 뒤 {}", d["review"]);
 
-    // 11번이 켤 조건: 승인의 need에 '정황'을 더하면 정황이 걸린 심사의 승인에만 사유가 필수가 된다
-    let (flagged, plain) = ("2026-06-D-006", "2026-06-D-007");
-    q(&c.db, "UPDATE act:`승인` SET need += '정황'; UPDATE review:`2026-06-D-006` SET marks += '정황';", json!({})).await?;
+    // 11번이 켠 조건(승인의 need에 '정황'): 정황이 걸린 심사(금강상사41 — 동명)의 승인에만 사유가 필수다
+    let (flagged, plain) = ("2026-06-D-041", "2026-06-D-007");
     let must = async |id: &str| Ok::<_, anyhow::Error>(review(support, id).await?["actions"][0]["reason"].clone());
     ensure!(must(flagged).await? == true && must(plain).await? == false, "정황이 걸린 심사의 사유");
     ensure!(decide(support, flagged, "승인", J::Null).await? == "사유" && decide(support, flagged, "승인", json!({ "class": "경미" })).await? == "", "정황이 걸린 심사의 승인");

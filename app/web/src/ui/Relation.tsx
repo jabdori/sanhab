@@ -14,9 +14,10 @@ const WIDTH = X[2] + DEALER
 /**
  * 관계 그림: 대리점은 둥근 모양, 사람·주소·계좌는 각진 모양. 한 대상의 바로 옆 이웃만 그리고 방향은 왼쪽에서 오른쪽으로 고정이다.
  * `left`는 대상 대리점, `mid`는 식별자, `right`는 이웃 대리점, `lines`는 [대리점 id, 식별자 id]. 같은 내용의 표를 함께 둔다.
+ * `hints`는 등록된 선이 아닌 이어짐(정황 — 회수가 들어간 계좌)이고 점선으로 그린다.
  */
 // ponytail: 값이 길면 상자를 넘친다(원본에서 가장 긴 주소·계좌는 들어간다). 넘치는 값이 생기면 줄여 적고 <title>로 전체를 보인다
-export function Relation({ left, mid, right, lines }: { left: Dot[]; mid: Dot[]; right: Dot[]; lines: [string, string][] }) {
+export function Relation({ left, mid, right, lines, hints = [] }: { left: Dot[]; mid: Dot[]; right: Dot[]; lines: [string, string][]; hints?: [string, string][] }) {
   const cols = [left, mid, right]
   const height = Math.max(...cols.map((c) => c.length), 1) * ROW
   /** 점의 가운데 높이: 열마다 세로 가운데로 모은다 */
@@ -28,15 +29,16 @@ export function Relation({ left, mid, right, lines }: { left: Dot[]; mid: Dot[];
   return (
     <div className="overflow-x-auto">
       <svg role="img" aria-label={L.관계} width={WIDTH} height={height} className="text-label">
-        {lines.map(([dealer, ident], i) => {
+        {[...lines, ...hints].map(([dealer, ident], i) => {
+          const dash = i >= lines.length ? '4 4' : undefined
           const to = at(1, ident)
           const fromLeft = at(0, dealer)
           const from = fromLeft ?? at(2, dealer)
           if (to === null || from === null) return null
           return fromLeft !== null ? (
-            <line key={i} x1={X[0] + DEALER} y1={from} x2={X[1]} y2={to} className="stroke-text-mute" />
+            <line key={i} x1={X[0] + DEALER} y1={from} x2={X[1]} y2={to} strokeDasharray={dash} className="stroke-text-mute" />
           ) : (
-            <line key={i} x1={X[1] + IDENT} y1={to} x2={X[2]} y2={from} className="stroke-text-mute" />
+            <line key={i} x1={X[1] + IDENT} y1={to} x2={X[2]} y2={from} strokeDasharray={dash} className="stroke-text-mute" />
           )
         })}
         {cols.map((col, c) =>

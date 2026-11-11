@@ -70,7 +70,8 @@ pub async fn seed(_: &Db) -> Result<()> {
 pub async fn check(c: &Check) -> Result<()> {
     let (support, exec, acct) = ("영업지원", "영업임원", "회계·자금");
     let rows = |v: &J| v.as_array().cloned().unwrap_or_default();
-    let approve = async |role: &str, id: &str| c.post(role, "/api/decide", json!({ "ids": [id], "kind": "승인" })).await;
+    // 승인에는 사유를 적는다(박상현 그룹에는 정황이 걸려 있어 사유가 필수다 — 11)
+    let approve = async |role: &str, id: &str| c.post(role, "/api/decide", json!({ "ids": [id], "kind": "승인", "reason": { "class": "경미" } })).await;
     let pay = async |id: &str| c.post(acct, "/api/pay", json!({ "id": id })).await;
     let send = async |role: &str, id: &str, amount: i64, account: &str, result: &str| c.post(role, "/api/reply", json!({ "id": id, "amount": amount, "account": account, "result": result })).await;
     let recon = async |id: &str| c.get(acct, &format!("/api/pays/{id}/recon")).await;
