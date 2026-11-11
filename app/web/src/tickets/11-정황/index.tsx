@@ -17,7 +17,8 @@ import { Table, num } from '../../ui/Table'
 import { Title } from '../../ui/Title'
 import { Line } from '../04-심사'
 import { useReview } from '../04-심사/review'
-import { reasonAtom, useSignal } from './signal'
+import { useReport } from '../17-보고/report'
+import { markAtom, reasonAtom, useSignal } from './signal'
 
 // 정황의 상태와 그 색(tokens.md: 접수·요청은 대기의 색)
 const tones = { [L.접수]: 'wait', [L.요청]: 'wait', [L.기각]: 'wait', [L.해소]: 'good' } as const
@@ -61,6 +62,7 @@ function Head() {
  * 대사의 줄은 출처가 계산이라 표지에 맞춰 본 값(승인)과 회신의 값이 열린다 */
 function Evidence() {
   const d = useSignal()
+  const mark = useAtomValue(markAtom)
   if (!d) return null
   const rows = d.evidence
   const nodes = rows.some((e) => e.node)
@@ -71,6 +73,7 @@ function Evidence() {
       <Table
         head={[L.근거, rows.every((e) => e.ym) ? L.귀속월 : '', nodes ? L.식별자 : amounts ? L.금액 : L.비교, L.출처]}
         right={!nodes && amounts ? [2] : []}
+        mark={rows.findIndex((e) => e.id === mark)}
         rows={rows.map((e) => [
           e.item,
           e.at ?? e.ym ?? e.dealer?.name,
@@ -149,20 +152,25 @@ function Action() {
   )
 }
 
-/** 사유: 조치가 없으면 없음. 다른 정황을 열거나 역할이 바뀌거나 결정이 내려지면 쓰던 사유를 비운다 */
+/** 사유: 조치가 없으면 없음. 요청 · 기각과 보고의 채택 · 불채택(17)이 같은 칸을 쓴다. 다른 정황을 열거나 역할이 바뀌거나 결정이 내려지면 쓰던 사유를 비운다 */
 function Box() {
   const d = useSignal()
+  const r = useReport()
   const role = useAtomValue(roleAtom)
   const [draft, setDraft] = useAtom(reasonAtom)
-  useEffect(() => setDraft(blank), [d?.signal.id, d?.history.length, role, setDraft])
+  useEffect(() => setDraft(blank), [d?.signal.id, d?.history.length, r?.trail.length, role, setDraft])
   if (!d) return null
-  return d.actions.length ? <Reason groups={d.actions.map((a) => ({ of: a.kind, classes: a.classes }))} value={draft} onChange={setDraft} /> : <Empty />
+  const groups = [...d.actions, ...(r?.actions ?? [])].map((a) => ({ of: a.kind, classes: a.classes }))
+  return groups.length ? <Reason groups={groups} value={draft} onChange={setDraft} /> : <Empty />
 }
 
 function History() {
   const d = useSignal()
+  const r = useReport()
   if (!d) return null
-  return d.history.length ? d.history.map((h, i) => <Line key={i} d={h} />) : <Empty />
+  // 요청 · 기각과 보고의 채택 · 불채택(17)을 일어난 순서대로
+  const all = [...d.history.map((h) => ({ ...h, stamp: (h as { stamp?: string }).stamp ?? '' })), ...(r?.trail ?? [])].sort((a, b) => a.stamp.localeCompare(b.stamp))
+  return all.length ? all.map((h, i) => <Line key={i} d={h} />) : <Empty />
 }
 
 /** 심사 상세의 "정황": 그 심사의 구성원에 걸린 정황. 누르면 그 정황이 열린다. 표시가 붙은 심사에만 보인다 */
