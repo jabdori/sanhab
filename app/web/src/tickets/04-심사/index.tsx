@@ -1,4 +1,4 @@
-// 04 심사: 메뉴 "작업"의 목록(담당·진행, 여러 개를 골라 승인)과 심사 상세(가운데: 제목·숫자 줄, 구성, 관계, 규정 / 오른쪽: 조치, 이력).
+// 04 심사: 메뉴 "작업"의 목록(담당·진행, 여러 개를 골라 승인)과 심사 상세(가운데: 제목·숫자 줄, 구성, 관계, 규정 / 오른쪽: 조치. 이력은 06이 결정과 재상신을 함께 보인다).
 // 가운데의 조각은 order -40(제목·숫자 줄) · -30(구성) · -20(관계) · -10(규정)이다. 뒤 티켓이 kind: L.심사로 끼우는 조각은 order를 적지 않으면 규정 아래에 놓이고, 사이에 끼우려면 그 사이의 값을 적는다.
 import { AlertDialog } from '@base-ui/react/alert-dialog'
 import { Checkbox } from '@base-ui/react/checkbox'
@@ -18,7 +18,7 @@ import { Source } from '../../ui/Source'
 import { button, floating, label } from '../../ui/styles'
 import { Table, num } from '../../ui/Table'
 import { Title } from '../../ui/Title'
-import { type Decision, reasonAtom, useReview } from './review'
+import { type Decision, bundled, reasonAtom, useReview } from './review'
 
 type Task = { id: string; kind: string; view: string; target: string; name?: string; ym?: string; total?: number | null; marks: string[]; role: string; pick: boolean }
 
@@ -40,7 +40,6 @@ function Tasks() {
   const list = d[tab]
   // 고른 줄 가운데 아직 고를 수 있는 것만 센다(승인되면 목록에서 빠진다)
   const chosen = picked.filter((id) => d.mine.some((t) => t.pick && t.target === id))
-  const open = !!target
   return (
     <div className="flex flex-col gap-2">
       <Tabs.Root value={tab} onValueChange={setTab}>
@@ -54,8 +53,8 @@ function Tasks() {
         </Tabs.List>
       </Tabs.Root>
       <Table
-        head={['', L.종류, L.대상, ...(open ? [] : [L.귀속월]), L.금액, ...(open ? [] : [L.표시]), ...(tab === 'going' && !open ? [L.담당] : [])]}
-        right={[open ? 3 : 4]}
+        head={['', L.종류, L.대상, L.귀속월, L.금액, L.표시, ...(tab === 'going' ? [L.담당] : [])]}
+        right={[4]}
         current={list.findIndex((t) => t.view === target?.kind && t.target === target?.id)}
         rows={list.map((t) => [
           t.pick && (
@@ -72,10 +71,10 @@ function Tasks() {
           <button className="cursor-pointer text-left text-action hover:text-action-hover" onClick={() => setTarget({ kind: t.view, id: t.target })}>
             {t.name}
           </button>,
-          ...(open ? [] : [t.ym]),
+          t.ym,
           t.total == null ? null : num(t.total),
-          ...(open ? [] : [<span className="flex gap-2">{marks(t.marks)}</span>]),
-          ...(tab === 'going' && !open ? [t.role] : []),
+          <span className="flex gap-2">{marks(t.marks)}</span>,
+          ...(tab === 'going' ? [t.role] : []),
         ])}
       />
       {tab === 'mine' && chosen.length > 0 && (
@@ -228,11 +227,11 @@ function Rules() {
 export const Line = ({ d }: { d: Decision }) => (
   <div className="text-body break-keep">
     <p className="tabular-nums">{[d.kind, d.role, d.at ?? L.미상, d.reason?.class ?? `${L.사유} ${L.없음}${d.source === L.원본 ? `(${L.원본})` : ''}`].join(' · ')}</p>
-    {d.reason?.memo && <p className="text-text-sub">{d.reason.memo}</p>}
+    {d.reason?.memo && <p className="text-text-sub wrap-anywhere">{d.reason.memo}</p>}
   </div>
 )
 
-/** 조치: 지금 역할이 할 수 있는 것만 버튼으로. 없으면 내려진 결정, 그것도 없으면 승인권자.
+/** 조치: 지금 역할이 할 수 있는 것만 버튼으로. 없으면, 끝난 심사(승인·반려)는 내려진 결정, 아직 승인권자의 차례인 심사(대기·보류. 재상신으로 돌아온 것 포함)는 승인권자.
  * 버튼은 사유가 그 조치의 규칙에 맞을 때만 눌린다(필수이면 그 조치의 분류, 기타이면 메모까지). 서버가 거절하면 그 낱말을 보인다 */
 function Action() {
   const r = useReview()
@@ -244,9 +243,11 @@ function Action() {
   const id = r?.review.id
   useEffect(() => setBad(null), [id])
   if (!r) return null
+  // 묶음에 내리는 조치(추인·거부·종결·이견)는 한 건 화면에서 누르지 않는다. 묶음으로 가는 길은 10이 낸다
+  const acts = r.actions.filter((a) => !bundled.includes(a.kind))
   const last = r.history.at(-1)
-  if (!r.actions.length)
-    return last ? (
+  if (!acts.length)
+    return last && r.review.status !== L.대기 && r.review.status !== L.보류 ? (
       <Line d={last} />
     ) : (
       <div className="flex items-baseline gap-2">
@@ -256,7 +257,7 @@ function Action() {
     )
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {r.actions.map((a) => (
+      {acts.map((a) => (
         <button key={a.kind} className={button} disabled={sent === r || !ready(a.kind, a.reason, reason)}
           onClick={() => {
             setSent(r)
@@ -278,12 +279,6 @@ function Action() {
   )
 }
 
-function History() {
-  const r = useReview()
-  if (!r) return null
-  return r.history.length ? r.history.map((d, i) => <Line key={i} d={d} />) : <Empty />
-}
-
 export default [
   { slot: 'list', menu: L.작업, View: Tasks },
   { slot: 'fact', kind: L.심사, order: -40, View: Head },
@@ -291,5 +286,4 @@ export default [
   { slot: 'fact', kind: L.심사, order: -20, View: Links },
   { slot: 'fact', kind: L.심사, order: -10, View: Rules },
   { slot: 'action', kind: L.심사, View: Action },
-  { slot: 'history', kind: L.심사, View: History },
 ] satisfies Piece[]
