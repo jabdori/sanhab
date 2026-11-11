@@ -45,20 +45,21 @@ async fn analyze(db: &Db, id: &str) -> Result<Option<J>> {
     let size = |ls: &[Link]| groups(ls).iter().find(|g| g.contains(&target)).map_or(1, Vec::len);
     let rank = |a: &str| (a == "영업임원") as u8;
     let top = |it: Vec<&str>| if it.is_empty() { "없음".to_string() } else if it.contains(&"영업임원") { "영업임원".into() } else { "영업지원".into() };
-    let after = compute(db, &add).await?;
+    // 더할 선이 없으면 가설은 현재와 같다(계산을 다시 하지 않는다)
+    let after = if add.is_empty() { vec![] } else { compute(db, &add).await? };
     let open = q1(db, "
         SELECT record::id(id) AS id, ym, approver, total, members.map(|$m| record::id($m)) AS members FROM review
         WHERE fixed = NONE AND members ANYINSIDE $ds.map(|$d| type::record('dealer', $d)) ORDER BY id;", json!({ "ds": dealers.iter().map(|d| &d.0).collect::<Vec<_>>() })).await?;
     let reviews: Vec<J> = open.as_array().into_iter().flatten().filter_map(|r| {
         let first = &r["members"][0];
-        let p = after.iter().find(|p| p["ym"] == r["ym"] && p["members"].as_array().is_some_and(|m| m.contains(first)))?;
+        let p = if add.is_empty() { r } else { after.iter().find(|p| p["ym"] == r["ym"] && p["members"].as_array().is_some_and(|m| m.contains(first)))? };
         Some(json!({ "id": r["id"], "group": [r["members"].as_array().map_or(0, Vec::len), p["members"].as_array().map_or(0, Vec::len)], "approver": [r["approver"], p["approver"]], "total": [r["total"], p["total"]] }))
     }).collect();
     let pick = |i: usize| top(reviews.iter().filter_map(|r| r["approver"][i].as_str()).collect());
     Ok(Some(json!({
-        "id": sig["id"], "name": sig["name"], "source": "가정",
+        "id": sig["id"], "name": sig["name"], "source": "가정", "target": dealers[0].1,
         "adds": add.iter().map(|l| ITEMS[l.item]).collect::<BTreeSet<_>>(),
-        "match": dealers[1..].iter().map(|(d, name)| json!({ "dealer": name, "cur": names(matches(&now, &target, d)), "hyp": names(matches(&hyp, &target, d)) })).collect::<Vec<_>>(),
+        "match": dealers[1..].iter().map(|(d, name)| json!({ "id": d, "dealer": name, "cur": names(matches(&now, &target, d)), "hyp": names(matches(&hyp, &target, d)) })).collect::<Vec<_>>(),
         "group": [size(&now), size(&hyp)],
         "approver": [pick(0), pick(1)],
         "up": reviews.iter().any(|r| rank(r["approver"][0].as_str().unwrap_or("")) < rank(r["approver"][1].as_str().unwrap_or(""))),
@@ -111,6 +112,18 @@ async fn of_review(State(db): State<Db>, Path(id): Path<String>) -> R {
     for s in ids.as_array().into_iter().flatten().filter_map(J::as_str) {
         let Some(mut a) = analyze(&db, s).await? else { continue };
         let Some(r) = a["reviews"].as_array().and_then(|rs| rs.iter().find(|r| r["id"] == id.as_str())).cloned() else { continue };
+        // 일치 줄의 이름은 그 심사의 구성원이 아닌 쪽이다(대상이 구성원이면 상대, 아니면 대상)
+        let mem = q1(&db, "RETURN type::record('review', $id).members.map(|$m| record::id($m));", json!({ "id": id })).await?;
+        let inside = |d: &J| mem.as_array().is_some_and(|m| m.contains(d));
+        let target = a["target"].clone();
+        let tid = dealers_id(&db, s).await?;
+        if let Some(rows) = a["match"].as_array_mut() {
+            for m in rows.iter_mut() {
+                if !inside(&tid) && inside(&m["id"]) {
+                    m["dealer"] = target.clone();
+                }
+            }
+        }
         a["group"] = r["group"].clone();
         a["approver"] = r["approver"].clone();
         a["up"] = json!(r["approver"][0] == "영업지원" && r["approver"][1] == "영업임원");
@@ -118,6 +131,10 @@ async fn of_review(State(db): State<Db>, Path(id): Path<String>) -> R {
         out.push(a);
     }
     Ok(Json(json!(out)))
+}
+
+async fn dealers_id(db: &Db, sig: &str) -> Result<J> {
+    q1(db, "RETURN record::id(type::record('signal', $id).dealers[0]);", json!({ "id": sig })).await
 }
 
 pub async fn seed(_: &Db) -> Result<()> {
@@ -135,11 +152,11 @@ pub async fn check(c: &Check) -> Result<()> {
     // 세 곳은 이미 한 그룹이라 그룹도 승인권자(영업임원)도 그대로다. 출처는 가정
     let d = hypo(&format!("/api/signals/{bank}/hypo")).await?;
     ensure!(d == json!({ "id": bank, "name": "계좌 · 성일상사24", "source": "가정", "adds": ["계좌"],
-        "match": [{ "dealer": "금강상사11", "cur": ["대표자", "주소"], "hyp": ["대표자", "주소", "계좌"] }, { "dealer": "대륙상사37", "cur": ["대표자"], "hyp": ["대표자", "계좌"] }],
+        "target": "성일상사24", "match": [{ "id": "D-011", "dealer": "금강상사11", "cur": ["대표자", "주소"], "hyp": ["대표자", "주소", "계좌"] }, { "id": "D-037", "dealer": "대륙상사37", "cur": ["대표자"], "hyp": ["대표자", "계좌"] }],
         "group": [3, 3], "approver": [exec, exec], "up": false }), "계좌 정황의 가설 {d}");
     // 동명과 근접: 더할 선이 없어 가설이 현재와 같다
     let d = hypo(&format!("/api/signals/{name}/hypo")).await?;
-    ensure!(d["adds"] == json!([]) && d["match"] == json!([{ "dealer": "금강상사41", "cur": ["대표자"], "hyp": ["대표자"] }]) && d["group"] == json!([1, 1]) && d["approver"] == json!([support, support]) && d["up"] == false, "동명 정황의 가설 {d}");
+    ensure!(d["adds"] == json!([]) && d["match"] == json!([{ "id": "D-041", "dealer": "금강상사41", "cur": ["대표자"], "hyp": ["대표자"] }]) && d["group"] == json!([1, 1]) && d["approver"] == json!([support, support]) && d["up"] == false, "동명 정황의 가설 {d}");
     let d = hypo(&format!("/api/signals/{near}/hypo")).await?;
     ensure!(d["match"] == json!([]) && d["group"] == json!([3, 3]) && d["approver"] == json!([exec, exec]) && d["up"] == false, "근접 정황의 가설 {d}");
     ensure!(c.call(Some(c.token(support)), "GET", "/api/signals/없음/hypo", None).await?.0 == 404, "없는 정황");
@@ -147,6 +164,9 @@ pub async fn check(c: &Check) -> Result<()> {
     let d = hypo(&format!("/api/reviews/{group}/hypo")).await?;
     ensure!(rows(&d).iter().map(|h| h["id"].clone()).collect::<Vec<_>>() == [json!(bank), json!(near)] && rows(&d).iter().all(|h| h["group"] == json!([3, 3]) && h["approver"] == json!([exec, exec]) && h["up"] == false), "심사의 가설 {d}");
     ensure!(hypo(&format!("/api/reviews/{r34}/hypo")).await?[0]["approver"] == json!([support, support]) && hypo(&format!("/api/reviews/{plain}/hypo")).await? == json!([]) && hypo("/api/reviews/2026-01-D-011/hypo").await? == json!([]), "가설이 없는 심사");
+    // 일치 줄의 이름은 그 심사에 없는 쪽이다: 한라인상사34의 심사에서는 금강상사41, 금강상사41의 심사에서는 한라인상사34
+    let (a, b) = (hypo(&format!("/api/reviews/{r34}/hypo")).await?, hypo("/api/reviews/2026-06-D-041/hypo").await?);
+    ensure!(a[0]["match"][0]["dealer"] == "금강상사41" && b[0]["match"][0]["dealer"] == "한라인상사34", "상대 쪽 이름 {a} {b}");
     // 승인권자가 올라가는 정황은 원본에 없다: 의견은 그대로 열려 있고, 심사는 원래의 담당에 있다
     let raised = async || q1(&c.db, "RETURN [count(SELECT id FROM review WHERE raised), count(SELECT id FROM signal WHERE raised)];", json!({})).await;
     ensure!(raised().await? == json!([0, 0]), "원본에 올라가는 심사");
@@ -166,7 +186,7 @@ pub async fn check(c: &Check) -> Result<()> {
     super::t04_review::recalc(&c.db).await?;
     let sample = "계좌-본보기";
     let d = hypo(&format!("/api/signals/{sample}/hypo")).await?;
-    ensure!(d["match"] == json!([{ "dealer": "대륙상사6", "cur": ["대표자"], "hyp": ["대표자", "계좌"] }]) && d["group"] == json!([1, 2]) && d["approver"] == json!([support, exec]) && d["up"] == true, "본보기의 가설 {d}");
+    ensure!(d["match"] == json!([{ "id": "D-006", "dealer": "대륙상사6", "cur": ["대표자"], "hyp": ["대표자", "계좌"] }]) && d["group"] == json!([1, 2]) && d["approver"] == json!([support, exec]) && d["up"] == true, "본보기의 가설 {d}");
     for id in [d1, d6] {
         let h = hypo(&format!("/api/reviews/{id}/hypo")).await?;
         ensure!(h[0]["id"] == sample && h[0]["group"] == json!([1, 2]) && h[0]["approver"] == json!([support, exec]) && h[0]["up"] == true, "{id}의 가설 {h}");

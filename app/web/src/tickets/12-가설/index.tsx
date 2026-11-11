@@ -20,7 +20,7 @@ type Hypo = {
   approver: [string, string]
 }
 
-const kinds = (v: string[]) => (v.length ? v.join('·') : L.없음)
+const kinds = (v: string[]) => (v.length ? v.join(' · ') : L.없음)
 
 /** 머리: 가설 이름표와 출처 표지(가정). 말풍선은 더하는 일치의 이름표와 값 */
 function Head({ adds }: { adds: string[] }) {
@@ -53,7 +53,15 @@ function Rows({ h }: { h: Hypo }) {
 function OfSignal() {
   const id = useSignal()?.signal.id
   const h = useData<Hypo>(id ? `/signals/${encodeURIComponent(id)}/hypo` : null)
-  if (!h || h.id !== id) return null
+  if (!id) return null
+  // 읽는 동안에는 같은 자리에 그룹·승인권자 줄을 먼저 둔다(뒤의 줄이 밀리지 않게)
+  if (!h || h.id !== id)
+    return (
+      <section className="mb-4 flex flex-col gap-2">
+        <Head adds={[]} />
+        <Compare head={[L.현재, L.가설]} rows={[[L.그룹, '', ''], [L.승인권자, '', '']]} />
+      </section>
+    )
   return (
     <section className="mb-4 flex flex-col gap-2">
       <Head adds={h.adds} />
