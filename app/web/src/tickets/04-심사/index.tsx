@@ -1,4 +1,4 @@
-// 04 심사: 메뉴 "작업"의 목록(담당·진행, 여러 개를 골라 승인)과 심사 상세(가운데: 제목·숫자 줄, 구성, 관계, 규정 / 오른쪽: 조치, 이력).
+// 04 심사: 메뉴 "작업"의 목록(담당·진행, 여러 개를 골라 승인)과 심사 상세(가운데: 제목·숫자 줄, 구성, 관계, 규정 / 오른쪽: 조치. 이력은 06이 결정과 재상신을 함께 보인다).
 // 가운데의 조각은 order -40(제목·숫자 줄) · -30(구성) · -20(관계) · -10(규정)이다. 뒤 티켓이 kind: L.심사로 끼우는 조각은 order를 적지 않으면 규정 아래에 놓이고, 사이에 끼우려면 그 사이의 값을 적는다.
 import { AlertDialog } from '@base-ui/react/alert-dialog'
 import { Checkbox } from '@base-ui/react/checkbox'
@@ -216,10 +216,10 @@ function Rules() {
   )
 }
 
-/** 결정 한 줄: 결정 · 사람 · 날짜 · 사유의 분류. 메모는 그 아래에 따로 */
-const Line = ({ d }: { d: Decision }) => (
+/** 결정 한 줄: 결정 · 사람 · 날짜 · 사유의 분류. 메모는 그 아래에 따로. 사유가 없는 조치(06의 재상신)는 사유 자리를 적지 않는다 */
+export const Line = ({ d }: { d: Decision }) => (
   <div className="text-body break-keep">
-    <p className="tabular-nums">{[d.kind, d.role, d.at ?? L.미상, d.reason?.class ?? `${L.사유} ${L.없음}${d.source === L.원본 ? `(${L.원본})` : ''}`].join(' · ')}</p>
+    <p className="tabular-nums">{[d.kind, d.role, d.at ?? L.미상, ...(d.kind === L.재상신 ? [] : [d.reason?.class ?? `${L.사유} ${L.없음}${d.source === L.원본 ? `(${L.원본})` : ''}`])].join(' · ')}</p>
     {d.reason?.memo && <p className="text-text-sub">{d.reason.memo}</p>}
   </div>
 )
@@ -270,12 +270,6 @@ function Action() {
   )
 }
 
-function History() {
-  const r = useReview()
-  if (!r) return null
-  return r.history.length ? r.history.map((d, i) => <Line key={i} d={d} />) : <Empty />
-}
-
 export default [
   { slot: 'list', menu: L.작업, View: Tasks },
   { slot: 'fact', kind: L.심사, order: -40, View: Head },
@@ -283,5 +277,4 @@ export default [
   { slot: 'fact', kind: L.심사, order: -20, View: Links },
   { slot: 'fact', kind: L.심사, order: -10, View: Rules },
   { slot: 'action', kind: L.심사, View: Action },
-  { slot: 'history', kind: L.심사, View: History },
 ] satisfies Piece[]

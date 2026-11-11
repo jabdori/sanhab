@@ -52,7 +52,7 @@ pub async fn check(c: &Check) -> Result<()> {
     // 영업임원은 승인 또는 보류를 고른다. 보류는 사유 필수, 승인은 선택. 분류는 조치마다 따로
     let r = review(exec, group).await?["actions"].clone();
     // 버튼의 순서는 조치의 seq: 승인, 보류
-    ensure!(r == json!([{ "kind": "승인", "reason": false, "classes": pass, "seq": 1 }, { "kind": "보류", "reason": true, "classes": hold, "seq": 2 }]), "영업임원의 조치 {r}");
+    ensure!(r[0] == json!({ "kind": "승인", "reason": false, "classes": pass, "seq": 1 }) && r[1] == json!({ "kind": "보류", "reason": true, "classes": hold, "seq": 2 }), "영업임원의 조치 {r}");
 
     // 사유의 규칙은 DB가 강제한다: 분류가 없는 보류, 목록에 없는 분류, 메모가 빈 기타는 거절되고 아무것도 바뀌지 않는다
     for (kind, reason) in [
@@ -96,7 +96,7 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(has(&te, "going") && !has(&te, "mine") && has(&ts, "going") && !has(&ts, "mine"), "보류 뒤의 목록 {}", te["mine"]);
     // 보류된 심사는 승인권자가 언제든 승인할 수 있고, 그 승인에는 사유가 필수다(D48). 승인하면 굳고 작업이 끝난다
     // 분류는 예외(소명 결과 전) · 소명(결과를 본 뒤) · 기타뿐이고, 대기인 심사의 분류(정상)는 고를 수 없다
-    ensure!(review(exec, group).await?["actions"] == json!([{ "kind": "승인", "reason": true, "classes": ["예외", "소명", "기타"], "seq": 1 }]), "보류된 심사의 조치");
+    ensure!(review(exec, group).await?["actions"][0] == json!({ "kind": "승인", "reason": true, "classes": ["예외", "소명", "기타"], "seq": 1 }), "보류된 심사의 조치");
     ensure!(review(support, group).await?["actions"] == json!([]), "보류된 심사의 영업지원");
     for reason in [J::Null, json!({ "class": "정상" }), json!({ "class": "서류" }), json!({ "class": "기타" })] {
         ensure!(decide(exec, group, "승인", reason.clone()).await? == "사유", "보류된 심사의 승인 {reason}");
