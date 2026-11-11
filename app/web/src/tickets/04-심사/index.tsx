@@ -232,7 +232,7 @@ export const Line = ({ d }: { d: Decision }) => (
   </div>
 )
 
-/** 조치: 지금 역할이 할 수 있는 것만 버튼으로. 없으면 내려진 결정, 그것도 없으면 승인권자.
+/** 조치: 지금 역할이 할 수 있는 것만 버튼으로. 없으면, 끝난 심사(승인·반려)는 내려진 결정, 아직 승인권자의 차례인 심사(대기·보류. 재상신으로 돌아온 것 포함)는 승인권자.
  * 버튼은 사유가 그 조치의 규칙에 맞을 때만 눌린다(필수이면 그 조치의 분류, 기타이면 메모까지). 서버가 거절하면 그 낱말을 보인다 */
 function Action() {
   const r = useReview()
@@ -246,7 +246,7 @@ function Action() {
   if (!r) return null
   const last = r.history.at(-1)
   if (!r.actions.length)
-    return last ? (
+    return last && r.review.status !== L.대기 && r.review.status !== L.보류 ? (
       <Line d={last} />
     ) : (
       <div className="flex items-baseline gap-2">
