@@ -3,7 +3,7 @@
 //! 회신을 넣는 것은 역할의 세션으로 `reply`를 만드는 것이고, 누가 할 수 있는지는 DB(`fn::repliable`)가 정한다. 은행 연동은 없다(모의 처리).
 use crate::check::Check;
 use crate::db::{Db, as_user, q, q1};
-use crate::{Body, Me, R, err, refuse};
+use crate::{Body, Me, R, attempt, err, refuse};
 use anyhow::{Result, ensure};
 use axum::extract::Path;
 use axum::http::StatusCode;
@@ -55,17 +55,11 @@ async fn reply(Extension(me): Extension<Me>, Body(b): Body) -> R {
     let account = b["account"].as_str().map(str::trim).filter(|a| !a.is_empty()).ok_or_else(bad)?;
     let result = b["result"].as_str().filter(|r| ["성공", "실패"].contains(r)).ok_or_else(bad)?;
     // 쓰기 전에 낱말을 정한다: 대상(지급 작업이 없는 지급) → 권한 → 상태. DB의 권한 규칙은 마지막 방어선으로 남는다
-    let word = q1(&me.db, "
+    let made = attempt(&me.db, "
         LET $p = type::record('payout', $id);
-        RETURN IF $p.state = NONE THEN '대상' ELSE IF $auth.role != '회계·자금' THEN '권한' ELSE IF !fn::repliable($p) THEN '상태' END;", json!({ "id": id })).await.map_err(|_| bad())?;
-    if let Some(w) = word.as_str() {
-        return Err(refuse(w));
-    }
-    let made = q1(&me.db, "CREATE reply SET payout = type::record('payout', $id), amount = $amount, account = $account, result = $result RETURN VALUE record::id(payout);",
-        json!({ "id": id, "amount": amount, "account": account, "result": result })).await.map_err(|_| bad())?;
-    if made.as_array().is_none_or(Vec::is_empty) {
-        return Err(refuse("권한"));
-    }
+        RETURN IF $p.state = NONE THEN '대상' ELSE IF $auth.role != '회계·자금' THEN '권한' ELSE IF !fn::repliable($p) THEN '상태' END;",
+        "CREATE reply SET payout = type::record('payout', $id), amount = $amount, account = $account, result = $result RETURN VALUE record::id(payout);",
+        json!({ "id": id, "amount": amount, "account": account, "result": result })).await?;
     Ok(Json(json!({ "id": made[0] })))
 }
 
@@ -200,7 +194,12 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(now == 2, "계좌가 바뀌지 않음 {now}");
     ensure!(c.get(acct, &format!("/api/pays/{}", ids[0].0)).await?["accounts"].as_array().map(|a| a.iter().map(|x| x["value"].clone()).collect::<Vec<_>>()) == Some(vec![json!(ids[0].1)]), "지급 상세의 계좌도 지급한 날의 것");
     ensure!(recon(&ids[0].0).await?["want"]["accounts"] == json!([ids[0].1]), "지급한 날의 계좌");
-    ensure!(send(acct, &ids[0].0, 1_373_515, &ids[0].1, "성공").await?.0 == 200, "회신");
+    // 같은 지급에 회신 셋을 동시에 넣으면 하나만 되고 진 쪽은 상태다(이미 회신한 시도)
+    let all = tokio::join!(send(acct, &ids[0].0, 1_373_515, &ids[0].1, "성공"), send(acct, &ids[0].0, 1_373_515, &ids[0].1, "성공"), send(acct, &ids[0].0, 1_373_515, &ids[0].1, "성공"));
+    let mut got = [all.0?, all.1?, all.2?];
+    got.sort_by_key(|g| g.0);
+    ensure!(got[0].0 == 200 && got[1] == (400, json!({ "error": "상태" })) && got[1] == got[2], "동시에 넣은 회신 {got:?}");
+    ensure!(q1(&c.db, "RETURN count(SELECT id FROM reply WHERE payout = type::record('payout', $id));", json!({ "id": ids[0].0 })).await? == 1, "회신은 하나");
     let d = recon(&ids[0].0).await?;
     ensure!(d["recon"]["verdict"] == "일치" && d["reply"]["at"] == "2026-07-03" && d["want"]["accounts"] == json!([ids[0].1]) && !settled(group).await?, "하나만 일치 {d}");
     // 결과는 성공인데 금액이 다르면 불일치(금액), 계좌가 다르면 불일치(계좌). 지급은 완료로 남고 대사 작업은 끝나며 정산 표시는 붙지 않는다
