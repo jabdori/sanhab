@@ -29,6 +29,18 @@ impl From<anyhow::Error> for ApiError {
     fn from(e: anyhow::Error) -> Self { ApiError(StatusCode::INTERNAL_SERVER_ERROR, json!({ "error": format!("{e:#}") })) }
 }
 pub fn err(code: StatusCode, msg: &str) -> ApiError { ApiError(code, json!({ "error": msg })) }
+/// 조치의 거절. 낱말은 넷뿐이다: 권한(그 역할이 할 수 없다, 403) · 사유(사유가 규칙에 맞지 않다) · 상태(그 상태에서는 할 수 없다) · 대상(없거나 꼴이 틀리다) — 뒤의 셋은 400.
+/// 처리기는 쓰기 전에 낱말을 정하고(대상 → 권한 → 상태 → 사유 순으로 따진다), DB의 권한 규칙은 마지막 방어선으로 남긴다. DB의 문구는 내보내지 않는다
+pub fn refuse(word: &str) -> ApiError { err(if word == "권한" { StatusCode::FORBIDDEN } else { StatusCode::BAD_REQUEST }, word) }
+/// 요청의 본문(JSON). 조치의 처리기는 axum의 `Json` 대신 이것으로 받는다(맨 끝 인자): JSON이 아니거나 비었거나 `Content-Type`이 없어도 axum의 문장이 아니라 400 `대상`이 나간다
+pub struct Body(pub J);
+impl<S: Send + Sync> axum::extract::FromRequest<S> for Body {
+    type Rejection = ApiError;
+    async fn from_request(req: Request, s: &S) -> Result<Self, ApiError> {
+        let b = axum::body::Bytes::from_request(req, s).await.map_err(|_| refuse("대상"))?;
+        serde_json::from_slice(&b).map(Body).map_err(|_| refuse("대상"))
+    }
+}
 /// 처리기의 반환형
 pub type R = Result<Json<J>, ApiError>;
 
@@ -60,7 +72,7 @@ async fn sign_all(db: &Db, pass: &str) -> anyhow::Result<J> {
     Ok(json!({ "roles": roles }))
 }
 
-async fn enter(State(db): State<Db>, Json(b): Json<J>) -> R {
+async fn enter(State(db): State<Db>, Body(b): Body) -> R {
     let r = sign_all(&db, b["pass"].as_str().unwrap_or("")).await.map_err(|_| err(StatusCode::UNAUTHORIZED, "접속"))?;
     Ok(Json(r))
 }

@@ -3,6 +3,7 @@ import { atom, useAtomValue } from 'jotai'
 import { unwrap } from 'jotai/utils'
 import { L } from '../../labels'
 import { api, changedAtom, roleAtom, targetAtom } from '../../state'
+import { type Draft, blank } from '../../ui/Reason'
 
 type From = { source: string; file?: string | null; row?: number | null }
 type Dot = { id: string; name: string }
@@ -14,8 +15,8 @@ export type Review = {
   members: (Dot & { match: string[]; pays: ({ amount: number } & From)[] })[]
   relation: { left: Dot[]; mid: Dot[]; right: Dot[]; lines: [string, string][] }
   rules: ({ name: string; ver: number; value: number; title: string; first: number; last: number; text: string } & From)[]
-  /** 지금 역할이 할 수 있는 조치. reason은 사유(분류)가 필수인지 */
-  actions: { kind: string; reason: boolean }[]
+  /** 지금 역할이 할 수 있는 조치. reason은 이 심사에서 사유(분류)가 필수인지, classes는 고를 수 있는 분류(05) */
+  actions: { kind: string; reason: boolean; classes: string[] }[]
   history: Decision[]
 }
 
@@ -34,5 +35,5 @@ export function useReview() {
   return r && r.review.id === target?.id ? r : null
 }
 
-/** 결정에 붙일 사유. 사유 칸을 만드는 티켓이 채우고, 조치 버튼이 함께 보낸 뒤 비운다 */
-export const reasonAtom = atom<{ class: string; memo?: string } | null>(null)
+/** 결정에 붙일 사유(쓰고 있는 것). 사유 칸(05)이 채우고, 조치 버튼이 `ready`로 눌릴 수 있는지를 보고 `sent`의 모양으로 보낸 뒤 비운다 */
+export const reasonAtom = atom<Draft>(blank)
