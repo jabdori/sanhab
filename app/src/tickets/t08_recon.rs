@@ -18,7 +18,7 @@ pub fn routes() -> Router<Db> {
 }
 
 /// 지급의 대사. `want`는 승인된 금액과 등록된 계좌(맞춰 본 뒤에는 그때 굳힌 값), `reply`는 지금 지급 시도의 은행 회신, `recon`은 맞춰 본 결과(없으면 아직 회신 전이거나 실패한 회신).
-/// `can`은 지금 역할이 회신을 넣을 수 있는지, `role`은 담당하는 역할, `history`는 지금까지의 회신 전부(실패한 것 포함). 지급 작업이 없는 지급은 404
+/// `can`은 지금 역할이 회신을 넣을 수 있는지, `role`은 담당하는 역할, `history`는 지금까지의 회신 전부(지급 시도마다 하나, 실패한 것 포함). 지급 작업이 없는 지급은 404
 async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
     let r = q1(&me.db, "
         LET $p = type::record('payout', $id);
@@ -33,7 +33,7 @@ async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
             want: { amount: $c.amount ?? $p.amount, accounts: $c.accounts ?? fn::paid_accounts($p) },
             reply: (SELECT amount, account, result, role, at, source FROM $all WHERE stamp > $m)[0],
             recon: IF $c THEN { diff: $c.diff, verdict: $c.verdict, source: $c.source } END,
-            history: $all.{ result, role, at, source },
+            history: $all.{ amount, account, result, role, at, source },
         };", json!({ "id": id })).await?;
     if r["state"].is_null() {
         return Err(err(StatusCode::NOT_FOUND, "없음"));
@@ -123,11 +123,18 @@ pub async fn check(c: &Check) -> Result<()> {
     let (code, r) = send(acct, &id, 988_932, &account, "실패").await?;
     ensure!(code == 200 && r["id"] == id.as_str(), "실패한 회신 {code} {r}");
     let d = recon(&id).await?;
-    let failed = json!({ "result": "실패", "role": acct, "at": "2026-07-01", "source": "시연" });
+    let failed = json!({ "amount": 988_932, "account": account, "result": "실패", "role": acct, "at": "2026-07-01", "source": "시연" });
     ensure!(d["state"] == "대기" && d["can"] == false && d["recon"].is_null() && d["reply"]["result"] == "실패" && d["history"] == json!([failed]), "실패 뒤 {d}");
     ensure!(pays().await?.len() == 1 && tasks(acct, "mine").await?.is_empty() && !settled(one).await?, "실패 뒤의 작업");
     ensure!(c.get(acct, &format!("/api/pays/{id}")).await?["can"] == true && send(acct, &id, 988_932, &account, "성공").await?.0 == 403, "실패 뒤의 조치");
     ensure!(q1(&c.db, "RETURN count(SELECT id FROM recon);", json!({})).await? == 0, "실패한 회신에 대사가 남음");
+    // 07이 보이는 것도 다시 대기다: 목록 위의 수, 대리점 상세의 지급 줄, 다른 역할에게는 조치가 없다
+    let p = c.get(acct, "/api/pays").await?;
+    ensure!(p["counts"]["대기"] == 1 && p["counts"]["완료"] == 0, "실패 뒤 목록 위의 수 {}", p["counts"]);
+    let line = rows(&c.get(acct, "/api/dealers/D-001").await?["payouts"]).into_iter().find(|l| l["ym"] == "2026-06").unwrap_or_default();
+    ensure!(line["state"] == "대기" && line["state_source"] == "시연", "실패 뒤 대리점 상세의 지급 줄 {line}");
+    let p = c.get(support, &format!("/api/pays/{id}")).await?;
+    ensure!(p["pay"]["state"] == "대기" && p["can"] == false, "실패 뒤 영업지원이 보는 지급 {p}");
 
     // 다시 지급하면 대사 작업이 다시 생기고, 승인된 금액·등록된 계좌 그대로 성공을 넣으면: 일치, 대사 작업이 끝나고, 심사에 정산 표시가 붙는다
     ensure!(pay(&id).await?.0 == 200 && tasks(acct, "mine").await?.len() == 1 && pays().await?.is_empty(), "다시 지급");
@@ -138,7 +145,7 @@ pub async fn check(c: &Check) -> Result<()> {
     let d = recon(&id).await?;
     ensure!(d["reply"] == json!({ "amount": 988_932, "account": account, "result": "성공", "role": acct, "at": "2026-07-01", "source": "시연" }), "회신 {}", d["reply"]);
     ensure!(d["recon"] == json!({ "diff": [], "verdict": "일치", "source": "계산" }) && d["can"] == false && d["want"] == json!({ "amount": 988_932, "accounts": [account] }), "일치 {d}");
-    ensure!(d["history"] == json!([failed, { "result": "성공", "role": acct, "at": "2026-07-01", "source": "시연" }]), "회신의 이력 {}", d["history"]);
+    ensure!(d["history"] == json!([failed, { "amount": 988_932, "account": account, "result": "성공", "role": acct, "at": "2026-07-01", "source": "시연" }]), "회신의 이력 {}", d["history"]);
     ensure!(tasks(acct, "mine").await?.is_empty() && tasks(support, "going").await?.is_empty() && settled(one).await?, "일치 뒤의 작업과 정산 표시");
     // 회신은 지급 시도 하나에 한 번뿐이다
     ensure!(send(acct, &id, 1, "검사-계좌", "성공").await?.0 == 403 && recon(&id).await?["recon"]["verdict"] == "일치", "두 번째 회신");
@@ -161,7 +168,9 @@ pub async fn check(c: &Check) -> Result<()> {
         UPSERT account:`검사-새계좌` SET value = '검사-새계좌', source = '시연';
         RELATE dealer:`D-011`->acct->account:`검사-새계좌` SET since = d'2026-07-02T00:00:00Z', via = '신고', source = '시연';
         UPDATE meta:v SET today = d'2026-07-03T00:00:00Z';", json!({})).await?;
-    ensure!(c.get(acct, &format!("/api/pays/{}", ids[0].0)).await?["accounts"][0]["value"] == "검사-새계좌", "바뀐 계좌");
+    let now = rows(&c.get(acct, "/api/dealers/D-011").await?["registered"]).into_iter().filter(|r| r["item"] == "계좌").count();
+    ensure!(now == 2, "계좌가 바뀌지 않음 {now}");
+    ensure!(c.get(acct, &format!("/api/pays/{}", ids[0].0)).await?["accounts"].as_array().map(|a| a.iter().map(|x| x["value"].clone()).collect::<Vec<_>>()) == Some(vec![json!(ids[0].1)]), "지급 상세의 계좌도 지급한 날의 것");
     ensure!(recon(&ids[0].0).await?["want"]["accounts"] == json!([ids[0].1]), "지급한 날의 계좌");
     ensure!(send(acct, &ids[0].0, 1_373_515, &ids[0].1, "성공").await?.0 == 200, "회신");
     let d = recon(&ids[0].0).await?;

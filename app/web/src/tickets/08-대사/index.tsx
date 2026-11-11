@@ -1,4 +1,4 @@
-// 08 대사: 지급 상세의 가운데에 "대사" 표(승인 / 회신 / 비교), 오른쪽 조치에 은행 회신 입력(금액, 계좌, 결과), 이력에 회신 한 줄.
+// 08 대사: 지급 상세의 가운데에 "대사" 표(승인 / 회신 / 비교, 지급 시도마다 줄), 오른쪽 조치에 은행 회신 입력(금액, 계좌, 결과), 이력에 회신 한 줄.
 // 회신은 사람이 넣은 것(출처 시연), 비교는 코드가 맞춰 본 것(출처 계산)이다.
 import { Input } from '@base-ui/react/input'
 import { Radio } from '@base-ui/react/radio'
@@ -29,7 +29,7 @@ type Recon = {
   /** 성공한 회신을 맞춰 본 결과. diff는 맞지 않은 항목(금액·계좌), verdict는 일치·불일치 */
   recon?: { diff: string[]; verdict: string; source: string }
   /** 지금까지의 회신 전부(실패한 것 포함) */
-  history: { result: string; role: string; at: string }[]
+  history: { amount: number; account: string; result: string; role: string; at: string; source: string }[]
 }
 
 // 열어 둔 지급의 대사. 세 조각이 같은 값을 읽고, 조치 뒤에 저절로 다시 읽힌다
@@ -50,13 +50,23 @@ function useRecon() {
 const verdict = (v: string) => <Pill tone={v === L.일치 ? 'good' : 'bad'}>{v}</Pill>
 const none = <span className="text-text-mute">{L.없음}</span>
 
-/** 대사 표: 항목(금액·계좌·결과)마다 승인 / 회신 / 비교. 회신 전에는 승인 쪽만 채워져 있다 */
+/** 대사 표: 지급 시도마다 금액·계좌 두 줄에 승인 / 회신 / 비교. 실패한 시도의 비교는 실패, 성공한 시도는 항목마다 일치·불일치.
+ *  아직 회신이 없는 시도(지급 전, 실패 뒤 다시 지급할 것 포함)는 승인 쪽만 채워져 있다. 맨 아래 줄은 열마다의 출처 */
 function Fact() {
   const d = useRecon()
   if (!d) return null
-  const { reply, recon } = d
-  const said = (v: string | undefined) => (v === undefined ? none : v)
-  const cmp = (item: string) => (recon ? verdict(recon.diff.includes(item) ? L.불일치 : L.일치) : none)
+  const { recon } = d
+  const last = d.history.at(-1)
+  // 일치·불일치가 난 뒤에는 더 올 회신이 없다
+  const tries: (Recon['history'][number] | null)[] = recon ? d.history : [...d.history, null]
+  const accounts = d.want.accounts.length ? d.want.accounts.join(' · ') : none
+  const name = (i: number, item: string) => (
+    <span className="flex items-baseline gap-2">
+      {tries.length > 1 && <span className="text-text-sub">{i + 1}</span>}
+      {item}
+    </span>
+  )
+  const cmp = (r: Recon['history'][number] | null, item: string) => (!r ? none : r.result === L.실패 ? verdict(L.실패) : recon ? verdict(recon.diff.includes(item) ? L.불일치 : L.일치) : none)
   return (
     <section className="mb-4 flex flex-col gap-2">
       <div className="flex items-center gap-2">
@@ -67,20 +77,21 @@ function Fact() {
         head={['', L.승인, L.회신, L.비교]}
         right={[1, 2]}
         rows={[
-          [L.금액, num(d.want.amount), said(reply && num(reply.amount)), cmp(L.금액)],
-          [L.계좌, d.want.accounts.length ? d.want.accounts.join(' · ') : none, said(reply?.account), cmp(L.계좌)],
-          [L.결과, null, said(reply?.result), null],
+          ...tries.flatMap((r, i) => [
+            [name(i, L.금액), num(d.want.amount), r ? num(r.amount) : none, cmp(r, L.금액)],
+            [name(i, L.계좌), accounts, r ? r.account : none, cmp(r, L.계좌)],
+          ]),
           // 열마다의 출처: 회신은 사람이 넣은 것(누가 언제), 비교는 코드가 맞춰 본 것(무엇이 같으면 일치인지). 승인의 금액과 계좌는 위의 숫자 줄에 출처가 있다
           [
             L.출처,
             null,
-            reply ? (
-              <Source kind={reply.source} side="top">
+            last ? (
+              <Source kind={last.source} side="top">
                 <dl className="grid grid-cols-2 gap-x-2 gap-y-1">
                   <dt className={label}>{L.역할}</dt>
-                  <dd>{reply.role}</dd>
+                  <dd>{last.role}</dd>
                   <dt className={label}>{L.날짜}</dt>
-                  <dd className="tabular-nums">{reply.at}</dd>
+                  <dd className="tabular-nums">{last.at}</dd>
                 </dl>
               </Source>
             ) : (

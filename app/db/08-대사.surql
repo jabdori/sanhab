@@ -37,9 +37,9 @@ DEFINE FIELD at ON recon TYPE datetime;
 DEFINE FIELD source ON recon TYPE string;
 DEFINE INDEX recon_once ON recon FIELDS payout UNIQUE;
 
--- 그 지급을 한 날(마지막 지급 표시의 날, 아직 지급 전이면 오늘) 그 대리점에 유효하게 등록된 계좌
+-- 그 지급을 한 날(완료이면 마지막 지급 표시의 날, 아직 지급 전이거나 실패해 대기로 돌아왔으면 오늘) 그 대리점에 유효하게 등록된 계좌. 07의 지급 상세도 같은 날로 본다
 DEFINE FUNCTION fn::paid_accounts($p: record<payout>) -> array<string> {
-    LET $at = (SELECT at, stamp FROM remit WHERE payout = $p ORDER BY stamp DESC LIMIT 1)[0].at ?? fn::today();
+    LET $at = IF $p.state = '완료' THEN (SELECT at, stamp FROM remit WHERE payout = $p ORDER BY stamp DESC LIMIT 1)[0].at END ?? fn::today();
     LET $d = (SELECT VALUE out FROM payout_of WHERE in = $p)[0];
     RETURN (SELECT VALUE out.value FROM acct WHERE in = $d AND since <= $at AND (until = NONE OR until > $at));
 } PERMISSIONS FULL;

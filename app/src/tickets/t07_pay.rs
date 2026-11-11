@@ -24,15 +24,16 @@ async fn list(Extension(me): Extension<Me>) -> R {
     Ok(Json(r))
 }
 
-/// 지급 상세. 가운데: 대리점·귀속월·금액(`pay`), 지금 등록된 계좌(`accounts`), 이 지급을 승인한 심사(`pay.review`).
+/// 지급 상세. 가운데: 대리점·귀속월·금액(`pay`), 등록된 계좌(`accounts` — 완료된 지급은 지급한 날의 것, 그 밖에는 오늘의 것. 08의 대사가 같은 날로 맞춰 본다), 이 지급을 승인한 심사(`pay.review`).
 /// 오른쪽: 담당하는 역할(`role`), 지금 역할이 지급으로 표시할 수 있는지(`can`), 이력(`history`). 지급 작업이 아직 없는 지급은 404
 async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
     let r = q1(&me.db, "
         LET $p = type::record('payout', $id);
         LET $d = (SELECT VALUE out FROM payout_of WHERE in = $p)[0];
+        LET $at = IF $p.state = '완료' THEN (SELECT at, stamp FROM remit WHERE payout = $p ORDER BY stamp DESC LIMIT 1)[0].at END ?? fn::today();
         RETURN {
             pay: (SELECT record::id(id) AS id, name, record::id($d) AS dealer, ym, amount, state, { id: record::id(review), name: review.name } AS review, source, file.path AS file, row FROM $p WHERE state != NONE)[0],
-            accounts: (SELECT out.value AS value, source, file.path AS file, row FROM acct WHERE in = $d AND since <= fn::today() AND (until = NONE OR until > fn::today()) ORDER BY since),
+            accounts: (SELECT out.value AS value, source, file.path AS file, row FROM acct WHERE in = $d AND since <= $at AND (until = NONE OR until > $at) ORDER BY since),
             role: '회계·자금',
             can: fn::payable($p),
             history: (SELECT role, time::format(at, '%Y-%m-%d') AS at, source FROM remit WHERE payout = $p ORDER BY stamp),

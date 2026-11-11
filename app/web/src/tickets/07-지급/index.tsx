@@ -116,7 +116,8 @@ function Action() {
   const p = usePay()
   if (!p) return null
   if (!p.can) {
-    if (p.history.length) return <Line h={p.history[p.history.length - 1]} />
+    // 회신이 실패해 대기로 돌아온 지급(08)은 지급 표시가 남아 있어도 다시 지급할 차례다
+    if (p.history.length && p.pay.state === L.완료) return <Line h={p.history[p.history.length - 1]} />
     if (p.pay.state !== L.대기) return <Empty />
     return (
       <div className="flex items-baseline gap-2">
