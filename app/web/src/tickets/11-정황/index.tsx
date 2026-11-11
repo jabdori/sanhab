@@ -28,7 +28,14 @@ function Head() {
   const d = useSignal()
   if (!d) return null
   const s = d.signal
-  const basis: Record<string, string> = { [L.계좌]: L['회수의 계좌, 다른 대리점의 계좌'], [L.동명]: L['대표자만 일치'], [L.근접]: d.near.map(num).join(' – ') }
+  // 기준: 이름표와 값(문장 금지). 계좌는 회수의 계좌가 다른 대리점의 계좌와 일치, 동명은 대표자만 일치, 대사는 비교가 불일치
+  const basis: Record<string, [string, string]> = {
+    [L.계좌]: [L.일치, `${L.회수} · ${L.계좌}`],
+    [L.동명]: [L.일치, L.대표자],
+    [L.근접]: [L.근접, d.near.map(num).join(' – ')],
+    [L.대사]: [L.비교, L.불일치],
+  }
+  const [k, v] = basis[s.kind] ?? [s.kind, L.없음]
   return (
     <div className="mb-4 flex flex-col gap-2">
       <Title name={s.name}>{pill(s.state)}</Title>
@@ -40,8 +47,8 @@ function Head() {
       >
         <Source kind={s.source}>
           <dl className="grid grid-cols-2 gap-x-2 gap-y-1">
-            <dt className={label}>{s.kind}</dt>
-            <dd className="tabular-nums">{basis[s.kind] ?? L.없음}</dd>
+            <dt className={label}>{k}</dt>
+            <dd className="tabular-nums">{v}</dd>
           </dl>
         </Source>
       </Figures>
