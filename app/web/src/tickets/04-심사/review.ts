@@ -37,3 +37,6 @@ export function useReview() {
 
 /** 결정에 붙일 사유(쓰고 있는 것). 사유 칸(05)이 채우고, 조치 버튼이 `ready`로 눌릴 수 있는지를 보고 `sent`의 모양으로 보낸 뒤 비운다 */
 export const reasonAtom = atom<Draft>(blank)
+
+/** 한 건이 아니라 그룹 × 귀속월 묶음에 내리는 조치(D50). 한 건 화면에는 버튼을 두지 않는다 */
+export const bundled: string[] = [L.추인, L.거부, L.종결, L.이견]

@@ -59,7 +59,16 @@ pub async fn bundle(db: &Db, now: &BTreeMap<String, Now>) -> Result<()> {
 }
 
 pub fn routes() -> Router<Db> {
-    Router::new().route("/ratifies/{id}", get(detail))
+    Router::new().route("/ratifies/{id}", get(detail)).route("/reviews/{id}/ratify", get(of_review))
+}
+
+/// 과거의 심사 한 건이 든 묶음(`{ id, name, ym }`). 한 건 화면이 묶음으로 가는 길을 보인다. 묶음에 들지 않았으면 404
+async fn of_review(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
+    let r = q1(&me.db, "RETURN (SELECT record::id(id) AS id, name, ym FROM ratify WHERE reviews CONTAINS type::record('review', $id) ORDER BY id LIMIT 1)[0];", json!({ "id": id })).await.map_err(|_| err(StatusCode::NOT_FOUND, "없음"))?;
+    if r.is_null() {
+        return Err(err(StatusCode::NOT_FOUND, "없음"));
+    }
+    Ok(Json(r))
 }
 
 /// 묶음 상세. 가운데: 현재 계산(`ratify`: 이름·귀속월·표시·합산·한도·승인권자, `members`: 현재의 구성)과 그 달의 재검토인 과거의 승인(`reviews`: 당시의 금액·승인권자, 원본의 지급일과 행).
@@ -134,6 +143,10 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(tasks(audit, "mine", "종결").await?.is_empty() && tasks(support, "mine", "추인").await?.is_empty(), "추인 전의 다른 역할");
     let first = bundle(exec, "2026-01-D-011").await?;
     ensure!(rows(&first["reviews"]).iter().map(|r| r["total"].as_i64().unwrap_or(0)).collect::<Vec<_>>() == [1_867_253, 1_353_495, 1_649_438] && first["reviews"][0]["paid"] == "2026-02-04" && first["reviews"][0]["row"] == 50, "1월의 당시 금액 {}", first["reviews"]);
+
+    // 한 건 화면이 묶음으로 가는 길. 묶음에 들지 않은 심사에는 없다. 직접 보낸 요청으로 한 건에 추인하면 묶음 전체에 남는다(화면만 버튼을 감춘다)
+    ensure!(c.get(exec, "/api/reviews/2026-01-D-024/ratify").await? == json!({ "id": "2026-01-D-011", "name": "금강상사11 외 2", "ym": "2026-01" }), "한 건의 묶음");
+    ensure!(c.call(Some(c.token(exec)), "GET", "/api/reviews/2026-06-D-001/ratify", None).await?.0 == 404, "묶음에 들지 않은 심사");
 
     // 조치: 영업임원에게만 추인(사유 필수). 작업에서 연 화면과 대리점 상세에서 연 과거의 심사가 같은 조치를 보인다
     let act = json!([{ "kind": "추인", "reason": true, "classes": ["정상", "미인지", "기타"], "seq": 4 }, { "kind": "거부", "reason": true, "classes": ["정황", "기타"], "seq": 5 }]);

@@ -18,7 +18,7 @@ import { button, label } from '../../ui/styles'
 import { Table, num } from '../../ui/Table'
 import { Title } from '../../ui/Title'
 import { Line } from '../04-심사'
-import { type Decision, reasonAtom } from '../04-심사/review'
+import { type Decision, reasonAtom, useReview } from '../04-심사/review'
 
 type Bundle = {
   ratify: { id: string; name: string; ym: string; marks: string[]; total: number; limit: number; approver: string; source: string }
@@ -184,7 +184,29 @@ function History() {
   return b.history.length ? b.history.map((d, i) => <Line key={i} d={d} />) : <Empty />
 }
 
+/** 한 건 화면의 조치 자리: 이 심사가 든 묶음으로 가는 길. 추인·거부·종결·이견은 묶음에서 한다(D50) */
+function Way() {
+  const r = useReview()
+  const [b, setB] = useState<{ id: string; name: string; ym: string } | null>(null)
+  const id = r?.review.id
+  const marks = r?.review.marks.join()
+  useEffect(() => {
+    setB(null)
+    if (id) api<{ id: string; name: string; ym: string }>(`/reviews/${id}/ratify`).then(setB, () => {})
+  }, [id, marks])
+  if (!b) return null
+  return (
+    <div className="flex items-baseline gap-2">
+      <span className={label}>{L.추인}</span>
+      <button className="cursor-pointer text-action hover:text-action-hover" onClick={() => store.set(targetAtom, { kind: L.추인, id: b.id })}>
+        {b.name} · {b.ym}
+      </button>
+    </div>
+  )
+}
+
 export default [
+  { slot: 'action', kind: L.심사, order: 10, View: Way },
   { slot: 'fact', kind: L.추인, order: -40, View: Head },
   { slot: 'fact', kind: L.추인, order: -30, View: Then },
   { slot: 'action', kind: L.추인, View: Action },
