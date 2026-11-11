@@ -1,8 +1,10 @@
-# AXHub·로컬 공용. db는 공개 이미지(이름:태그 고정), app은 이 저장소에서 빌드.
+# AXHub·로컬 공용. db는 공개 이미지(태그 고정)에 실행 사용자만 바꾼 것, app은 이 저장소에서 빌드.
 # 값은 로컬에서는 .env, AXHub에서는 등록한 환경변수에서 온다. 이 파일에는 값을 적지 않는다.
 services:
   db:
-    image: surrealdb/surrealdb:v4.0.1
+    build:
+      context: .
+      dockerfile: app/db.Dockerfile   # surrealdb/surrealdb:v4.0.1 을 root로 실행 (볼륨 쓰기 권한)
     # SURREAL_USER / SURREAL_PASS 는 SurrealDB가 환경변수에서 직접 읽는다.
     # VERSION 시점조회에 versioned surrealkv 필요 (메모리 엔진 불가)
     command: start surrealkv:///data/db?versioned=true
