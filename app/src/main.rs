@@ -56,24 +56,6 @@ fn id_of(v: &J) -> Result<J, ApiError> {
 
 async fn health(State(db): State<Db>) -> Json<J> { Json(json!({ "ok": db.health().await.is_ok() })) }
 
-/// 배포 환경에서 바깥 서비스(OpenAI, 업스테이지)를 호출할 수 있는지 확인한다. 응답 코드만 돌려주고 키와 본문은 내보내지 않는다.
-async fn diag() -> Json<J> {
-    let c = reqwest::Client::builder().timeout(std::time::Duration::from_secs(10)).build().unwrap();
-    let mut out = serde_json::Map::new();
-    for (name, url, var) in [
-        ("openai", "https://api.openai.com/v1/models", "OPENAI_API_KEY"),
-        ("upstage", "https://api.upstage.ai/v1/models", "UPSTAGE_API_KEY"),
-    ] {
-        let key = std::env::var(var).unwrap_or_default();
-        let r = match c.get(url).bearer_auth(&key).send().await {
-            Ok(r) => json!({ "reached": true, "status": r.status().as_u16(), "key_set": !key.is_empty() }),
-            Err(e) => json!({ "reached": false, "error": e.without_url().to_string(), "key_set": !key.is_empty() }),
-        };
-        out.insert(name.into(), r);
-    }
-    Json(J::Object(out))
-}
-
 async fn login(State(db): State<Db>, Json(b): Json<J>) -> R {
     let t = db::signin(&db, b["user"].as_str().unwrap_or(""), b["pass"].as_str().unwrap_or(""))
         .await
@@ -219,7 +201,6 @@ async fn main() -> anyhow::Result<std::process::ExitCode> {
             let app = Router::new()
                 .route("/", get(|| async { Html(INDEX) }))
                 .route("/healthz", get(health))
-                .route("/api/diag", get(diag))
                 .route("/api/login", post(login))
                 .route("/api/decisions", get(decisions))
                 .route("/api/works", get(works))
