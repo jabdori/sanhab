@@ -138,10 +138,14 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(decide(support, flagged, "승인", J::Null).await? == "사유" && decide(support, flagged, "승인", json!({ "class": "경미" })).await? == "", "정황이 걸린 심사의 승인");
     ensure!(decide(support, plain, "승인", J::Null).await? == "", "정황이 없는 심사의 승인");
 
-    // 같은 심사에 승인 둘을 동시에 보내면 하나만 되고, 진 쪽의 낱말은 상태다(이미 승인된 심사)
-    let both = tokio::join!(decide(support, "2026-06-D-009", "승인", J::Null), decide(support, "2026-06-D-009", "승인", J::Null));
-    let mut got = [both.0?, both.1?];
-    got.sort();
-    ensure!(got == ["", "상태"] && review(support, "2026-06-D-009").await?["history"].as_array().is_some_and(|h| h.len() == 1), "동시에 보낸 승인 {got:?}");
+    // 같은 심사에 승인 셋을 동시에 보내면 하나만 되고, 진 쪽의 낱말은 언제나 상태다(이미 승인된 심사). 남은 대기 심사 여럿으로 되풀이해 본다
+    let left: Vec<String> = serde_json::from_value(q1(&c.db, "RETURN (SELECT VALUE record::id(id) FROM review WHERE status = '대기' AND approver = '영업지원' AND '정황' NOTINSIDE marks LIMIT 10);", json!({})).await?)?;
+    ensure!(left.len() >= 8, "남은 대기 심사 {}", left.len());
+    for id in &left {
+        let all = tokio::join!(decide(support, id, "승인", J::Null), decide(support, id, "승인", J::Null), decide(support, id, "승인", J::Null));
+        let mut got = [all.0?, all.1?, all.2?];
+        got.sort();
+        ensure!(got == ["", "상태", "상태"] && review(support, id).await?["history"].as_array().is_some_and(|h| h.len() == 1), "동시에 보낸 승인 {id} {got:?}");
+    }
     Ok(())
 }

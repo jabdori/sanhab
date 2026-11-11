@@ -212,17 +212,23 @@ async fn decide(Extension(me): Extension<Me>, Body(b): Body) -> R {
             return Err(refuse("대상"));
         }
     }
-    // DB의 거절은 오류가 아니라 빈 결과다. 하나라도 만들어지지 않으면 전부 되돌린다
-    let mut res = me.db.query("
-        BEGIN;
-        LET $made = INSERT INTO decision $ids.map(|$i| { review: type::record('review', $i), kind: $kind, reason: $reason });
-        IF array::len($made) != array::len($ids) { THROW '권한' };
-        COMMIT;").bind(vars.clone()).await.map_err(|_| refuse("대상"))?;
-    if !res.take_errors().is_empty() {
-        // 그 사이에 다른 결정이 먼저 내려졌으면(같은 심사에 동시에 보낸 승인) 다시 따진 낱말(상태)을 돌려준다
-        return Err(refuse(word().await?.as_str().unwrap_or("권한")));
+    // DB의 거절은 오류가 아니라 빈 결과다. 하나라도 만들어지지 않으면 전부 되돌린다.
+    // 같은 심사에 다른 결정이 동시에 오면 진 쪽은 쓰기 충돌(다시 해 볼 수 있는 오류)이나 권한 규칙에 걸린다. 그때는 낱말을 다시 따지고(이긴 쪽이 끝났으면 상태),
+    // 아직 걸리는 것이 없으면(이긴 쪽이 끝나기 전) 다시 써 본다. 끝까지 까닭 없이 쓰지 못하면 권한
+    for _ in 0..8 {
+        let mut res = me.db.query("
+            BEGIN;
+            LET $made = INSERT INTO decision $ids.map(|$i| { review: type::record('review', $i), kind: $kind, reason: $reason });
+            IF array::len($made) != array::len($ids) { THROW '권한' };
+            COMMIT;").bind(vars.clone()).await.map_err(|_| refuse("대상"))?;
+        if res.take_errors().is_empty() {
+            return Ok(Json(json!({ "ids": ids })));
+        }
+        if let Some(w) = word().await?.as_str() {
+            return Err(refuse(w));
+        }
     }
-    Ok(Json(json!({ "ids": ids })))
+    Err(refuse("권한"))
 }
 
 pub async fn seed(db: &Db) -> Result<()> {

@@ -48,17 +48,20 @@ async fn pay(Extension(me): Extension<Me>, Body(b): Body) -> R {
     // 본문의 꼴이 틀리면 대상. DB의 문구는 밖으로 내보내지 않는다
     let bad = || refuse("대상");
     let id = b["id"].as_str().filter(|i| !i.is_empty()).ok_or_else(bad)?;
-    let word = q1(&me.db, "
-        LET $p = type::record('payout', $id);
-        RETURN IF $p.id = NONE THEN '대상' ELSE IF $auth.role != '회계·자금' THEN '권한' ELSE IF !fn::payable($p) THEN '상태' END;", json!({ "id": id })).await.map_err(|_| bad())?;
-    if let Some(w) = word.as_str() {
-        return Err(refuse(w));
+    // 같은 지급에 표시 둘이 동시에 오면 진 쪽은 쓰기 충돌이나 한 번뿐이라는 규칙에 걸린다. 낱말을 다시 따져 돌려주고(이긴 쪽이 끝났으면 상태), 걸리는 것이 없으면 다시 써 본다
+    for _ in 0..8 {
+        let word = q1(&me.db, "
+            LET $p = type::record('payout', $id);
+            RETURN IF $p.id = NONE THEN '대상' ELSE IF $auth.role != '회계·자금' THEN '권한' ELSE IF !fn::payable($p) THEN '상태' END;", json!({ "id": id })).await.map_err(|_| bad())?;
+        if let Some(w) = word.as_str() {
+            return Err(refuse(w));
+        }
+        let made = q1(&me.db, "CREATE remit SET payout = type::record('payout', $id) RETURN VALUE record::id(payout);", json!({ "id": id })).await;
+        if let Ok(Some(m)) = made.as_ref().map(|m| m.as_array().and_then(|a| a.first())) {
+            return Ok(Json(json!({ "id": m })));
+        }
     }
-    let made = q1(&me.db, "CREATE remit SET payout = type::record('payout', $id) RETURN VALUE record::id(payout);", json!({ "id": id })).await.map_err(|_| bad())?;
-    if made.as_array().is_none_or(Vec::is_empty) {
-        return Err(refuse("권한"));
-    }
-    Ok(Json(json!({ "id": made[0] })))
+    Err(refuse("권한"))
 }
 
 pub async fn seed(_: &Db) -> Result<()> {
@@ -146,8 +149,12 @@ pub async fn check(c: &Check) -> Result<()> {
         let (code, r) = c.post(acct, "/api/pay", body.clone()).await?;
         ensure!(code == 400 && r == json!({ "error": "대상" }), "틀린 본문 {body} → {code} {r}");
     }
-    // 화면의 길로도 된다
-    let (code, r) = pay(acct, &big).await?;
+    // 화면의 길로도 된다. 같은 지급에 셋을 동시에 보내면 하나만 되고 진 쪽은 상태다(이미 완료된 지급)
+    let all = tokio::join!(pay(acct, &big), pay(acct, &big), pay(acct, &big));
+    let mut got = [all.0?, all.1?, all.2?];
+    got.sort_by_key(|g| g.0);
+    let (code, r) = got[0].clone();
+    ensure!(got[1] == (400, json!({ "error": "상태" })) && got[1] == got[2] && q1(&c.db, "RETURN count(SELECT id FROM remit WHERE payout = type::record('payout', $id));", json!({ "id": big })).await? == 1, "동시에 보낸 지급 {got:?}");
     ensure!(code == 200 && r["id"] == big.as_str() && counts().await? == json!({ "대기": 2, "재심사": 0, "완료": 2 }), "지급 {code} {r}");
 
     // 뒤 티켓이 끼우는 자리(14): 지급의 상태를 재심사로 바꾸면 조치가 사라지고 지급할 수 없다. 대기로 돌리면 다시 된다
