@@ -20,8 +20,8 @@ pub const SCHEMA: &str = include_str!("../../db/10-추인.surql");
 /// (같은 자리에 이미 추인된 묶음이 있으면 `…-2`). 재검토가 풀려 심사가 하나도 남지 않은 묶음은 추인 작업과 함께 지운다. 추인된 묶음은 건드리지 않는다
 pub async fn bundle(db: &Db, now: &BTreeMap<String, Now>) -> Result<()> {
     let r = q1(db, "RETURN {
-        done: (SELECT VALUE record::id(id) FROM review WHERE marks CONTAINS '추인'),
-        kept: (SELECT VALUE record::id(id) FROM ratify WHERE marks CONTAINS '추인'),
+        done: array::flatten((SELECT VALUE reviews FROM ratify WHERE fixed != NONE)).map(|$r| record::id($r)),
+        kept: (SELECT VALUE record::id(id) FROM ratify WHERE fixed != NONE),
         names: object::from_entries((SELECT VALUE [record::id(id), name] FROM dealer)),
     };", json!({})).await?;
     let has = |list: &J, id: &str| list.as_array().is_some_and(|l| l.iter().any(|x| x == id));
@@ -44,7 +44,7 @@ pub async fn bundle(db: &Db, now: &BTreeMap<String, Now>) -> Result<()> {
         BEGIN;
         LET $keep = $plans.map(|$p| type::record('ratify', $p.id));
         DELETE task WHERE kind = '추인' AND state != '완료' AND target NOTINSIDE $keep;
-        DELETE ratify WHERE marks CONTAINSNOT '추인' AND id NOTINSIDE $keep;
+        DELETE ratify WHERE fixed = NONE AND id NOTINSIDE $keep;
         FOR $p IN $plans {
             LET $b = type::record('ratify', $p.id);
             UPSERT $b MERGE {
@@ -78,9 +78,9 @@ async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
                 source: $x.source, file: $x.file.path, row: $x.row,
             }),
             target: record::id($r),
-            role: IF $b.marks CONTAINS '종결' THEN NONE ELSE IF $b.marks CONTAINS '추인' THEN '내부 감시' ELSE '영업임원' END,
+            role: IF $b.fixed = NONE THEN '영업임원' ELSE IF $b.marks CONTAINSNOT '종결' THEN '내부 감시' END,
             actions: (SELECT record::id(id) AS kind, fn::must(record::id(id), $r) AS reason, fn::classes(record::id(id), $r) AS classes, seq FROM act WHERE fn::can(record::id(id), $r) ORDER BY seq, kind),
-            history: (SELECT kind, role, IF at THEN time::format(at, '%Y-%m-%d') END AS at, reason, source, stamp FROM decision WHERE review = $r AND kind INSIDE ['추인', '종결', '이견'] ORDER BY stamp),
+            history: (SELECT kind, role, IF at THEN time::format(at, '%Y-%m-%d') END AS at, reason, source, stamp FROM decision WHERE review = $r AND kind INSIDE ['추인', '거부', '종결', '이견'] ORDER BY stamp),
         } END;", json!({ "id": id })).await.map_err(|_| err(StatusCode::NOT_FOUND, "없음"))?;
     if r["ratify"].is_null() {
         return Err(err(StatusCode::NOT_FOUND, "없음"));
@@ -89,13 +89,14 @@ async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
 }
 
 pub async fn seed(db: &Db) -> Result<()> {
-    // 추인: 재검토 표시가 있는 승인을 영업임원이, 사유 필수(D41). 한 번 추인된 심사는 다시 추인하지 않는다.
+    // 추인·거부: 재검토 표시가 있는 승인을 영업임원이, 둘 다 사유 필수(D41, D52). 한 번 추인하거나 거부한 심사는 다시 하지 못한다.
     // 종결: 추인된 심사를 내부 감시가, 사유 선택. 이견: 종결하지 않고 사유를 남긴다(D25), 사유 필수. 종결된 뒤에는 둘 다 없다.
-    // 세 조치 모두 심사의 상태를 옮기지 않는다(`to` 없음)
+    // 네 조치 모두 심사의 상태를 옮기지 않는다(`to` 없음)
     q(db, "
-        CREATE act:`추인` SET seq = 4, states = ['승인'], who = '영업임원', mark = '재검토', without = ['추인'], reason = true, classes = ['정상', '미인지', '기타'];
-        CREATE act:`종결` SET seq = 5, states = ['승인'], who = '내부 감시', mark = '추인', without = ['종결'], classes = ['정상', '기타'];
-        CREATE act:`이견` SET seq = 6, states = ['승인'], who = '내부 감시', mark = '추인', without = ['종결'], reason = true, classes = ['소명', '근거', '기타'];", json!({})).await?;
+        CREATE act:`추인` SET seq = 4, states = ['승인'], who = '영업임원', mark = '재검토', once = ['추인', '거부'], reason = true, classes = ['정상', '미인지', '기타'];
+        CREATE act:`거부` SET seq = 5, states = ['승인'], who = '영업임원', mark = '재검토', once = ['추인', '거부'], reason = true, classes = ['정황', '기타'];
+        CREATE act:`종결` SET seq = 6, states = ['승인'], who = '내부 감시', mark = '추인', once = ['종결'], classes = ['정상', '기타'];
+        CREATE act:`이견` SET seq = 7, states = ['승인'], who = '내부 감시', mark = '추인', once = ['종결'], reason = true, classes = ['소명', '근거', '기타'];", json!({})).await?;
     Ok(())
 }
 
@@ -135,7 +136,7 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(rows(&first["reviews"]).iter().map(|r| r["total"].as_i64().unwrap_or(0)).collect::<Vec<_>>() == [1_867_253, 1_353_495, 1_649_438] && first["reviews"][0]["paid"] == "2026-02-04" && first["reviews"][0]["row"] == 50, "1월의 당시 금액 {}", first["reviews"]);
 
     // 조치: 영업임원에게만 추인(사유 필수). 작업에서 연 화면과 대리점 상세에서 연 과거의 심사가 같은 조치를 보인다
-    let act = json!([{ "kind": "추인", "reason": true, "classes": ["정상", "미인지", "기타"], "seq": 4 }]);
+    let act = json!([{ "kind": "추인", "reason": true, "classes": ["정상", "미인지", "기타"], "seq": 4 }, { "kind": "거부", "reason": true, "classes": ["정황", "기타"], "seq": 5 }]);
     ensure!(first["actions"] == act && c.get(exec, "/api/reviews/2026-01-D-024").await?["actions"] == act, "영업임원의 조치 {}", first["actions"]);
     for role in [support, audit, "회계·자금"] {
         ensure!(bundle(role, "2026-01-D-011").await?["actions"] == json!([]) && decide(role, "2026-01-D-011", "추인", json!({ "class": "정상" })).await? == "권한", "{role}의 추인");
@@ -172,12 +173,12 @@ pub async fn check(c: &Check) -> Result<()> {
     // 추인된 묶음: 다시 추인할 수 없고, 영업임원에게는 조치가 없다. 이력에 추인 한 줄
     let b = bundle(exec, "2026-01-D-011").await?;
     ensure!(b["actions"] == json!([]) && b["role"] == audit && b["ratify"]["marks"] == json!(["재검토", "추인"]) && rows(&b["history"]).len() == 1 && b["history"][0]["kind"] == "추인" && b["history"][0]["role"] == exec, "추인된 묶음 {b}");
-    ensure!(decide(exec, "2026-01-D-037", "추인", json!({ "class": "정상" })).await? == "상태", "다시 추인");
+    ensure!(decide(exec, "2026-01-D-037", "추인", json!({ "class": "정상" })).await? == "상태" && decide(exec, "2026-01-D-037", "거부", json!({ "class": "정황" })).await? == "상태", "다시 추인");
 
     // 내부 감시: 종결(사유 선택) 또는 이견(사유 필수). 승인을 뒤집는 조치는 없다
     let b = bundle(audit, "2026-01-D-011").await?;
-    ensure!(b["actions"] == json!([{ "kind": "종결", "reason": false, "classes": ["정상", "기타"], "seq": 5 }, { "kind": "이견", "reason": true, "classes": ["소명", "근거", "기타"], "seq": 6 }]), "내부 감시의 조치 {}", b["actions"]);
-    for kind in ["승인", "보류", "반려", "추인"] {
+    ensure!(b["actions"] == json!([{ "kind": "종결", "reason": false, "classes": ["정상", "기타"], "seq": 6 }, { "kind": "이견", "reason": true, "classes": ["소명", "근거", "기타"], "seq": 7 }]), "내부 감시의 조치 {}", b["actions"]);
+    for kind in ["승인", "보류", "반려", "추인", "거부"] {
         ensure!(decide(audit, "2026-01-D-011", kind, json!({ "class": "기타", "memo": "뒤집기" })).await? != "", "내부 감시의 {kind}");
     }
     ensure!(decide(exec, "2026-01-D-011", "종결", J::Null).await? == "권한" && decide(support, "2026-01-D-011", "이견", json!({ "class": "소명" })).await? == "권한", "다른 역할의 종결");
@@ -220,7 +221,7 @@ pub async fn check(c: &Check) -> Result<()> {
     super::t09_again::remark(&c.db).await?;
     ensure!(rows(&bundle(exec, "2026-03-D-011").await?["reviews"]).len() == 3, "되돌린 묶음");
     let b = bundle(exec, "2026-02-D-011-2").await?;
-    ensure!(b["ratify"]["total"] == 4_540_341 && b["ratify"]["marks"] == json!(["재검토"]) && rows(&b["reviews"]).iter().map(|r| r["id"].as_str().unwrap_or("")).eq(["2026-02-D-024"]) && kinds(&b) == ["추인"], "뒤에 재검토가 된 한 건 {b}");
+    ensure!(b["ratify"]["total"] == 4_540_341 && b["ratify"]["marks"] == json!(["재검토"]) && rows(&b["reviews"]).iter().map(|r| r["id"].as_str().unwrap_or("")).eq(["2026-02-D-024"]) && kinds(&b) == ["추인", "거부"], "뒤에 재검토가 된 한 건 {b}");
     ensure!(rows(&bundle(exec, "2026-02-D-011").await?["reviews"]).len() == 2 && tasks(exec, "mine", "추인").await?.iter().any(|t| t["target"] == "2026-02-D-011-2"), "추인된 묶음과 새 작업");
 
     // 뒤 티켓이 끼우는 자리 ②(13 변경): 새로 재검토가 된 승인에도 추인 작업이 생긴다. 한라인상사34가 2월 1일부터 금강상사41의 주소를 쓰면 2월·3월에 한 건씩
@@ -238,6 +239,26 @@ pub async fn check(c: &Check) -> Result<()> {
     super::t09_again::remark(&c.db).await?;
     ensure!(!tasks(exec, "mine", "추인").await?.iter().any(|t| t["name"].as_str().is_some_and(|n| n.starts_with("한라인상사34"))), "풀린 추인 작업");
     ensure!(c.call(Some(c.token(exec)), "GET", &format!("/api/ratifies/{}", new[0]["target"].as_str().unwrap_or("")), None).await?.0 == 404 && c.call(Some(c.token(exec)), "GET", "/api/ratifies/x", None).await?.0 == 404, "없어진 묶음");
+
+    // 거부(D52): 사유 필수. 세 건 모두에 남고, 과거의 승인은 그대로(상태 승인)이고 재검토 표시만 남으며 추인 작업이 끝난다. 종결 작업은 생기지 않는다
+    ensure!(decide(exec, "2026-04-D-011", "거부", J::Null).await? == "사유" && decide(exec, "2026-04-D-011", "거부", json!({ "class": "미인지" })).await? == "사유" && decide(support, "2026-04-D-011", "거부", json!({ "class": "정황" })).await? == "권한", "거부의 사유와 권한");
+    let closing = tasks(audit, "mine", "종결").await?.len();
+    ensure!(decide(exec, "2026-04-D-037", "거부", json!({ "class": "정황", "memo": "거래 확인" })).await? == "", "거부");
+    for d in group {
+        let r = review(&format!("2026-04-{d}")).await?;
+        ensure!(r["review"]["status"] == "승인" && r["review"]["marks"] == json!(["재검토"]) && rows(&r["history"]).iter().map(|h| h["kind"].as_str().unwrap_or("")).eq(["승인", "거부"]) && r["history"][1]["reason"] == json!({ "class": "정황", "memo": "거래 확인" }) && r["history"][1]["role"] == exec, "{d}의 거부 뒤 {r}");
+    }
+    let b = bundle(exec, "2026-04-D-011").await?;
+    ensure!(b["actions"] == json!([]) && b["ratify"]["marks"] == json!(["재검토"]) && b["role"] == audit && rows(&b["history"]).len() == 1 && b["history"][0]["kind"] == "거부" && bundle(audit, "2026-04-D-011").await?["actions"] == json!([]), "거부된 묶음 {b}");
+    ensure!(!tasks(exec, "mine", "추인").await?.iter().any(|t| t["target"] == "2026-04-D-011") && tasks(audit, "mine", "종결").await?.len() == closing, "거부 뒤의 작업");
+    // 거부한 뒤에는 다시 추인하거나 거부할 수 없고, 표시를 다시 맞춰도 추인 작업이 되살아나지 않는다
+    ensure!(decide(exec, "2026-04-D-011", "추인", json!({ "class": "정상" })).await? == "상태" && decide(exec, "2026-04-D-024", "거부", json!({ "class": "정황" })).await? == "상태", "거부 뒤의 추인");
+    super::t09_again::remark(&c.db).await?;
+    ensure!(!tasks(exec, "mine", "추인").await?.iter().any(|t| t["ym"] == "2026-04" && t["name"] == "금강상사11 외 2") && bundle(exec, "2026-04-D-011").await? == b, "거부 뒤에 다시 맞춤");
+    // D53의 자리: 거부된 묶음의 심사 하나에 종결이 (코드로) 남으면 세 건과 묶음에 종결 표시가 붙는다. 추인 없이 종결된 것이 이력에 드러난다
+    q(&c.db, "CREATE decision SET review = review:`2026-04-D-011`, kind = '종결', role = '내부 감시', at = fn::today(), reason = { class: '부족' }, source = '시연';", json!({})).await?;
+    let b = bundle(audit, "2026-04-D-011").await?;
+    ensure!(b["ratify"]["marks"] == json!(["재검토", "종결"]) && b["role"].is_null() && rows(&b["history"]).iter().map(|h| h["kind"].as_str().unwrap_or("")).eq(["거부", "종결"]) && review("2026-04-D-024").await?["review"]["marks"] == json!(["재검토", "종결"]), "거부 뒤의 종결 {b}");
 
     // 역할은 묶음과 작업을 직접 고치지 못한다
     let s = crate::db::as_user(&c.db, c.token(exec)).await?;
