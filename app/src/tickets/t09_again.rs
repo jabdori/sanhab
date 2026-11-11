@@ -87,7 +87,7 @@ pub fn routes() -> Router<Db> {
 }
 
 /// 당시 / 현재: 굳은 승인의 당시 값(`then`: 구성원 수, 합산, 승인권자)과 현재 계산(`now`: 구성원, 합산, 한도, 승인권자, 규칙 버전).
-/// `known`은 현재의 구성을 만든 식별자 선의 인지일 가운데 가장 늦은 날(모두 미상이면 null), `paid`는 그 심사의 지급 가운데 원본에 지급일이 있는 것. 굳은 승인이 아니면 404
+/// `known`은 현재의 구성을 만든 식별자 선의 인지일 가운데 가장 늦은 날(모두 미상이면 null), `late`는 그 날이 굳은 날(과거의 승인은 지급일 — 승인 시점의 상한)보다 뒤인지(당시에는 알 수 없었던 건, D30. 13), `paid`는 그 심사의 지급 가운데 원본에 지급일이 있는 것. 굳은 승인이 아니면 404
 async fn again(State(db): State<Db>, Path(id): Path<String>) -> R {
     let Some(n) = current(&db).await?.remove(&id) else {
         return Err(err(StatusCode::NOT_FOUND, "없음"));
@@ -108,10 +108,11 @@ async fn again(State(db): State<Db>, Path(id): Path<String>) -> R {
             members: (SELECT record::id(id) AS id, name FROM $m),
             rules: (SELECT name, ver FROM $rules.map(|$x| type::record('rule', $x)) ORDER BY name),
             known: IF array::len($k) > 0 THEN time::format(time::max($k), '%Y-%m-%d') END,
+            late: array::len($k) > 0 AND time::max($k) > $r.fixed,
             paid: (SELECT time::format(paid, '%Y-%m-%d') AS at, source, file.path AS file, row FROM $r.payouts WHERE paid != NONE ORDER BY at),
         };", json!({ "id": id, "members": n.members, "nodes": nodes, "rules": n.rules })).await?;
     Ok(Json(json!({
-        "id": id, "again": n.again, "then": r["then"], "known": r["known"], "paid": r["paid"], "source": "계산",
+        "id": id, "again": n.again, "then": r["then"], "known": r["known"], "late": r["late"], "paid": r["paid"], "source": "계산",
         "now": { "members": r["members"], "total": n.total, "limit": n.limit, "approver": n.approver, "rules": r["rules"] },
     })))
 }
