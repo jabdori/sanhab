@@ -34,7 +34,7 @@ pub async fn check(c: &Check) -> Result<()> {
         ensure!(if code == 200 { word.is_empty() } else { r == json!({ "error": word }) && code == if word == "권한" { 403 } else { 400 } && ["권한", "사유", "상태", "대상"].contains(&word.as_str()) }, "거절의 꼴 {code} {r}");
         Ok(word)
     };
-    let count = async || q1(&c.db, "RETURN [count(SELECT id FROM decision), count(SELECT id FROM task WHERE kind = '지급')];", json!({})).await;
+    let count = async || q1(&c.db, "RETURN [count(SELECT id FROM decision WHERE source != '원본'), count(SELECT id FROM task WHERE kind = '지급')];", json!({})).await;
     let (hold, pass) = (json!(["소명", "정황", "서류", "기타"]), json!(["정상", "경미", "기타"]));
 
     // 박상현 그룹의 6월 심사: 합산 3,888,097 · 한도 2,000,000 · 승인권자 영업임원. 일치 열에 대표자·주소·계좌 / 대표자·주소 / 대표자·계좌
@@ -83,7 +83,7 @@ pub async fn check(c: &Check) -> Result<()> {
     let mut h = d["history"].clone();
     h[0].as_object_mut().map(|o| o.remove("stamp"));
     ensure!(h == json!([{ "kind": "보류", "role": exec, "at": "2026-07-01", "reason": { "class": "기타", "memo": "소명 대기" }, "source": "시연" }]), "이력 {h}");
-    ensure!(q1(&c.db, "RETURN (SELECT VALUE by FROM decision)[0] = staff:exec;", json!({})).await? == true, "결정한 직원");
+    ensure!(q1(&c.db, "RETURN (SELECT VALUE by FROM decision WHERE source != '원본')[0] = staff:exec;", json!({})).await? == true, "결정한 직원");
     // 보류는 지급 작업을 만들지 않고, 다시 계산해도 금액은 6월 합산에 그대로 남는다
     super::t04_review::recalc(&c.db).await?;
     let d = review(exec, group).await?;

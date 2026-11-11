@@ -123,11 +123,12 @@ function Head() {
       <Figures
         items={[
           [L.합산, num(r.total)],
-          [L.한도, num(r.limit)],
+          // 원본의 과거 승인에는 적용한 규칙의 기록이 없다(09)
+          [L.한도, r.limit === null ? L.미상 : num(r.limit)],
           [L.승인권자, r.approver],
         ]}
       >
-        <Source kind={r.source}>
+        <Source kind={r.source} file={r.file ?? undefined} row={r.row ?? undefined}>
           <dl className="grid grid-cols-2 gap-x-2 gap-y-1">
             <dt className={label}>{L.합산}</dt>
             <dd>{L['귀속월 지급의 합, 반려 제외']}</dd>
@@ -158,7 +159,7 @@ function Members() {
             </span>,
             p ? num(p.amount) : <Empty />,
             m.match.length ? m.match.join(' · ') : <span className="text-text-mute">{L.없음}</span>,
-            p && <Source kind={p.source} file={p.file} row={p.row} />,
+            p && <Source kind={p.source} file={p.file ?? undefined} row={p.row ?? undefined} />,
           ]),
         )}
       />
@@ -218,7 +219,7 @@ function Rules() {
 /** 결정 한 줄: 결정 · 사람 · 날짜 · 사유의 분류. 메모는 그 아래에 따로 */
 const Line = ({ d }: { d: Decision }) => (
   <div className="text-body break-keep">
-    <p className="tabular-nums">{[d.kind, d.role, d.at, d.reason?.class ?? `${L.사유} ${L.없음}${d.source === L.원본 ? `(${L.원본})` : ''}`].join(' · ')}</p>
+    <p className="tabular-nums">{[d.kind, d.role, d.at ?? L.미상, d.reason?.class ?? `${L.사유} ${L.없음}${d.source === L.원본 ? `(${L.원본})` : ''}`].join(' · ')}</p>
     {d.reason?.memo && <p className="text-text-sub">{d.reason.memo}</p>}
   </div>
 )

@@ -150,11 +150,11 @@ async fn detail(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): Pa
     let mut r = q1(&me.db, "
         LET $r = type::record('review', $id);
         RETURN {
-            review: (SELECT record::id(id) AS id, name, ym, status, marks, total, limit, approver, IF fixed THEN time::format(fixed, '%Y-%m-%d') END AS fixed, source, members.map(|$d| { id: record::id($d), name: $d.name }) AS members FROM $r)[0],
+            review: (SELECT record::id(id) AS id, name, ym, status, marks, total, limit, approver, IF fixed THEN time::format(fixed, '%Y-%m-%d') END AS fixed, source, file.path AS file, row, members.map(|$d| { id: record::id($d), name: $d.name }) AS members FROM $r)[0],
             payouts: (SELECT record::id((->payout_of->dealer)[0]) AS dealer, amount, source, file.path AS file, row FROM payout WHERE id INSIDE $r.payouts),
             rules: (SELECT name, ver, value, clause.title AS title, clause.doc.path AS file, clause.first AS first, clause.last AS last, clause.text AS text, clause.source AS source FROM rule WHERE id INSIDE $r.rules ORDER BY name),
             actions: (SELECT record::id(id) AS kind, fn::must(record::id(id), $r) AS reason, fn::classes(record::id(id), $r) AS classes, seq FROM act WHERE fn::can(record::id(id), $r) ORDER BY seq, kind),
-            history: (SELECT kind, role, time::format(at, '%Y-%m-%d') AS at, reason, source, stamp FROM decision WHERE review = $r ORDER BY stamp),
+            history: (SELECT kind, role, IF at THEN time::format(at, '%Y-%m-%d') END AS at, reason, source, stamp FROM decision WHERE review = $r ORDER BY stamp),
         };", json!({ "id": id })).await?;
     if r["review"].is_null() {
         return Err(err(StatusCode::NOT_FOUND, "없음"));
@@ -269,12 +269,12 @@ pub async fn check(c: &Check) -> Result<()> {
     for role in ["내부 감시", "회계·자금"] {
         ensure!(c.get(role, "/api/tasks").await? == json!({ "mine": [], "going": [] }), "{role}의 작업");
     }
-    let n = q1(&c.db, "RETURN [count(SELECT id FROM review), count(SELECT id FROM review WHERE array::len(members) = 3), math::sum(SELECT VALUE array::len(payouts) FROM review), count(SELECT id FROM payout WHERE status = '미지급')];", json!({})).await?;
+    let n = q1(&c.db, "RETURN [count(SELECT id FROM review WHERE ym = '2026-06'), count(SELECT id FROM review WHERE ym = '2026-06' AND array::len(members) = 3), math::sum(SELECT VALUE array::len(payouts) FROM review WHERE ym = '2026-06'), count(SELECT id FROM payout WHERE status = '미지급')];", json!({})).await?;
     ensure!(n == json!([38, 1, 40, 40]), "심사 수 {n}");
 
     // 대성상사1: 관련자 없음. 합산 988,932, 한도 2,000,000(규칙에서), 승인권자 영업지원
     let d = review(support, one).await?;
-    ensure!(d["review"] == json!({ "id": one, "name": "대성상사1", "ym": "2026-06", "status": "대기", "marks": [], "total": 988_932, "limit": 2_000_000, "approver": support, "fixed": null, "source": "계산" }), "대성상사1의 심사 {}", d["review"]);
+    ensure!(d["review"] == json!({ "id": one, "name": "대성상사1", "ym": "2026-06", "status": "대기", "marks": [], "total": 988_932, "limit": 2_000_000, "approver": support, "fixed": null, "source": "계산", "file": null, "row": null }), "대성상사1의 심사 {}", d["review"]);
     ensure!(d["members"] == json!([{ "id": "D-001", "name": "대성상사1", "match": [], "pays": [{ "dealer": "D-001", "amount": 988_932, "source": "원본", "file": "01_corevia/sales/sales_rebate_payment_cv.csv", "row": 7 }] }]), "구성 {}", d["members"]);
     ensure!(d["relation"]["right"] == json!([]) && d["relation"]["mid"] == json!([]) && d["relation"]["lines"] == json!([]), "단독의 관계 {}", d["relation"]);
     ensure!(can(&d, "승인") == Some(false) && d["history"] == json!([]), "조치 {}", d["actions"]);
@@ -317,7 +317,7 @@ pub async fn check(c: &Check) -> Result<()> {
         q(&s, sql, json!({})).await.ok();
     }
     ensure!(approve(support, &[group]).await?.0 == 403 && review(exec, group).await? == before, "직접 쓴 뒤");
-    let n = q1(&c.db, "RETURN [count(SELECT id FROM review WHERE status = '대기' AND fixed = NONE), count(SELECT id FROM task WHERE state = '대기'), count(SELECT id FROM decision), [act:`승인`.who, act:`통과`.id], rule:`한도-v1`.value, review:`2026-06-D-011`.approver];", json!({})).await?;
+    let n = q1(&c.db, "RETURN [count(SELECT id FROM review WHERE status = '대기' AND fixed = NONE), count(SELECT id FROM task WHERE state = '대기'), count(SELECT id FROM decision WHERE source != '원본'), [act:`승인`.who, act:`통과`.id], rule:`한도-v1`.value, review:`2026-06-D-011`.approver];", json!({})).await?;
     ensure!(n == json!([38, 38, 0, ["승인권자", null], 2_000_000, exec]), "직접 쓴 뒤의 상태 {n}");
 
     // 영업지원이 대성상사1의 심사를 승인: 상태 승인, 굳은 날, 이력에 사람과 날짜. 남의 이름을 적어 보내도 DB가 채운 값이 남는다
@@ -327,7 +327,7 @@ pub async fn check(c: &Check) -> Result<()> {
     let mut h = d["history"].clone();
     h[0].as_object_mut().map(|o| o.remove("stamp"));
     ensure!(h == json!([{ "kind": "승인", "role": support, "at": "2026-07-01", "reason": null, "source": "시연" }]), "이력 {h}");
-    ensure!(q1(&c.db, "RETURN (SELECT VALUE by FROM decision)[0] = staff:support;", json!({})).await? == true, "결정한 직원");
+    ensure!(q1(&c.db, "RETURN (SELECT VALUE by FROM decision WHERE source != '원본')[0] = staff:support;", json!({})).await? == true, "결정한 직원");
     ensure!(approve(support, &[one]).await? == (400, json!({ "error": "상태" })), "승인된 심사를 다시 승인");
     let t = c.get(support, "/api/tasks").await?;
     ensure!(rows(&t["mine"]).len() == 36 && !rows(&t["mine"]).iter().any(|m| m["target"] == one), "승인 뒤 담당");

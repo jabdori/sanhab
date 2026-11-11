@@ -5,11 +5,12 @@ import { L } from '../../labels'
 import { api, changedAtom, roleAtom, targetAtom } from '../../state'
 import { type Draft, blank } from '../../ui/Reason'
 
-type From = { source: string; file?: string; row?: number }
+type From = { source: string; file?: string | null; row?: number | null }
 type Dot = { id: string; name: string }
-export type Decision = { kind: string; role: string; at: string; reason: { class?: string; memo?: string } | null; source: string }
+/** at: 원본의 과거 결정에는 날짜가 없을 수 있다(미상) */
+export type Decision = { kind: string; role: string; at: string | null; reason: { class?: string; memo?: string } | null; source: string }
 export type Review = {
-  review: { id: string; name: string; ym: string; status: string; marks: string[]; total: number; limit: number; approver: string; fixed: string | null; source: string }
+  review: { id: string; name: string; ym: string; status: string; marks: string[]; total: number; limit: number | null; approver: string; fixed: string | null } & From
   /** pays: 그 구성원의 이 귀속월 지급 전부(합산에 든 것). 없을 수 있다 */
   members: (Dot & { match: string[]; pays: ({ amount: number } & From)[] })[]
   relation: { left: Dot[]; mid: Dot[]; right: Dot[]; lines: [string, string][] }
