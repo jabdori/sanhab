@@ -35,6 +35,8 @@ const USED: &[(&str, &[&str])] = &[
 const WAYS: &[(&str, &str, &str)] = &[
     ("심사", "심사", "(SELECT record::id(id) AS id, total FROM review WHERE source != '원본' ORDER BY total DESC, id LIMIT 1)[0].id"),
     ("재검토", "심사", "(SELECT record::id(id) AS id, ym FROM review WHERE marks CONTAINS '재검토' ORDER BY ym DESC, id LIMIT 1)[0].id"),
+    // 대사(08): 가장 최근에 회신을 맞춰 본 지급. 지급 상세의 "대사" 표가 열린다
+    ("대사", "지급", "(SELECT record::id(payout) AS id, at FROM recon ORDER BY at DESC, id LIMIT 1)[0].id"),
 ];
 
 /// 가정의 표(D46)의 머리글. 이 줄 아래의 표에서 줄마다 가정 하나를 모은다
@@ -137,6 +139,18 @@ pub async fn check(c: &Check) -> Result<()> {
         c.get("내부 감시", &format!("/api/reviews/{}", u["id"].as_str().unwrap_or(""))).await?;
     }
 
+    // 대사(D49): 맞춰 본 지급이 아직 없으면 글자뿐이고, 승인 → 지급 → 회신을 거쳐 대사가 생기면 그 지급으로 간다
+    ensure!(of("D49")[0]["used"] == json!([{ "view": "대사", "kind": "지급", "id": null }]), "대사 전의 D49 {}", of("D49")[0]["used"]);
+    ensure!(c.post("영업지원", "/api/decide", json!({ "ids": ["2026-06-D-001"], "kind": "승인" })).await?.0 == 200, "승인");
+    let acct = "회계·자금";
+    let pay = c.get(acct, "/api/pays").await?["rows"][0]["id"].clone();
+    ensure!(c.post(acct, "/api/pay", json!({ "id": pay })).await?.0 == 200, "지급");
+    let want = c.get(acct, &format!("/api/pays/{}/recon", pay.as_str().unwrap_or(""))).await?["want"].clone();
+    ensure!(c.post(acct, "/api/reply", json!({ "id": pay, "amount": want["amount"], "account": want["accounts"][0], "result": "성공" })).await?.0 == 200, "회신");
+    let after = c.get("내부 감시", "/api/rules").await?;
+    let d49 = rows(&after["assumes"]).into_iter().find(|x| x["id"] == "D49").unwrap_or_default();
+    ensure!(pay.is_string() && d49["used"] == json!([{ "view": "대사", "kind": "지급", "id": pay }]), "대사 뒤의 D49 {}", d49["used"]);
+
     // 심사 상세의 규정 줄 → 이 화면의 조항. 원본의 과거 심사에는 규정이 없다
     let r = c.get("영업지원", "/api/reviews/2026-06-D-011").await?;
     ensure!(r["rules"][0]["clause"] == cl["id"] && r["rules"][1]["clause"] == cl["id"], "심사의 조항 {}", r["rules"]);
@@ -168,6 +182,8 @@ mod tests {
         assert!(table > 0);
         assert_eq!(a.len() - table, SPEC.1.matches("**가정**").count());
         assert!(a.iter().all(|x| !x["text"].as_str().unwrap_or("").contains("가정 아님")));
+        // 모은 글(제목과 줄)에 용어집의 피할 말이 섞여 들어오지 않는다
+        assert!(a.iter().all(|x| !format!("{}{}", x["title"], x["text"]).contains("판정")), "판정");
         // 쓰인 곳의 표는 있는 가정만 가리킨다
         for (id, _) in USED {
             assert!(a.iter().any(|x| x["id"] == *id), "{id}");
