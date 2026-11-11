@@ -1,0 +1,28 @@
+# AXHub·로컬 공용. db는 공개 이미지(이름:태그 고정), app은 이 저장소에서 빌드.
+services:
+  db:
+    image: surrealdb/surrealdb:v4.0.1
+    # VERSION 시점조회에 versioned surrealkv 필요 (메모리 엔진 불가)
+    command: start --user ${SURREAL_USER:?} --pass ${SURREAL_PASS:?} surrealkv:///data/db?versioned=true
+    volumes:
+      - surreal-data:/data   # 재배포·재시작엔 유지, 크레딧 소진 일시정지 시 소실 → app이 원본에서 자동 재적재
+    restart: unless-stopped
+    # 포트 미공개: app만 내부망으로 접근
+  app:
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+    environment:
+      SURREAL_ADDR: db:8000   # HTTP 엔진 (WS 미사용)
+      SURREAL_USER: ${SURREAL_USER:?}
+      SURREAL_PASS: ${SURREAL_PASS:?}
+      DEMO_PASS: ${DEMO_PASS:?}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      UPSTAGE_API_KEY: ${UPSTAGE_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-6.1-terra}
+    ports:
+      - "3000:3000"
+    depends_on: [db]
+    restart: unless-stopped
+volumes:
+  surreal-data:

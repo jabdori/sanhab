@@ -1,0 +1,4 @@
+# 빌드 산출물·의존성 (루트 .gitignore는 고치지 않는다)
+target/
+node_modules/
+dist/
