@@ -108,3 +108,13 @@
 - **대리점 상세의 지급 줄**(02의 조각을 07이 고쳤다): `state`가 있는 지급은 그 상태와 `state_source`를 출처 표지로 보이고(표지는 여전히 원본의 행을 연다), 없는 지급은 원본의 값과 출처 원본이다. `GET /api/dealers/{id}`의 `payouts[]`에 `state`·`state_source`가 더해졌다.
 - **지급의 확인 창과 틀린 요청**: 지급은 되돌릴 수 없어 확인 창을 거친다. `POST /api/pay`는 본문의 꼴이 틀리면 400 `대상`이고 DB의 문구를 내보내지 않는다. 상세 응답의 `role`은 담당하는 역할(대기인 지급을 담당이 아닌 역할이 열면 조치 자리에 `담당 회계·자금`).
 - **계좌**: 지급 상세의 계좌는 그 대리점의 `acct` 선 가운데 오늘 유효한 것(`since` ≤ 오늘, `until` 없음 또는 오늘 뒤. `excluded`는 가리지 않는다)이다. 승인 뒤에 계좌가 바뀐 지급을 어느 계좌로 볼지는 13·08이 정한다.
+
+08 대사가 정한 것.
+- **테이블**(`app/db/08-대사.surql`): `reply`(은행 회신: `payout`, `amount`, `account`, `result` 성공·실패, `by`, `role`, `at`, `source` 시연 — 역할이 쓰는 것은 이것뿐) · `recon`(대사: `payout`, `reply`, `review`(그 지급을 승인한 심사), `amount`·`accounts`(맞춰 본 때의 승인된 금액과 등록된 계좌), `diff`(맞지 않은 항목: 금액·계좌·결과), `verdict` 일치·불일치, `at`, `source` 계산). 둘 다 지급 하나에 하나뿐이다(UNIQUE).
+- **대사 작업이 생기는 때**: `remit`이 만들어지면 이벤트 `t08_task`가 작업(`kind` = 대사, `view` = 지급, `target` = 그 지급, `role` = 회계·자금, `also` = 그 지급의 지급 작업과 같은 역할)을 만든다. 회신이 들어오면 일치·불일치 어느 쪽이든 `완료`가 된다.
+- **회신과 판정**: 회계·자금이 `reply`를 만든다. 권한은 `fn::repliable(지급)`(역할이 회계·자금이고 `state = '완료'`이고 회신이 아직 없음) 하나가 정하고 화면의 조치도 이것을 읽는다. 이벤트 `t08_match`가 `recon`을 만든다 — 금액이 `payout.amount`와 같고, 계좌가 그날 그 대리점에 유효한 `acct`의 값 가운데 하나이고(07의 지급 상세와 같은 조건), 결과가 성공이면 일치, 하나라도 아니면 불일치. 회신은 고치거나 다시 넣지 못한다. 결과가 실패여도 지급의 상태(`payout.state`)는 건드리지 않는다.
+- **정산 표시**: 그 심사가 승인한 지급(`payout.review = 심사`)이 모두 일치이면 `review.marks`에 `'정산'`이 붙는다(같은 이벤트). 아이콘은 `ui/Mark.tsx`.
+- **불일치를 정황으로 잇기(11)**: 자기 스키마에서 `DEFINE EVENT t11_이름 ON recon WHEN $event = 'CREATE' AND $after.verdict = '불일치' THEN { … }`. 지급은 `$after.payout`, 심사는 `$after.review`, 무엇이 달랐는지는 `$after.diff`, 회신의 값은 `$after.reply.amount`·`account`·`result`, 맞춰 본 값은 `$after.amount`·`accounts`. 이미 남은 불일치는 `SELECT … FROM recon WHERE verdict = '불일치'`.
+- **조회와 조치의 경로**: `GET /api/pays/{id}/recon` → `{ id, state, role, can, want{ amount, accounts[] }, reply{ amount, account, result, role, at, source }?, recon{ diff[], verdict, source }? }`(지급 작업이 없는 지급은 404. 회신 전에는 `reply`·`recon`이 null이고 `want`는 지금의 값, 회신 뒤에는 그때 굳힌 값) · `POST /api/reply { id, amount, account, result }`(권한이 없으면 403, 본문의 꼴이 틀리면 400 `회신`).
+- **지급 상세의 조각**: 가운데에 "대사" 표(`order` 없음 → 07의 제목·숫자 줄 아래. 열은 승인 / 회신 / 비교, 줄은 금액 / 계좌 / 결과 / 출처), 오른쪽 조치에 회신 입력(07의 조치 줄 아래. 승인된 값이 미리 들어 있고 고쳐서 보낸다), 이력에 회신 한 줄. 재심사(14)로 `state`가 완료가 아니게 되면 회신 입력도 사라진다.
+- **승인 뒤에 계좌가 바뀐 지급**(13이 정할 것): 지금은 회신을 넣는 날의 계좌와 맞춰 본다. 승인한 날의 계좌와 맞춰 보게 하려면 `t08_match`의 `$accounts`를 고르는 조건의 날짜만 바꾸면 된다.
