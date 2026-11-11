@@ -1,0 +1,1 @@
+-- 03 관련자: 저장하는 것이 없다. 관련자와 그룹은 선 1~3(rep·addr·acct)에서 조회할 때 계산한다(D3, app/src/tickets/t03_related.rs).
