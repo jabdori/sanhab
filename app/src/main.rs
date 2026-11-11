@@ -32,6 +32,20 @@ pub fn err(code: StatusCode, msg: &str) -> ApiError { ApiError(code, json!({ "er
 /// 조치의 거절. 낱말은 넷뿐이다: 권한(그 역할이 할 수 없다, 403) · 사유(사유가 규칙에 맞지 않다) · 상태(그 상태에서는 할 수 없다) · 대상(없거나 꼴이 틀리다) — 뒤의 셋은 400.
 /// 처리기는 쓰기 전에 낱말을 정하고(대상 → 권한 → 상태 → 사유 순으로 따진다), DB의 권한 규칙은 마지막 방어선으로 남긴다. DB의 문구는 내보내지 않는다
 pub fn refuse(word: &str) -> ApiError { err(if word == "권한" { StatusCode::FORBIDDEN } else { StatusCode::BAD_REQUEST }, word) }
+/// 조치의 쓰기. `word`는 거절의 낱말을 돌려주는 쿼리(걸리는 것이 없으면 NONE), `write`는 역할의 세션으로 기록을 만드는 쿼리다. 둘 다 `vars`를 받는다.
+/// 낱말이 있으면 그것으로 거절하고, 없으면 쓴다. 쓰지 못했으면(같은 대상에 다른 조치가 동시에 와서 쓰기 충돌이 났거나 DB의 권한 규칙에 걸려 빈 결과)
+/// 낱말을 다시 따진다 — 이긴 쪽이 끝났으면 상태가 나오고, 아직이면 다시 써 본다. 끝까지 까닭 없이 쓰지 못하면 권한. DB의 문구는 내보내지 않는다
+pub async fn attempt(db: &Db, word: &str, write: &str, vars: J) -> Result<J, ApiError> {
+    for _ in 0..8 {
+        if let Some(w) = q1(db, word, vars.clone()).await.map_err(|_| refuse("대상"))?.as_str() {
+            return Err(refuse(w));
+        }
+        if let Ok(made) = q1(db, write, vars.clone()).await && made.as_array().is_none_or(|a| !a.is_empty()) {
+            return Ok(made);
+        }
+    }
+    Err(refuse("권한"))
+}
 /// 요청의 본문(JSON). 조치의 처리기는 axum의 `Json` 대신 이것으로 받는다(맨 끝 인자): JSON이 아니거나 비었거나 `Content-Type`이 없어도 axum의 문장이 아니라 400 `대상`이 나간다
 pub struct Body(pub J);
 impl<S: Send + Sync> axum::extract::FromRequest<S> for Body {

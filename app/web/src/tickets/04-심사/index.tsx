@@ -20,7 +20,7 @@ import { Table, num } from '../../ui/Table'
 import { Title } from '../../ui/Title'
 import { type Decision, bundled, reasonAtom, useReview } from './review'
 
-type Task = { id: string; kind: string; view: string; target: string; name?: string; ym?: string; total?: number; marks: string[]; role: string; pick: boolean }
+type Task = { id: string; kind: string; view: string; target: string; name?: string; ym?: string; total?: number | null; marks: string[]; role: string; pick: boolean }
 
 /** 결정을 보낸다. 거절되어도 화면을 다시 읽어 지금 할 수 있는 조치를 보인다 */
 const decide = (ids: string[], kind: string, reason?: object | null) =>
@@ -72,7 +72,7 @@ function Tasks() {
             {t.name}
           </button>,
           t.ym,
-          t.total === undefined ? null : num(t.total),
+          t.total == null ? null : num(t.total),
           <span className="flex gap-2">{marks(t.marks)}</span>,
           ...(tab === 'going' ? [t.role] : []),
         ])}
@@ -227,7 +227,7 @@ function Rules() {
 export const Line = ({ d }: { d: Decision }) => (
   <div className="text-body break-keep">
     <p className="tabular-nums">{[d.kind, d.role, d.at ?? L.미상, d.reason?.class ?? `${L.사유} ${L.없음}${d.source === L.원본 ? `(${L.원본})` : ''}`].join(' · ')}</p>
-    {d.reason?.memo && <p className="text-text-sub">{d.reason.memo}</p>}
+    {d.reason?.memo && <p className="text-text-sub wrap-anywhere">{d.reason.memo}</p>}
   </div>
 )
 

@@ -35,5 +35,6 @@ tickets! {
     t08_recon,
     t09_again,
     t10_ratify,
+    t11_signal,
     t22_rules,
 }
