@@ -72,7 +72,7 @@
 
 03 관련자가 정한 것.
 - **계산은 한 곳**(`app/src/tickets/t03_related.rs`, 저장하는 것 없음): `links(db, period) -> Vec<Link>`가 계산에 쓸 식별자 선을 읽고, `matches(&links, a, b)`(일치하는 식별자의 종류, 둘 이상이면 관련자)와 `groups(&links)`(전이적으로 이은 그룹. 모든 대리점이 한 그룹에 들고 관련자가 없으면 혼자, 비대상 대리점 포함)가 그 선만으로 계산한다. 뒤 티켓은 `super::t03_related::{links, matches, groups, Link, ITEMS}`를 쓴다. `Link { dealer, name, item, node, value }`에서 `item`은 `ITEMS`(대표자·주소·계좌)의 자리, `node`는 가리키는 노드의 id 글자다. 일치는 같은 `node`인지로 본다(나뉜 동명이인은 다른 노드라 일치가 아니다).
-- **기간**: `period`는 `Some((첫날, 끝날))`(`YYYY-MM-DD`), `None`이면 시스템의 오늘 하루. 선의 유효 기간(`since` ≤ 끝날, `until` 없음 또는 `until` > 첫날)이 그 기간과 **하루라도 겹치면** 읽는다. 원본 상태에서는 어느 기간이든 결과가 같다. 귀속월 안에서 값이 바뀐 달을 어떻게 볼지는 13번이 확정한다(아래 "남긴 선택").
+- **기간**: `period`는 `Some((첫날, 끝날))`(`YYYY-MM-DD`), `None`이면 시스템의 오늘 하루. 선의 유효 기간(`since` ≤ 끝날, `until` 없음 또는 `until` > 첫날)이 그 기간과 **하루라도 겹치면** 읽는다. 원본 상태에서는 어느 기간이든 결과가 같다. 귀속월 안에서 값이 바뀐 달을 어떻게 볼지는 13번이 확정한다(스펙에 없는 선택이라 03의 보고에 적었다).
 - **소명으로 제외**: `excluded = true`인 선은 `links()`가 읽지 않는다. 20번은 선의 `excluded`만 바꾸면 된다.
 - **가설**(12번): `links()`의 결과에 `Link`를 더하거나 빼서 `groups()`·`matches()`를 다시 부른다. 두 함수는 DB를 읽지 않는다.
 - **조회 경로**: `GET /api/dealers/{id}/related` → `{ id, idents[{ id, item, value }], near[{ id, name, match[], related }], lines[[대리점 id, 식별자 id]], group[{ id, name }], source: "계산" }`. `near`는 식별자를 하나라도 함께 가리키는 대리점(관련자가 아닌 곳도 `related: false`로 들어 있다), `group`은 자기를 포함한다. 지금(오늘) 기준이다.
