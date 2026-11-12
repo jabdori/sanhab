@@ -1,123 +1,90 @@
-import { AlertDialog } from '@base-ui/react/alert-dialog'
-import { Select } from '@base-ui/react/select'
+import { Button } from '@astryxdesign/core/Button'
+import { Drawer, DrawerHeader } from '@astryxdesign/core/Drawer'
+import { Layout, LayoutContent } from '@astryxdesign/core/Layout'
+import { NumberInput } from '@astryxdesign/core/NumberInput'
+import { Selector } from '@astryxdesign/core/Selector'
+import { Text } from '@astryxdesign/core/Text'
+import { TopNav, TopNavHeading } from '@astryxdesign/core/TopNav'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useState } from 'react'
 import { APP, L } from './labels'
+import { SlotView, usePieces } from './pieces'
 import { api, roleAtom, rolesAtom, targetAtom, useData } from './state'
-import { button, floating, label } from './ui/styles'
+import { Confirm } from './ui/Confirm'
+import { Region } from './ui/Region'
 
-/** 띠: 앱 이름, 역할, 날짜, 초기화. 항상 보인다 */
+/** 띠(astryx TopNav): 앱 이름 / 역할 · 날짜 · 시연. 항상 보인다. 제품의 조작은 역할 고르기뿐이고, 시연 조작은 `시연` 서랍에 모인다 */
 export function Band() {
   const roles = useAtomValue(rolesAtom)
   const [role, setRole] = useAtom(roleAtom)
   const setTarget = useSetAtom(targetAtom)
   const state = useData<{ today: string }>('/state')
+  const [demo, setDemo] = useState(false)
   return (
-    <header className="flex h-band shrink-0 items-center gap-6 border-b border-line bg-surface px-4">
-      <span className="text-title">{APP}</span>
-      <div className="flex items-center gap-2">
-        <span className={label}>{L.역할}</span>
-        <Select.Root
-          value={role}
-          onValueChange={(v) => {
-            setRole(v)
-            setTarget(null)
-          }}
-        >
-          <Select.Trigger aria-label={L.역할} className="flex cursor-pointer items-center gap-1 text-body text-action hover:text-action-hover">
-            <Select.Value />
-            <Select.Icon>▾</Select.Icon>
-          </Select.Trigger>
-          <Select.Portal>
-            <Select.Positioner sideOffset={4} alignItemWithTrigger={false} className="z-10 outline-none">
-              <Select.Popup className={`${floating} py-1`}>
-                {roles.map((r) => (
-                  <Select.Item
-                    key={r.role}
-                    value={r.role}
-                    className="flex h-head cursor-pointer items-center px-3 text-body outline-none data-highlighted:bg-surface data-selected:text-figure"
-                  >
-                    <Select.ItemText>{r.role}</Select.ItemText>
-                  </Select.Item>
-                ))}
-              </Select.Popup>
-            </Select.Positioner>
-          </Select.Portal>
-        </Select.Root>
-      </div>
-      <div className="flex items-center gap-2">
-        <span className={label}>{L.날짜}</span>
-        <span className="text-body tabular-nums">{state?.today}</span>
-        <Advance />
-      </div>
-      <div className="flex-1" />
-      <AlertDialog.Root>
-        <AlertDialog.Trigger className={button}>{L.초기화}</AlertDialog.Trigger>
-        <AlertDialog.Portal>
-          <AlertDialog.Popup className={`${floating} fixed top-1/2 left-1/2 flex w-list -translate-x-1/2 -translate-y-1/2 flex-col gap-4 p-6`}>
-            <AlertDialog.Title className="text-title">{L.초기화}</AlertDialog.Title>
-            <div className="flex justify-end gap-2">
-              <AlertDialog.Close className={button}>{L.취소}</AlertDialog.Close>
-              <AlertDialog.Close className={button} onClick={() => api('/reset', {}).then(() => setTarget(null))}>
-                {L.초기화}
-              </AlertDialog.Close>
-            </div>
-          </AlertDialog.Popup>
-        </AlertDialog.Portal>
-      </AlertDialog.Root>
-    </header>
+    <>
+      <TopNav
+        label={APP}
+        heading={<TopNavHeading heading={APP} />}
+        endContent={
+          <div className="flex items-center gap-4">
+            <Selector
+              label={L.역할}
+              isLabelHidden
+              variant="ghost"
+              size="sm"
+              value={role ?? undefined}
+              options={roles.map((r) => r.role)}
+              onChange={(v: string) => {
+                setRole(v)
+                setTarget(null)
+              }}
+            />
+            <span className="flex items-baseline gap-2">
+              <Text type="supporting">{L.날짜}</Text>
+              <Text hasTabularNumbers weight="medium">
+                {state?.today ?? ''}
+              </Text>
+            </span>
+            <Button label={L.시연} size="sm" onClick={() => setDemo(true)} />
+          </div>
+        }
+      />
+      <Drawer isOpen={demo} onOpenChange={setDemo} label={L.시연} width={360} hasScrim={false}>
+        <Layout header={<DrawerHeader title={L.시연} onOpenChange={setDemo} />} content={<LayoutContent><Demo /></LayoutContent>} />
+      </Drawer>
+    </>
   )
 }
 
-/** 날짜 넘기기(모의): 날수를 받아 앞으로만 넘긴다. 확인을 거치고 끝날 때까지 다시 눌리지 않는다 */
-function Advance() {
-  const [open, setOpen] = useState(false)
-  const [days, setDays] = useState('15')
-  const [busy, setBusy] = useState(false)
-  const n = Number(days)
-  const ok = Number.isInteger(n) && n >= 1 && n <= 365
+/**
+ * 시연 서랍의 몸통: 제품이 아닌 시연 조작(날짜 넘기기, 초기화)과 티켓이 끼우는 시연 조각(slot 'demo' — 시연 서류, 모의 회신 …).
+ * 이 조작으로 생긴 값은 제품 화면에 출처 표지 `모의`로만 남는다
+ */
+/** 시스템의 첫날(서버 t01의 START). 초기화하면 날짜가 여기로 돌아간다 */
+const START = '2026-07-01'
+/** YYYY-MM-DD에 날수를 더한다(UTC로 계산해 시간대에 흔들리지 않게) */
+const plus = (day: string, n: number) => new Date(Date.parse(`${day}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10)
+
+function Demo() {
+  const setTarget = useSetAtom(targetAtom)
+  const today = useData<{ today: string }>('/state')?.today ?? START
+  const pieces = usePieces('demo')
+  const [days, setDays] = useState<number | null>(15)
+  const ok = days !== null && Number.isInteger(days) && days >= 1 && days <= 365
   return (
-    <AlertDialog.Root open={open} onOpenChange={(o) => !busy && setOpen(o)}>
-      <AlertDialog.Trigger className={button}>{L.넘기기}</AlertDialog.Trigger>
-      <AlertDialog.Portal>
-        <AlertDialog.Popup className={`${floating} fixed top-1/2 left-1/2 flex w-list -translate-x-1/2 -translate-y-1/2 flex-col gap-4 p-6`}>
-          <AlertDialog.Title className="text-title">{L.넘기기}</AlertDialog.Title>
-          <label className="flex items-center gap-2 text-body">
-            <input
-              type="number"
-              min={1}
-              max={365}
-              value={days}
-              disabled={busy}
-              aria-label={L.일}
-              onChange={(e) => setDays(e.target.value)}
-              className="h-head w-24 rounded-box border border-line bg-bg px-3 text-body tabular-nums"
-            />
-            <span>{L.일}</span>
-          </label>
-          <div className="flex justify-end gap-2">
-            <AlertDialog.Close disabled={busy} className={button}>
-              {L.취소}
-            </AlertDialog.Close>
-            <button
-              className={button}
-              disabled={!ok || busy}
-              onClick={() => {
-                setBusy(true)
-                api('/advance', { days: n }).then(
-                  () => {
-                    setBusy(false)
-                    setOpen(false)
-                  },
-                  () => setBusy(false),
-                )
-              }}
-            >
-              {L.넘기기}
-            </button>
-          </div>
-        </AlertDialog.Popup>
-      </AlertDialog.Portal>
-    </AlertDialog.Root>
+    <div className="flex flex-col gap-6">
+      <Region title={L.날짜}>
+        <div className="flex items-end gap-2">
+          <NumberInput label={L.일} isLabelHidden value={days} onChange={setDays} min={1} max={365} isIntegerOnly units={L.일} width={120} />
+          <Confirm label={L.넘기기} title={`${L.넘기기} ${days ?? ''}${L.일}`} rows={[[L.날짜, `${today} → ${ok ? plus(today, days) : ''}`]]} isDisabled={!ok} onConfirm={() => api('/advance', { days }).catch(() => {})} />
+        </div>
+      </Region>
+      {pieces.length > 0 && <SlotView slot="demo" />}
+      <Region title={L.초기화}>
+        <div>
+          <Confirm label={L.초기화} variant="destructive" rows={[[L.날짜, `${today} → ${START}`]]} onConfirm={() => api('/reset', {}).then(() => setTarget(null), () => {})} />
+        </div>
+      </Region>
+    </div>
   )
 }

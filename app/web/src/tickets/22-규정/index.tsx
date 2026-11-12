@@ -1,13 +1,15 @@
 // 22 규정: 메뉴 "규정". 목록은 조항이고(하나를 저절로 연다), 가운데에 그 조항의 원문 · 규칙 버전 · 가정 · AI를 차례로 둔다. 오른쪽에 채우는 것은 없다(모의는 23).
 // 대상은 { kind: L.규정, id: 조항의 id }. 가운데의 조각은 order -10 하나이고, 뒤 티켓이 kind: L.규정으로 끼우는 조각은 order를 적지 않으면 그 아래에 놓인다.
+import { Link } from '@astryxdesign/core/Link'
+import { Markdown } from '@astryxdesign/core/Markdown'
+import { Text } from '@astryxdesign/core/Text'
 import { useAtom, useSetAtom } from 'jotai'
 import { useEffect } from 'react'
 import { L } from '../../labels'
 import type { Piece } from '../../pieces'
 import { menuAtom, targetAtom, useData } from '../../state'
-import { Figures } from '../../ui/Figures'
+import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
-import { label } from '../../ui/styles'
 import { Table, num } from '../../ui/Table'
 import { Title } from '../../ui/Title'
 
@@ -17,27 +19,8 @@ type Rule = { id: string; name: string; ver: number; value: number; clause: stri
 type Assume = { id: string; title: string; text: string; file: string; row: number; used: { view: string; kind: string | null; id: string | null }[]; source: string }
 type Data = { clauses: Clause[]; rules: Rule[]; assumes: Assume[] }
 
-const none = <span className="text-text-mute">{L.없음}</span>
-
-/** 문서의 위치와 그 글. 출처 표지가 여는 것 */
-const Where = ({ file, rows, text, sha }: { file: string; rows: string; text?: string; sha?: string }) => (
-  <>
-    <div className="flex justify-between gap-2">
-      <span className="break-all">{file}</span>
-      <span className="shrink-0 tabular-nums">
-        {rows}
-        {L.행}
-      </span>
-    </div>
-    {text && <p className="border-t border-line pt-2 break-keep whitespace-pre-wrap">{text}</p>}
-    {sha && (
-      <div className="flex gap-2 border-t border-line pt-2">
-        <span className={`shrink-0 ${label}`}>{L.해시}</span>
-        <span className="break-all text-label text-text-sub">{sha}</span>
-      </div>
-    )}
-  </>
-)
+const none = <Text color="secondary">{L.없음}</Text>
+const where = (c: Clause) => `${c.file} ${c.first}–${c.last}${L.행}`
 
 function List() {
   const d = useData<Data>('/rules')
@@ -48,16 +31,31 @@ function List() {
     if (!target && first) setTarget({ kind: L.규정, id: first })
   }, [target, first, setTarget])
   if (!d || !target) return null
+  const open = (id: string) => setTarget({ kind: L.규정, id })
   return (
     <Table
       head={[L.조항]}
       current={d.clauses.findIndex((c) => c.id === target.id)}
+      onRow={(y) => open(d.clauses[y].id)}
       rows={d.clauses.map((c) => [
-        <button className="cursor-pointer text-action hover:text-action-hover" onClick={() => setTarget({ kind: L.규정, id: c.id })}>
+        <Link color="primary" weight="medium" onClick={() => open(c.id)}>
           {c.title}
-        </button>,
+        </Link>,
       ])}
     />
+  )
+}
+
+/** 머리: 조항의 이름과 원문의 위치(문서와 행, 해시) */
+function Head() {
+  const d = useData<Data>('/rules')
+  const [target] = useAtom(targetAtom)
+  const c = d?.clauses.find((x) => x.id === target?.id)
+  if (!c) return null
+  return (
+    <Title name={c.title}>
+      <Source kind={c.source} tip={where(c)} place={`${c.first}–${c.last}${L.행}`} rows={[[L.위치, where(c)], [L.해시, c.sha]]} />
+    </Title>
   )
 }
 
@@ -67,93 +65,82 @@ function Rules() {
   const setMenu = useSetAtom(menuAtom)
   const c = d?.clauses.find((x) => x.id === target?.id)
   if (!d || !c) return null
-  const rows = `${c.first}–${c.last}`
+  const rules = d.rules.filter((r) => r.clause === c.id)
   return (
     <>
-      <section className="mb-4 flex flex-col gap-2">
-        <Title name={c.title}>
-          <Source kind={c.source}>
-            <Where file={c.file} rows={rows} sha={c.sha} />
-          </Source>
-        </Title>
-        <div className="flex flex-wrap gap-x-2 text-table text-text-sub tabular-nums">
-          <span className="whitespace-nowrap">{c.file}</span>
-          <span className="whitespace-nowrap">
-            {rows}
-            {L.행}
-          </span>
-        </div>
-        <p className="text-body break-keep whitespace-pre-wrap">{c.text}</p>
-      </section>
-      <section className="mb-4 flex flex-col gap-2">
-        <h2 className={label}>{L.규칙}</h2>
+      <Region title={L.조항}>
+        {/* 원문의 첫 줄(`## 제목`)은 화면 제목이 이미 보인다 */}
+        <Markdown density="compact">{c.text.replace(/^#+ .*\n/, '')}</Markdown>
+      </Region>
+      <Region title={L.규칙}>
         <Table
-          head={[L.규칙, '', L.시행, L.이전, L.출처]}
+          head={[L.규칙, L.값, L.시행, L.이전, L.출처]}
           right={[1]}
-          rows={d.rules
-            .filter((r) => r.clause === c.id)
-            .map((r) => [
-              `${r.name} v${r.ver}`,
-              r.name === L.합산 ? `${L.일치} ${r.value}` : num(r.value),
-              `${r.since ?? L.미상} – ${r.until ?? ''}`.trim(),
-              r.prev ? `${r.prev.name} v${r.prev.ver}` : none,
-              <Source kind={r.source}>
-                <Where file={c.file} rows={rows} text={c.text} />
-              </Source>,
-            ])}
+          rows={rules.map((r) => [
+            <Text weight="medium">{`${r.name} v${r.ver}`}</Text>,
+            r.name === L.합산 ? `${L.일치} ${r.value}` : num(r.value),
+            r.since || r.until ? `${r.since ?? ''} ~ ${r.until ?? ''}`.trim() : none,
+            r.prev ? `${r.prev.name} v${r.prev.ver}` : none,
+            <Source kind={r.source} tip={c.title} place={`${c.first}–${c.last}${L.행}`} rows={[[L.위치, where(c)]]}>
+              {c.text}
+            </Source>,
+          ])}
         />
-      </section>
-      <section className="mb-4 flex flex-col gap-2">
-        <h2 className={`flex gap-2 ${label}`}>
-          {L.가정}
-          <span className="tabular-nums">{d.assumes.length}</span>
-        </h2>
+      </Region>
+      <Region
+        title={L.가정}
+        aside={
+          <Text type="supporting" hasTabularNumbers>
+            {d.assumes.length}
+          </Text>
+        }
+      >
+        {/* 표 전체가 가정이라 줄마다 표지를 달지 않는다. 번호를 누르면 다른 화면의 가정과 같은 설명 칸(번호·내용·적용 시점·위치·이유·쓰임) */}
         <Table
-          head={['', L.가정, L.쓰임, L.출처]}
+          head={[L.번호, L.가정, L.쓰임]}
           rows={d.assumes.map((a) => [
-            a.id,
-            a.title,
+            <Source kind={a.source} decision={a.id} line={a.row} tip={a.title} quiet place={a.id} />,
+            <Text weight="medium">{a.title}</Text>,
             a.used.length ? (
               <span className="flex gap-2">
                 {a.used.map((u) =>
                   u.kind && u.id ? (
-                    <button key={u.view} className="cursor-pointer text-action hover:text-action-hover" onClick={() => {
+                    <Link key={u.view} color="primary" onClick={() => {
                         setMenu(L.작업)
                         setTarget({ kind: u.kind!, id: u.id! })
-                      }}>
+                      }}
+                    >
                       {u.view}
-                    </button>
+                    </Link>
                   ) : (
-                    <span key={u.view}>{u.view}</span>
+                    <Text key={u.view}>{u.view}</Text>
                   ),
                 )}
               </span>
             ) : (
               none
             ),
-            <Source kind={a.source}>
-              <Where file={a.file} rows={String(a.row)} text={a.text} />
-            </Source>,
           ])}
         />
-      </section>
-      <section className="mb-4 flex flex-col gap-2">
-        <h2 className={label}>{L.AI}</h2>
-        <Figures
-          items={[
+      </Region>
+      <Region title={L.AI}>
+        <Table
+          head={[L.쓰임, L.대상]}
+          rows={[
             [L.조사, L.정황],
             [L.요청서, L.소명],
             [L.정리, L.서류],
             [L.설명, L.사건],
-            [L.결정, L.없음],
-          ]}
+            [L.결정, none],
+          ].map(([k, v]) => [<Text weight="medium">{k as string}</Text>, v])}
         />
-      </section>
+      </Region>
     </>
   )
 }
 
 export default [
   { slot: 'list', menu: L.규정, View: List },
+  { slot: 'head', kind: L.규정, View: Head },
   { slot: 'fact', kind: L.규정, order: -10, View: Rules },
 ] satisfies Piece[]

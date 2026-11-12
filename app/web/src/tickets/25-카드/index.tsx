@@ -2,14 +2,17 @@
 // 사유는 사람이 말한 것을 옮겨 적은 것이라 여기서 고칠 수 있고, 사유가 필수인 조치는 채우기 전에는 실행이 눌리지 않는다.
 // 실행은 사람이 누른다: 화면에서 직접 한 조치와 같은 경로를 그 사람의 세션으로 부르므로 이력과 경위에 똑같이 남는다. 누른 뒤 끝날 때까지 다시 눌리지 않는다.
 // 인정은 되돌리기 어려워 20의 조치처럼 제외될 선과 기간을 보이는 확인 창을 거친다.
-import { AlertDialog } from '@base-ui/react/alert-dialog'
+import { Button } from '@astryxdesign/core/Button'
+import { Card as Box } from '@astryxdesign/core/Card'
+import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
+import { Text } from '@astryxdesign/core/Text'
 import { useState } from 'react'
 import { L } from '../../labels'
 import type { Piece } from '../../pieces'
 import { api, useData } from '../../state'
+import { Confirm } from '../../ui/Confirm'
 import { Pill } from '../../ui/Pill'
 import { Reason, ready, sent, type Draft } from '../../ui/Reason'
-import { button, floating, label } from '../../ui/styles'
 import { Table } from '../../ui/Table'
 
 /** 서버가 `data-card`로 보내는 카드: 대상(종류, 이름), 조치, 사유가 필수인지와 고를 수 있는 분류, 옮겨 적은 사유, 실행이 부를 경로 */
@@ -33,14 +36,15 @@ function Excluded({ id }: { id: string }) {
   const v = useData<{ span: [string, string] | null; lines: { item: string; value: string }[] }>(`/clarifies/${encodeURIComponent(id)}/verdict`)
   if (!v) return null
   return (
-    <>
-      <p className={label}>{L.제외}</p>
-      {v.lines.length ? <Table head={[L.종류, L.식별자]} rows={v.lines.map((l) => [l.item, l.value])} /> : <p className="text-body">{L['제외 없음']}</p>}
-      <dl className="flex items-baseline gap-2">
-        <dt className={label}>{L.기간}</dt>
-        <dd className="text-body tabular-nums">{v.span ? `${v.span[0]} ~ ${v.span[1]}` : L.미상}</dd>
-      </dl>
-    </>
+    <div className="flex flex-col gap-3">
+      <Text type="supporting">{L.제외}</Text>
+      {v.lines.length ? <Table head={[L.종류, L.식별자]} rows={v.lines.map((l) => [l.item, l.value])} /> : <Text>{L['제외 없음']}</Text>}
+      <MetadataList label={{ width: 72 }}>
+        <MetadataListItem label={L.기간}>
+          <span className="tabular-nums">{v.span ? `${v.span[0]} ~ ${v.span[1]}` : L.미상}</span>
+        </MetadataListItem>
+      </MetadataList>
+    </div>
   )
 }
 
@@ -62,56 +66,38 @@ export function Card({ card }: { card: CardData }) {
   }
   const off = busy || !ready(card.action, card.must, draft)
   return (
-    <section aria-label={L['조치 카드']} className="flex w-full flex-col gap-2 rounded-box border border-line bg-bg p-3">
-      <span className={label}>{L['조치 카드']}</span>
-      <dl className="flex flex-col gap-1">
-        <div className="flex items-baseline gap-2">
-          <dt className={label}>{L.대상}</dt>
-          <dd className="text-body wrap-anywhere">
-            {card.kind} {card.name}
-          </dd>
-        </div>
-        <div className="flex items-baseline gap-2">
-          <dt className={label}>{L.조치}</dt>
-          <dd className="text-body">{card.action}</dd>
-        </div>
-      </dl>
-      {done ? (
-        <Pill tone={tones[card.action as keyof typeof tones] ?? 'wait'}>{card.action}</Pill>
-      ) : (
-        <>
-          <Reason groups={[{ of: card.action, classes: card.classes }]} value={draft} onChange={setDraft} />
-          <div className="flex flex-wrap items-center gap-2">
-            {card.action === L.인정 ? (
-              <AlertDialog.Root>
-                <AlertDialog.Trigger className={button} disabled={off}>
-                  {L.실행}
-                </AlertDialog.Trigger>
-                <AlertDialog.Portal>
-                  <AlertDialog.Popup className={`${floating} fixed top-1/2 left-1/2 flex w-list -translate-x-1/2 -translate-y-1/2 flex-col gap-4 p-6`}>
-                    <AlertDialog.Title className="flex items-baseline gap-2 text-title wrap-anywhere">
-                      {card.action}
-                      <span>{card.name}</span>
-                    </AlertDialog.Title>
+    <section aria-label={L['조치 카드']} className="w-full">
+      <Box variant="muted" padding={3}>
+        <div className="flex flex-col gap-3">
+          <Text type="supporting">{L['조치 카드']}</Text>
+          <MetadataList label={{ width: 72 }}>
+            <MetadataListItem label={L.대상}>
+              <span className="wrap-anywhere">
+                {card.kind} {card.name}
+              </span>
+            </MetadataListItem>
+            <MetadataListItem label={L.조치}>{card.action}</MetadataListItem>
+          </MetadataList>
+          {done ? (
+            <Pill tone={tones[card.action as keyof typeof tones] ?? 'wait'}>{card.action}</Pill>
+          ) : (
+            <>
+              <Reason groups={[{ of: card.action, classes: card.classes }]} value={draft} onChange={setDraft} />
+              <div className="flex flex-wrap items-center gap-2">
+                {card.action === L.인정 ? (
+                  // 인정은 되돌리기 어려워 제외될 선과 기간을 보이는 확인 창을 거친다. 창의 실행 버튼은 결과의 낱말
+                  <Confirm trigger={L.실행} label={card.action} variant="primary" title={`${card.action} ${card.name}`} isDisabled={off} onConfirm={go}>
                     <Excluded id={card.id} />
-                    <div className="flex justify-end gap-2">
-                      <AlertDialog.Close className={button}>{L.취소}</AlertDialog.Close>
-                      <AlertDialog.Close className={button} onClick={go}>
-                        {card.action}
-                      </AlertDialog.Close>
-                    </div>
-                  </AlertDialog.Popup>
-                </AlertDialog.Portal>
-              </AlertDialog.Root>
-            ) : (
-              <button className={button} disabled={off} onClick={go}>
-                {L.실행}
-              </button>
-            )}
-            {bad && <Pill tone="bad">{bad}</Pill>}
-          </div>
-        </>
-      )}
+                  </Confirm>
+                ) : (
+                  <Button label={L.실행} variant="primary" isDisabled={off} onClick={go} />
+                )}
+                {bad && <Pill tone="bad">{bad}</Pill>}
+              </div>
+            </>
+          )}
+        </div>
+      </Box>
     </section>
   )
 }

@@ -1,5 +1,14 @@
-/* 색·글자·간격은 모두 이 파일에 있다(docs/design/tokens.md). 부품은 여기의 이름만 쓴다. */
-@import 'tailwindcss';
+/* 화면의 바탕: astryx(테마는 src/theme.ts — neutral을 이어받은 sanhab, 실행 때 CSS를 넣는다) 위에 Tailwind 4의 유틸리티를 얹는다(docs/design/tokens.md).
+   색·글자 크기·간격·모서리·그림자는 astryx의 토큰이고, Tailwind의 이름은 astryx가 낸 다리(tailwind-theme.css)로만 쓴다.
+   Tailwind의 기본 팔레트(tailwindcss/theme.css)는 들이지 않는다 — bg-red-500 같은 이름은 아예 만들어지지 않는다.
+   층의 순서는 맨 처음에 한 번 정한다: 리셋 < Tailwind 기본 < astryx < 유틸리티(className이 부품의 기본값을 이긴다). */
+@layer reset, theme, base, astryx-base, astryx-theme, components, utilities;
+
+@import 'tailwindcss/preflight.css' layer(base);
+@import '@astryxdesign/core/reset.css';
+@import '@astryxdesign/core/astryx.css';
+@import '@astryxdesign/core/tailwind-theme.css';
+@import 'tailwindcss/utilities.css' layer(utilities);
 
 @font-face {
   font-family: Pretendard;
@@ -8,71 +17,84 @@
   src: url('../node_modules/pretendard/dist/web/variable/woff2/PretendardVariable.woff2') format('woff2-variations');
 }
 
+/* 글꼴: 테마가 자기 자리([data-astryx-theme])에서 정하므로 같은 자리에서 덮는다(층 밖이라 이긴다) */
+[data-astryx-theme] {
+  --font-family-body: Pretendard, system-ui, -apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  --font-family-heading: var(--font-family-body);
+}
+
+/* 자리의 폭: 틀의 치수만 px로 둔다(astryx: 구조의 폭만 px, 안쪽 간격은 토큰) */
 @theme {
-  /* 색: 아래 이름만 남긴다 */
-  --color-*: initial;
-  --color-bg: #ffffff;
-  --color-surface: #f7f7f8;
-  --color-line: #e4e4e7;
-  --color-text: #18181b;
-  --color-text-sub: #52525b;
-  --color-text-mute: #a1a1aa;
-  --color-action: #1d4ed8;
-  --color-action-hover: #1e40af;
-  --color-mark: #fef9c3;
-  /* 상태 표지(알약)에만: 대기 wait · 좋음 good · 멈춤 hold · 아님 bad · 다시 again */
-  --color-wait-bg: #f4f4f5;
-  --color-wait: #3f3f46;
-  --color-good-bg: #dcfce7;
-  --color-good: #166534;
-  --color-hold-bg: #fef3c7;
-  --color-hold: #92400e;
-  --color-bad-bg: #fee2e2;
-  --color-bad: #991b1b;
-  --color-again-bg: #ede9fe;
-  --color-again: #5b21b6;
-
-  /* 글자 */
-  --font-sans: Pretendard, system-ui, -apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
-  --text-*: initial;
-  --text-title: 16px;
-  --text-title--line-height: 24px;
-  --text-title--font-weight: 600;
-  --text-figure: 14px;
-  --text-figure--line-height: 20px;
-  --text-figure--font-weight: 600;
-  --text-body: 14px;
-  --text-body--line-height: 20px;
-  --text-body--font-weight: 400;
-  --text-table: 13px;
-  --text-table--line-height: 18px;
-  --text-table--font-weight: 400;
-  --text-label: 12px;
-  --text-label--line-height: 16px;
-  --text-label--font-weight: 500;
-
-  /* 간격은 4의 배수만: 1(4) 2(8) 3(12) 4(16) 6(24) 8(32) */
-  --spacing: 4px;
-  /* 자리의 폭과 높이 */
-  --spacing-band: 44px;
-  --spacing-menu: 96px;
+  --spacing-menu: 112px;
   --spacing-list: 360px;
   --spacing-right: 360px;
   --spacing-chat: 40px;
   --spacing-chat-open: 380px;
   --spacing-page: 1280px;
-  --spacing-row: 36px;
-  --spacing-head: 32px;
-
-  /* 모양 */
-  --radius-*: initial;
-  --radius-box: 4px;
-  --radius-pill: 999px;
-  --shadow-*: initial;
-  --shadow-float: 0 4px 16px rgb(0 0 0 / 0.12);
 }
 
 body {
-  background: var(--color-bg);
-  color: var(--color-text);
+  background: var(--color-background-body);
+  color: var(--color-text-primary);
+}
+
+/* 빈 영역(ui/Region): 몸통에 `없음`(data-empty)만 있거나 아무것도 없으면 이름과 없음을 한 줄로 접는다.
+   자리와 순서는 지키되, 내용이 있는 영역과 같은 무게로 자리를 차지하지 않는다 */
+[data-region]:not(:has([data-region-body] > :not([data-empty]))) {
+  flex-direction: row;
+  align-items: baseline;
+  gap: var(--spacing-2);
+  padding-block: var(--spacing-2);
+}
+[data-region]:not(:has([data-region-body] > :not([data-empty]))) :is(h2, h3) {
+  font-size: var(--text-body-size);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+/* 표(ui/Table)는 영역의 양옆까지 줄을 긋되(astryx의 bleed) 위아래로는 넘치지 않는다 — 영역 제목을 덮지 않게 */
+.astryx-table-scroll-wrapper {
+  margin-block: 0;
+}
+
+/* 비활성 버튼: astryx의 반투명(0.5)보다 더 옅게 — 누를 수 없는 것이 한눈에 갈린다.
+   테마의 components에는 비활성 상태 키가 없어 astryx가 권하는 속성 선택자(styling-advanced)로 둔다 */
+.astryx-button[aria-disabled='true'] {
+  opacity: 0.35;
+}
+
+/* 표의 마지막 열: 영역 끝까지 그은 줄(bleed) 안에서 글자가 자리 끝에 붙지 않게 오른쪽 여백 24.
+   astryx 칸의 여백(StyleX 원자 클래스)보다 우선하도록 표 클래스로 한 단계 좁힌다 */
+.astryx-table :is(.astryx-table-cell, .astryx-table-header-cell):last-child {
+  padding-inline-end: var(--spacing-6);
+}
+
+/* 줄임표로 자르는 표의 칸(ui/Table의 clip): 안의 Link는 단추(inline-flex)라 칸의 줄임표가 닿지 않는다 — Link 자신이 잘리게 */
+[data-clip] .astryx-link {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: start;
+}
+[data-clip] .astryx-link * {
+  display: inline;
+}
+
+/* 목록(줄 전체가 눌리는 표)의 이름 Link: 줄마다 밑줄이 늘어서지 않게 머문 줄에서만 밑줄 */
+.rows-open .astryx-link {
+  text-decoration-line: none;
+}
+.rows-open tr:hover .astryx-link,
+.rows-open .astryx-link:focus-visible {
+  text-decoration-line: underline;
+}
+
+/* 근거 연결이 가리킨 줄(ui/Table의 mark): 잠깐 노랗게 */
+@keyframes mark {
+  from { background: var(--color-background-yellow); }
+}
+.mark {
+  animation: mark 1.2s ease-out;
 }

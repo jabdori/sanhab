@@ -2,7 +2,7 @@
 //! 원인 선은 따로 저장하지 않고 이미 있는 기록을 거슬러 읽어 잇는다(기본값. 저장하면 선을 바꾸는 모든 티켓이 함께 써야 한다):
 //!   지급: 앞선 승인(14 `redo.was`) → 변경(`redo.cause`, 13의 `incident`) → 재심사 지급 → 다시 승인한 심사(`redo.back` 또는 합쳐진 새 심사)
 //!   추인: 변경(그 구성원의 승인 뒤에 들어온 가장 늦은 변경. 14와 같은 규칙) → 재검토인 과거의 승인(10 `ratify.reviews`) → 추인 작업 → 결정(추인·거부·종결·이견)
-//!   심사: 그 심사가 든 지급의 경위, 없으면 그 심사가 든 추인의 경위. 둘 다 아니면 없음(404)
+//!   심사: 그 심사가 든 지급의 경위, 없으면 그 심사가 든 추인의 경위, 둘 다 아니면 구성원의 가장 늦은 변경 → 그 심사(굳지 않은 심사만). 그것도 없으면 없음(404)
 //! 응답: `{ for([종류, id] — 화면이 지금 대상의 것인지 본다), now(지금 대상의 칸), nodes[{ key, kind, name, at(null이면 미상), who{ role, reason }|null, go{ kind, id } }](원인 쪽부터 사슬의 순서), edges[[원인, 결과]] }`.
 use crate::check::Check;
 use crate::db::{Db, q1};
@@ -120,6 +120,21 @@ async fn ratify(db: &Db, id: &str) -> Result<Option<(Vec<J>, Vec<J>, String)>> {
     Ok(Some((nodes, edges, bkey)))
 }
 
+/// 지급도 추인도 없는 굳지 않은 심사(대기·보류): 그 구성원의 가장 늦은 변경 → 그 심사. 변경으로 그룹이 바뀌어 새로 생긴 심사(한라인상사34 외 1의 6월)가 이것이다.
+/// 변경이 없으면 거슬러 오를 것이 없다(없음)
+async fn changed(db: &Db, id: &str) -> Result<Option<(Vec<J>, Vec<J>, String)>> {
+    let r = q1(db, &format!("
+        LET $v = (SELECT * FROM review WHERE id = type::record('review', $id))[0];
+        LET $c = IF $v.fixed = NONE THEN (SELECT VALUE id FROM incident WHERE dealer INSIDE $v.members ORDER BY stamp DESC LIMIT 1)[0] END;
+        RETURN IF $v = NONE THEN NONE ELSE {{ me: {{ id: record::id($v.id), name: $v.name, ym: $v.ym }}, cause: {CAUSE} }} END;"), json!({ "id": id })).await?;
+    let Some(i) = incident(&r["cause"]) else { return Ok(None) };
+    let me = &r["me"];
+    let key = format!("r:{}", s(&me["id"]));
+    let edges = vec![json!([i["key"], key])];
+    let nodes = vec![i, node(key.clone(), "심사", format!("{} {}", s(&me["name"]), s(&me["ym"])), J::Null, J::Null, ("심사", s(&me["id"])))];
+    Ok(Some((nodes, edges, key)))
+}
+
 async fn trail(Extension(me): Extension<crate::Me>, Path((kind, id)): Path<(String, String)>) -> R {
     let db = &me.db;
     let path = kind.clone();
@@ -136,7 +151,7 @@ async fn trail(Extension(me): Extension<crate::Me>, Path((kind, id)): Path<(Stri
                     paid: (SELECT VALUE record::id(id) FROM payout WHERE review = $v.id LIMIT 1)[0],
                 } END;", json!({ "id": id })).await?;
             // 재심사 기록이 없는 보통의 승인 심사는 그 심사가 승인한 지급의 경위(승인 → 지급)로 연다. 추인 묶음에 든 과거의 승인은 추인이 먼저다
-            let f = if let Some(p) = r["pay"].as_str() { pay(db, p).await? } else if let Some(b) = r["ratify"].as_str() { ratify(db, b).await? } else if let Some(p) = r["paid"].as_str() { pay(db, p).await? } else { None };
+            let f = if let Some(p) = r["pay"].as_str() { pay(db, p).await? } else if let Some(b) = r["ratify"].as_str() { ratify(db, b).await? } else if let Some(p) = r["paid"].as_str() { pay(db, p).await? } else { changed(db, &id).await? };
             (f, Some(format!("r:{id}")))
         }
         _ => (None, None),
@@ -230,6 +245,11 @@ pub async fn check(c: &mut Check) -> Result<()> {
     let t = c.get(audit, &format!("/api/trail/ratify/{feb}")).await?;
     ensure!(kinds(&t) == ["변경", "재검토", "재검토", "작업", "추인", "종결"] && edges(&t).len() == 6, "결정까지의 경위 {t}");
     ensure!(node(&t, "추인")["who"] == json!({ "role": exec, "reason": { "class": "미인지", "memo": "당시에는 알 수 없었다" } }) && node(&t, "종결")["who"]["role"] == audit && t["now"] == work.as_str(), "결정의 사람과 사유 {t}");
+    // 승인하지 않은 채 변경이 들어와 합쳐진 대기 심사: 변경 → 그 심사(시나리오 4의 8. 지급도 추인도 없다)
+    c.reset().await?;
+    ensure!(c.post(support, "/api/change", json!({ "id": "D-034", "item": "주소", "value": "고양시 중앙로 128", "since": "2026-02-01" })).await?.0 == 200, "변경");
+    let t = c.get(exec, &format!("/api/trail/review/{r34}")).await?;
+    ensure!(kinds(&t) == ["변경", "심사"] && t["now"] == format!("r:{r34}").as_str() && node(&t, "변경")["name"] == "한라인상사34 주소", "변경으로 합쳐진 심사의 경위 {t}");
     // 재심사된 적 없는 지급은 지급 표시(remit)를 한 날이 지급 칸의 날짜다. 표시 전에는 미상
     c.reset().await?;
     ensure!(c.post(support, "/api/decide", json!({ "ids": [r34], "kind": "승인", "reason": { "class": "경미" } })).await?.0 == 200, "승인");

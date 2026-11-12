@@ -7,14 +7,18 @@ import { useEffect, useState } from 'react'
 import { L } from '../../labels'
 import type { Piece } from '../../pieces'
 import { api, changedAtom, roleAtom, store, targetAtom } from '../../state'
+import { Button } from '@astryxdesign/core/Button'
+import { Link } from '@astryxdesign/core/Link'
+import { Text } from '@astryxdesign/core/Text'
 import { Compare } from '../../ui/Compare'
 import { Empty } from '../../ui/Empty'
 import { Figures } from '../../ui/Figures'
+import { grade } from '../../ui/grade'
 import { Mark } from '../../ui/Mark'
 import { Pill } from '../../ui/Pill'
 import { Reason, blank, ready, sent as filled } from '../../ui/Reason'
+import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
-import { button, label } from '../../ui/styles'
 import { Table, num } from '../../ui/Table'
 import { Title } from '../../ui/Title'
 import { Line } from '../04-심사'
@@ -51,14 +55,14 @@ function useBundle() {
 const size = (n: number) => (n === 1 ? L.단독 : `${n}${L.곳}`)
 const uniq = (list: string[]) => [...new Set(list)].join(' · ')
 
-/** 제목 줄과 현재 계산의 숫자 줄 */
+/** 머리(가운데 위에 고정): 제목 줄과 현재 계산의 숫자 줄 */
 function Head() {
   const b = useBundle()
   if (!b) return null
   const r = b.ratify
   return (
-    <div className="mb-4 flex flex-col gap-2">
-      <Title name={r.name} sub={`· ${r.ym}`}>
+    <>
+      <Title name={r.name} sub={r.ym}>
         {r.marks.map((m) => (
           <Mark key={m}>{m}</Mark>
         ))}
@@ -70,20 +74,16 @@ function Head() {
           [L.승인권자, r.approver],
         ]}
       >
-        <Source kind={r.source}>
-          <dl className="grid grid-cols-2 gap-x-2 gap-y-1">
-            <dt className={label}>{L.현재}</dt>
-            <dd>{L['귀속월의 식별자, 규칙 버전']}</dd>
-            <dt className={label}>{L.구성}</dt>
-            <dd>{b.members.map((m) => m.name).join(' · ')}</dd>
-            <dt className={label}>{L.합산}</dt>
-            <dd>{L['귀속월 지급의 합, 반려 제외']}</dd>
-            <dt className={label}>{L.재검토}</dt>
-            <dd>{L['당시 영업지원, 현재 영업임원']}</dd>
-          </dl>
-        </Source>
+        <Source
+          kind={r.source}
+          tip={`${L.합산} · ${L.승인권자}`}
+          rows={[
+            [L.합산, L['귀속월 지급의 합, 반려 제외']],
+            [L.구성, b.members.map((m) => m.name).join(' · ')],
+          ]}
+        />
       </Figures>
-    </div>
+    </>
   )
 }
 
@@ -94,8 +94,20 @@ function Then() {
   if (!b) return null
   return (
     <>
-      <section className="mb-4 flex flex-col gap-2">
-        <h2 className={label}>{L.재검토}</h2>
+      <Region
+        title={L.재검토}
+        aside={
+          <Source
+            kind={b.ratify.source}
+            side="right"
+            tip={`${L.당시} · ${L.현재}`}
+            rows={[
+              [L.현재, L['귀속월의 식별자, 규칙 버전']],
+              [L.재검토, L['당시 영업지원, 현재 영업임원']],
+            ]}
+          />
+        }
+      >
         <Compare
           head={[L.당시, L.현재]}
           rows={[
@@ -103,23 +115,22 @@ function Then() {
             [L.승인권자, uniq(b.reviews.map((r) => r.approver)), b.ratify.approver],
           ]}
         />
-      </section>
-      <section className="mb-4 flex flex-col gap-2">
-        <h2 className={label}>{L.심사}</h2>
+      </Region>
+      <Region title={L.심사}>
         <Table
           head={[L.대상, L.금액, L.승인권자, L.지급일, L.출처]}
           right={[1]}
           rows={b.reviews.map((r) => [
-            <button className="cursor-pointer text-action hover:text-action-hover" onClick={() => setTarget({ kind: L.심사, id: r.id })}>
+            <Link weight="medium" onClick={() => setTarget({ kind: L.심사, id: r.id })}>
               {r.name}
-            </button>,
+            </Link>,
             num(r.total),
             r.approver,
             r.paid ?? L.미상,
             <Source kind={r.source} file={r.file ?? undefined} row={r.row ?? undefined} />,
           ])}
         />
-      </section>
+      </Region>
     </>
   )
 }
@@ -140,14 +151,14 @@ function Action() {
       <Line d={last} />
     ) : (
       <div className="flex items-baseline gap-2">
-        <span className={label}>{L.담당}</span>
-        <span className="text-figure">{b.role}</span>
+        <Text type="supporting">{L.담당}</Text>
+        <Text weight="semibold">{b.role}</Text>
       </div>
     )
   return (
     <div className="flex flex-wrap items-center gap-2">
       {b.actions.map((a) => (
-        <button key={a.kind} className={button} disabled={sent === b || !ready(a.kind, a.reason, reason)}
+        <Button key={a.kind} label={a.kind} variant={grade(a.kind)} isDisabled={sent === b || !ready(a.kind, a.reason, reason)}
           onClick={() => {
             setSent(b)
             setBad(null)
@@ -159,9 +170,7 @@ function Action() {
               },
             )
           }}
-        >
-          {a.kind}
-        </button>
+        />
       ))}
       {bad && <Pill tone="bad">{bad}</Pill>}
     </div>
@@ -197,17 +206,17 @@ function Way() {
   if (!b) return null
   return (
     <div className="flex items-baseline gap-2">
-      <span className={label}>{L.추인}</span>
-      <button className="cursor-pointer text-action hover:text-action-hover" onClick={() => store.set(targetAtom, { kind: L.추인, id: b.id })}>
+      <Text type="supporting">{L.추인}</Text>
+      <Link onClick={() => store.set(targetAtom, { kind: L.추인, id: b.id })}>
         {b.name} · {b.ym}
-      </button>
+      </Link>
     </div>
   )
 }
 
 export default [
   { slot: 'action', kind: L.심사, order: 10, View: Way },
-  { slot: 'fact', kind: L.추인, order: -40, View: Head },
+  { slot: 'head', kind: L.추인, View: Head },
   { slot: 'fact', kind: L.추인, order: -30, View: Then },
   { slot: 'action', kind: L.추인, View: Action },
   { slot: 'reason', kind: L.추인, View: Box },

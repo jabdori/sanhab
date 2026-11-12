@@ -1,47 +1,49 @@
+import { Button } from '@astryxdesign/core/Button'
+import { Card } from '@astryxdesign/core/Card'
+import { Heading } from '@astryxdesign/core/Heading'
+import { TextInput } from '@astryxdesign/core/TextInput'
+import { Text } from '@astryxdesign/core/Text'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { useState } from 'react'
 import { APP, L } from './labels'
 import { api, roleAtom, rolesAtom } from './state'
 import { Pill } from './ui/Pill'
-import { button, label } from './ui/styles'
 
 /** 접속 패스워드 → 역할 고르기 */
 export function Enter() {
   const roles = useAtomValue(rolesAtom)
   const setRole = useSetAtom(roleAtom)
+  const [pass, setPass] = useState('')
   const [bad, setBad] = useState(false)
   return (
-    <main className="flex h-screen items-center justify-center bg-bg">
-      <div className="flex w-list flex-col gap-4 rounded-box border border-line bg-bg p-6">
-        <h1 className="text-title">{APP}</h1>
-        {roles.length === 0 ? (
-          <form
-            className="flex flex-col gap-4"
-            onSubmit={(e) => {
-              e.preventDefault()
-              api('/enter', { pass: new FormData(e.currentTarget).get('pass') }).then(() => setBad(false), () => setBad(true))
-            }}
-          >
-            <label className="flex flex-col gap-1">
-              <span className={label}>{L['접속 패스워드']}</span>
-              <input name="pass" type="password" required autoFocus className="h-head rounded-box border border-line px-2 text-body outline-action" />
-            </label>
-            <div className="flex items-center gap-2">
-              <button className={button}>{L.접속}</button>
-              {bad && <Pill tone="bad">{L.불일치}</Pill>}
+    <main className="flex h-screen items-center justify-center bg-body">
+      <Card width="var(--spacing-list)" padding={6}>
+        <div className="flex flex-col gap-4">
+          <Heading level={1}>{APP}</Heading>
+          {roles.length === 0 ? (
+            <form
+              className="flex flex-col gap-4"
+              onSubmit={(e) => {
+                e.preventDefault()
+                api('/enter', { pass }).then(() => setBad(false), () => setBad(true))
+              }}
+            >
+              <TextInput type="password" label={L['접속 패스워드']} value={pass} onChange={setPass} hasAutoFocus htmlName="pass" />
+              <div className="flex items-center gap-2">
+                <Button type="submit" variant="primary" label={L.접속} />
+                {bad && <Pill tone="bad">{L.불일치}</Pill>}
+              </div>
+            </form>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <Text type="supporting">{L.역할}</Text>
+              {roles.map((r) => (
+                <Button key={r.role} label={r.role} width="100%" onClick={() => setRole(r.role)} />
+              ))}
             </div>
-          </form>
-        ) : (
-          <div className="flex flex-col gap-1">
-            <span className={label}>{L.역할}</span>
-            {roles.map((r) => (
-              <button key={r.role} className={`${button} text-left`} onClick={() => setRole(r.role)}>
-                {r.role}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      </Card>
     </main>
   )
 }

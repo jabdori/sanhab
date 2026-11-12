@@ -50,19 +50,42 @@ const TABLE: &str = "| 숫자가 기대는 가정 |";
 /// ① **가정**으로 표시된 줄마다 하나: 그 줄이 속한 결정의 번호와 제목
 /// ② "숫자가 기대는 가정" 표의 줄마다 하나: 제목은 첫 칸. 근거가 "가정 아님"인 줄과, 근거가 ①에서 이미 모은 결정 번호뿐인 줄은 뺀다
 fn assumes() -> Vec<J> {
+    marked("**가정**", "가정")
+}
+
+/// 스펙에서 `**시연**`으로 표시된 줄(D58의 시연 호실처럼 원본에 없어 넣은 값): 화면의 출처는 합성. 모양은 가정과 같다(표의 줄은 없다)
+fn synths() -> Vec<J> {
+    marked("**시연**", "합성")
+}
+
+/// 결정(`### Dn. 제목`)의 본문: 제목 줄 다음부터 다음 제목 앞까지, 굵은 표시를 뗀 글 그대로. 출처 표지의 설명 칸이 "왜"로 보인다
+fn body(id: &str) -> String {
+    let mut out = vec![];
+    let mut on = false;
+    for line in SPEC.1.lines() {
+        if line.starts_with('#') {
+            on = line.strip_prefix("### ").and_then(|h| h.split_once(". ")).is_some_and(|h| h.0 == id);
+        } else if on {
+            out.push(line.replace("**", ""));
+        }
+    }
+    out.join("\n").trim().to_string()
+}
+
+fn marked(mark: &str, source: &str) -> Vec<J> {
     let mut head = ("", "");
     let mut table = false;
     let (mut out, mut rows) = (vec![], vec![]);
     for (i, line) in SPEC.1.lines().enumerate() {
         let one = |id: &str, title: &str, text: &str| {
             let used = USED.iter().find(|u| u.0 == id).map_or(&[][..], |u| u.1);
-            json!({ "id": id, "title": title, "text": text, "file": SPEC.0, "row": i + 1, "used": used, "source": "가정" })
+            json!({ "id": id, "title": title, "text": text, "body": body(id), "file": SPEC.0, "row": i + 1, "used": used, "source": source, "since": super::t01_base::START })
         };
         if let Some(h) = line.strip_prefix("### ").and_then(|h| h.split_once(". ")) {
             head = h;
-        } else if line.contains("**가정**") {
+        } else if line.contains(mark) {
             out.push(one(head.0, head.1, &line.replace("**", "")));
-        } else if line.starts_with(TABLE) {
+        } else if mark == "**가정**" && line.starts_with(TABLE) {
             table = true;
         } else if table && line.starts_with('|') {
             let cells: Vec<&str> = line.trim_matches('|').split('|').map(str::trim).collect();
@@ -75,6 +98,8 @@ fn assumes() -> Vec<J> {
     }
     let rows: Vec<J> = rows.into_iter().filter(|(why, _)| !why.contains("가정 아님") && !out.iter().any(|a| a["id"] == *why)).map(|r| r.1).collect();
     out.extend(rows);
+    // 스펙의 행 순서(D46의 표 줄이 D47 앞에 온다)
+    out.sort_by_key(|a| a["row"].as_u64());
     out
 }
 
@@ -82,7 +107,8 @@ pub fn routes() -> Router<std::sync::Arc<Db>> {
     Router::new().route("/rules", get(rules))
 }
 
-/// 규정: 조항(`clauses`), 규칙 버전(`rules`: 시행 기간 `since`·`until`, 이전 버전 `prev`), 가정(`assumes`: `used`는 쓰인 곳 — `id`가 있으면 그 기록으로 갈 수 있다)
+/// 규정: 조항(`clauses`), 규칙 버전(`rules`: 시행 기간 `since`·`until`, 이전 버전 `prev`), 가정(`assumes`: `used`는 쓰인 곳 — `id`가 있으면 그 기록으로 갈 수 있다, `body`는 그 결정의 본문, `since`는 적용 시점 — 기준일부터),
+/// 합성(`synths`: 스펙이 시연으로 넣는다고 적은 값. 모양은 가정과 같다). 화면의 출처 표지가 설명 칸을 여기서 채운다
 async fn rules(Extension(me): Extension<Me>) -> R {
     let day = |f: &str| format!("IF {f} THEN time::format({f}, '%Y-%m-%d') END AS {f}");
     let mut r = q1(&me.db, &format!("
@@ -102,6 +128,7 @@ async fn rules(Extension(me): Extension<Me>) -> R {
     }
     r.as_object_mut().map(|o| o.remove("ways"));
     r["assumes"] = json!(list);
+    r["synths"] = json!(synths());
     Ok(Json(r))
 }
 
@@ -192,6 +219,13 @@ mod tests {
         for (id, _) in USED {
             assert!(a.iter().any(|x| x["id"] == *id), "{id}");
         }
+        // 결정의 본문: 제목 줄은 빼고 그 절의 글만, 굵은 표시 없이
+        let d30 = a.iter().find(|x| x["id"] == "D30").unwrap();
+        let b = d30["body"].as_str().unwrap();
+        assert!(b.starts_with("회사(서비스) 쪽에서 보는 날짜는 둘이다.") && b.ends_with("가정 — \"늦다\"의 기준 일수.") && !b.contains("**") && !b.contains("###"), "{b}");
+        // 합성: 시연 호실(D58) 하나
+        let s = synths();
+        assert!(s.len() == 1 && s[0]["id"] == "D58" && s[0]["source"] == "합성" && s[0]["body"].as_str().unwrap().contains("101호"), "{s:?}");
         // 가는 길의 낱말은 쓰인 곳의 낱말이다
         for (w, _, _) in WAYS {
             assert!(USED.iter().any(|u| u.1.contains(w)), "{w}");
