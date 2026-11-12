@@ -24,7 +24,7 @@ type Bundle = {
   ratify: { id: string; name: string; ym: string; marks: string[]; total: number; limit: number; approver: string; source: string }
   members: { id: string; name: string }[]
   /** 그 달의 재검토인 과거의 승인. 값은 당시의 것 */
-  reviews: { id: string; name: string; total: number; approver: string; paid: string | null; source: string; file: string | null; row: number | null }[]
+  reviews: { id: string; name: string; members: number; total: number; approver: string; paid: string | null; source: string; file: string | null; row: number | null }[]
   /** 결정을 보낼 심사(묶음의 첫 건) */
   target: string
   /** 지금 차례인 역할. 종결됐으면 없다 */
@@ -99,7 +99,7 @@ function Then() {
         <Compare
           head={[L.당시, L.현재]}
           rows={[
-            [L.구성, L.단독, size(b.members.length)],
+            [L.구성, uniq(b.reviews.map((r) => size(r.members))), size(b.members.length)],
             [L.승인권자, uniq(b.reviews.map((r) => r.approver)), b.ratify.approver],
           ]}
         />

@@ -36,7 +36,7 @@ pub struct Now {
 pub async fn current(db: &Db) -> Result<BTreeMap<String, Now>> {
     let r = q1(db, "
         RETURN {
-            reviews: (SELECT record::id(id) AS id, ym, members.map(|$d| record::id($d)) AS members, approver FROM review WHERE fixed != NONE AND status = '승인'),
+            reviews: (SELECT record::id(id) AS id, ym, members.map(|$d| record::id($d)) AS members, approver FROM review WHERE fixed != NONE AND status = '승인' AND marks CONTAINSNOT '재심사'),
             pays: (SELECT record::id(id) AS id, record::id((->payout_of->dealer)[0]) AS dealer, ym, amount, status, true AS open FROM payout),
             rules: (SELECT record::id(id) AS id, name, value, IF since THEN time::format(since, '%Y-%m-%d') END AS since, IF until THEN time::format(until, '%Y-%m-%d') END AS until FROM rule),
         };", json!({})).await?;

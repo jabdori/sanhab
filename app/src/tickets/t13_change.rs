@@ -67,6 +67,7 @@ async fn change(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<M
 /// 그 지급이 든 새 심사의 이력으로 옮겨(`moved`, 옛 심사의 이름 `was`) 보이고, 새 심사는 대기로 다시 시작하며(심사 작업도 대기) 남은 재상신 작업은 닫는다.
 /// 선을 바꾸는 다른 티켓(20 소명 …)도 `recalc` 대신 이것을 부르면 같은 규칙이 따른다
 pub async fn regroup(db: &Db) -> Result<()> {
+    super::t14_redo::rework(db).await?;
     let plan = compute(db, &[]).await?;
     let open = q1(db, "SELECT record::id(id) AS id, name, members.map(|$d| record::id($d)) AS members, payouts.map(|$p| record::id($p)) AS payouts FROM review
         WHERE fixed = NONE AND (count(SELECT id FROM decision WHERE (review = $parent.id AND was = NONE) OR moved = $parent.id) > 0

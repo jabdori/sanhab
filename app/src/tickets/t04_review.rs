@@ -81,6 +81,8 @@ pub fn plan(ym: &str, groups: &[Vec<String>], pays: &[Pay], limit: i64) -> Vec<J
 /// 굳지 않은 심사를 지금의 선과 규칙으로 다시 만든다(구성·합산·승인권자·규칙 버전, 심사 작업의 담당). 굳은 심사는 건드리지 않는다.
 /// 그룹이 바뀌어 없어진 심사는 그 작업과 함께 지운다. 상태와 표시는 남는다
 pub async fn recalc(db: &Db) -> Result<()> {
+    // 14: 승인권자가 올라간 지급 전의 승인은 먼저 재심사로 돌린다(재심사인 지급은 다시 심사를 기다리는 것이 된다)
+    super::t14_redo::rework(db).await?;
     let all = compute(db, &[]).await?;
     q(db, "
         BEGIN;
@@ -109,7 +111,7 @@ pub async fn compute(db: &Db, extra: &[Link]) -> Result<Vec<J>> {
     let r = q1(db, "
         LET $taken = array::flatten((SELECT VALUE payouts FROM review WHERE fixed != NONE));
         RETURN {
-            pays: (SELECT record::id(id) AS id, record::id((->payout_of->dealer)[0]) AS dealer, ym, amount, status, status = '미지급' AND id NOTINSIDE $taken AS open FROM payout),
+            pays: (SELECT record::id(id) AS id, record::id((->payout_of->dealer)[0]) AS dealer, ym, amount, status, status = '미지급' AND (id NOTINSIDE $taken OR state = '재심사') AS open FROM payout),
             rules: (SELECT record::id(id) AS id, name, value, IF since THEN time::format(since, '%Y-%m-%d') END AS since, IF until THEN time::format(until, '%Y-%m-%d') END AS until FROM rule),
             names: (SELECT record::id(id) AS id, name FROM dealer),
             fixed: (SELECT VALUE record::id(id) FROM review WHERE fixed != NONE),
