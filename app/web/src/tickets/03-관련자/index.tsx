@@ -1,5 +1,4 @@
 // 03 관련자: 대리점 기록의 "관계"(그림과 같은 내용의 표, 그룹). 값은 서버가 조회할 때 계산한다.
-import { Badge } from '@astryxdesign/core/Badge'
 import { HStack, VStack } from '@astryxdesign/core/Layout'
 import { Table, proportional } from '@astryxdesign/core/Table'
 import { Text } from '@astryxdesign/core/Text'
@@ -11,7 +10,7 @@ import { Empty } from '../../ui/Empty'
 import { Region } from '../../ui/Region'
 import { Relation } from '../../ui/Relation'
 import { Source } from '../../ui/Source'
-import { match } from '../../ui/status'
+import {  } from '../../ui/status'
 import { Dealer } from '../02-대리점'
 
 type Dlr = { id: string; name: string }
@@ -61,12 +60,12 @@ export function Links() {
                 renderCell: (n) => (
                   <HStack gap={1} wrap="wrap">
                     {n.match.map((k) => (
-                      <Token key={k} size="sm" color={match(k)} label={k} />
+                      <Token key={k} size="sm" label={k} />
                     ))}
                   </HStack>
                 ),
               },
-              { key: 'related', header: L.관련자, width: proportional(1, { minWidth: 72 }), renderCell: (n) => (n.related ? <Badge variant="info" label={L.관련자} /> : <Text color="secondary">{L.없음}</Text>) },
+              { key: 'related', header: L.관련자, width: proportional(1, { minWidth: 72 }), renderCell: (n) => (n.related ? <Token size="sm" label={L.관련자} /> : <Text color="secondary">{L.없음}</Text>) },
             ]}
           />
           {d.group.length > 1 && (

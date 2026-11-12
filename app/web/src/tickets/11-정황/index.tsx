@@ -16,7 +16,7 @@ import { Mark } from '../../ui/Mark'
 import { Region } from '../../ui/Region'
 import { Relation } from '../../ui/Relation'
 import { DECISION, Source } from '../../ui/Source'
-import { badge, num } from '../../ui/status'
+import { badge, caution, num, signalDot } from '../../ui/status'
 import { useReview } from '../04-심사/review'
 import { useReport } from '../17-보고/report'
 import { type Evidence as Ev, markAtom, useSignal } from './signal'
@@ -68,7 +68,7 @@ export function Evidence() {
                         <HStack gap={2} vAlign="center" wrap="wrap">
                           <Text hasTabularNumbers>{`${L.변경일} ${e.at}`}</Text>
                           <Text color="secondary" hasTabularNumbers>{`${L.인지일} ${e.known}`}</Text>
-                          <Badge variant="warning" label={`${e.days}${L.일}`} />
+                          <Badge variant={caution} label={`${e.days}${L.일}`} />
                           <Source kind={L.계산} tip={`${L.지연} ${e.days}${L.일}`} rows={[[L.지연, `${e.days}${L.일}`]]} />
                         </HStack>
                       ) : (
@@ -152,13 +152,13 @@ export function Flags() {
   if (!on || !list) return null
   // ItemWithMetadata 꼴: 주의 점 · 정황 이름 / 종류 · 상태 Badge. 누르면 그 정황이 열린다. 기준이 가정인 종류(근접 D51, 지연 D30)는 그 가정의 표지
   return (
-    <Region title={L.정황} aside={<Badge variant="warning" label={String(list.length)} />}>
+    <Region title={L.정황} aside={<Badge variant="neutral" label={String(list.length)} />}>
       <List density="compact" hasDividers>
         {list.map((s) => (
           <ListItem
             key={s.id}
             label={s.name}
-            startContent={<StatusDot variant={s.state === L.해소 || s.state === L.기각 ? 'neutral' : 'warning'} label={s.state} />}
+            startContent={<StatusDot variant={signalDot(s.state)} label={s.state} />}
             endContent={
               <HStack gap={2} vAlign="center">
                 {DECISION[s.kind] && <Source kind={L.가정} of={s.kind} />}

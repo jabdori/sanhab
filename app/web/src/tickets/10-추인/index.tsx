@@ -22,7 +22,7 @@ import { Mark } from '../../ui/Mark'
 import { Act, byGrade, Tiles } from '../../ui/Record'
 import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
-import { num } from '../../ui/status'
+import { fail, meter, num } from '../../ui/status'
 import { Line } from '../04-심사'
 import { type Decision, useReview } from '../04-심사/review'
 
@@ -70,7 +70,7 @@ export function RatifyTiles() {
           name: L.합산,
           value: num(r.total),
           below: (
-            <ProgressBar label={L.한도} isLabelHidden value={Math.min(r.total, r.limit)} max={r.limit} variant={over ? 'error' : 'accent'} hasValueLabel formatValueLabel={() => `${Math.round((r.total / r.limit) * 100)}%`} />
+            <ProgressBar label={L.한도} isLabelHidden value={Math.min(r.total, r.limit)} max={r.limit} variant={meter(over)} hasValueLabel formatValueLabel={() => `${Math.round((r.total / r.limit) * 100)}%`} />
           ),
           aside: (
             <Source
@@ -83,7 +83,7 @@ export function RatifyTiles() {
             />
           ),
         },
-        { name: L.한도, value: num(r.limit), below: over && <Badge variant="error" label={`+${num(r.total - r.limit)}`} /> },
+        { name: L.한도, value: num(r.limit), below: over && <Badge variant={fail} label={`+${num(r.total - r.limit)}`} /> },
         {
           name: L.승인권자,
           value: (

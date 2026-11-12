@@ -14,7 +14,7 @@ import { api, changedAtom, store, targetAtom } from '../state'
 import { Region } from '../ui/Region'
 import { Act, Meta, RecordPage, Tiles } from '../ui/Record'
 import { Source } from '../ui/Source'
-import { badge, match } from '../ui/status'
+import { badge } from '../ui/status'
 import { Docs, ClarifyHistory, Letter, letterAtom } from '../tickets/18-발송'
 import { type Clarify as Data, useClarify } from '../tickets/18-발송/clarify'
 import { OriginalDoc, Read, Upload } from '../tickets/19-서류'
@@ -57,7 +57,7 @@ export function Clarify() {
           ? [
               <HStack gap={1} vAlign="center">
                 {d.kinds.map((k) => (
-                  <Token key={k} size="sm" color={match(k)} label={k} />
+                  <Token key={k} size="sm" label={k} />
                 ))}
                 {/* 일치는 계산(정황의 근거에서 고른 종류) */}
                 <Source kind={c.source} tip={`${L.정황} · ${L.일치}`} rows={[...(c.signal ? ([[L.정황, c.signal.name]] as [string, string][]) : []), [L.일치, d.kinds.join(' · ')]]} />

@@ -15,7 +15,7 @@ import { api, store } from '../../state'
 import { Empty } from '../../ui/Empty'
 import { Act } from '../../ui/Record'
 import { Source } from '../../ui/Source'
-import { badge } from '../../ui/status'
+import { badge, fail } from '../../ui/status'
 import { Line } from '../04-심사'
 import { markAtom, useSignal } from '../11-정황/signal'
 import { tickAtom, useReport } from './report'
@@ -87,7 +87,7 @@ function Head() {
           }}
         />
       )}
-      {bad && <Badge variant="error" label={bad} />}
+      {bad && <Badge variant={fail} label={bad} />}
     </HStack>
   )
 }
@@ -161,7 +161,7 @@ function Decide() {
           {actions.map((a) => (
             <Act key={a.kind} kind={a.kind} classes={a.classes} must={a.reason} target={signal.signal.name} send={(reason) => (setBad(null), api('/adopt', { id, kind: a.kind, reason: reason ?? undefined }).catch((e: Error) => setBad(e.message)))} />
           ))}
-          {bad && <Badge variant="error" label={bad} />}
+          {bad && <Badge variant={fail} label={bad} />}
         </HStack>
       )}
       {x && (

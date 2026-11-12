@@ -18,7 +18,7 @@ import { Empty } from '../../ui/Empty'
 import { Act, byGrade } from '../../ui/Record'
 import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
-import { badge, match } from '../../ui/status'
+import { badge, fail } from '../../ui/status'
 import { useClarify } from '../18-발송/clarify'
 import { bin, useDocs } from '../19-서류/docs'
 import { type Verdict, useVerdict } from './verdict'
@@ -38,7 +38,7 @@ export function Excluded() {
         idKey={(e) => `${e.item}/${e.value}`}
         density="compact"
         columns={[
-          { key: 'item', header: L.종류, width: proportional(1, { minWidth: 64 }), renderCell: (e) => <Token size="sm" color={match(e.item)} label={e.item} /> },
+          { key: 'item', header: L.종류, width: proportional(1, { minWidth: 64 }), renderCell: (e) => <Token size="sm" label={e.item} /> },
           { key: 'value', header: L.식별자, width: proportional(2, { minWidth: 96 }), renderCell: (e) => <Text weight="semibold">{e.value}</Text> },
           { key: 'span', header: L.기간, width: proportional(2, { minWidth: 120 }), renderCell: (e) => <Text hasTabularNumbers>{span(e.since, e.until) ?? L.없음}</Text> },
         ]}
@@ -151,7 +151,7 @@ export function Intake() {
     // 영역(Region) 한 장: 대리점 · 일치 · 서류를 고르고 접수(영역 조치). 접수는 흐름(소명)을 앞으로 보내는 조치라 이 영역의 주 버튼(primary)
     <Region
       title={L.접수}
-      aside={bad ? <Badge variant="error" label={bad} /> : undefined}
+      aside={bad ? <Badge variant={fail} label={bad} /> : undefined}
       actions={
         <Confirm
           label={L.접수}

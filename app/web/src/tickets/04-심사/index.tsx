@@ -14,7 +14,7 @@ import { Line as Row } from '../../ui/Line'
 import { Region } from '../../ui/Region'
 import { Relation } from '../../ui/Relation'
 import { Source } from '../../ui/Source'
-import { match } from '../../ui/status'
+import {  } from '../../ui/status'
 import { num } from '../../ui/status'
 import { type Decision, type Review, useReview } from './review'
 
@@ -58,7 +58,7 @@ export function Members() {
               p.match.length ? (
                 <HStack gap={1} wrap="wrap">
                   {p.match.map((k) => (
-                    <Token key={k} size="sm" color={match(k)} label={k} />
+                    <Token key={k} size="sm" label={k} />
                   ))}
                 </HStack>
               ) : (

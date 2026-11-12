@@ -21,8 +21,8 @@ import { useAtomValue } from 'jotai'
 import { useEffect, useRef, useState } from 'react'
 import { ASK, L } from '../../labels'
 import { api, changedAtom, roleAtom, rolesAtom, store, targetAtom, type Target } from '../../state'
-import { badge } from '../../ui/status'
-import { Card, type CardData } from '../25-카드'
+import { badge, fail } from '../../ui/status'
+import { Card as ActionCard, type CardData } from '../25-카드'
 
 /** 답에 붙는 조회한 기록(서버가 `data-reads`로 보낸다). go는 이름과 같은 순서의 여는 길(열 화면이 없는 기록은 null) */
 type Talk = UIMessage<never, { reads: { names: string[]; go?: (Target | null)[] }; card: CardData; doc: { id: string; name: string } }>
@@ -41,7 +41,7 @@ const word = (e: Error) => {
 }
 
 /** 실패의 표지: AI가 응답하지 않으면 `대기`(17의 보고와 같은 뜻), 그 밖의 낱말(대상 · 오류)은 그대로 */
-const Mark = ({ word }: { word: string }) => <Badge variant={word === L.대기 ? 'neutral' : 'error'} label={word} />
+const Mark = ({ word }: { word: string }) => <Badge variant={word === L.대기 ? 'neutral' : fail} label={word} />
 
 function Panel() {
   const target = useAtomValue(targetAtom)
@@ -226,7 +226,7 @@ function Panel() {
                   )}
                   {cards.map((c) => (
                     <ChatMessageBubble key={`${c.kind}/${c.id}/${c.action}`} variant="ghost" width="100%">
-                      <Card card={c} />
+                      <ActionCard card={c} />
                     </ChatMessageBubble>
                   ))}
                 </ChatMessage>

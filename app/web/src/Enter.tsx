@@ -10,6 +10,7 @@ import { BanknotesIcon } from '@heroicons/react/24/outline'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { useState } from 'react'
 import { APP, L } from './labels'
+import { fail } from './ui/status'
 import { api, roleAtom, rolesAtom } from './state'
 
 /** 접속 패스워드 → 역할 고르기 */
@@ -51,7 +52,7 @@ export function Enter() {
                   }}
                   hasAutoFocus
                   htmlName="pass"
-                  status={bad ? { type: 'error', message: L.불일치 } : undefined}
+                  status={bad ? { type: fail, message: L.불일치 } : undefined}
                 />
                 <Button type="submit" variant="primary" size="lg" label={L.접속} isLoading={busy} />
               </VStack>

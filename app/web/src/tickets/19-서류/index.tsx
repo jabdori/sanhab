@@ -16,7 +16,7 @@ import { menuAtom, targetAtom, useData } from '../../state'
 import { Empty } from '../../ui/Empty'
 import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
-import { badge } from '../../ui/status'
+import { badge, fail } from '../../ui/status'
 import { bin, type Doc, pick, pickAtom, range, seeAtom, tickAtom, useDoc, useDocs } from './docs'
 
 type Row = Doc['rows'][number] & Record<string, unknown>
@@ -240,7 +240,7 @@ export function Upload() {
   return (
     <Region
       title={L.접수}
-      aside={bad ? <Badge variant="error" label={bad} /> : undefined}
+      aside={bad ? <Badge variant={fail} label={bad} /> : undefined}
       actions={<Button label={L.접수} variant="primary" isDisabled={!file || busy} onClick={go} />}
     >
       <FileInput label={L.서류} isLabelHidden placeholder={L.서류} width="100%" accept={d.kinds.join(',')} value={file} onChange={(f) => setFile(f as File | null)} />

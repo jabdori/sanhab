@@ -1,63 +1,46 @@
-// 상태와 표시의 낱말 → astryx 변형. 화면은 이 값을 Badge · Token · StatusDot에 직접 넘긴다(색은 언제나 글자와 함께).
+// 낱말 → astryx 색 변형의 대응은 이 파일 한 곳에만 둔다(tokens.md의 "색 — 의미가 있을 때만"). 다른 파일은 색 이름을 쓰지 않는다(lint가 막는다).
+// 색은 주의(warning) · 오류(error) · 완료(success)뿐이고 나머지는 neutral이다. 분류 · 일치 · 출처 · 규칙에는 색을 주지 않는다.
 import { ArrowPathIcon, CheckIcon, FlagIcon, NoSymbolIcon, StopIcon } from '@heroicons/react/24/outline'
 import { L } from '../labels'
 
-type BadgeVariant = 'neutral' | 'info' | 'success' | 'warning' | 'error' | 'purple'
+type Tone = 'neutral' | 'success' | 'warning' | 'error'
 
-/** 처리 상태(심사 · 지급 · 정황 · 보고) → Badge 변형 */
-const STATE: Record<string, BadgeVariant> = {
-  [L.대기]: 'neutral',
-  [L.승인]: 'success',
-  [L.보류]: 'warning',
-  [L.반려]: 'error',
-  [L.재심사]: 'purple',
-  [L.이체]: 'info',
-  [L.완료]: 'success',
-  [L.접수]: 'neutral',
-  [L.요청]: 'info',
-  [L.기각]: 'neutral',
-  [L.해소]: 'success',
-  [L.검토]: 'info',
-  [L.채택]: 'success',
-  [L.불채택]: 'error',
-  [L.오류]: 'error',
-  [L.인정]: 'success',
-  [L.불인정]: 'error',
-  [L.보완]: 'warning',
-  [L.미응답]: 'warning',
-  [L.일치]: 'success',
-  [L.불일치]: 'error',
-  [L.성공]: 'success',
-  [L.실패]: 'error',
-  [L.누락]: 'error',
-  [L.정산]: 'success',
-  [L.추인]: 'success',
-  [L.거부]: 'error',
+const SUCCESS = [L.승인, L.완료, L.해소, L.채택, L.인정, L.일치, L.성공, L.정산, L.추인]
+const WARNING = [L.보류, L.보완, L.미응답, L.재심사]
+const ERROR = [L.반려, L.불채택, L.오류, L.불인정, L.불일치, L.실패, L.누락, L.거부]
+
+/** 상태(심사 · 지급 · 정황 · 소명 · 보고 · 대사의 비교) → Badge 변형 */
+export const badge = (state: string): Tone =>
+  (SUCCESS as string[]).includes(state) ? 'success' : (WARNING as string[]).includes(state) ? 'warning' : (ERROR as string[]).includes(state) ? 'error' : 'neutral'
+
+/** 서버가 거절한 낱말(권한 · 사유 · 상태 · 대상)과 실패 → 오류 */
+export const fail = 'error' as const
+
+/** 주의가 필요한 수(지연 n일 · 걸린 정황 수 …) → 주의 */
+export const caution = 'warning' as const
+
+/** 한도 대비 막대: 넘으면 오류, 아니면 테마의 강조색 */
+export const meter = (over: boolean) => (over ? ('error' as const) : ('accent' as const))
+
+/** 표시 → 아이콘. 정황(과 정황의 가설)만 주의(warning Badge)이고 나머지는 색 없는 Token */
+const ICON: Record<string, typeof FlagIcon> = {
+  [L.정황]: FlagIcon,
+  [L.가설]: FlagIcon,
+  [L.재검토]: ArrowPathIcon,
+  [L.재심사]: ArrowPathIcon,
+  [L.추인]: CheckIcon,
+  [L.정산]: CheckIcon,
+  [L.거부]: NoSymbolIcon,
+  [L.종결]: StopIcon,
 }
-export const badge = (state: string): BadgeVariant => STATE[state] ?? 'neutral'
+export const mark = (m: string) => ({ icon: ICON[m] ?? FlagIcon, caution: m === L.정황 || m === L.가설 })
 
-/** 표시(정황 · 재검토 …) → Token 색과 아이콘. 정황만 주의 색이다 */
-const MARK: Record<string, { color: 'orange' | 'purple' | 'blue' | 'red' | 'gray' | 'green'; icon: typeof FlagIcon }> = {
-  [L.정황]: { color: 'orange', icon: FlagIcon },
-  [L.재검토]: { color: 'purple', icon: ArrowPathIcon },
-  [L.재심사]: { color: 'purple', icon: ArrowPathIcon },
-  [L.추인]: { color: 'blue', icon: CheckIcon },
-  [L.정산]: { color: 'green', icon: CheckIcon },
-  [L.거부]: { color: 'red', icon: NoSymbolIcon },
-  [L.종결]: { color: 'gray', icon: StopIcon },
-  // 가설로 승인권자가 올라간 심사(정황이 사실이라고 놓았을 때)
-  [L.가설]: { color: 'orange', icon: FlagIcon },
-}
-export const mark = (m: string) => MARK[m] ?? { color: 'gray' as const, icon: FlagIcon }
-
-/** 줄의 주의 단계(StatusDot): 정황이 걸리면 경고, 반려·재심사는 오류, 나머지는 중립 */
-export const dot = (marks: string[], state?: string | null): 'warning' | 'error' | 'neutral' =>
+/** 줄의 주의 단계(StatusDot): 정황이 걸리면 주의, 반려 · 재심사는 오류, 나머지는 neutral */
+export const dot = (marks: string[], state?: string | null): Tone =>
   marks.includes(L.정황) ? 'warning' : state === L.반려 || state === L.재심사 ? 'error' : 'neutral'
 
-/** 식별자의 종류(일치) → Token 색 */
-// 상태 색(초록 좋음 · 보라 재심사 · 주황 정황 · 빨강 오류)과 겹치지 않는 색만
-const MATCH: Record<string, 'blue' | 'cyan' | 'pink'> = { [L.대표자]: 'blue', [L.주소]: 'cyan', [L.계좌]: 'pink' }
-export const match = (kind: string) => MATCH[kind] ?? 'default'
+/** 정황의 주의 점: 끝난 것(해소 · 기각)은 neutral */
+export const signalDot = (state: string): Tone => (state === L.해소 || state === L.기각 ? 'neutral' : 'warning')
 
 /** 금액의 표기: 천 단위 쉼표("원"은 붙이지 않는다) */
 export const num = (n: number) => n.toLocaleString('ko-KR')

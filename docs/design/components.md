@@ -5,14 +5,14 @@
 ## 앱 부품
 | 부품 | 하는 일 | 왜 앱이 갖나 |
 |---|---|---|
-| `ui/Region` | 제목 달린 영역: `Card` + `Heading 2` + 옆 표지 + 오른쪽 영역 조치 | astryx Card에 제목 줄이 없다 |
-| `ui/Source` | 출처 표지(아래) | A05 §6의 출처 구분 — 우리 고유 기능. 안은 `Token`·`Link`·`Popover`·`MetadataList` |
+| `ui/Region` | 제목 달린 영역: `Section`(위 구분선) + `Heading 2` + 옆 표지 + 오른쪽 영역 조치. 카드가 아니다 | work-item-detail의 SectionHeader를 한 번만 옮겨 둔 것 |
+| `ui/Source` | 출처 표지(아래) | A05 §6의 출처 구분 — 우리 고유 기능. 안은 `Link`·`Icon`·`Popover`·`MetadataList` |
 | `ui/Confirm` | 확인 창: 버튼 → `Dialog`(제목 · `MetadataList` · 입력 · 취소/실행) | 조치마다 같은 꼴을 지키려고 |
 | `ui/Reason` | 사유: 분류 `Selector` + 메모 `TextInput` | 조치마다 같은 규칙(`ready`)을 쓰려고 |
-| `ui/Mark` | 표시 `Token`(색·아이콘은 `ui/status.ts`) | 표시마다 같은 색 |
+| `ui/Mark` | 표시: 정황은 warning `Badge`, 나머지는 기본 색 `Token`(아이콘 + 글자) | 표시마다 같은 꼴 |
 | `ui/Compare` | 두 열 비교 `Table`(다른 줄만 굵게) | 당시/현재 · 현재/가설 · 현재/모의가 같은 꼴 |
 | `ui/Relation`, `16`의 경위 그림 | 관계 · 경위 그림(SVG) | astryx에 그림 부품이 없다 |
-| `ui/Record` | 기록 화면의 틀: `RecordPage`(머리 · 메타 한 줄 · 페이지 조치 · 탭) · `Tiles` · `Act`(확인 창 + 사유) | 모든 기록 화면이 같은 꼴이 되게. detail-page 템플릿을 한 번만 옮겨 둔 것 |
+| `ui/Record` | 기록 화면의 틀: `RecordPage`(머리 — 돌아가기 · n/전체 / 제목 / 칩 줄 / 페이지 조치 / 탭) · `Tiles`(숫자 타일, Card를 쓰는 곳) · `Act`(확인 창 + 사유) | 모든 기록 화면이 같은 꼴이 되게. work-item-detail 템플릿을 한 번만 옮겨 둔 것 |
 | `ui/Line` | 결정 한 줄(Stack + Text) | 요약의 결정 · 보고의 결정이 같은 꼴 |
 
 ## 버튼 등급
@@ -45,7 +45,7 @@
 - 앱에서 사람이 내린 결정(승인·반려 …)은 제품의 동작이라 표지를 달지 않는다. 누가 언제는 이력에 있다.
 - AI(보고·대화)가 읽는 도구 결과에서 출처 `시연`은 `화면 입력`으로 바뀌어 건너가고, 지시문이 그 뜻(사람이 화면에서 한 조치)을 적는다(t17 `human`·`SOURCE`). DB와 화면의 값은 그대로다.
 - 표의 출처 열, 숫자 줄의 끝, 영역 제목 옆(`Region aside`)에 둔다. 값 안에 섞지 않는다.
-- 표지는 상태 Badge(채운 알약)와 다른 꼴이다: 종류 아이콘 + 보조 색 글자의 Link. 규칙 버전(`한도 v1`)도 알약이 아니라 글자다. 일치 Token의 색(대표자 파랑 · 주소 청록 · 계좌 분홍)은 상태 색(초록 · 보라 · 주황 · 빨강)과 겹치지 않는다.
+- 표지는 상태 Badge(채운 알약)와 다른 꼴이다: 종류 아이콘 + 보조 색 글자의 Link. 규칙 버전(`한도 v1`)도 알약이 아니라 글자다. 일치의 종류(대표자 · 주소 · 계좌)는 기본 색 Token이다(색 없음, tokens.md의 색 표).
 
 ## 시연 서랍
 - 메뉴 바닥의 `시연`(접히면 아이콘)을 누르면 서랍(Drawer, `hasScrim={false}`)이 뜬다. 뒤 화면을 막지 않는다 — 시연 조작을 하며 화면의 변화를 같이 본다.
@@ -57,16 +57,21 @@
 - 대화 칸이 비면 `EmptyState` + 질문 제안 `List`(줄 전체가 단추, ai-chat-landing 꼴).
 - 날짜는 `YYYY-MM-DD` 하나로 쓴다(서버 값 그대로, 고정폭 숫자). 정보 없는 머리글자 아바타를 두지 않고 사람은 아이콘으로.
 
-## 화면
-| 화면 | 출발 템플릿 | 파일 |
-|---|---|---|
-| 틀 | AppShell + SideNav(scaffold) | `App.tsx` |
-| 접속 | login-card | `Enter.tsx` |
-| 작업 | incident-console | `pages/Work.tsx` |
-| 대리점 · 규정 목록 | table-page(줄 전체가 눌리는 Table) | `pages/Dealers.tsx`, `pages/Rules.tsx` |
-| 기록(심사 · 정황 · 소명 · 지급 · 추인 · 대리점 · 규정) | detail-page(`ui/Record`) | `pages/Review.tsx`, `Signal.tsx`, `Clarify.tsx`, `Pay.tsx`, `Ratify.tsx`, `Dealer.tsx`, `Rule.tsx` |
-| 대화 | ai-chat · ai-chat-landing | `tickets/24-대화` |
-| 시연 서랍 | Drawer | `Demo.tsx`(열어 둔 기록에 따라 모의 회신 · 시연 서류 · 접수 시연) |
+## 화면 ↔ 템플릿
+템플릿은 `npx astryx template <id> --type page <경로>`로 받아 neutral 테마로 띄워 견준다(review.md). StyleX를 쓰는 템플릿은 검수용 임시 설정(@stylexjs/babel-plugin)으로만 띄우고 앱에는 들이지 않는다.
+
+| 화면 | 템플릿 | 따르는 것 | 파일 |
+|---|---|---|---|
+| 틀 | AppShell + SideNav(scaffold) | 메뉴 · 흰 본문 · 오른쪽 패널 | `App.tsx` |
+| 접속 | login-card | 가운데 카드 하나 | `Enter.tsx` |
+| 작업 | **table-grouped**(+ dashboard-alert-rail의 숫자 타일) | 머리(제목 · 분할 단추) → 숫자 타일 → 검색 → 묶음 머리(접힘 · 건수)가 있는 Table, 줄은 StatusDot · 이름 · 열 · 상태 | `pages/Work.tsx` |
+| 대리점 · 규정 목록 | table-page / table-grouped | 흰 면의 Table, 줄 전체가 눌림 | `pages/Dealers.tsx`, `pages/Rules.tsx` |
+| 기록(심사 · 정황 · 소명 · 지급 · 추인 · 대리점 · 규정) | **work-item-detail**(머리) + detail-page(탭) | 머리의 돌아가기 줄 · 제목 · 칩 줄(상태 Badge · 표시 · 사람), 본문은 흰 면의 Section을 구분선으로 잇는다. 카드는 숫자 타일뿐 | `pages/Review.tsx` 외 |
+| 오른쪽 | ai-chat · ai-chat-landing(+ dashboard-alert-rail의 오른쪽 칸) | AI 보고(접힘) 위, 대화 아래, 입력창 상시 | `AiPanel.tsx`, `tickets/24-대화` |
+| 시연 서랍 | Drawer | 뒤를 막지 않음 | `Demo.tsx` |
+
+## 상태 대응 (최소)
+`ui/status.ts`: `badge`(상태 → neutral · success · warning · error), `dot`(줄의 주의 단계), `mark`(표시의 아이콘, 정황만 주의). 대응이 이 넷 밖으로 늘면 tokens.md의 색 표부터 고친다.
 
 ## 오른쪽 = AI 구역
 - 대화 칸(380, 언제나 열림) 위에 지금 연 기록의 **AI 보고** 카드가 고정된다(`AiPanel.tsx`, 접힘, 칸 높이의 절반까지). 심사는 걸린 정황들의 보고, 정황은 그 보고와 채택 · 불채택, 소명은 서류 정리와 미확인.
