@@ -78,7 +78,7 @@ fn assumes() -> Vec<J> {
     out
 }
 
-pub fn routes() -> Router<Db> {
+pub fn routes() -> Router<std::sync::Arc<Db>> {
     Router::new().route("/rules", get(rules))
 }
 

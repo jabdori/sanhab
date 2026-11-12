@@ -92,19 +92,19 @@ pub async fn raise(db: &Db) -> Result<()> {
     Ok(())
 }
 
-pub fn routes() -> Router<Db> {
+pub fn routes() -> Router<std::sync::Arc<Db>> {
     Router::new().route("/signals/{id}/hypo", get(of_signal)).route("/reviews/{id}/hypo", get(of_review))
 }
 
 /// 정황의 가설: `analyze`의 결과에서 심사마다의 값을 뺀 것
-async fn of_signal(State(db): State<Db>, Path(id): Path<String>) -> R {
+async fn of_signal(State(db): State<std::sync::Arc<Db>>, Path(id): Path<String>) -> R {
     let Some(mut a) = analyze(&db, &id).await? else { return Err(err(StatusCode::NOT_FOUND, "없음")) };
     a.as_object_mut().map(|o| o.remove("reviews"));
     Ok(Json(a))
 }
 
 /// 심사의 가설: 그 심사의 구성원에 걸린 열린 정황마다, 그 심사의 그룹과 승인권자로 본 가설. 굳은 심사는 비어 있다
-async fn of_review(State(db): State<Db>, Path(id): Path<String>) -> R {
+async fn of_review(State(db): State<std::sync::Arc<Db>>, Path(id): Path<String>) -> R {
     let ids = q1(&db, "
         LET $r = type::record('review', $id);
         RETURN IF $r.fixed = NONE THEN (SELECT VALUE record::id(id) FROM signal WHERE state INSIDE ['접수', '요청'] AND dealers ANYINSIDE ($r.members ?? []) ORDER BY id) ELSE [] END;", json!({ "id": id })).await?;

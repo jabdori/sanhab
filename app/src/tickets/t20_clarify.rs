@@ -24,7 +24,7 @@ use serde_json::{Value as J, json};
 
 pub const SCHEMA: &str = include_str!("../../db/20-소명.surql");
 
-pub fn routes() -> Router<Db> {
+pub fn routes() -> Router<std::sync::Arc<Db>> {
     Router::new().route("/clarifies/{id}/verdict", get(detail)).route("/verdict", post(decide))
         .route("/dealers/{id}/clarify", get(options).post(intake).layer(DefaultBodyLimit::max(MAX + 4096)))
 }
@@ -37,7 +37,7 @@ fn item(tb: &str) -> &'static str {
 /// 결과를 정하는 화면의 값. 없는 소명은 404.
 /// `can`(지금 역할이 정할 수 있는지)과 `actions`(조치와 사유의 분류), `span`(인정하면 효력이 미치는 기간 — 가장 나중 서류의 정리. 없으면 null = 제한 없음),
 /// `lines`(인정하면 제외될 선), `excluded`(이 소명이 이미 제외한 선과 그 기간), `unknown`(가장 나중 서류에서 서류만으로 가를 수 없는 항목: 누락, 호실까지 같아 추가 확인)
-async fn detail(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
+async fn detail(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
     let r = q1(&db, "
         LET $c = type::record('clarify', $id);
         LET $s = fn::span($c);
@@ -78,7 +78,7 @@ fn classes(kind: &str) -> Vec<&'static str> {
 /// 결과를 정한다: `{ id(소명), kind 인정·불인정·보완, reason }`. 쓰기 전에 거절의 낱말을 정한다(`refuse`: 대상 → 권한 → 상태 → 사유).
 /// 없는 소명·없는 결과·틀린 꼴은 대상, 내부 감시가 아니면 권한, 서류가 접수된 상태가 아니면 상태, 사유(분류는 필수, 기타이면 메모)가 규칙에 맞지 않으면 사유.
 /// 만들어지면 DB의 이벤트가 소명·선·정황·작업을 바꾸고, 이어서 처리기가 그룹·심사·재검토를 다시 계산한다
-async fn decide(State(db): State<Db>, Extension(me): Extension<Me>, Body(b): Body) -> R {
+async fn decide(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<Me>, Body(b): Body) -> R {
     let (Some(id), Some(kind)) = (b["id"].as_str().filter(|i| !i.is_empty()), b["kind"].as_str()) else { return Err(refuse("대상")) };
     let mut vars = json!({ "id": id, "kind": kind });
     if b["reason"].is_object() {
@@ -98,7 +98,7 @@ async fn decide(State(db): State<Db>, Extension(me): Extension<Me>, Body(b): Bod
 /// 결과 뒤의 계산. 인정이면 선이 제외되었으므로 그룹·심사·재검토·정황을 다시 맞춘다(승인권자가 올라가는 심사는 `recalc` 끝의 `raise`가 맞춘다).
 /// 인정·불인정이면 보류된 심사(그 정황의 대리점이 든 것)의 작업을 담당으로 되돌린다
 /// 접수할 수 있는 길: `{ id, can(영업지원인지), near[{ id, name, match[] }] }` — 지금 그 대리점과 일치가 있는 대리점과 실제로 일치하는 종류(그 밖의 종류는 고를 수 없다)
-async fn options(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
+async fn options(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
     let ls = links(&db, None).await.map_err(|_| err(StatusCode::NOT_FOUND, "없음"))?;
     let names = q1(&db, "RETURN (SELECT record::id(id) AS id, name FROM dealer);", json!({})).await?;
     let near: Vec<J> = names.as_array().into_iter().flatten().filter(|d| d["id"] != id.as_str()).filter_map(|d| {
@@ -111,7 +111,7 @@ async fn options(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): P
 /// 대리점이 먼저 낸 소명을 접수한다(D59): `POST /api/dealers/{id}/clarify?other=<상대 대리점>&kind=<주소|계좌|대표자>&name=<파일 이름>`, 본문은 파일 그대로(19의 서류 접수와 같다).
 /// 상대는 지금 그 대리점과 그 종류가 실제로 일치하는 대리점이어야 한다(아니면 대상), 영업지원만 할 수 있다(권한). 소명은 발송·기한 없이 열려(서류 목록은 그 종류의 것) 서류가 올라오면 19의 이벤트가 접수로 만든다.
 /// 서류를 받지 못하면(틀린 파일 …) 소명도 남기지 않는다
-async fn intake(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): Path<String>, Query(qs): Query<HashMap<String, String>>, h: HeaderMap, body: Result<Bytes, BytesRejection>) -> R {
+async fn intake(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<Me>, Path(id): Path<String>, Query(qs): Query<HashMap<String, String>>, h: HeaderMap, body: Result<Bytes, BytesRejection>) -> R {
     let (other, kind) = (qs.get("other").cloned().unwrap_or_default(), qs.get("kind").cloned().unwrap_or_default());
     let Some(at) = ITEMS.iter().position(|i| *i == kind) else { return Err(refuse("대상")) };
     let ls = links(&db, None).await.map_err(|_| refuse("대상"))?;

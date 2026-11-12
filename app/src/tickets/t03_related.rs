@@ -90,12 +90,12 @@ pub fn groups(links: &[Link]) -> Vec<Vec<String>> {
     out.into_values().collect()
 }
 
-pub fn routes() -> Router<Db> {
+pub fn routes() -> Router<std::sync::Arc<Db>> {
     Router::new().route("/dealers/{id}/related", get(related))
 }
 
 /// 대리점의 관계(지금): 자기 식별자(`idents`), 그 가운데 하나라도 함께 가리키는 대리점(`near`: 일치하는 종류와 관련자 여부), 그림의 선(`lines`), 그룹(`group`, 자기 포함)
-async fn related(State(db): State<Db>, Path(id): Path<String>) -> R {
+async fn related(State(db): State<std::sync::Arc<Db>>, Path(id): Path<String>) -> R {
     let all = links(&db, None).await?;
     let mine: Vec<&Link> = all.iter().filter(|l| l.dealer == id).collect();
     // 유효한 선이 하나도 없는 대리점(모두 제외되었거나 기간이 지남)도 있는 대리점이다: 이웃 없이 자기만 든 그룹

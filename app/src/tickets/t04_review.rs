@@ -133,7 +133,7 @@ pub async fn compute(db: &Db, extra: &[Link]) -> Result<Vec<J>> {
     Ok(all)
 }
 
-pub fn routes() -> Router<Db> {
+pub fn routes() -> Router<std::sync::Arc<Db>> {
     Router::new().route("/tasks", get(tasks)).route("/reviews/{id}", get(detail)).route("/decide", post(decide))
 }
 
@@ -153,7 +153,7 @@ async fn tasks(Extension(me): Extension<Me>) -> R {
 
 /// 심사 상세. 가운데: 제목과 숫자 줄(`review`), 구성(`members`: 그 귀속월의 지급 전부(`pays`)와 다른 구성원과 일치하는 식별자), 관계(`relation`), 규정(`rules`).
 /// 오른쪽: 지금 역할이 할 수 있는 조치(`actions`), 이력(`history`). 일치와 관계는 그 귀속월의 선으로 계산한다
-async fn detail(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
+async fn detail(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
     let mut r = q1(&me.db, "
         LET $r = type::record('review', $id);
         RETURN {

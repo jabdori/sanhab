@@ -68,7 +68,7 @@ pub struct Me {
 pub fn demo_pass() -> String { std::env::var("DEMO_PASS").unwrap_or_else(|_| "demo".into()) }
 
 /// /api 전체의 문. 토큰은 DB가 검증한다. 접속(`/api/enter`)만 이 문 밖에 있다.
-async fn gate(State(db): State<Db>, mut req: Request, next: Next) -> Result<Response, ApiError> {
+async fn gate(State(db): State<std::sync::Arc<Db>>, mut req: Request, next: Next) -> Result<Response, ApiError> {
     let deny = || err(StatusCode::UNAUTHORIZED, "접속");
     let token = req.headers().get(header::AUTHORIZATION).and_then(|v| v.to_str().ok()).and_then(|v| v.strip_prefix("Bearer ")).ok_or_else(deny)?;
     let s = as_user(&db, token).await.map_err(|_| deny())?;
@@ -108,7 +108,7 @@ async fn tokens(db: &Db, fresh: bool) -> anyhow::Result<J> {
     Ok(t)
 }
 
-async fn enter(State(db): State<Db>, Body(b): Body) -> R {
+async fn enter(State(db): State<std::sync::Arc<Db>>, Body(b): Body) -> R {
     use subtle_eq::eq;
     if !eq(b["pass"].as_str().unwrap_or("").as_bytes(), demo_pass().as_bytes()) {
         return Err(err(StatusCode::UNAUTHORIZED, "접속"));
@@ -128,7 +128,7 @@ mod subtle_eq {
 }
 
 /// 초기화: DB를 원본 상태로 되돌린다. 토큰이 새로 발급되므로 접속과 같은 응답을 준다.
-async fn reset(State(db): State<Db>) -> R {
+async fn reset(State(db): State<std::sync::Arc<Db>>) -> R {
     boot(&db, true).await?;
     Ok(Json(tokens(&db, true).await?))
 }
@@ -173,6 +173,8 @@ async fn seed_all(db: &Db, name: &str, ver: &str) -> anyhow::Result<()> {
 }
 
 pub fn app(db: Db) -> Router {
+    // 같은 루트 클라이언트를 요청마다 복제(clone)하면 SDK가 복제마다 새 세션을 만들어 쿼리 하나에 몇 초씩 걸렸다 — Arc로 나눠 쓴다
+    let db = std::sync::Arc::new(db);
     let api = tickets::routes()
         .route("/reset", post(reset))
         .fallback(|| async { err(StatusCode::NOT_FOUND, "없음") })
@@ -184,7 +186,7 @@ pub fn app(db: Db) -> Router {
         .route("/assets/app.js", file("text/javascript; charset=utf-8", JS.as_bytes()))
         .route("/assets/app.css", file("text/css; charset=utf-8", CSS.as_bytes()))
         .route("/assets/PretendardVariable.woff2", file("font/woff2", FONT))
-        .route("/healthz", get(|State(db): State<Db>| async move { Json(json!({ "ok": db.health().await.is_ok() })) }))
+        .route("/healthz", get(|State(db): State<std::sync::Arc<Db>>| async move { Json(json!({ "ok": db.health().await.is_ok() })) }))
         .nest("/api", api)
         .with_state(db)
 }
@@ -243,7 +245,8 @@ async fn main() -> anyhow::Result<std::process::ExitCode> {
                 }
             });
         }
-        tokio::spawn(tickets::ai_worker(db.clone()));
+        // 일꾼은 따로 연결한다: 같은 클라이언트를 쓰면 일꾼의 요청 뒤에 화면의 요청이 줄을 서서 작은 파드에서 몇 초씩 밀렸다
+        tokio::spawn(tickets::ai_worker(connect_retry().await?));
         let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
         println!("listening :{port}");
         axum::serve(listener, app(db)).with_graceful_shutdown(async { tokio::signal::ctrl_c().await.ok(); }).await?;
