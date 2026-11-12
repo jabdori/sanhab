@@ -5,7 +5,7 @@ use crate::check::Check;
 use crate::db::{Db, as_user, q, q1};
 use crate::{Body, Me, R, attempt, err, refuse};
 use anyhow::{Result, ensure};
-use axum::extract::Path;
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Extension, Json, Router};
@@ -48,7 +48,7 @@ async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
 
 /// 은행 회신을 넣는다: `{ id, amount, account, result }`. 역할의 세션으로 `reply`를 만들고, 넣을 수 있는지는 DB(`fn::repliable`)가 정한다.
 /// 거절의 낱말: 본문의 꼴이 틀리거나(금액은 1 이상) 없는 지급이면 400 `대상`, 회계·자금이 아니면 403 `권한`, 지급 전이거나 이미 회신한 시도이면 400 `상태`. DB의 문구는 밖으로 내보내지 않는다
-async fn reply(Extension(me): Extension<Me>, Body(b): Body) -> R {
+async fn reply(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<Me>, Body(b): Body) -> R {
     let bad = || refuse("대상");
     let id = b["id"].as_str().filter(|i| !i.is_empty()).ok_or_else(bad)?;
     let amount = b["amount"].as_i64().filter(|a| *a >= 1).ok_or_else(bad)?;
@@ -60,6 +60,10 @@ async fn reply(Extension(me): Extension<Me>, Body(b): Body) -> R {
         RETURN IF $p.state = NONE THEN '대상' ELSE IF $auth.role != '회계·자금' THEN '권한' ELSE IF !fn::repliable($p) THEN '상태' END;",
         "CREATE reply SET payout = type::record('payout', $id), amount = $amount, account = $account, result = $result RETURN VALUE record::id(payout);",
         json!({ "id": id, "amount": amount, "account": account, "result": result })).await?;
+    // 실패 회신은 지급을 대기로 되돌린다. 그 사이 승인권자가 올라갔으면(14) 재심사를 다시 따진다
+    if result == "실패" {
+        super::t13_change::regroup(&db).await?;
+    }
     Ok(Json(json!({ "id": made[0] })))
 }
 

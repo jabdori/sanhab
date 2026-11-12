@@ -77,6 +77,8 @@ async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
             signal: (SELECT record::id(id) AS id, kind, name, state, source, dealers.map(|$d| { id: record::id($d), name: $d.name }) AS dealers FROM $s)[0],
             evidence: ($s.evidence ?? []).map(|$e| fn::evidence($e)),
             role: '내부 감시',
+            fresh: fn::fresh($s).map(|$e| <string> $e),
+            delay: duration::days(fn::delay()),
             actions: IF fn::rulable($s) THEN ['요청', '기각'].map(|$k| { kind: $k, reason: $k = '기각', classes: fn::ruling_classes($k) }) ELSE [] END,
             history: (SELECT kind, role, time::format(at, '%Y-%m-%d') AS at, reason, source, stamp FROM ruling WHERE signal = $s ORDER BY stamp),
         };", json!({ "id": id })).await?;

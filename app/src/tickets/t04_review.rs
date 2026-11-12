@@ -81,6 +81,8 @@ pub fn plan(ym: &str, groups: &[Vec<String>], pays: &[Pay], limit: i64) -> Vec<J
 /// 굳지 않은 심사를 지금의 선과 규칙으로 다시 만든다(구성·합산·승인권자·규칙 버전, 심사 작업의 담당). 굳은 심사는 건드리지 않는다.
 /// 그룹이 바뀌어 없어진 심사는 그 작업과 함께 지운다. 상태와 표시는 남는다
 pub async fn recalc(db: &Db) -> Result<()> {
+    // 14: 승인권자가 올라간 지급 전의 승인은 먼저 재심사로 돌린다(재심사인 지급은 다시 심사를 기다리는 것이 된다)
+    super::t14_redo::rework(db).await?;
     let all = compute(db, &[]).await?;
     q(db, "
         BEGIN;
@@ -109,7 +111,7 @@ pub async fn compute(db: &Db, extra: &[Link]) -> Result<Vec<J>> {
     let r = q1(db, "
         LET $taken = array::flatten((SELECT VALUE payouts FROM review WHERE fixed != NONE));
         RETURN {
-            pays: (SELECT record::id(id) AS id, record::id((->payout_of->dealer)[0]) AS dealer, ym, amount, status, status = '미지급' AND id NOTINSIDE $taken AS open FROM payout),
+            pays: (SELECT record::id(id) AS id, record::id((->payout_of->dealer)[0]) AS dealer, ym, amount, status, status = '미지급' AND (id NOTINSIDE $taken OR state = '재심사') AS open FROM payout),
             rules: (SELECT record::id(id) AS id, name, value, IF since THEN time::format(since, '%Y-%m-%d') END AS since, IF until THEN time::format(until, '%Y-%m-%d') END AS until FROM rule),
             names: (SELECT record::id(id) AS id, name FROM dealer),
             fixed: (SELECT VALUE record::id(id) FROM review WHERE fixed != NONE),
@@ -372,14 +374,20 @@ pub async fn check(c: &Check) -> Result<()> {
         UPDATE rule:`한도-v1` SET until = d'2026-06-15T00:00:00Z';
         CREATE rule:`한도-v2` SET name = '한도', ver = 2, value = 1500000, clause = clause:`지급한도`, since = d'2026-06-15T00:00:00Z', source = '시연';", json!({})).await?;
     recalc(&c.db).await?;
-    ensure!(review(support, one).await? == before, "굳은 심사가 바뀜");
-    // 대기인 쪽: 세 곳이 한 심사(988,932 + 799,699 + 655,149 = 2,443,780), 승인권자 영업임원, 한도 v2. 한라인상사3의 심사는 없어진다
-    let d = review(support, "2026-06-D-002").await?;
+    // 지급 전이면 승인권자가 올라간 승인은 효력을 잃는다(D33. 14): 표시 재심사가 붙을 뿐 구성·합산·승인권자·규칙·결정은 그때 그대로다
+    let (mut now, mut then) = (review(support, one).await?, before.clone());
+    ensure!(now["review"]["marks"] == json!(["재심사"]) && then["review"]["marks"] == json!([]), "재심사 표시 {}", now["review"]["marks"]);
+    for d in [&mut now, &mut then] {
+        d["review"]["marks"] = json!([]);
+    }
+    ensure!(now == then, "굳은 심사가 바뀜");
+    // 대기인 쪽(굳은 심사 `…-D-001`이 있어 번호가 붙는다): 세 곳이 한 심사(988,932 + 799,699 + 655,149 = 2,443,780), 승인권자 영업임원, 한도 v2. 한라인상사3의 심사는 없어진다
+    let d = review(support, "2026-06-D-001-2").await?;
     ensure!(d["review"]["name"] == "대성상사1 외 2" && d["review"]["total"] == 2_443_780 && d["review"]["limit"] == 1_500_000 && d["review"]["approver"] == exec && d["review"]["status"] == "대기", "따라 바뀐 심사 {}", d["review"]);
     ensure!(d["rules"][0]["ver"] == 2 && d["rules"][1]["name"] == "합산" && rows(&d["rules"]).len() == 2, "따라 바뀐 규칙 {}", d["rules"]);
     ensure!(c.call(Some(c.token(support)), "GET", "/api/reviews/2026-06-D-003", None).await?.0 == 404, "없어진 심사");
     let t = c.get(exec, "/api/tasks").await?;
-    ensure!(rows(&t["mine"]).iter().any(|m| m["target"] == "2026-06-D-002") && approve(support, &["2026-06-D-002"]).await?.0 == 403, "따라 바뀐 작업");
+    ensure!(rows(&t["mine"]).iter().any(|m| m["target"] == "2026-06-D-001-2") && approve(support, &["2026-06-D-001-2"]).await?.0 == 403, "따라 바뀐 작업");
     // 한도 1,500,000을 넘게 된 다른 대기 심사도 영업임원으로 간다(가장 큰 금강상사11… 을 뺀 단독 가운데 1,537,170인 D-018)
     ensure!(review(support, "2026-06-D-018").await?["review"]["approver"] == exec, "새 한도");
 

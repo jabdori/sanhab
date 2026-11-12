@@ -82,7 +82,7 @@ async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
             ratify: (SELECT record::id(id) AS id, name, ym, marks, total, limit, approver, source FROM $b)[0],
             members: $b.members.map(|$d| { id: record::id($d), name: $d.name }),
             reviews: $b.reviews.map(|$x| {
-                id: record::id($x), name: $x.name, total: $x.total, approver: $x.approver, marks: $x.marks,
+                id: record::id($x), name: $x.name, members: array::len($x.members), total: $x.total, approver: $x.approver, marks: $x.marks,
                 paid: IF $x.payouts[0].paid THEN time::format($x.payouts[0].paid, '%Y-%m-%d') END,
                 source: $x.source, file: $x.file.path, row: $x.row,
             }),

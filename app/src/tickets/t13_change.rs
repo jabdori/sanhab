@@ -67,6 +67,7 @@ async fn change(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<M
 /// 그 지급이 든 새 심사의 이력으로 옮겨(`moved`, 옛 심사의 이름 `was`) 보이고, 새 심사는 대기로 다시 시작하며(심사 작업도 대기) 남은 재상신 작업은 닫는다.
 /// 선을 바꾸는 다른 티켓(20 소명 …)도 `recalc` 대신 이것을 부르면 같은 규칙이 따른다
 pub async fn regroup(db: &Db) -> Result<()> {
+    super::t14_redo::rework(db).await?;
     let plan = compute(db, &[]).await?;
     let open = q1(db, "SELECT record::id(id) AS id, name, members.map(|$d| record::id($d)) AS members, payouts.map(|$p| record::id($p)) AS payouts FROM review
         WHERE fixed = NONE AND (count(SELECT id FROM decision WHERE (review = $parent.id AND was = NONE) OR moved = $parent.id) > 0
@@ -101,13 +102,13 @@ pub async fn regroup(db: &Db) -> Result<()> {
     detect(db).await
 }
 
-/// D57: 변경으로 두 곳이 새로 일치하게 되면, 이미 있는 동명 정황(접수·요청)에 그 변경(사건)과 새 일치의 선을 근거로 붙인다(닫지 않는다).
-/// 정황의 상태는 그대로다. 기각된 정황이 새 근거로 다시 올라오는 것은 15의 일이다 — 15는 아래의 상태 조건에 기각을 더하고 `fn::signal`의 갈래를 덮는다
+/// D57: 변경으로 두 곳이 새로 일치하게 되면, 이미 있는 동명 정황(접수·요청·기각)에 그 변경(사건)과 새 일치의 선을 근거로 붙인다(닫지 않는다).
+/// 정황의 상태는 그대로다. 기각된 정황도 받는다 — 새 근거가 붙으면 15의 `fn::signal`이 다시 접수한다
 async fn attach(db: &Db, incident: &str) -> Result<()> {
     q(db, "
         LET $i = type::record('incident', $id);
         LET $line = (SELECT VALUE id FROM rep, addr, acct WHERE incident = $i)[0];
-        FOR $s IN (SELECT id, kind, dealers FROM signal WHERE kind = '동명' AND state INSIDE ['접수', '요청'] AND dealers CONTAINS $i.dealer) {
+        FOR $s IN (SELECT id, kind, dealers FROM signal WHERE kind = '동명' AND state INSIDE ['접수', '요청', '기각'] AND dealers CONTAINS $i.dealer) {
             LET $same = (SELECT VALUE id FROM rep, addr, acct WHERE out = $line.out AND in INSIDE $s.dealers AND in != $i.dealer AND !excluded AND since <= fn::today() AND (until = NONE OR until > $i.since));
             IF array::len($same) > 0 {
                 fn::signal($s.kind, string::replace(record::id($s.id), string::concat($s.kind, '-'), ''), '', $s.dealers, array::concat([$i, $line], $same), '계산');
