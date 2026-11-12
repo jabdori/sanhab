@@ -1,3 +1,4 @@
+import { Empty } from '../../ui/Empty'
 // 23 모의: 규정 화면에서 영업임원과 내부 감시가 한도를 넣어 보면, 코드가 모든 심사를 그 한도로 다시 따져 승인권자가 달라지는 심사를 세어 보인다.
 // 값은 모두 코드가 계산한 것이고 출처는 가정이다. 심사의 상태·승인권자·작업은 바뀌지 않는다(저장하지 않는 계산).
 // 오른쪽(조치)에서 넣고, 가운데(규정 조각 아래)에 결과를 둔다. 결과는 두 조각이 나눠 쓰는 atom에 있다.
@@ -39,7 +40,8 @@ function Action() {
   const [text, setText] = useState('1,500,000')
   const [busy, setBusy] = useState(false)
   const [bad, setBad] = useState<string | null>(null)
-  if (!info?.can) return null
+  if (!info) return null
+  if (!info.can) return <Empty />
   const won = /^[\d,]+$/.test(text.trim()) ? Number(text.replace(/,/g, '')) : 0
   const go = () => {
     setBusy(true)
@@ -80,7 +82,11 @@ function Result() {
   const setTarget = useSetAtom(targetAtom)
   const box = useRef<HTMLElement>(null)
   // 가정 목록 아래에 놓이므로 결과가 새로 오면 화면에 보이게 한다
-  useEffect(() => { box.current?.scrollIntoView({ block: 'start' }) }, [r]) // 값을 돌려주지 않는다: 어떤 브라우저는 scrollIntoView가 Promise를 돌려주고 React가 그것을 정리 함수로 불러 화면이 비었다
+  const seen = useRef(r)
+  useEffect(() => {
+    if (r && r !== seen.current) box.current?.scrollIntoView({ block: 'start' })
+    seen.current = r
+  }, [r]) // 값을 돌려주지 않는다: 어떤 브라우저는 scrollIntoView가 Promise를 돌려주고 React가 그것을 정리 함수로 불러 화면이 비었다
   if (!r || !info || r.role !== role) return null
   const m = r.mock
   return (
@@ -97,7 +103,7 @@ function Result() {
       <Figures
         items={[
           [L.한도, num(m.limit)],
-          [L.변동, `${m.changed} / ${m.total}`],
+          [L.변동, `${m.changed} / ${L.전체} ${m.total}`],
         ]}
       />
       <Compare
