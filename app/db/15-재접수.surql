@@ -29,7 +29,26 @@ DEFINE FUNCTION OVERWRITE fn::signal($kind: string, $of: string, $name: string, 
     RETURN $s;
 } PERMISSIONS NONE;
 
--- 지연(D30): 변경일과 인지일의 차이가 기준보다 크면 그 대리점의 지연 정황이 접수된다(근거는 그 변경)
+-- 지연(D30, 기준이 가정이라 정황의 출처도 가정): 변경일과 인지일의 차이가 기준보다 크면 그 대리점의 지연 정황이 접수된다(근거는 그 변경)
 DEFINE EVENT t15_late ON incident WHEN $event = 'CREATE' AND $after.known - $after.since > fn::delay() THEN {
-    fn::signal('지연', record::id($after.dealer), $after.dealer.name, [$after.dealer], [$after.id], '계산');
+    fn::signal('지연', record::id($after.dealer), $after.dealer.name, [$after.dealer], [$after.id], '가정');
 };
+
+-- 근거 한 줄(13의 fn::evidence)에 사건의 인지일과 변경일과의 차이(일)를 더했다. 이 함수를 다시 덮는 티켓은 이 갈래를 남긴다
+DEFINE FUNCTION OVERWRITE fn::evidence($e: record) -> object {
+    LET $t = record::tb($e);
+    LET $v = IF $t = 'deposit' THEN { item: '회수', dealer: ($e->deposit_of->dealer)[0], at: time::format($e.date, '%Y-%m-%d'), node: ($e->deposit_into->account)[0], amount: $e.amount }
+        ELSE IF $t = 'payout' THEN { item: '지급', dealer: ($e->payout_of->dealer)[0], ym: $e.ym, amount: $e.amount }
+        ELSE IF $t INSIDE ['rep', 'addr', 'acct'] THEN { item: { rep: '대표자', addr: '주소', acct: '계좌' }[$t], dealer: $e.in, node: $e.out }
+        ELSE IF $t = 'recon' THEN { item: '대사', dealer: ($e.payout->payout_of->dealer)[0], ym: $e.payout.ym, value: array::join($e.diff, ' · '),
+            want: { amount: $e.amount, accounts: $e.accounts }, got: { amount: $e.reply.amount, account: $e.reply.account } }
+        ELSE IF $t = 'incident' THEN { item: $e.kind, dealer: $e.dealer, at: time::format($e.since, '%Y-%m-%d'), node: (SELECT VALUE out FROM rep, addr, acct WHERE incident = $e)[0], value: $e.item,
+            known: time::format($e.known, '%Y-%m-%d'), days: duration::days($e.known - $e.since) }
+        ELSE { item: $t } END;
+    RETURN {
+        id: <string> $e, item: $v.item, at: $v.at, ym: $v.ym, amount: $v.amount, value: $v.value, known: $v.known, days: $v.days, want: $v.want, got: $v.got,
+        dealer: IF $v.dealer THEN { id: record::id($v.dealer), name: $v.dealer.name } END,
+        node: IF $v.node THEN { id: <string> $v.node, name: $v.node.value ?? $v.node.name } END,
+        source: $e.source, file: $e.file.path, row: $e.row,
+    };
+} PERMISSIONS FULL;

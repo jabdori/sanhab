@@ -66,10 +66,20 @@ pub async fn check(c: &mut Check) -> Result<()> {
     ensure!(rows(&r["review"]["marks"]).contains(&json!("정황")), "정황 표시 {}", r["review"]["marks"]);
     ensure!(c.post(exec, "/api/decide", json!({ "ids": ["2026-06-D-034"], "kind": "승인" })).await? == (400, json!({ "error": "사유" })), "사유 없는 승인");
     ensure!(c.get(audit, &format!("/api/signals/{name}/report")).await?["report"]["stale"] == true, "보고");
+    // 새 보고: 고정 응답이 새 근거(변경)도 가리킨다
+    *super::t17_report::USE.lock().unwrap() = Some("fixture".into());
+    let again = super::t17_report::make(&c.db, name, true).await;
+    *super::t17_report::USE.lock().unwrap() = None;
+    let st = again?;
+    ensure!(st == "검토", "새 보고 {st} {}", q1(&c.db, "RETURN (SELECT state, error FROM report WHERE target = type::record('signal', $id) ORDER BY born DESC LIMIT 1)[0];", json!({ "id": name })).await?);
+    let rep = c.get(audit, &format!("/api/signals/{name}/report")).await?["report"].clone();
+    ensure!(rep["stale"] == false && rows(&rep["facts"]).iter().any(|f| f["ref"] == inc.as_str()), "새 보고의 사실 {rep}");
 
     // 지연: 변경일 2026-02-01, 인지일 2026-07-01(150일)이라 기준(fn::delay)보다 늦다. 근거는 그 변경 하나
     let late = sig("지연-D-034").await?;
-    ensure!(late["signal"]["name"] == "지연 · 한라인상사34" && late["signal"]["state"] == "접수" && late["signal"]["source"] == "계산" && late["delay"] == 30, "지연 정황 {late}");
+    ensure!(late["signal"]["name"] == "지연 · 한라인상사34" && late["signal"]["state"] == "접수" && late["signal"]["source"] == "가정" && late["delay"] == 30, "지연 정황 {late}");
+    let e = &late["evidence"][0];
+    ensure!(e["at"] == "2026-02-01" && e["known"] == "2026-07-01" && e["days"] == 150, "지연의 근거 줄 {e}");
     ensure!(rows(&late["evidence"]).len() == 1 && late["evidence"][0]["id"] == inc.as_str() && task("지연-D-034").await? == "대기", "지연의 근거 {}", late["evidence"]);
     // 기준 안의 변경(변경일 6월 20일, 11일)은 지연이 아니다
     ensure!(c.post(support, "/api/change", json!({ "id": "D-001", "item": "주소", "value": "시연 주소", "since": "2026-06-20" })).await?.0 == 200, "기준 안의 변경");

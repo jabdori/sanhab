@@ -21,6 +21,9 @@ export type Evidence = {
   value?: string | null
   want?: { amount: number; accounts: string[] } | null
   got?: { amount: number; account: string } | null
+  /** 사건(변경): 인지일과 변경일과의 차이(일) */
+  known?: string | null
+  days?: number | null
   source: string
   file?: string | null
   row?: number | null

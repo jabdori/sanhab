@@ -8,6 +8,7 @@ import type { Piece } from '../../pieces'
 import { api, changedAtom, roleAtom, store, targetAtom, useData } from '../../state'
 import { Empty } from '../../ui/Empty'
 import { Figures } from '../../ui/Figures'
+import { Mark } from '../../ui/Mark'
 import { Pill } from '../../ui/Pill'
 import { Reason, blank, ready, sent as filled } from '../../ui/Reason'
 import { Relation } from '../../ui/Relation'
@@ -45,6 +46,7 @@ function Head() {
         items={[
           [L.근거, d.evidence.length],
           [L.대리점, s.dealers.length],
+          ...(s.kind === L.지연 ? [[L.지연, `${d.delay}${L.일}`] as [string, string]] : []),
         ]}
       >
         <Source kind={s.source}>
@@ -77,14 +79,28 @@ function Evidence() {
         mark={rows.findIndex((e) => e.id === mark)}
         rows={rows.map((e) => [
           d.fresh.includes(e.id) ? (
-            <span className="flex items-center gap-1 whitespace-nowrap">
+            <span className="flex items-center gap-2 whitespace-nowrap">
               {e.item}
-              <Pill tone="again">{L.새}</Pill>
+              <Mark>{L.새}</Mark>
             </span>
           ) : (
             e.item
           ),
-          e.at ?? e.ym ?? e.dealer?.name,
+          e.known ? (
+            <span className="flex flex-wrap items-center gap-x-2 tabular-nums">
+              <span className="whitespace-nowrap">{`${L.변경일} ${e.at}`}</span>
+              <span className="whitespace-nowrap">{`${L.인지일} ${e.known}`}</span>
+              <span className="whitespace-nowrap">{`${e.days}${L.일}`}</span>
+              <Source kind={L.계산}>
+                <dl className="grid grid-cols-2 gap-x-2 gap-y-1 tabular-nums">
+                  <dt className={label}>{L.지연}</dt>
+                  <dd>{`${e.days}${L.일}`}</dd>
+                </dl>
+              </Source>
+            </span>
+          ) : (
+            (e.at ?? e.ym ?? e.dealer?.name)
+          ),
           e.node?.name ?? (e.amount == null ? e.value : num(e.amount)),
           <Source kind={e.source} file={e.file ?? undefined} row={e.row ?? undefined}>
             {e.want && e.got && (
