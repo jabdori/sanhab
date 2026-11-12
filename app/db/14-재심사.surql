@@ -6,7 +6,7 @@
 DEFINE TABLE redo SCHEMAFULL PERMISSIONS FOR select FULL;
 DEFINE FIELD payout ON redo TYPE record<payout>;                  -- 재심사가 된 지급
 DEFINE FIELD was ON redo TYPE record<review>;                     -- 효력을 잃은 앞선 승인(심사)
-DEFINE FIELD cause ON redo TYPE option<record<incident>>;         -- 원인: 그 구성원의 오늘 들어온 가장 늦은 변경(없으면 규정의 바뀜 등)
+DEFINE FIELD cause ON redo TYPE option<record<incident>>;         -- 원인: 그 구성원의 승인 뒤에 들어온 가장 늦은 변경(없으면 규정의 바뀜 등)
 DEFINE FIELD at ON redo TYPE datetime;
 DEFINE FIELD back ON redo TYPE option<record<review>>;            -- 다시 승인한 심사
 DEFINE FIELD back_at ON redo TYPE option<datetime>;
@@ -17,6 +17,8 @@ DEFINE FIELD stamp ON redo TYPE datetime VALUE time::now() READONLY;
 DEFINE EVENT t14_back ON decision WHEN $event = 'CREATE' AND $after.kind = '승인' THEN {
     LET $r = $after.review;
     LET $ps = $r.payouts;
+    -- 재승인한 역할도 지급 작업을 진행에서 본다
+    UPDATE task SET also = array::union(also, [$after.role]) WHERE kind = '지급' AND target INSIDE (SELECT VALUE id FROM payout WHERE state = '재심사' AND id INSIDE $ps);
     UPDATE redo SET back = $r, back_at = fn::today() WHERE back = NONE AND payout.state = '재심사' AND payout INSIDE $ps;
     UPDATE payout SET state = '대기', state_source = $after.source, review = $r WHERE state = '재심사' AND id INSIDE $ps;
 };

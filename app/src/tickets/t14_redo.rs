@@ -31,7 +31,7 @@ pub async fn rework(db: &Db) -> Result<()> {
             LET $r = type::record('review', $x.id);
             LET $ps = SELECT VALUE id FROM payout WHERE review = $r AND state = '대기';
             IF array::len($ps) > 0 {
-                LET $cause = (SELECT id, stamp FROM incident WHERE dealer INSIDE $x.members.map(|$d| type::record('dealer', $d)) AND at = fn::today() ORDER BY stamp DESC LIMIT 1)[0].id;
+                LET $cause = (SELECT id, stamp FROM incident WHERE dealer INSIDE $x.members.map(|$d| type::record('dealer', $d)) AND at >= $r.fixed ORDER BY stamp DESC LIMIT 1)[0].id;
                 FOR $p IN $ps { CREATE redo SET payout = $p, was = $r, cause = $cause, at = fn::today(), source = '계산'; };
                 UPDATE $ps SET state = '재심사', state_source = '계산';
                 IF count(SELECT id FROM payout WHERE review = $r AND state INSIDE ['이체', '완료']) = 0 { UPDATE $r SET marks += '재심사' WHERE marks CONTAINSNOT '재심사'; };
@@ -122,6 +122,9 @@ pub async fn check(c: &mut Check) -> Result<()> {
     ensure!(c.get(acct, &format!("/api/pays/{pay}/redo")).await?["redo"]["back"] == json!({ "id": merged, "name": "한라인상사34 외 1" }), "다시 승인한 심사");
     let tasks = q1(&c.db, "RETURN count(SELECT id FROM task WHERE kind = '지급' AND target = type::record('payout', $id));", json!({ "id": pay })).await?;
     ensure!(tasks == 1, "지급 작업 {tasks}");
+    // 재승인한 영업임원도 그 지급 작업을 진행에서 본다
+    let going = rows(&c.get(exec, "/api/tasks").await?["going"]);
+    ensure!(going.iter().any(|t| t["kind"] == "지급" && t["target"] == pay.as_str()), "영업임원의 진행 {going:?}");
     ensure!(c.post(acct, "/api/pay", json!({ "id": pay })).await?.0 == 200 && pay_of(c, "한라인상사34").await?.1 == "이체", "다시 승인한 뒤의 지급");
 
     // 이미 이체·완료인 지급은 재심사가 아니다(재검토가 될 뿐이다): 앞선 승인은 효력을 잃지 않고 6월도 추인 묶음에 오른다
@@ -142,6 +145,21 @@ pub async fn check(c: &mut Check) -> Result<()> {
         let mine = rows(&c.get(exec, "/api/tasks").await?["mine"]);
         ensure!(mine.iter().any(|t| t["kind"] == "추인" && t["target"] == r34), "{want}인 지급의 추인 작업");
     }
+
+    // 이체 뒤에 변경이 들어오면 그때는 재심사가 아니지만(위), 은행의 회신이 실패해 대기로 돌아오면 그 자리에서 재심사다(올바른 승인 없이 다시 지급하지 못한다)
+    c.reset().await?;
+    ensure!(approve(c, support, r34, json!({ "class": "경미" })).await?.0 == 200, "승인");
+    let (pay, _, amount) = pay_of(c, "한라인상사34").await?;
+    ensure!(c.post(acct, "/api/pay", json!({ "id": pay })).await?.0 == 200 && c.post(support, "/api/change", change.clone()).await?.0 == 200, "이체와 변경");
+    let account = c.get(acct, &format!("/api/pays/{pay}")).await?["accounts"][0]["value"].clone();
+    ensure!(c.post(acct, "/api/reply", json!({ "id": pay, "amount": amount, "account": account, "result": "실패" })).await?.0 == 200, "실패 회신");
+    let d = c.get(acct, &format!("/api/pays/{pay}")).await?;
+    ensure!(d["pay"]["state"] == "재심사" && d["can"] == false && redos(c).await? == 1, "실패 회신 뒤 {d}");
+    ensure!(c.get(acct, &format!("/api/pays/{pay}/redo")).await?["redo"]["cause"]["item"] == "주소", "실패 회신 뒤의 원인");
+    ensure!(c.post(acct, "/api/pay", json!({ "id": pay })).await? == (400, json!({ "error": "상태" })), "승인 없는 재지급");
+    ensure!(c.get(exec, "/api/reviews/2026-06-D-034-2").await?["review"]["status"] == "대기", "합쳐진 심사");
+    let mine = rows(&c.get(exec, "/api/tasks").await?["mine"]);
+    ensure!(!mine.iter().any(|t| t["kind"] == "추인" && t["target"] == r34), "추인 작업이 남음");
 
     // 정황만으로는 재심사가 되지 않는다(12의 본보기: 가설에서 승인권자가 올라가도): 대륙상사6의 승인은 그대로이고 지급은 대기
     c.reset().await?;
