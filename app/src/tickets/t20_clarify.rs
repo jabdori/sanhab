@@ -109,7 +109,7 @@ async fn options(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): P
 }
 
 /// 대리점이 먼저 낸 소명을 접수한다(D59): `POST /api/dealers/{id}/clarify?other=<상대 대리점>&kind=<주소|계좌|대표자>&name=<파일 이름>`, 본문은 파일 그대로(19의 서류 접수와 같다).
-/// 상대는 지금 그 대리점과 그 종류가 실제로 일치하는 대리점이어야 한다(아니면 대상), 영업지원만 할 수 있다(권한). 소명은 발송한 것으로 열려(서류 목록은 그 종류의 것) 서류가 올라오면 19의 이벤트가 접수로 만든다.
+/// 상대는 지금 그 대리점과 그 종류가 실제로 일치하는 대리점이어야 한다(아니면 대상), 영업지원만 할 수 있다(권한). 소명은 발송·기한 없이 열려(서류 목록은 그 종류의 것) 서류가 올라오면 19의 이벤트가 접수로 만든다.
 /// 서류를 받지 못하면(틀린 파일 …) 소명도 남기지 않는다
 async fn intake(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): Path<String>, Query(qs): Query<HashMap<String, String>>, h: HeaderMap, body: Result<Bytes, BytesRejection>) -> R {
     let (other, kind) = (qs.get("other").cloned().unwrap_or_default(), qs.get("kind").cloned().unwrap_or_default());
@@ -125,7 +125,7 @@ async fn intake(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): Pa
     let made = q1(&db, "
         LET $d = type::record('dealer', $id);
         RETURN (CREATE clarify SET dealer = $d, pair = [$d, type::record('dealer', $other)], kind = $kind, name = string::concat($kind, ' · ', $d.name),
-            docs = $docs, sent = fn::today(), due = fn::today() + fn::term(), source = '시연' RETURN VALUE record::id(id))[0];",
+            docs = $docs, source = '시연' RETURN VALUE record::id(id))[0];",
         json!({ "id": id, "other": other, "kind": kind, "docs": docs })).await.map_err(|_| refuse("대상"))?;
     let cid = made.as_str().unwrap_or_default().to_string();
     match super::t19_docs::upload(Extension(me), Path(cid.clone()), Query(qs), h, body).await {
@@ -399,6 +399,7 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(code == 200, "접수 {code} {r}");
     let mine = r["id"].as_str().unwrap_or_default().to_string();
     let cl = c.get(audit, &format!("/api/clarifies/{mine}")).await?;
+    ensure!(cl["sent"].is_null() && cl["due"].is_null() && rows(&cl["history"]).iter().map(|h| h["kind"].as_str().unwrap_or("")).eq(["접수"]) && cl["history"][0]["role"] == support, "발송·기한 없이 접수 이력 {cl}");
     ensure!(cl["clarify"]["state"] == "접수" && cl["clarify"]["signal"].is_null() && cl["clarify"]["dealer"]["name"] == "성일상사24" && cl["kinds"] == json!(["주소"]) && cl["docs"][0] == json!(["주소", "임대차계약서"]), "접수한 소명 {cl}");
     ensure!(tasks(audit, "mine", "소명").await?.iter().any(|t| t["target"] == mine.as_str()) && tasks(support, "going", "소명").await?.iter().any(|t| t["target"] == mine.as_str()), "소명 작업");
     fill().await?;

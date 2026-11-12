@@ -147,7 +147,7 @@ pub async fn sweep(db: &Db) -> Result<()> {
 /// `sweep`의 키를 인자로 뗀 것(자동 검사는 환경과 상관없이 키 없음을 탄다)
 async fn sweep_with(db: &Db, key: Option<&str>) -> Result<()> {
     let ids = q1(db, &format!("
-        RETURN (SELECT VALUE record::id(id) FROM clarify WHERE sent = NONE AND draft = NONE AND state = '요청' AND (draft_tried = NONE OR (time::now() - draft_tried) > {RETRY}s) ORDER BY id);"), json!({})).await?;
+        RETURN (SELECT VALUE record::id(id) FROM clarify WHERE sent = NONE AND pair = NONE AND draft = NONE AND state = '요청' AND (draft_tried = NONE OR (time::now() - draft_tried) > {RETRY}s) ORDER BY id);"), json!({})).await?;
     for id in ids.as_array().into_iter().flatten().filter_map(|i| i.as_str()) {
         draft(db, id, key).await.ok();
     }
@@ -167,7 +167,8 @@ async fn detail(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): Pa
             history: array::concat(
                 (SELECT kind, role, time::format(at, '%Y-%m-%d') AS at, reason, source, <string> stamp AS stamp FROM ruling WHERE id = type::record('ruling', $id)),
                 (SELECT '발송' AS kind, role, time::format(at, '%Y-%m-%d') AS at, NONE AS reason, source, <string> stamp AS stamp FROM dispatch WHERE clarify = $c),
-                (SELECT kind, role, time::format(at, '%Y-%m-%d') AS at, reason, source, <string> stamp AS stamp FROM verdict WHERE clarify = $c)),   -- 20: 소명의 결과(인정·불인정·보완)
+                (SELECT kind, role, time::format(at, '%Y-%m-%d') AS at, reason, source, <string> stamp AS stamp FROM verdict WHERE clarify = $c),
+                IF $c.pair != NONE THEN (SELECT '접수' AS kind, role, time::format(at, '%Y-%m-%d') AS at, NONE AS reason, source, <string> stamp AS stamp FROM doc WHERE clarify = $c ORDER BY stamp LIMIT 1) ELSE [] END),   -- 20(D59): 대리점이 먼저 낸 소명은 처음 서류를 받은 것이 접수   -- 20: 소명의 결과(인정·불인정·보완)
         };", json!({ "id": id })).await?;
     // 일어난 순서(보완 뒤에 다시 발송하면 줄이 섞이므로 시각으로 맞춘다)
     let mut r = r;

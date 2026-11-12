@@ -89,10 +89,10 @@ DEFINE EVENT t20_verdict ON verdict WHEN $event = 'CREATE' THEN {
 
 -- 보완 뒤의 발송과 서류 접수: 18·19의 조건에 보완을 더하고, 미응답 뒤에 늦게 낸 서류도 받는다(스펙에 없어 정한 기본값. 21)(발송이 비워져 있으면 다시 보낼 수 있고, 보낸 뒤에는 서류를 다시 올릴 수 있다)
 DEFINE FUNCTION OVERWRITE fn::sendable($c: record<clarify>) -> bool {
-    RETURN $auth.role = '영업지원' AND $c.state INSIDE ['요청', '보완'] AND $c.sent = NONE;
+    RETURN $auth.role = '영업지원' AND $c.state INSIDE ['요청', '보완'] AND $c.sent = NONE AND $c.pair = NONE;   -- 대리점이 먼저 낸 소명(D59)에는 요청서·발송이 없다
 } PERMISSIONS FULL;
 DEFINE FUNCTION OVERWRITE fn::uploadable($c: record<clarify>) -> bool {
-    RETURN $auth.role = '영업지원' AND $c.state INSIDE ['요청', '보완', '미응답'] AND $c.sent != NONE;
+    RETURN $auth.role = '영업지원' AND $c.state INSIDE ['요청', '보완', '미응답'] AND ($c.sent != NONE OR $c.pair != NONE);
 } PERMISSIONS FULL;
 -- 발송 표시는 소명마다 한 번이던 것을 보완의 횟수마다 한 번으로 푼다(같은 시도를 두 번 표시하지 못하게 하는 것은 그대로)
 REMOVE INDEX dispatch_once ON dispatch;

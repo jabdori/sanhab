@@ -168,7 +168,9 @@ function Intake() {
     setFile(null)
     setBad(null)
   }, [id])
-  if (!id || rel?.id !== id || !rel.can) return null
+  if (!id || rel?.id !== id) return null
+  // 영업지원이 아니거나 일치하는 대리점이 없으면 조치가 없다
+  if (!rel.can || !rel.near.length) return <Empty />
   const near = rel.near
   if (!near.length) return null
   const choose = (sid: string, name: string) =>
@@ -190,8 +192,7 @@ function Intake() {
   }
   const pressed = `${button} aria-pressed:bg-surface`
   return (
-    <section className="mb-4 flex flex-col gap-2">
-      <h2 className={label}>{L.접수}</h2>
+    <section className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
         <span className={label}>{L.대리점}</span>
         {near.map((n) => (
@@ -268,5 +269,5 @@ export default [
   { slot: 'report', kind: L.소명, View: Unknown },
   { slot: 'action', kind: L.소명, View: Action },
   { slot: 'reason', kind: L.소명, View: Box },
-  { slot: 'fact', kind: L.대리점, order: 460, View: Intake },
+  { slot: 'action', kind: L.대리점, View: Intake },
 ] satisfies Piece[]

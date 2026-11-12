@@ -4,6 +4,7 @@ import { unwrap } from 'jotai/utils'
 import { L } from '../../labels'
 import { api, changedAtom, roleAtom, targetAtom } from '../../state'
 import { type Draft, blank } from '../../ui/Reason'
+import { tickAtom } from '../19-서류/docs'
 
 export type Verdict = {
   id: string
@@ -24,6 +25,7 @@ export type Verdict = {
 const verdictAtom = atom(async (get) => {
   get(changedAtom)
   get(roleAtom)
+  get(tickAtom) // 판독·정리를 기다리는 동안 19의 서류가 다시 읽을 때 같이 다시 읽는다(미확인이 채워진다)
   const t = get(targetAtom)
   if (t?.kind !== L.소명) return null
   const d = await api<Verdict>(`/clarifies/${encodeURIComponent(t.id)}/verdict`).catch(() => null)

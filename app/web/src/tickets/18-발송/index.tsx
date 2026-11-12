@@ -93,7 +93,7 @@ function Docs() {
 }
 
 /** 발송 한 줄: 발송 · 사람 · 날짜 */
-const Sent = ({ h }: { h: { role: string; at: string | null } }) => <p className="text-body tabular-nums">{[L.발송, h.role, h.at ?? L.미상].join(' · ')}</p>
+const Sent = ({ h }: { h: { kind?: string; role: string; at: string | null } }) => <p className="text-body tabular-nums">{[h.kind ?? L.발송, h.role, h.at ?? L.미상].join(' · ')}</p>
 
 /** 조치: 영업지원은 요청서(AI의 초안을 고친 글)를 쓰고 발송으로 표시한다. 발송은 되돌릴 수 없으므로 확인 창을 거치고, 누른 뒤 새 값을 받을 때까지 다시 눌리지 않는다.
  * AI가 아직 초안을 쓰지 못했으면 대기 표지가 보이고(몇 초마다 다시 읽는다) 글 없이 목록만으로도 발송할 수 있다. 서버가 거절하면 그 낱말을 보인다.
@@ -193,7 +193,7 @@ function Action() {
 function History() {
   const d = useClarify()
   if (!d) return null
-  return d.history.length ? d.history.map((h, i) => (h.kind === L.발송 ? <Sent key={i} h={h} /> : <Line key={i} d={h} />)) : <Empty />
+  return d.history.length ? d.history.map((h, i) => (h.kind === L.발송 || h.kind === L.접수 ? <Sent key={i} h={h} /> : <Line key={i} d={h} />)) : <Empty />
 }
 
 /** 정황 상세의 "소명": 그 정황에서 열린 소명. 누르면 그 소명이 열린다. 없으면 보이지 않는다 */
