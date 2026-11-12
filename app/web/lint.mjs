@@ -6,8 +6,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 
 const bad = []
 for (const f of readdirSync('src', { recursive: true })) {
-  // _tpl은 astryx 템플릿의 원본(화면을 옮길 때 견주는 재료, tpl.html로 띄운다)이라 검사하지 않는다
-  if (!/\.tsx?$/.test(f) || f === 'labels.ts' || f.startsWith('_tpl')) continue
+  if (!/\.tsx?$/.test(f) || f === 'labels.ts') continue
   const code = readFileSync(`src/${f}`, 'utf8').replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, '')).replace(/\/\/.*$/gm, '')
   code.split('\n').forEach((line, i) => {
     // 다른 티켓의 폴더에서 가져오는 경로(from '../04-심사/review')는 낱말이 아니다
