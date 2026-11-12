@@ -41,6 +41,7 @@ tickets! {
     t17_report,
     t18_send,
     t19_docs,
+    t20_clarify,
     t21_lapse,
     t12_hypo,
     t22_rules,

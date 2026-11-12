@@ -6,7 +6,7 @@ import { api, changedAtom, roleAtom, targetAtom } from '../../state'
 import type { Decision } from '../04-심사/review'
 
 export type Clarify = {
-  clarify: { id: string; name: string; state: string; source: string; dealer: { id: string; name: string }; signal: { id: string; kind: string; name: string; state: string } }
+  clarify: { id: string; name: string; state: string; source: string; dealer: { id: string; name: string }; signal: { id: string; kind: string; name: string; state: string } | null }
   /** 일치 종류와 서류 목록 `[종류, 서류]`(가정). 발송했으면 그때 남긴 목록 */
   kinds: string[]
   docs: [string, string][]

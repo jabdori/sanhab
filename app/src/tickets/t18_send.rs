@@ -68,14 +68,18 @@ async fn row(db: &Db, id: &str) -> Result<Option<(J, BTreeSet<&'static str>, Vec
     let c = q1(db, "
         LET $c = type::record('clarify', $id);
         RETURN (SELECT record::id(id) AS id, name, state, source, record::id(dealer) AS dealer, dealer.name AS dealer_name,
-            record::id(signal) AS signal, signal.kind AS signal_kind, signal.name AS signal_name, signal.state AS signal_state,
-            signal.dealers.map(|$d| record::id($d)) AS dealers, docs, body, draft, draft_model,
+            IF signal THEN record::id(signal) END AS signal, signal.kind AS signal_kind, signal.name AS signal_name, signal.state AS signal_state,
+            (pair ?? signal.dealers).map(|$d| record::id($d)) AS dealers, kind AS own_kind, docs, body, draft, draft_model,
             IF sent THEN time::format(sent, '%Y-%m-%d') END AS sent, IF due THEN time::format(due, '%Y-%m-%d') END AS due FROM $c)[0];", json!({ "id": id })).await?;
     if c.is_null() {
         return Ok(None);
     }
     let ds: Vec<String> = c["dealers"].as_array().into_iter().flatten().filter_map(|d| d.as_str().map(String::from)).collect();
-    let ks = kinds(db, c["signal_kind"].as_str().unwrap_or_default(), &ds).await?;
+    // 대리점이 먼저 낸 소명(20, D59)은 그 일치 종류 하나다
+    let ks = match c["own_kind"].as_str().and_then(|k| ITEMS.iter().find(|i| **i == k)) {
+        Some(k) => BTreeSet::from([*k]),
+        None => kinds(db, c["signal_kind"].as_str().unwrap_or_default(), &ds).await?,
+    };
     let docs = if c["sent"].is_null() {
         docs_of(&ks)
     } else {
@@ -143,7 +147,7 @@ pub async fn sweep(db: &Db) -> Result<()> {
 /// `sweep`의 키를 인자로 뗀 것(자동 검사는 환경과 상관없이 키 없음을 탄다)
 async fn sweep_with(db: &Db, key: Option<&str>) -> Result<()> {
     let ids = q1(db, &format!("
-        RETURN (SELECT VALUE record::id(id) FROM clarify WHERE sent = NONE AND draft = NONE AND state = '요청' AND (draft_tried = NONE OR (time::now() - draft_tried) > {RETRY}s) ORDER BY id);"), json!({})).await?;
+        RETURN (SELECT VALUE record::id(id) FROM clarify WHERE sent = NONE AND pair = NONE AND draft = NONE AND state = '요청' AND (draft_tried = NONE OR (time::now() - draft_tried) > {RETRY}s) ORDER BY id);"), json!({})).await?;
     for id in ids.as_array().into_iter().flatten().filter_map(|i| i.as_str()) {
         draft(db, id, key).await.ok();
     }
@@ -162,16 +166,24 @@ async fn detail(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<M
             can: fn::sendable($c),
             history: array::concat(
                 (SELECT kind, role, time::format(at, '%Y-%m-%d') AS at, reason, source, <string> stamp AS stamp FROM ruling WHERE id = type::record('ruling', $id)),
-                (SELECT '발송' AS kind, role, time::format(at, '%Y-%m-%d') AS at, NONE AS reason, source, <string> stamp AS stamp FROM dispatch WHERE clarify = $c)),
+                (SELECT '발송' AS kind, role, time::format(at, '%Y-%m-%d') AS at, NONE AS reason, source, <string> stamp AS stamp FROM dispatch WHERE clarify = $c),
+                (SELECT kind, role, time::format(at, '%Y-%m-%d') AS at, reason, source, <string> stamp AS stamp FROM verdict WHERE clarify = $c),
+                IF $c.pair != NONE THEN (SELECT '접수' AS kind, role, time::format(at, '%Y-%m-%d') AS at, NONE AS reason, source, <string> stamp AS stamp FROM doc WHERE clarify = $c ORDER BY stamp LIMIT 1) ELSE [] END),   -- 20(D59): 대리점이 먼저 낸 소명은 처음 서류를 받은 것이 접수   -- 20: 소명의 결과(인정·불인정·보완)
         };", json!({ "id": id })).await?;
+    // 일어난 순서(보완 뒤에 다시 발송하면 줄이 섞이므로 시각으로 맞춘다)
+    let mut r = r;
+    if let Some(h) = r["history"].as_array_mut() {
+        h.sort_by(|a, b| a["stamp"].as_str().cmp(&b["stamp"].as_str()));
+    }
     let dealer = c["dealer_name"].as_str().unwrap_or_default();
     let draft = c["draft"].as_str().filter(|_| c["sent"].is_null()).map(|t| json!({ "text": fill(t, dealer), "model": c["draft_model"], "source": "AI" }));
     Ok(Json(json!({
         "clarify": { "id": c["id"], "name": c["name"], "state": c["state"], "source": c["source"],
-            "dealer": { "id": c["dealer"], "name": c["dealer_name"] }, "signal": { "id": c["signal"], "kind": c["signal_kind"], "name": c["signal_name"], "state": c["signal_state"] } },
+            "dealer": { "id": c["dealer"], "name": c["dealer_name"] },
+            "signal": if c["signal"].is_null() { J::Null } else { json!({ "id": c["signal"], "kind": c["signal_kind"], "name": c["signal_name"], "state": c["signal_state"] }) } },
         "kinds": DOCS.iter().map(|d| d.0).filter(|k| ks.contains(k)).collect::<Vec<_>>(),
         "docs": docs, "body": c["body"], "sent": c["sent"], "due": c["due"], "draft": draft,
-        "role": "영업지원", "can": r["can"], "history": r["history"],
+        "role": if c["state"] == "접수" { "내부 감시" } else { "영업지원" }, "can": r["can"], "history": r["history"],
     })))
 }
 
