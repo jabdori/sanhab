@@ -27,7 +27,7 @@ type Again = {
 
 const size = (n: number) => (n === 1 ? L.단독 : `${n}${L.곳}`)
 
-function Then() {
+export function Then() {
   const r = useReview()?.review
   const d = useData<Again>(r?.status === L.승인 ? `/reviews/${r.id}/again` : null)
   if (!r || d?.id !== r.id) return null
@@ -80,4 +80,4 @@ function Then() {
   )
 }
 
-export default [{ slot: 'fact', kind: L.심사, order: -35, View: Then }] satisfies Piece[]
+export default [] satisfies Piece[]

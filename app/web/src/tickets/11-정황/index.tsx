@@ -195,7 +195,7 @@ function History() {
 }
 
 /** 심사 상세의 "정황": 그 심사의 구성원에 걸린 정황. 누르면 그 정황이 열린다. 표시가 붙은 심사에만 보인다 */
-function Flags() {
+export function Flags() {
   const r = useReview()?.review
   const on = r?.marks.includes(L.정황)
   const list = useData<{ id: string; kind: string; name: string; state: string }[]>(r && on ? `/reviews/${r.id}/signals` : null)
@@ -226,5 +226,4 @@ export default [
   { slot: 'action', kind: L.정황, View: Action },
   { slot: 'reason', kind: L.정황, View: Box },
   { slot: 'history', kind: L.정황, View: History },
-  { slot: 'fact', kind: L.심사, View: Flags },
 ] satisfies Piece[]

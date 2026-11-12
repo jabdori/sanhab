@@ -63,7 +63,7 @@ function OfSignal() {
 }
 
 /** 심사 상세: 그 심사의 구성원에 걸린 열린 정황마다. 그룹과 승인권자는 그 심사의 값이다 */
-function OfReview() {
+export function OfReview() {
   const id = useReview()?.review.id
   const list = useData<Hypo[]>(id ? `/reviews/${id}/hypo` : null)
   if (!list?.length) return null
@@ -81,5 +81,4 @@ function OfReview() {
 
 export default [
   { slot: 'fact', kind: L.정황, View: OfSignal },
-  { slot: 'fact', kind: L.심사, View: OfReview },
 ] satisfies Piece[]

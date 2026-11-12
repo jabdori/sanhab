@@ -1,59 +1,20 @@
-import { Button } from '@astryxdesign/core/Button'
 import { Drawer, DrawerHeader } from '@astryxdesign/core/Drawer'
 import { Layout, LayoutContent } from '@astryxdesign/core/Layout'
 import { NumberInput } from '@astryxdesign/core/NumberInput'
-import { Selector } from '@astryxdesign/core/Selector'
-import { Text } from '@astryxdesign/core/Text'
-import { TopNav, TopNavHeading } from '@astryxdesign/core/TopNav'
-import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { useSetAtom } from 'jotai'
 import { useState } from 'react'
-import { APP, L } from './labels'
+import { L } from './labels'
 import { SlotView, usePieces } from './pieces'
-import { api, roleAtom, rolesAtom, targetAtom, useData } from './state'
+import { api, targetAtom, useData } from './state'
 import { Confirm } from './ui/Confirm'
 import { Region } from './ui/Region'
 
-/** 띠(astryx TopNav): 앱 이름 / 역할 · 날짜 · 시연. 항상 보인다. 제품의 조작은 역할 고르기뿐이고, 시연 조작은 `시연` 서랍에 모인다 */
-export function Band() {
-  const roles = useAtomValue(rolesAtom)
-  const [role, setRole] = useAtom(roleAtom)
-  const setTarget = useSetAtom(targetAtom)
-  const state = useData<{ today: string }>('/state')
-  const [demo, setDemo] = useState(false)
+/** 시연 서랍(astryx Drawer): 메뉴 바닥의 `시연`이 연다. 제품이 아닌 시연 조작만 모은다 */
+export function DemoDrawer({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange: (open: boolean) => void }) {
   return (
-    <>
-      <TopNav
-        label={APP}
-        heading={<TopNavHeading heading={APP} />}
-        endContent={
-          <div className="flex items-center gap-4">
-            <Selector
-              label={L.역할}
-              isLabelHidden
-              variant="ghost"
-              size="sm"
-              value={role ?? undefined}
-              options={roles.map((r) => r.role)}
-              onChange={(v: string) => {
-                setRole(v)
-                setTarget(null)
-              }}
-            />
-            <span className="flex items-baseline gap-2">
-              <Text type="supporting">{L.날짜}</Text>
-              <Text hasTabularNumbers weight="medium">
-                {state?.today ?? ''}
-              </Text>
-            </span>
-            <Button label={L.시연} size="sm" onClick={() => setDemo(true)} />
-          </div>
-        }
-      />
-      {/* 띠 아래에서 열린다(theme.css .demo-drawer) — 역할·날짜·시연 단추를 덮지 않게 */}
-      <Drawer className="demo-drawer" isOpen={demo} onOpenChange={setDemo} label={L.시연} width={360} hasScrim={false}>
-        <Layout header={<DrawerHeader title={L.시연} onOpenChange={setDemo} />} content={<LayoutContent><Demo /></LayoutContent>} />
-      </Drawer>
-    </>
+    <Drawer isOpen={isOpen} onOpenChange={onOpenChange} label={L.시연} width={360}>
+      <Layout header={<DrawerHeader title={L.시연} onOpenChange={onOpenChange} />} content={<LayoutContent><Demo /></LayoutContent>} />
+    </Drawer>
   )
 }
 

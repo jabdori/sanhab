@@ -83,7 +83,7 @@ function depths(d: Trail) {
 
 /** 가운데(경위를 펼쳤을 때): 원인 → 결과의 그림. 머리(제목·숫자 줄)는 위에 그대로 남고 몸통만 바뀐다.
  * 열마다 칸을 세로 가운데로 모으고, 선은 칸의 오른쪽 가운데에서 꺾여 다음 칸의 왼쪽 가운데로 들어간다(겹치지 않게 꺾는 자리는 열 사이 가운데) */
-function Picture() {
+export function Picture() {
   const d = useTrail()
   const setTarget = useSetAtom(targetAtom)
   if (!d) return <Empty />

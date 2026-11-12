@@ -25,12 +25,8 @@
 
 /* 자리의 폭: 틀의 치수만 px로 둔다(astryx: 구조의 폭만 px, 안쪽 간격은 토큰) */
 @theme {
-  --spacing-menu: 112px;
-  --spacing-list: 360px;
-  --spacing-right: 360px;
-  --spacing-chat: 40px;
-  --spacing-chat-open: 380px;
-  --spacing-page: 1280px;
+  --spacing-menu: 220px;
+  --spacing-list: 360px; /* 접속 카드 */
 }
 
 body {
@@ -89,14 +85,6 @@ body {
 .rows-open tr:hover .astryx-link,
 .rows-open .astryx-link:focus-visible {
   text-decoration-line: underline;
-}
-
-/* 시연 서랍(Band.tsx): 띠(AppShell 머리, 높이 49) 아래에서 열린다 — 역할·날짜·시연 단추를 덮지 않게.
-   astryx 서랍의 위치(StyleX)보다 우선하도록 클래스를 두 번 쓴다 */
-.demo-drawer.demo-drawer {
-  inset-block-start: 49px;
-  block-size: calc(100dvh - 49px);
-  max-block-size: calc(100dvh - 49px);
 }
 
 /* 근거 연결이 가리킨 줄(ui/Table의 mark): 잠깐 노랗게 */

@@ -194,7 +194,7 @@ function History() {
 }
 
 /** 한 건 화면의 조치 자리: 이 심사가 든 묶음으로 가는 길. 추인·거부·종결·이견은 묶음에서 한다(D50) */
-function Way() {
+export function Way() {
   const r = useReview()
   const [b, setB] = useState<{ id: string; name: string; ym: string } | null>(null)
   const id = r?.review.id
@@ -215,7 +215,6 @@ function Way() {
 }
 
 export default [
-  { slot: 'action', kind: L.심사, order: 10, View: Way },
   { slot: 'head', kind: L.추인, View: Head },
   { slot: 'fact', kind: L.추인, order: -30, View: Then },
   { slot: 'action', kind: L.추인, View: Action },

@@ -1,3 +1,4 @@
+// 임시: 아직 pages/로 옮기지 않은 화면(pages/Legacy)만 이 자리 체계를 쓴다. 다 옮기면 지운다.
 // 티켓이 화면의 자리에 조각을 끼우는 방법. 티켓마다 src/tickets/NN-이름/index.tsx가 Piece[]를 default로 내놓으면 저절로 모인다.
 import { useAtomValue } from 'jotai'
 import type { ComponentType } from 'react'
