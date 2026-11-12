@@ -81,7 +81,7 @@ function Advance() {
       <AlertDialog.Trigger className={button}>{L.넘기기}</AlertDialog.Trigger>
       <AlertDialog.Portal>
         <AlertDialog.Popup className={`${floating} fixed top-1/2 left-1/2 flex w-list -translate-x-1/2 -translate-y-1/2 flex-col gap-4 p-6`}>
-          <AlertDialog.Title className="text-title">{L.날짜}</AlertDialog.Title>
+          <AlertDialog.Title className="text-title">{L.넘기기}</AlertDialog.Title>
           <label className="flex items-center gap-2 text-body">
             <input
               type="number"
