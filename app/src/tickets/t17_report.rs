@@ -49,7 +49,7 @@ pub fn ai_pass() -> String {
 /// AI의 토큰은 받아 두고 다시 쓴다(일꾼이 몇 초마다 부른다 — 부를 때마다 로그인·인증하면 세션이 쌓이고 느리다).
 /// 다시 적재해 토큰이 무효가 되면 인증이 실패하므로 그때 새로 받는다
 static AI_TOKEN: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
-async fn ai_session(db: &Db) -> Result<Db> {
+pub(super) async fn ai_session(db: &Db) -> Result<Db> {
     let held = AI_TOKEN.lock().unwrap().clone();
     if let Some(t) = held {
         if let Ok(s) = as_user(db, &t).await {
@@ -66,7 +66,7 @@ pub fn routes() -> Router<std::sync::Arc<Db>> {
 }
 
 /// 보고의 입력: 정황의 종류, 이름, 대리점, 근거 기록과 그 값. 같으면 저장된 보고를 쓴다. 없는 정황이면 None
-async fn basis(db: &Db, id: &str) -> Result<Option<J>> {
+pub(super) async fn basis(db: &Db, id: &str) -> Result<Option<J>> {
     let mut b = q1(db, "
         LET $s = type::record('signal', $id);
         RETURN IF count(SELECT id FROM $s) = 0 THEN NONE ELSE {
@@ -125,8 +125,8 @@ fn parts(text: &str, ev: &J) -> Vec<(String, bool)> {
 }
 
 /// AI의 답(글)에서 JSON을 꺼내 꼴을 본다. 틀린 곳이 있으면 오류의 낱말: 꼴(JSON이나 칸이 틀림) · 값(문장 틀이 틀림) · 기록(없는 기록을 가리킴)
-struct Shape { facts: Vec<(String, String)>, guess: Vec<String>, unknown: Vec<String>, action: String, opinion: String, counter: String }
-fn shape(raw: &str) -> Result<Shape, &'static str> {
+pub(super) struct Shape { facts: Vec<(String, String)>, guess: Vec<String>, unknown: Vec<String>, action: String, opinion: String, counter: String }
+pub(super) fn shape(raw: &str) -> Result<Shape, &'static str> {
     let (a, b) = (raw.find('{').ok_or("꼴")?, raw.rfind('}').ok_or("꼴")?);
     let v: J = serde_json::from_str(&raw[a..=b]).map_err(|_| "꼴")?;
     let list = |k: &str| v[k].as_array().map(|l| l.iter().map(|x| x.as_str().map(String::from)).collect::<Option<Vec<_>>>()).ok_or("꼴")?.ok_or("꼴");
@@ -169,7 +169,7 @@ struct ReadInput {
 }
 
 /// DB를 읽는 도구가 하는 일. AI의 세션으로 실행하므로 쓰기는 DB가 거절한다. 쓰는 글자가 보이면 보내지도 않는다
-async fn read_db(ai: &Db, sql: &str) -> String {
+pub(super) async fn read_db(ai: &Db, sql: &str) -> String {
     let up = sql.to_uppercase();
     if ["CREATE", "UPDATE", "DELETE", "RELATE", "INSERT", "UPSERT", "DEFINE", "REMOVE", "ALTER"].iter().any(|w| up.contains(w)) {
         return "읽기만 된다".into();
@@ -180,8 +180,29 @@ async fn read_db(ai: &Db, sql: &str) -> String {
     }
 }
 
+/// DB를 읽는 도구(`read_db`). 보고와 대화가 같이 쓴다. `seen`은 도구가 한 번 읽을 때마다 그 결과 글을 받는다(읽은 횟수, 조회한 기록 목록)
+pub(super) fn read_tool(ai: &Db, seen: Arc<dyn Fn(&str) + Send + Sync>) -> Result<Tool, &'static str> {
+    Tool::builder()
+        .name("read_db")
+        .description("DB를 읽는다. SurrealQL의 SELECT 또는 RETURN 문 하나를 받아 결과를 JSON 글로 돌려준다")
+        .input_schema(schemars::schema_for!(ReadInput))
+        .execute(ToolExecute::from_async({
+            let ai = ai.clone();
+            move |_, input: J| {
+                let (ai, seen) = (ai.clone(), seen.clone());
+                async move {
+                    let out = read_db(&ai, input["query"].as_str().unwrap_or("")).await;
+                    seen(&out);
+                    Ok(out)
+                }
+            }
+        }))
+        .build()
+        .map_err(|_| "응답")
+}
+
 /// AI의 답(글)과 DB를 읽은 횟수. 오류의 낱말: 키(OpenAI 접속 키가 없다) · 응답(응답이 없거나 늦다)
-async fn ask(model: &str, key: Option<&str>, ai: &Db, basis: &J, today: &str) -> Result<(String, usize), &'static str> {
+pub(super) async fn ask(model: &str, key: Option<&str>, ai: &Db, basis: &J, today: &str) -> Result<(String, usize), &'static str> {
     if model.starts_with("fixture") {
         return canned(model, basis).map(|s| (s, 0)).ok_or("응답");
     }
@@ -189,22 +210,7 @@ async fn ask(model: &str, key: Option<&str>, ai: &Db, basis: &J, today: &str) ->
         return Err("키");
     }
     let reads = Arc::new(AtomicUsize::new(0));
-    let tool = Tool::builder()
-        .name("read_db")
-        .description("DB를 읽는다. SurrealQL의 SELECT 또는 RETURN 문 하나를 받아 결과를 JSON 글로 돌려준다")
-        .input_schema(schemars::schema_for!(ReadInput))
-        .execute(ToolExecute::from_async({
-            let (ai, reads) = (ai.clone(), reads.clone());
-            move |_, input: J| {
-                let (ai, reads) = (ai.clone(), reads.clone());
-                async move {
-                    reads.fetch_add(1, Ordering::Relaxed);
-                    Ok(read_db(&ai, input["query"].as_str().unwrap_or("")).await)
-                }
-            }
-        }))
-        .build()
-        .map_err(|_| "응답")?;
+    let tool = read_tool(ai, { let reads = reads.clone(); Arc::new(move |_| { reads.fetch_add(1, Ordering::Relaxed); }) })?;
     let prompt = format!("오늘은 {today}이다. 아래 정황을 조사해 보고를 쓴다.\n{}", serde_json::to_string_pretty(basis).unwrap_or_default());
     let mut req = LanguageModelRequest::builder()
         .model(OpenAI::<aisdk::core::DynamicModel>::model_name(model))
@@ -270,20 +276,25 @@ pub async fn make(db: &Db, id: &str, manual: bool) -> Result<String> {
             return Ok("대기".into());
         }
     };
-    let made = match shape(&raw) {
-        Ok(s) => {
-            let mut facts = vec![];
-            for (r, t) in &s.facts {
-                facts.push(exists(db, r).await.map(|r| json!({ "ref": r, "text": t })).ok_or("기록"));
-            }
-            facts.into_iter().collect::<Result<Vec<_>, _>>().map(|f| (s, f))
-        }
-        Err(w) => Err(w),
-    };
+    let made = verify(db, &raw).await;
+    settle(&ai, &rid, &model, reads, made).await
+}
+
+pub(super) type Made = (Shape, Vec<J>);
+/// AI의 답을 본다: 꼴과 문장 틀(shape), 가리킨 기록이 실제로 있는지. 틀린 곳은 오류의 낱말
+pub(super) async fn verify(db: &Db, raw: &str) -> Result<Made, &'static str> {
+    let s = shape(raw)?;
+    let mut facts = vec![];
+    for (r, t) in &s.facts {
+        facts.push(exists(db, r).await.map(|r| json!({ "ref": r, "text": t })).ok_or("기록"));
+    }
+    facts.into_iter().collect::<Result<Vec<_>, _>>().map(|f| (s, f))
+}
+/// 본 결과를 AI의 세션으로 보고(`rid`, 대기)에 올린다. 검토로 올리려다 DB가 막으면(빈 결과) 오류로 남긴다. 돌려주는 것은 보고의 상태
+pub(super) async fn settle(ai: &Db, rid: &str, model: &str, reads: usize, made: Result<Made, &'static str>) -> Result<String> {
     let vars = |extra: J| { let mut v = json!({ "rid": rid, "model": model, "reads": reads }); v.as_object_mut().unwrap().extend(extra.as_object().cloned().unwrap_or_default()); v };
-    // 검토로 올리려다 DB가 막으면(빈 결과) 오류로 남긴다
     let up = match &made {
-        Ok((s, facts)) => q1(&ai, "
+        Ok((s, facts)) => q1(ai, "
             RETURN (UPDATE type::record($rid) SET state = '검토', facts = $facts.map(|$f| { ref: type::record($f.ref), text: $f.text }), guess = $guess, unknown = $unknown,
                 opinion = { action: $action, text: $opinion }, counter = IF string::len($counter) > 0 THEN $counter END, reads = $reads, model = $model, error = NONE);",
             vars(json!({ "facts": facts, "guess": s.guess, "unknown": s.unknown, "action": s.action, "opinion": s.opinion, "counter": s.counter }))).await.ok().filter(|r| r.as_array().is_some_and(|a| !a.is_empty())),
@@ -293,7 +304,7 @@ pub async fn make(db: &Db, id: &str, manual: bool) -> Result<String> {
         return Ok("검토".into());
     }
     let word = made.err().unwrap_or("기록");
-    q(&ai, "UPDATE type::record($rid) SET state = '오류', error = $error, reads = $reads, model = $model;", vars(json!({ "error": word }))).await?;
+    q(ai, "UPDATE type::record($rid) SET state = '오류', error = $error, reads = $reads, model = $model;", vars(json!({ "error": word }))).await?;
     Ok("오류".into())
 }
 
@@ -340,7 +351,9 @@ async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
     r["report"] = if report.is_null() { report } else {
         let mut x = report;
         let state = x["state"].as_str().unwrap_or_default().to_string();
-        let stale = x["input"] != sha(&b.to_string());
+        // 대화로 남긴 보고(24)의 입력은 `chat:정황 입력의 해시:대화의 해시`라서 앞 해시만 본다
+        let want = sha(&b.to_string());
+        let stale = x["input"] != want.as_str() && !x["input"].as_str().is_some_and(|i| i.starts_with(&format!("chat:{want}:")));
         run = audit && (stale || ["대기", "오류"].contains(&state.as_str()));
         x.as_object_mut().map(|o| o.remove("input"));
         if ["대기", "오류"].contains(&state.as_str()) {

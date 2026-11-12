@@ -15,3 +15,5 @@ reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
 aisdk = { version = "=0.6.4", features = ["openai"] }
 schemars = "1.2.3"
 base64 = "0.22"
+async-stream = "0.3.6"
+futures = "0.3.34"
