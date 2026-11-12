@@ -21,11 +21,12 @@ pub fn routes() -> Router<std::sync::Arc<Db>> {
 
 /// 대리점 목록: 지금 등록된 대표자·주소·계좌
 async fn list(Extension(me): Extension<Me>) -> R {
-    let sql = "SELECT record::id(id) AS id, name, ->rep->person.name AS rep, ->addr->address.value AS address, ->acct->account.value AS account FROM dealer ORDER BY id;";
+    // 지금 값: 오늘 유효한 선(13의 `fn::current`). 바뀌기 전의 값은 상세의 등록에 남는다
+    let sql = "SELECT record::id(id) AS id, name, fn::current(id, '대표자').value AS rep, fn::current(id, '주소').value AS address, fn::current(id, '계좌').value AS account FROM dealer ORDER BY id;";
     Ok(Json(q1(&me.db, sql, json!({})).await?))
 }
 
-/// 대리점 상세: 등록(식별자와 변경일·인지일·경로)과 귀속월별 지급. 인지일이 없으면(null) 미상이다.
+/// 대리점 상세: 등록(식별자와 변경일·다음 값으로 바뀐 날(`until`, 13)·유효했던 마지막 날(`last` = 그 전날)·인지일·경로)과 귀속월별 지급. 인지일이 없으면(null) 미상이다.
 /// 지급의 `status`는 원본의 값, `state`·`state_source`는 이 앱이 준 지급의 상태와 그 출처(07. 없으면 아직 손대지 않은 지급),
 /// `review`는 그 지급의 심사(09. 과거의 결정이거나 승인된 것. 심사를 기다리는 지급에는 없다)
 async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
@@ -33,7 +34,7 @@ async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
     let edge = |item: &str, table: &str, value: &str| {
         format!(
             "(SELECT '{item}' AS item, {value}, source, file.path AS file, row, time::format(since, '%Y-%m-%d') AS since, \
-             IF known THEN time::format(known, '%Y-%m-%d') END AS known, via, excluded FROM {table} WHERE in = $d ORDER BY since)"
+             IF until THEN time::format(until, '%Y-%m-%d') END AS until, IF until THEN time::format(until - 1d, '%Y-%m-%d') END AS last, IF known THEN time::format(known, '%Y-%m-%d') END AS known, via, excluded FROM {table} WHERE in = $d ORDER BY since)"
         )
     };
     let sql = format!(
@@ -148,7 +149,7 @@ pub async fn check(c: &Check) -> Result<()> {
     let d = c.get(role, "/api/dealers/D-034").await?;
     ensure!(d["dealer"]["name"] == "한라인상사34");
     let file = "01_corevia/master/m_agency_cv.csv";
-    let reg = |item: &str, value: &str| json!({ "item": item, "value": value, "source": "원본", "file": file, "row": 35, "since": "2021-08-13", "known": null, "via": "원본", "excluded": false });
+    let reg = |item: &str, value: &str| json!({ "item": item, "value": value, "source": "원본", "file": file, "row": 35, "since": "2021-08-13", "until": null, "last": null, "known": null, "via": "원본", "excluded": false });
     let mut rep = reg("대표자", "박준호");
     rep["same"] = json!("미상");
     ensure!(d["registered"] == json!([rep, reg("주소", "대전시 중앙로 260"), reg("계좌", "신한 971-13-131178")]), "등록 {}", d["registered"]);

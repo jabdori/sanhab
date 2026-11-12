@@ -9,12 +9,12 @@ import { api, changedAtom, roleAtom, store, targetAtom } from '../../state'
 import { Empty } from '../../ui/Empty'
 import { Pill } from '../../ui/Pill'
 import { type Draft, Reason, blank, ready, sent as filled } from '../../ui/Reason'
-import { button } from '../../ui/styles'
+import { button, label } from '../../ui/styles'
 import { Line } from '../04-심사'
 import { type Decision, useReview } from '../04-심사/review'
 
 /** can: 지금 역할이 재상신할 수 있는지. classes: 재상신의 사유에 고를 수 있는 분류. lines: 결정과 재상신 */
-type State = { id: string; can: boolean; classes: string[]; lines: Decision[] }
+type State = { id: string; can: boolean; classes: string[]; lines: (Decision & { was?: string | null })[] }
 
 // 열어 둔 심사의 재상신. 두 조각이 같은 값을 읽고, 조치 뒤에 저절로 다시 읽힌다
 const stateAtom = atom(async (get) => {
@@ -84,7 +84,15 @@ function Why() {
 function History() {
   const s = useResubmit()
   if (!s) return null
-  return s.lines.length ? s.lines.map((d, i) => <Line key={i} d={d} />) : <Empty />
+  // 그룹이 바뀌어 옮겨 온 옛 심사의 줄(13, D56)은 그 심사의 이름을 위에 단다
+  return s.lines.length
+    ? s.lines.map((d, i) => (
+        <div key={i}>
+          {d.was && <p className={label}>{d.was}</p>}
+          <Line d={d} />
+        </div>
+      ))
+    : <Empty />
 }
 
 export default [

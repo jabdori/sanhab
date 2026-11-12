@@ -45,12 +45,23 @@ fn docs_of(kinds: &BTreeSet<&str>) -> Vec<[String; 2]> {
     DOCS.iter().filter(|d| kinds.contains(d.0)).flat_map(|d| d.1.iter().map(|n| [d.0.to_string(), n.to_string()])).collect()
 }
 
-/// 그 소명의 일치 종류. 계좌 정황은 계좌, 동명 정황은 대표자(그 정황이 가리키는 일치 — 회수가 들어간 계좌는 등록된 선이 아니라 계산에서 나오지 않는다).
+/// 그 소명의 일치 종류. 계좌 정황은 계좌(회수가 들어간 계좌는 등록된 선이 아니라 계산에서 나오지 않는다), 동명 정황은 근거에 든 식별자 선의 종류
+/// (대표자. 13의 변경으로 주소 일치가 근거로 붙었으면(D57) 대표자 + 주소 — 시나리오 5).
 /// 그 밖의 정황(지연, 대사, 추인 …)은 대상(첫 대리점)과 나머지 대리점이 03의 계산으로 일치하는 종류. 대리점이 하나뿐이면 없다
-async fn kinds(db: &Db, signal_kind: &str, dealers: &[String]) -> Result<BTreeSet<&'static str>> {
+async fn kinds(db: &Db, signal_kind: &str, signal: &str, dealers: &[String]) -> Result<BTreeSet<&'static str>> {
     match signal_kind {
         "계좌" => return Ok(BTreeSet::from(["계좌"])),
-        "동명" => return Ok(BTreeSet::from(["대표자"])),
+        "동명" => {
+            let tbs = q1(db, "RETURN (type::record('signal', $id).evidence ?? []).map(|$e| record::tb($e));", json!({ "id": signal })).await?;
+            let has = |t: &str| tbs.as_array().is_some_and(|a| a.contains(&json!(t)));
+            let mut set = BTreeSet::from(["대표자"]);
+            for (tb, item) in [("addr", "주소"), ("acct", "계좌")] {
+                if has(tb) {
+                    set.insert(item);
+                }
+            }
+            return Ok(set);
+        }
         _ => {}
     }
     let ls = links(db, None).await?;
@@ -78,7 +89,7 @@ async fn row(db: &Db, id: &str) -> Result<Option<(J, BTreeSet<&'static str>, Vec
     // 대리점이 먼저 낸 소명(20, D59)은 그 일치 종류 하나다
     let ks = match c["own_kind"].as_str().and_then(|k| ITEMS.iter().find(|i| **i == k)) {
         Some(k) => BTreeSet::from([*k]),
-        None => kinds(db, c["signal_kind"].as_str().unwrap_or_default(), &ds).await?,
+        None => kinds(db, c["signal_kind"].as_str().unwrap_or_default(), c["signal"].as_str().unwrap_or_default(), &ds).await?,
     };
     let docs = if c["sent"].is_null() {
         docs_of(&ks)

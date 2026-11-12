@@ -21,7 +21,7 @@ pub const NEAR_TIMES: usize = 2;
 
 /// 정해진 종류의 정황을 지금의 기록에서 빠짐없이 찾아 접수한다. 같은 대상의 같은 종류는 하나이고, 이미 있는 정황에는 새 근거만 붙는다(여러 번 불러도 같다).
 /// 회수·식별자 선·지급을 넣거나 바꾸는 티켓은 끝에 이것을 부른다.
-/// - 계좌: 회수의 계좌가 그 대리점의 계좌가 아니고 다른 대리점이 등록한 계좌와 같다. 대상은 회수의 대리점
+/// - 계좌: 회수의 계좌가 그 대리점의 계좌가 아니고 다른 대리점이 등록한 계좌와 같다(둘 다 회수 날짜에 유효한 등록). 대상은 회수의 대리점
 /// - 동명: 두 대리점이 대표자만 일치하고 같은 그룹이 아니다(지금의 선으로. 이미 같은 그룹이면 정황이 아니다 — D51). 대상은 그 이름
 /// - 근접: 한 대리점에 금액이 `NEAR` 안인 지급이 귀속월을 달리해 `NEAR_TIMES`건 이상 있다(과거의 지급도 본다. 한 번은 정황이 아니다 — D51). 대상은 그 대리점
 /// (대사는 여기서 찾지 않는다. 불일치가 기록될 때 이벤트 `t11_recon`이 접수한다)
@@ -39,8 +39,9 @@ pub async fn detect(db: &Db) -> Result<()> {
     }
     q(db, "
         FOR $d IN (SELECT id, date, (->deposit_of->dealer)[0] AS dealer, (->deposit_into->account)[0] AS account FROM deposit ORDER BY date, id) {
-            LET $own = (SELECT VALUE id FROM acct WHERE in = $d.dealer AND out = $d.account AND !excluded); -- ponytail: 등록의 유효 기간은 보지 않는다. 13(변경)이 계좌 변경을 넣을 때 회수 날짜에 유효한 등록만 보게 한다
-            LET $others = (SELECT id, in FROM acct WHERE out = $d.account AND in != $d.dealer AND !excluded ORDER BY in);
+            -- 회수 날짜에 유효한 등록만 본다(13: 계좌가 바뀐 대리점은 바뀌기 전의 회수만 옛 계좌로, 바뀐 뒤의 회수는 새 계좌로)
+            LET $own = (SELECT VALUE id FROM acct WHERE in = $d.dealer AND out = $d.account AND !excluded AND since <= $d.date AND (until = NONE OR until > $d.date));
+            LET $others = (SELECT id, in FROM acct WHERE out = $d.account AND in != $d.dealer AND !excluded AND since <= $d.date AND (until = NONE OR until > $d.date) ORDER BY in);
             IF array::len($own) = 0 AND array::len($others) > 0 {
                 fn::signal('계좌', record::id($d.dealer), $d.dealer.name, array::concat([$d.dealer], $others.in), array::concat([$d.id], $others.id), '계산');
             };

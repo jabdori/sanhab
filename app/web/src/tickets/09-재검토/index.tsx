@@ -18,6 +18,8 @@ type Again = {
   now: Side & { members: { id: string; name: string }[]; limit: number; rules: { name: string; ver: number }[] }
   /** 현재의 구성을 만든 식별자의 인지일. 없으면 미상 */
   known: string | null
+  /** 인지일이 승인(과거의 승인은 지급일)보다 뒤: 당시에는 알 수 없었던 건 */
+  late: boolean
   /** 원본에 지급일이 있는 지급 */
   paid: { at: string; source: string; file: string; row: number }[]
   source: string
@@ -69,7 +71,8 @@ function Then() {
           [L.구성, size(d.then.members), size(d.now.members.length)],
           [L.합산, num(d.then.total), num(d.now.total)],
           [L.승인권자, d.then.approver, d.now.approver],
-          [L.인지일, d.known ?? L.미상],
+          // 당시 회사가 알았는지: 인지일이 승인 뒤이면 당시는 미인지, 현재는 그 인지일(D30). 미상이면 구분할 수 없다(D5)
+          d.late ? [L.인지일, L.미인지, d.known ?? L.미상] : [L.인지일, d.known ?? L.미상],
         ]}
       />
       </section>
