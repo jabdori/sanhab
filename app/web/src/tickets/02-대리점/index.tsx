@@ -15,7 +15,7 @@ type Row = { id: string; name: string; rep: string[]; address: string[]; account
 type Detail = {
   dealer: { id: string; name: string } & From
   /** until: 다음 값으로 바뀐 날(13의 변경). 있으면 이전 값이다 */
-  registered: ({ item: string; value: string; same?: string; since: string; until: string | null; known: string | null; via: string } & From)[]
+  registered: ({ item: string; value: string; same?: string; since: string; until: string | null; known: string | null; via: string; excluded?: boolean } & From)[]
   /** review: 그 지급의 심사(과거의 결정이거나 승인된 것). 누르면 그 심사가 열린다 */
   payouts: ({ ym: string; amount: number; status: string; state?: string; state_source?: string; review?: { id: string; name: string; marks: string[] } | null } & From)[]
 }
@@ -73,6 +73,17 @@ function Registered() {
                 <span className={label}>
                   {L.동일인} {r.same}
                 </span>
+              )}
+              {r.excluded && (
+                <>
+                  <span className={label}>{L.제외}</span>
+                  <Source kind={L.소명}>
+                    <dl className="grid grid-cols-2 gap-x-2 gap-y-1">
+                      <dt className={label}>{L.상태}</dt>
+                      <dd>{L.제외}</dd>
+                    </dl>
+                  </Source>
+                </>
               )}
             </span>,
             src(r),

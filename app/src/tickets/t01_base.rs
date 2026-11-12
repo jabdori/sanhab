@@ -11,7 +11,7 @@ pub const SCHEMA: &str = include_str!("../../db/01-바탕.surql");
 /// (계정, 역할). 화면의 역할 순서
 pub const ROLES: [(&str, &str); 4] = [("support", "영업지원"), ("exec", "영업임원"), ("audit", "내부 감시"), ("acct", "회계·자금")];
 
-pub fn routes() -> Router<Db> {
+pub fn routes() -> Router<std::sync::Arc<Db>> {
     Router::new().route("/state", get(state))
 }
 

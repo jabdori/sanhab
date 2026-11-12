@@ -46,11 +46,22 @@ pub(super) fn model() -> String {
 pub fn ai_pass() -> String {
     sha(&format!("ai:{}", std::env::var("SURREAL_PASS").unwrap_or_else(|_| "root".into())))
 }
+/// AI의 토큰은 받아 두고 다시 쓴다(일꾼이 몇 초마다 부른다 — 부를 때마다 로그인·인증하면 세션이 쌓이고 느리다).
+/// 다시 적재해 토큰이 무효가 되면 인증이 실패하므로 그때 새로 받는다
+static AI_TOKEN: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
 async fn ai_session(db: &Db) -> Result<Db> {
-    as_user(db, &signin(db, "ai", &ai_pass()).await?).await
+    let held = AI_TOKEN.lock().unwrap().clone();
+    if let Some(t) = held {
+        if let Ok(s) = as_user(db, &t).await {
+            return Ok(s);
+        }
+    }
+    let t = signin(db, "ai", &ai_pass()).await?;
+    *AI_TOKEN.lock().unwrap() = Some(t.clone());
+    as_user(db, &t).await
 }
 
-pub fn routes() -> Router<Db> {
+pub fn routes() -> Router<std::sync::Arc<Db>> {
     Router::new().route("/signals/{id}/report", get(detail)).route("/investigate", post(investigate)).route("/adopt", post(adopt))
 }
 
@@ -354,7 +365,7 @@ async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
 }
 
 /// 조사: 내부 감시가 요청하면 AI가 정황을 조사한다(D23). 같은 입력의 보고가 이미 올라와 있으면 그것을 쓴다. 끝나야(AI가 응답하거나 대기로 남아야) 돌아온다. `{ id }` → `{ state }`
-async fn investigate(Extension(me): Extension<Me>, State(db): State<Db>, Body(b): Body) -> R {
+async fn investigate(Extension(me): Extension<Me>, State(db): State<std::sync::Arc<Db>>, Body(b): Body) -> R {
     let Some(id) = b["id"].as_str().filter(|i| !i.is_empty()) else { return Err(refuse("대상")) };
     if basis(&db, id).await.map_err(|_| refuse("대상"))?.is_none() {
         return Err(refuse("대상"));

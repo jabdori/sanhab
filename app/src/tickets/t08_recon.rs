@@ -13,7 +13,7 @@ use serde_json::{Value as J, json};
 
 pub const SCHEMA: &str = include_str!("../../db/08-대사.surql");
 
-pub fn routes() -> Router<Db> {
+pub fn routes() -> Router<std::sync::Arc<Db>> {
     Router::new().route("/pays/{id}/recon", get(detail)).route("/reply", post(reply))
 }
 

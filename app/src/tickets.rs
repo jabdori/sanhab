@@ -12,7 +12,7 @@ macro_rules! tickets {
     ($($m:ident,)*) => {
         $(mod $m;)*
         pub const SCHEMAS: &[&str] = &[$($m::SCHEMA),*];
-        pub fn routes() -> Router<Db> { Router::new()$(.merge($m::routes()))* }
+        pub fn routes() -> Router<std::sync::Arc<Db>> { Router::new()$(.merge($m::routes()))* }
         pub async fn seed(db: &Db) -> Result<()> { $($m::seed(db).await.context(stringify!($m))?;)* Ok(()) }
         /// 티켓마다 초기화한 뒤 검사한다. `only`가 있으면 이름이 그것으로 시작하는 티켓만.
         pub async fn check(c: &mut Check, only: Option<&str>) -> Result<()> {
@@ -42,6 +42,8 @@ tickets! {
     t17_report,
     t18_send,
     t19_docs,
+    t20_clarify,
+    t21_lapse,
     t12_hypo,
     t22_rules,
 }

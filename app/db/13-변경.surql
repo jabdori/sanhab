@@ -38,6 +38,8 @@ DEFINE FUNCTION fn::current($d: record<dealer>, $item: string) -> array {
 DEFINE EVENT t13_change ON incident WHEN $event = 'CREATE' THEN {
     LET $a = $after;
     LET $e = { since: $a.since, known: $a.known, via: $a.via, source: $a.source, incident: $a.id };
+    -- D31: 대리점의 식별자가 다시 바뀌면 소명 인정(20)의 제외는 효력을 잃는다(새로 판정한다)
+    UPDATE rep, addr, acct SET excluded = false, ex_from = NONE, ex_to = NONE, excused = NONE WHERE in = $a.dealer AND excused != NONE;
     IF $a.item = '대표자' {
         LET $n = type::record('person', $a.value);
         IF $n.id = NONE { CREATE $n SET name = $a.value, same = '미상', source = $a.source; };

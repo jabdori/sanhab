@@ -14,7 +14,7 @@ use serde_json::{Value as J, json};
 
 pub const SCHEMA: &str = include_str!("../../db/13-변경.surql");
 
-pub fn routes() -> Router<Db> {
+pub fn routes() -> Router<std::sync::Arc<Db>> {
     Router::new().route("/change", get(can).post(change))
 }
 
@@ -30,7 +30,7 @@ async fn can(Extension(me): Extension<Me>) -> R {
 
 /// 변경: `{ id(대리점), item(대표자·주소·계좌), value, since(변경일) }`. 거절의 낱말은 대상(없는 대리점·항목, 틀린 꼴, 오늘보다 뒤의 변경일) → 권한(영업지원만) →
 /// 상태(지금 값과 같거나, 변경일이 지금 값의 변경일보다 뒤가 아님). 쓴 뒤에 심사·재검토·정황을 다시 계산한다
-async fn change(State(db): State<Db>, Extension(me): Extension<Me>, Body(b): Body) -> R {
+async fn change(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<Me>, Body(b): Body) -> R {
     let text = |k: &str| b[k].as_str().map(str::trim).filter(|v| !v.is_empty());
     let (Some(id), Some(item), Some(value), Some(since)) = (text("id"), text("item"), text("value"), text("since").filter(|s| day(s))) else {
         return Err(refuse("대상"));
@@ -215,6 +215,27 @@ async fn main_flow(c: &Check) -> Result<()> {
     ensure!(stale().await? == true, "변경 뒤의 보고");
     let h = c.get(audit, "/api/signals/동명-박준호/hypo").await?;
     ensure!(h["approver"][0] == h["approver"][1] && h["group"][0] == h["group"][1], "동명의 가설 {h}");
+
+    // 20 소명: 한라인상사34가 금강상사41과의 주소 일치를 소명하고(서류 접수) 내부 감시가 인정하면, 그 주소 선이 빠져 다시 관련자가 아니게 된다.
+    // 2·3월의 재검토가 풀리고 6월 심사는 두 곳으로 갈라져 각각 영업지원의 것이 된다
+    let res = reqwest::Client::new().post(format!("{}/api/dealers/D-034/clarify?other=D-041&kind=주소&name={}", c.base(), super::t19_docs::SAMPLES[0].0))
+        .bearer_auth(c.token(support)).header("content-type", "image/png").body(super::t19_docs::SAMPLES[0].2.to_vec()).send().await?;
+    ensure!(res.status() == 200, "소명 접수 {}", res.status());
+    let cl = res.json::<J>().await?["id"].as_str().unwrap_or_default().to_string();
+    let (code, v) = c.post(audit, "/api/verdict", json!({ "id": cl, "kind": "인정", "reason": { "class": "입증" } })).await?;
+    ensure!(code == 200, "인정 {code} {v}");
+    let near = |rel: &J| rows(&rel["near"]).into_iter().find(|n| n["id"] == "D-041").map(|n| n["related"].clone());
+    ensure!(near(&c.get(support, "/api/dealers/D-034/related").await?) == Some(json!(false)), "인정 뒤의 관계");
+    for id in ["2026-02-D-034", "2026-03-D-041"] {
+        ensure!(again(id).await?["again"] == false, "인정 뒤 {id}");
+    }
+    for (id, total) in [("2026-06-D-034", 1_353_657), ("2026-06-D-041", 902_052)] {
+        let r = c.get(exec, &format!("/api/reviews/{id}")).await?["review"].clone();
+        ensure!(r["total"] == total && r["approver"] == support && r["status"] == "대기", "인정 뒤 {id} {r}");
+    }
+    // D31: 한라인상사34의 식별자가 다시 바뀌면(계좌의 신고) 인정은 효력을 잃고 주소 선이 다시 계산에 든다 — 2·3월이 다시 재검토
+    ensure!(c.post(support, "/api/change", change("D-034", "계좌", "시연 300-00-000034", "2026-07-01")).await?.0 == 200, "인정 뒤의 변경");
+    ensure!(near(&c.get(support, "/api/dealers/D-034/related").await?) == Some(json!(true)) && again("2026-02-D-034").await?["again"] == true, "다시 바뀐 뒤의 관계");
 
     // 11 계좌 정황은 회수 날짜에 유효한 등록만 본다: 금강상사11·대륙상사37이 2026-01-01부터 다른 계좌를 쓰면(회수는 3~4월) 성일상사24의 회수는 계좌 정황이 아니다
     // (한 곳씩 바꾸는 사이에는 남은 곳의 등록으로 정황이 잡히므로, 둘 다 바꾼 뒤 정황을 지우고 다시 찾는다)

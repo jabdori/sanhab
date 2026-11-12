@@ -15,7 +15,7 @@ pub const SCHEMA: &str = include_str!("../../db/02-대리점.surql");
 /// 그래프에 적재하는 원본 파일
 const FILES: [(&str, &str); 3] = [orig::AGENCY, orig::REBATE, orig::DEPOSIT];
 
-pub fn routes() -> Router<Db> {
+pub fn routes() -> Router<std::sync::Arc<Db>> {
     Router::new().route("/dealers", get(list)).route("/dealers/{id}", get(detail)).route("/origin", get(origin))
 }
 
