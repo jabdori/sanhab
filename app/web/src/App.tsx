@@ -4,7 +4,7 @@ import { Band } from './Band'
 import { Enter } from './Enter'
 import { L } from './labels'
 import { type Slot, SlotView, usePieces } from './pieces'
-import { chatOpenAtom, listOpenAtom, MENUS, menuAtom, roleAtom, rolesAtom, targetAtom } from './state'
+import { chatOpenAtom, listOpenAtom, MENUS, menuAtom, roleAtom, rolesAtom, targetAtom, trailOpenAtom } from './state'
 import { label } from './ui/styles'
 
 /** 오른쪽(판단)의 칸. 순서 고정 */
@@ -33,6 +33,8 @@ function Shell() {
   const [listOpen, setListOpen] = useAtom(listOpenAtom)
   const [chatOpen, setChatOpen] = useAtom(chatOpenAtom)
   useEffect(() => setListOpen(false), [target, setListOpen])
+  const [trailOpen, setTrailOpen] = useAtom(trailOpenAtom)
+  useEffect(() => setTrailOpen(false), [target, setTrailOpen])
   // 대화를 펼쳐도 목록이 나머지를 다 쓰고 있을 때(대상이 없을 때)는 접을 것이 없다
   const folded = (target?.kind === L.소명 || (chatOpen && !wide)) && !listOpen
   return (
@@ -73,7 +75,7 @@ function Shell() {
         {!wide && (
           <>
             <main className="min-w-0 flex-1 overflow-auto p-4">
-              <SlotView slot="fact" />
+              <SlotView slot={trailOpen ? 'map' : 'fact'} />
             </main>
             <aside className="w-right shrink-0 overflow-auto border-l border-line bg-surface">
               {RIGHT.map(([slot, name]) => (
