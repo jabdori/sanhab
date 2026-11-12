@@ -17,7 +17,7 @@ const MAX: i64 = 1_000_000_000;
 const WHO: [&str; 2] = ["영업임원", "내부 감시"];
 const APPROVERS: [&str; 2] = ["영업지원", "영업임원"];
 
-pub fn routes() -> Router<Db> {
+pub fn routes() -> Router<std::sync::Arc<Db>> {
     Router::new().route("/mock", get(info).post(mock))
 }
 
