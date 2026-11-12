@@ -109,7 +109,7 @@ function Action() {
                   <span>{c.clarify.dealer.name}</span>
                 </AlertDialog.Title>
                 <p className={label}>{L.제외}</p>
-                {v.lines.length ? <Table head={[L.종류, L.식별자]} rows={v.lines.map((l) => [l.item, l.value])} /> : <Empty />}
+                {v.lines.length ? <Table head={[L.종류, L.식별자]} rows={v.lines.map((l) => [l.item, l.value])} /> : <p className="text-body">{L['제외 없음']}</p>}
                 <dl className="flex items-baseline gap-2">
                   <dt className={label}>{L.기간}</dt>
                   <dd className="text-body tabular-nums">{span(v.span?.[0], v.span?.[1]) ?? L.미상}</dd>

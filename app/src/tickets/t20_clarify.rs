@@ -330,6 +330,12 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(review("2026-06-D-024").await?["review"]["total"] == 1_189_046, "6월의 성일상사24");
     restore().await?;
     ensure!(shape().await? == before, "끝");
+    // 21: 기한이 지나 미응답이 된 소명에도 늦게 낸 서류를 받고, 결과를 정하면 미응답 작업이 닫힌다
+    let late = open("f", "D-024", "D-011").await?;
+    q(&c.db, "RETURN fn::advance(15); RETURN fn::lapse();", json!({})).await?;
+    ensure!(state(&late).await? == "미응답" && tasks(audit, "mine", "미응답").await?.iter().any(|t| t["target"] == late.as_str()), "미응답");
+    ensure!(up(&late, png1).await? == 200 && state(&late).await? == "접수", "늦게 낸 서류");
+    ensure!(verdict(audit, &late, "불인정", json!({ "class": "서류" })).await? == "" && tasks(audit, "mine", "미응답").await?.iter().all(|t| t["target"] != late.as_str()), "결과 뒤의 미응답 작업");
     none();
     Ok(())
 }
