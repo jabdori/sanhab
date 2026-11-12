@@ -51,7 +51,7 @@ function Form({ id }: { id: string }) {
       </label>
       <label className={row}>
         <span className={name}>{L.변경일}</span>
-        <input type="date" className={field} max={today} value={since} onChange={(e) => setSince(e.target.value)} />
+        <input type="text" inputMode="numeric" placeholder="YYYY-MM-DD" maxLength={10} className={`${field} tabular-nums`} value={since} onChange={(e) => setSince(e.target.value)} />
       </label>
       <div className="flex flex-wrap items-center gap-2">
         <AlertDialog.Root>

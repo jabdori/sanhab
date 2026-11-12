@@ -31,6 +31,24 @@ impl Check {
     }
 
     /// 검사 서버의 주소(JSON이 아닌 본문을 보낼 때)
+    /// 응답 시간: 역할별 작업 목록, 심사 상세, 접속 요청이 각각 1초 안에 온다(작은 파드에서 요청마다 몇 초씩 밀린 일이 있었다)
+    pub async fn latency(&self) -> Result<()> {
+        use std::time::{Duration, Instant};
+        let slow = |what: String, t: Instant| -> Result<()> { ensure!(t.elapsed() < Duration::from_secs(1), "{what} {:?}", t.elapsed()); Ok(()) };
+        for (_, role) in crate::tickets::ROLES {
+            let t = Instant::now();
+            self.get(role, "/api/tasks").await?;
+            slow(format!("{role}의 작업 목록"), t)?;
+        }
+        let t = Instant::now();
+        self.get("영업지원", "/api/reviews/2026-06-D-001").await?;
+        slow("심사 상세".into(), t)?;
+        let t = Instant::now();
+        let (code, _) = self.call(None, "POST", "/api/enter", Some(json!({ "pass": crate::demo_pass() }))).await?;
+        ensure!(code == 200, "접속 → {code}");
+        slow("접속 요청".into(), t)
+    }
+
     pub fn base(&self) -> &str { &self.base }
 
     pub fn token(&self, role: &str) -> &str {

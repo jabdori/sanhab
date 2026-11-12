@@ -15,7 +15,7 @@ export function Table({ head, rows, right = [], current, mark }: { head: string[
         <thead>
           <tr className="bg-surface">
             {head.map((h, i) => (
-              <th key={i} className={`h-head border-b border-line px-2 ${label} ${side(i)}`}>
+              <th key={i} className={`h-head border-b border-line px-1 ${label} ${side(i)}`}>
                 {h}
               </th>
             ))}
@@ -30,7 +30,7 @@ export function Table({ head, rows, right = [], current, mark }: { head: string[
               className={y === mark ? 'bg-mark' : y === current ? 'bg-surface' : ''}
             >
               {r.map((c, i) => (
-                <td key={i} className={`h-row border-b border-line px-2 ${side(i)}`}>
+                <td key={i} className={`h-row border-b border-line px-1 ${side(i)}`}>
                   {c}
                 </td>
               ))}

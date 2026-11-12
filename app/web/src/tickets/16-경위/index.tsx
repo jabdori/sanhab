@@ -49,7 +49,7 @@ function List() {
     .sort((a, b) => (a.n.at ?? '').localeCompare(b.n.at ?? '') || a.i - b.i)
   return (
     <div className="flex flex-col gap-2">
-      <Toggle pressed={open} onPressedChange={setOpen} className={`${button} self-start aria-pressed:bg-surface`}>
+      <Toggle pressed={open} onPressedChange={setOpen} className={`${button} self-start aria-pressed:bg-line`}>
         {L.그림}
       </Toggle>
       <Table head={[L.날짜, L.종류, L.대상]} rows={rows.map(({ n }) => [n.at ?? L.미상, n.kind, <Go key={n.key} node={n} />])} current={rows.findIndex(({ n }) => n.key === d.now)} />

@@ -74,7 +74,7 @@ function Evidence() {
     <section className="mb-4 flex flex-col gap-2">
       <h2 className={label}>{L.근거}</h2>
       <Table
-        head={[L.근거, rows.every((e) => e.ym) ? L.귀속월 : '', nodes ? L.식별자 : amounts ? L.금액 : L.비교, L.출처]}
+        head={[L.근거, rows.every((e) => e.ym) ? L.귀속월 : L.날짜, nodes ? L.식별자 : amounts ? L.금액 : L.비교, L.출처]}
         right={!nodes && amounts ? [2] : []}
         mark={rows.findIndex((e) => e.id === mark)}
         rows={rows.map((e) => [
