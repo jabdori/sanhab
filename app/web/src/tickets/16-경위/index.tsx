@@ -134,9 +134,8 @@ function Picture() {
               onClick={() => setTarget(n.go)}
               className={`flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-box border px-2 py-1 text-left hover:bg-surface ${n.key === d.now ? 'border-2 border-text bg-surface' : on.has(n.key) ? 'border-text-sub bg-bg' : 'border-line bg-bg opacity-60'}`}
             >
-              <span className={`${label} tabular-nums`}>
-                {n.kind} {n.at ?? L.미상}
-              </span>
+              <span className={label}>{n.kind}</span>
+              <span className={`${label} whitespace-nowrap tabular-nums`}>{n.at ?? L.미상}</span>
               <span className="line-clamp-2 text-body break-keep" title={n.name}>
                 {n.name}
               </span>

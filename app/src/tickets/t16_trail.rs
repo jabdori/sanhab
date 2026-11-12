@@ -49,7 +49,7 @@ async fn pay(db: &Db, id: &str) -> Result<Option<(Vec<J>, Vec<J>, String)>> {
         LET $new = IF $r != NONE THEN $r.back ?? (SELECT VALUE id FROM review WHERE payouts CONTAINS $p.id AND id != $was AND fixed = NONE ORDER BY id DESC LIMIT 1)[0] END;
         LET $c = $r.cause;
         RETURN IF $p = NONE OR $was = NONE THEN NONE ELSE {{
-            pay: {{ id: record::id($p.id), name: $p.name, ym: $p.ym, at: IF $r != NONE THEN time::format($r.at, '%Y-%m-%d') END, redo: $r != NONE }},
+            pay: {{ id: record::id($p.id), name: $p.name, ym: $p.ym, at: IF $r != NONE THEN time::format($r.at, '%Y-%m-%d') ELSE (SELECT VALUE time::format(at, '%Y-%m-%d') FROM remit WHERE payout = $p.id ORDER BY stamp DESC LIMIT 1)[0] END, redo: $r != NONE }},
             was: {{ id: record::id($was), name: $was.name, ym: $was.ym,
                 ok: (SELECT role, reason, time::format(at, '%Y-%m-%d') AS at FROM decision WHERE review = $was AND kind = '승인' AND was = NONE ORDER BY stamp DESC LIMIT 1)[0] }},
             cause: {CAUSE},
@@ -230,5 +230,12 @@ pub async fn check(c: &mut Check) -> Result<()> {
     let t = c.get(audit, &format!("/api/trail/ratify/{feb}")).await?;
     ensure!(kinds(&t) == ["변경", "재검토", "재검토", "작업", "추인", "종결"] && edges(&t).len() == 6, "결정까지의 경위 {t}");
     ensure!(node(&t, "추인")["who"] == json!({ "role": exec, "reason": { "class": "미인지", "memo": "당시에는 알 수 없었다" } }) && node(&t, "종결")["who"]["role"] == audit && t["now"] == work.as_str(), "결정의 사람과 사유 {t}");
+    // 재심사된 적 없는 지급은 지급 표시(remit)를 한 날이 지급 칸의 날짜다. 표시 전에는 미상
+    c.reset().await?;
+    ensure!(c.post(support, "/api/decide", json!({ "ids": [r34], "kind": "승인", "reason": { "class": "경미" } })).await?.0 == 200, "승인");
+    let pay = s(&rows(&c.get(acct, "/api/pays").await?["rows"]).iter().find(|p| p["name"] == "한라인상사34").cloned().unwrap_or_default()["id"]);
+    ensure!(node(&c.get(acct, &format!("/api/trail/pay/{pay}")).await?, "지급")["at"].is_null(), "지급 전의 날짜");
+    ensure!(c.post(acct, "/api/pay", json!({ "id": pay })).await?.0 == 200, "지급");
+    ensure!(node(&c.get(acct, &format!("/api/trail/pay/{pay}")).await?, "지급")["at"] == "2026-07-01", "지급한 날");
     Ok(())
 }
