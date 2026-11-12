@@ -5,7 +5,7 @@ import { L } from '../labels'
 
 type Tone = 'neutral' | 'success' | 'warning' | 'error'
 
-const SUCCESS = [L.승인, L.완료, L.해소, L.채택, L.인정, L.일치, L.성공, L.정산, L.추인]
+const SUCCESS = [L.승인, L.완료, L.해소, L.채택, L.인정, L.성공, L.정산, L.추인]
 const WARNING = [L.보류, L.보완, L.미응답, L.재심사]
 const ERROR = [L.반려, L.불채택, L.오류, L.불인정, L.불일치, L.실패, L.누락, L.거부]
 
