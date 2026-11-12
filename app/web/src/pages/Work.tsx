@@ -28,6 +28,7 @@ export type Task = { id: string; kind: string; view: string; target: string; nam
 
 /** 종류의 묶음(위에서 아래로). 한 건씩 정하는 작업이 위, 묶어서 승인하는 심사가 맨 아래 */
 const GROUPS: string[][] = [[L.추인, L.종결], [L.정황], [L.발송, L.소명, L.미응답], [L.지급, L.대사], [L.재상신, L.심사]]
+const KIND_ORDER = GROUPS.flat()
 const order = (a: Task, b: Task) => (a.ym ?? '9').localeCompare(b.ym ?? '9') || (a.name ?? '').localeCompare(b.name ?? '', 'ko', { numeric: true })
 
 /** 전체 · 담당 · 진행. 기록을 열었다 돌아와도 남는다 */
@@ -61,11 +62,19 @@ export function Work() {
   const chosen = mine.filter((t) => can(t) && picked.has(t.target))
   const toggle = (ids: string[], on: boolean) => setPicked((p) => new Set([...p].filter((x) => !ids.includes(x)).concat(on ? ids : [])))
   // 요약 타일: 담당 · 진행 · 정황(내 차례 가운데 정황이 걸린 것, 주의) · 금액(내 차례의 합)
+  // 요약 타일: 역할마다 의미 있는 것만 — 담당, 내 작업의 종류별 건수(지급은 지급 상태별), 정황이 걸린 건(주의), 금액(내 작업의 합), 진행(다른 역할에게 넘어간 것)
+  const count = (f: (t: Task) => boolean) => mine.filter(f).length
+  const kinds = KIND_ORDER.filter((k) => k !== L.지급 && mine.some((t) => t.kind === k))
+  const pays = [L.대기, L.재심사, L.이체, L.완료].filter((p) => mine.some((t) => t.kind === L.지급 && t.pay === p))
+  const flagged = count((t) => t.marks.includes(L.정황) && t.kind !== L.정황)
+  const total = mine.reduce((n, t) => n + (t.total ?? 0), 0)
   const tiles: [string, string, 'warning' | undefined][] = [
     [L.담당, String(mine.length), undefined],
-    [L.진행, String(d?.going.length ?? 0), undefined],
-    [L.정황, String(mine.filter((t) => t.marks.includes(L.정황)).length), 'warning'],
-    [L.금액, num(mine.reduce((n, t) => n + (t.total ?? 0), 0)), undefined],
+    ...kinds.map((k): [string, string, undefined] => [k, String(count((t) => t.kind === k)), undefined]),
+    ...pays.map((p): [string, string, 'warning' | undefined] => [`${L.지급} ${p}`, String(count((t) => t.kind === L.지급 && t.pay === p)), p === L.재심사 ? 'warning' : undefined]),
+    ...(flagged ? [[L.정황, String(flagged), 'warning'] as [string, string, 'warning']] : []),
+    ...(total ? [[L.금액, num(total), undefined] as [string, string, undefined]] : []),
+    ...(d?.going.length ? [[L.진행, String(d.going.length), undefined] as [string, string, undefined]] : []),
   ]
   const open = (t: Task) => {
     setNav(rows.map((r) => ({ kind: r.view, id: r.target })))

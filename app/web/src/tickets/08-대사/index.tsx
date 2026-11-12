@@ -1,6 +1,5 @@
 // 08 대사: 지급 기록의 "대사" 영역(승인 / 회신 / 비교, 지급 시도마다 줄)과 이력(지급 표시와 회신을 일어난 순서대로). 은행 회신 입력은 시연 서랍(slot 'demo').
 // 회신은 사람이 넣은 것(출처 시연), 비교는 코드가 맞춰 본 것(출처 계산)이다.
-import { Avatar } from '@astryxdesign/core/Avatar'
 import { Badge } from '@astryxdesign/core/Badge'
 import { HStack } from '@astryxdesign/core/Layout'
 import { List, ListItem } from '@astryxdesign/core/List'
@@ -8,10 +7,11 @@ import { RadioList, RadioListItem } from '@astryxdesign/core/RadioList'
 import { Table, pixel, proportional } from '@astryxdesign/core/Table'
 import { Text } from '@astryxdesign/core/Text'
 import { TextInput } from '@astryxdesign/core/TextInput'
-import { Timestamp } from '@astryxdesign/core/Timestamp'
 import { atom, useAtomValue } from 'jotai'
 import { unwrap } from 'jotai/utils'
 import { useState } from 'react'
+import { Icon } from '@astryxdesign/core/Icon'
+import { UserCircleIcon } from '@heroicons/react/24/outline'
 import { L } from '../../labels'
 import { api, changedAtom, roleAtom, store, targetAtom } from '../../state'
 import { Confirm } from '../../ui/Confirm'
@@ -199,10 +199,10 @@ export function History() {
         <ListItem
           key={i}
           align="start"
-          startContent={<Avatar name={r.role} size="sm" />}
+          startContent={<Icon icon={UserCircleIcon} size="md" color="secondary" />}
           label={[r.kind, r.role].join(' · ')}
           description={r.result ?? undefined}
-          endContent={<Timestamp value={r.at} format="date" />}
+          endContent={<Text type="supporting" color="secondary" hasTabularNumbers>{r.at}</Text>}
         />
       ))}
     </List>

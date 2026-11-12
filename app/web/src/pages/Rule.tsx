@@ -1,10 +1,8 @@
-// 규정 기록: astryx detail-page 템플릿 꼴(ui/Record). 머리(← 규정 / 조항 / 위치 · 출처 / 모의) → 내용(모의 결과 · 조항 · 규칙 · 가정 · AI) → 레일(요약).
-import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
-import { Text } from '@astryxdesign/core/Text'
+// 규정 기록: astryx detail-page 템플릿 꼴(ui/Record). 머리(← 규정 / 조항 / 위치 · 출처 / 모의) → 탭 내용(모의 결과 · 조항 · 규칙) | 가정(가정 · 쓰임).
 import { DocumentTextIcon } from '@heroicons/react/24/outline'
 import { useState } from 'react'
 import { L } from '../labels'
-import { Meta, RailCard, RecordPage, Tiles } from '../ui/Record'
+import { Meta, RecordPage, Tiles } from '../ui/Record'
 import { Source } from '../ui/Source'
 import { Assumes, Original, Uses, Versions, useClause, where } from '../tickets/22-규정'
 import { Result, Simulate } from '../tickets/23-모의'
@@ -33,20 +31,20 @@ export function Rule() {
               <Result />
               <Original />
               <Versions />
+            </>
+          ),
+        },
+        {
+          value: 'assume',
+          label: L.가정,
+          body: (
+            <>
               <Assumes />
               <Uses />
             </>
           ),
         },
       ]}
-      rail={
-        <RailCard title={L.요약}>
-          <MetadataList columns="single" label={{ position: 'start', width: 72 }}>
-            <MetadataListItem label={L.규칙}>{rules.map((r) => `${r.name} v${r.ver}`).join(' · ') || <Text color="secondary">{L.없음}</Text>}</MetadataListItem>
-            <MetadataListItem label={L.위치}>{where(clause)}</MetadataListItem>
-          </MetadataList>
-        </RailCard>
-      }
     />
   )
 }

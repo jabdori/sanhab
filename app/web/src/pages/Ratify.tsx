@@ -4,9 +4,9 @@ import { BuildingStorefrontIcon, UserIcon } from '@heroicons/react/24/outline'
 import { useState } from 'react'
 import { L } from '../labels'
 import { Mark } from '../ui/Mark'
-import { Meta, RailCard, RecordPage } from '../ui/Record'
+import { Meta, RecordPage } from '../ui/Record'
 import { Region } from '../ui/Region'
-import { Again, Past, RatifyActions, RatifyHistory, RatifySummary, RatifyTiles, useBundle } from '../tickets/10-추인'
+import { Again, Past, RatifyActions, RatifyHistory, RatifyTiles, useBundle } from '../tickets/10-추인'
 import { Picture, Timeline } from '../tickets/16-경위'
 
 export function Ratify() {
@@ -58,11 +58,6 @@ export function Ratify() {
           ),
         },
       ]}
-      rail={
-        <RailCard title={L.요약}>
-          <RatifySummary />
-        </RailCard>
-      }
     />
   )
 }

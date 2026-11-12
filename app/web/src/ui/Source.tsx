@@ -1,11 +1,12 @@
 import { Collapsible } from '@astryxdesign/core/Collapsible'
-import { VStack } from '@astryxdesign/core/Layout'
+import { HStack, VStack } from '@astryxdesign/core/Layout'
 import { Link } from '@astryxdesign/core/Link'
 import { Markdown } from '@astryxdesign/core/Markdown'
 import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
 import { Popover } from '@astryxdesign/core/Popover'
 import { Text } from '@astryxdesign/core/Text'
-import { Token } from '@astryxdesign/core/Token'
+import { Icon } from '@astryxdesign/core/Icon'
+import { BeakerIcon, CalculatorIcon, InformationCircleIcon, LightBulbIcon, SparklesIcon, Square2StackIcon } from '@heroicons/react/24/outline'
 import { Tooltip } from '@astryxdesign/core/Tooltip'
 import { type ReactNode, useState } from 'react'
 import { L } from '../labels'
@@ -39,6 +40,9 @@ const readSpecs = () =>
   ))
 
 const base = (file: string) => file.split('/').at(-1)
+
+/** 출처 표지의 아이콘: 계산 · 가정 · 합성 · AI · 모의 */
+const ICON: Record<string, typeof SparklesIcon> = { [L.계산]: CalculatorIcon, [L.가정]: LightBulbIcon, [L.합성]: Square2StackIcon, [L.AI]: SparklesIcon, [L.모의]: BeakerIcon }
 
 /**
  * 출처 표지. **원본이 아닌 값에만** 작은 표지(Token)가 붙는다: 계산 · 가정 · 합성 · AI · 모의.
@@ -102,8 +106,13 @@ export function Source({ kind, file, row, place, quiet, side, of, decision, line
       {file && row ? `${row}${L.행}` : (place ?? L.원본)}
     </Link>
   ) : (
-    // Token은 onClick이 있으면 안에 단추를 둔다(설명 칸이 그 단추에 붙는다)
-    <Token label={name} size="sm" onClick={() => {}} />
+    // 표지는 상태 Badge(채운 알약)와 다른 꼴: 종류 아이콘 + 보조 색 글자의 Link(누르면 설명 칸)
+    <Link type="supporting" color="secondary" onClick={() => {}}>
+      <HStack gap={0.5} vAlign="center">
+        <Icon icon={ICON[name] ?? InformationCircleIcon} size="sm" color="inherit" />
+        {name}
+      </HStack>
+    </Link>
   )
   return (
     <Popover content={content} label={line} isOpen={open} onOpenChange={toggle} width={400} placement={side === 'right' ? 'end' : side === 'top' ? 'above' : 'below'}>

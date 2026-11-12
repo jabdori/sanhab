@@ -243,7 +243,7 @@ async fn canned(model: &str, ai: &Db, system: &str, recs: &[Rec], talk: &[(Strin
         cited(&out, &mut seen.lock().unwrap());
         let Some(row) = serde_json::from_str::<J>(&out).ok().and_then(|v| v[0].get(0).cloned()) else { continue };
         let mut f = format!("{} {}", r.kind, row["name"].as_str().unwrap_or_default()).trim_end().to_string();
-        if let (Some(t), Some(a)) = (row["total"].as_i64(), row["approver"].as_str()) { f += &format!(": 합산 {t}원, 승인권자 {a}"); }
+        if let (Some(t), Some(a)) = (row["total"].as_i64(), row["approver"].as_str()) { f += &format!(": 합산 {}, 승인권자 {a}", super::t17_report::comma(t)); }
         else if let Some(n) = row["ev"].as_i64() { f += &format!(": 근거 {n}건"); }
         facts.push(f);
     }

@@ -1,14 +1,14 @@
 // 11 정황: 정황 기록(pages/Signal)의 본문 영역 — 근거, 관계 — 과 이력, 그리고 심사 기록의 "정황" 줄(Flags). 데이터는 signal.ts의 useSignal().
 // 머리·조치·요약은 pages/Signal, AI 보고는 17, 가설은 12, 소명 줄은 18이 그린다. 값은 모두 코드가 기록에서 읽은 것이다(AI의 글은 17).
-import { Avatar } from '@astryxdesign/core/Avatar'
 import { Badge } from '@astryxdesign/core/Badge'
 import { HStack } from '@astryxdesign/core/Layout'
 import { List, ListItem } from '@astryxdesign/core/List'
 import { StatusDot } from '@astryxdesign/core/StatusDot'
 import { Table, pixel, proportional } from '@astryxdesign/core/Table'
 import { Text } from '@astryxdesign/core/Text'
-import { Timestamp } from '@astryxdesign/core/Timestamp'
 import { useAtomValue, useSetAtom } from 'jotai'
+import { Icon } from '@astryxdesign/core/Icon'
+import { UserCircleIcon } from '@heroicons/react/24/outline'
 import { L } from '../../labels'
 import { targetAtom, useData } from '../../state'
 import { Empty } from '../../ui/Empty'
@@ -133,10 +133,10 @@ export function History() {
         <ListItem
           key={i}
           align="start"
-          startContent={<Avatar name={h.role} size="sm" />}
+          startContent={<Icon icon={UserCircleIcon} size="md" color="secondary" />}
           label={`${h.kind} · ${h.role}`}
           description={[h.reason?.class ?? `${L.사유} ${L.없음}`, h.reason?.memo, h.source === L.원본 ? L.원본 : null].filter(Boolean).join(' · ')}
-          endContent={h.at ? <Timestamp value={h.at} format="date" /> : <Text type="supporting" color="secondary">{L.미상}</Text>}
+          endContent={h.at ? <Text type="supporting" color="secondary" hasTabularNumbers>{h.at}</Text> : <Text type="supporting" color="secondary">{L.미상}</Text>}
         />
       ))}
     </List>

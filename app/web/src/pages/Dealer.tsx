@@ -1,12 +1,11 @@
 // 대리점 기록: astryx detail-page 템플릿 꼴(ui/Record). 머리(← 대리점 / 이름 / 식별자 · 그룹 · 출처 / 변경) → 내용(타일 · 등록 · 관계 · 지급 · 서류 · 접수) · 이력 → 레일(요약).
 import { HStack } from '@astryxdesign/core/Layout'
-import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
 import { Text } from '@astryxdesign/core/Text'
 import { UserGroupIcon } from '@heroicons/react/24/outline'
 import { useState } from 'react'
 import { L } from '../labels'
 import { useData } from '../state'
-import { Meta, RailCard, RecordPage, Tiles } from '../ui/Record'
+import { Meta, RecordPage, Tiles } from '../ui/Record'
 import { Region } from '../ui/Region'
 import { Source } from '../ui/Source'
 import { num } from '../ui/status'
@@ -41,21 +40,6 @@ function IntakeRegion() {
   return <Intake />
 }
 
-/** 레일의 요약: 지금 유효한 등록값(이전 값이 아닌 것) */
-function Summary() {
-  const d = useDetail()
-  if (!d) return null
-  const now = d.registered.filter((r) => !r.until)
-  return (
-    <MetadataList columns="single" label={{ position: 'start', width: 72 }}>
-      {now.map((r) => (
-        <MetadataListItem key={`${r.item}/${r.value}`} label={r.item}>
-          {r.value}
-        </MetadataListItem>
-      ))}
-    </MetadataList>
-  )
-}
 
 export function Dealer() {
   const d = useDetail()
@@ -98,11 +82,6 @@ export function Dealer() {
           ),
         },
       ]}
-      rail={
-        <RailCard title={L.요약}>
-          <Summary />
-        </RailCard>
-      }
     />
   )
 }

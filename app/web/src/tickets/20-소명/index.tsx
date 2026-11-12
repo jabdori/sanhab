@@ -11,6 +11,7 @@ import { Token } from '@astryxdesign/core/Token'
 import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useState } from 'react'
 import { L } from '../../labels'
+import { useDetail } from '../02-대리점'
 import { api, changedAtom, menuAtom, store, targetAtom, useData } from '../../state'
 import { Confirm } from '../../ui/Confirm'
 import { Empty } from '../../ui/Empty'
@@ -50,7 +51,8 @@ export function Excluded() {
 export function Unknown() {
   const v = useVerdict()
   const docs = useDocs()
-  if (!v || !docs?.docs.length) return null
+  // 미확인이 없으면 그리지 않는다(AI 구역에 빈 칸을 두지 않게)
+  if (!v || !docs?.docs.length || !v.unknown.length) return null
   type U = { item: string; word: string } & Record<string, unknown>
   const data: U[] = v.unknown.map(([item, word]) => ({ item, word }))
   return (
@@ -122,6 +124,7 @@ export function Intake() {
   const [file, setFile] = useAtom(intakeFileAtom)
   const [busy, setBusy] = useState(false)
   const [bad, setBad] = useState<string | null>(null)
+  const dealer = useDetail()
   useEffect(() => {
     setOther(null)
     setKind(null)
@@ -145,15 +148,15 @@ export function Intake() {
       .finally(() => setBusy(false))
   }
   return (
-    // 영역(Region) 한 장: 대리점 · 일치 · 서류를 고르고 접수(영역 조치). 대리점 기록의 조치 칸에서는 변경(13)이 주 버튼이라 접수는 secondary
+    // 영역(Region) 한 장: 대리점 · 일치 · 서류를 고르고 접수(영역 조치). 접수는 흐름(소명)을 앞으로 보내는 조치라 이 영역의 주 버튼(primary)
     <Region
       title={L.접수}
       aside={bad ? <Badge variant="error" label={bad} /> : undefined}
       actions={
         <Confirm
           label={L.접수}
-          variant="secondary"
-          title={`${L.접수} ${kind ?? ''}`}
+          variant="primary"
+          title={`${L.접수} · ${dealer?.dealer.name ?? ''}`}
           rows={[
             [L.대리점, other?.name ?? ''],
             [L.일치, kind ?? ''],

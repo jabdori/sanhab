@@ -1,5 +1,4 @@
 import { AppShell } from '@astryxdesign/core/AppShell'
-import { Avatar } from '@astryxdesign/core/Avatar'
 import { Button } from '@astryxdesign/core/Button'
 import { Layout, LayoutContent, LayoutPanel } from '@astryxdesign/core/Layout'
 import { ResizeHandle, useResizable } from '@astryxdesign/core/Resizable'
@@ -7,11 +6,12 @@ import { Selector } from '@astryxdesign/core/Selector'
 import { SideNav, SideNavHeading, SideNavItem } from '@astryxdesign/core/SideNav'
 import { useMediaQuery } from '@astryxdesign/core/hooks'
 import { Icon } from '@astryxdesign/core/Icon'
-import { HStack, StackItem } from '@astryxdesign/core/Layout'
-import { Timestamp } from '@astryxdesign/core/Timestamp'
-import { BeakerIcon, BookOpenIcon, CalendarIcon, BuildingStorefrontIcon, InboxStackIcon } from '@heroicons/react/24/outline'
+import { Text } from '@astryxdesign/core/Text'
+import { HStack, StackItem, VStack } from '@astryxdesign/core/Layout'
+import { UserCircleIcon, BeakerIcon, BookOpenIcon, CalendarIcon, BuildingStorefrontIcon, InboxStackIcon } from '@heroicons/react/24/outline'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { type ReactNode, useState } from 'react'
+import { AiPanel } from './AiPanel'
 import { DemoDrawer } from './Demo'
 import { Enter } from './Enter'
 import { APP, L } from './labels'
@@ -65,8 +65,14 @@ function Shell() {
         end={
           <>
             <ResizeHandle direction="horizontal" resizable={chat.props} isReversed hasDivider isAlwaysVisible={false} label={L.대화} />
-            <LayoutPanel width={chat.size} padding={0} label={L.대화}>
-              <Chat />
+            <LayoutPanel width={chat.size} padding={0} label={L.대화} isScrollable={false}>
+              {/* 오른쪽 = AI 구역: 위에 지금 연 기록의 AI 보고(접힘), 아래에 대화(입력창 상시) */}
+              <VStack height="100%" gap={0}>
+                <AiPanel />
+                <StackItem size="fill" className="min-h-0">
+                  <Chat />
+                </StackItem>
+              </VStack>
             </LayoutPanel>
           </>
         }
@@ -89,9 +95,9 @@ function Nav({ folded: start, onDemo }: { folded: boolean; onDemo: () => void })
       collapsible={{ isCollapsed: folded, onCollapsedChange: setFolded }}
       header={<SideNavHeading heading={APP} />}
       topContent={
-        // 접히면 지금 역할을 Avatar로(머물면 이름, 누르면 메뉴가 펼쳐져 역할을 바꿀 수 있다)
+        // 접히면 지금 역할을 아이콘 단추로(머물면 이름, 누르면 메뉴가 펼쳐져 역할을 바꿀 수 있다)
         folded ? (
-          <Avatar name={role ?? ''} size="sm" tooltip={role ?? undefined} onClick={() => setFolded(false)} />
+          <Button label={role ?? L.역할} variant="ghost" isIconOnly icon={<Icon icon={UserCircleIcon} size="sm" />} onClick={() => setFolded(false)} />
         ) : (
           <Selector label={L.역할} isLabelHidden size="sm" width="100%" value={role ?? undefined} options={roles.map((r) => r.role)}
             onChange={(v: string) => {
@@ -107,7 +113,7 @@ function Nav({ folded: start, onDemo }: { folded: boolean; onDemo: () => void })
             <StackItem size="fill">
               <HStack gap={2} vAlign="center">
                 <Icon icon={CalendarIcon} size="sm" color="secondary" />
-                {today && <Timestamp value={today} format="date" type="supporting" color="primary" weight="medium" />}
+                {today && <Text type="supporting" weight="medium" hasTabularNumbers>{today}</Text>}
               </HStack>
             </StackItem>
             <Button label={L.시연} size="sm" variant="secondary" icon={<Icon icon={BeakerIcon} size="sm" />} onClick={onDemo} />

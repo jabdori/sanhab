@@ -1,21 +1,19 @@
-// 기록 화면의 틀(astryx detail-page 템플릿): 머리(← 메뉴 · n/전체 · 앞 뒤 / 제목 / 메타 한 줄 / 오른쪽 위 페이지 조치 / 탭) → 바탕 위의 카드 본문 → 오른쪽 레일(320, 좁으면 본문 아래).
-// 모든 기록 화면(심사 · 정황 · 소명 · 지급 · 추인 · 대리점 · 규정)이 이것 하나로 같은 꼴이 된다. 내용(카드 · 타일 · 레일 칸)만 화면이 채운다.
+// 기록 화면의 틀(astryx detail-page 템플릿): 머리(← 메뉴 · n/전체 · 앞 뒤 / 제목 / 메타 한 줄 / 오른쪽 위 페이지 조치 / 탭) → 바탕 위의 카드 본문.
+// 모든 기록 화면(심사 · 정황 · 소명 · 지급 · 추인 · 대리점 · 규정)이 이것 하나로 같은 꼴이 된다. 내용(카드 · 타일)만 화면이 채운다.
 import { Badge } from '@astryxdesign/core/Badge'
 import { Button } from '@astryxdesign/core/Button'
 import { Card } from '@astryxdesign/core/Card'
-import { Collapsible } from '@astryxdesign/core/Collapsible'
 import { Grid } from '@astryxdesign/core/Grid'
-import { useMediaQuery } from '@astryxdesign/core/hooks'
 import { Icon } from '@astryxdesign/core/Icon'
-import { HStack, Layout, LayoutContent, LayoutHeader, LayoutPanel, StackItem, VStack } from '@astryxdesign/core/Layout'
+import { HStack, Layout, LayoutContent, LayoutHeader, StackItem, VStack } from '@astryxdesign/core/Layout'
 import { Link } from '@astryxdesign/core/Link'
 import { Tab, TabList } from '@astryxdesign/core/TabList'
 import { Heading, Text } from '@astryxdesign/core/Text'
-import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, ViewColumnsIcon } from '@heroicons/react/24/outline'
+import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline'
 import { useAtom, useAtomValue } from 'jotai'
 import { Fragment, type ReactNode, useState } from 'react'
 import { L } from '../labels'
-import { menuAtom, navAtom, targetAtom } from '../state'
+import { menuAtom, navAtom, targetAtom, useData } from '../state'
 import { type Draft, Reason, blank, ready, sent } from './Reason'
 import { Confirm } from './Confirm'
 import { grade } from './grade'
@@ -28,10 +26,16 @@ const Bullet = () => (
 
 /** ← (지금 메뉴) · n/전체 · ‹ › : 작업 목록에서 열었으면 그 순서를 따라 앞뒤로 간다 */
 function Back() {
-  const nav = useAtomValue(navAtom)
+  const opened = useAtomValue(navAtom)
   const [target, setTarget] = useAtom(targetAtom)
   const menu = useAtomValue(menuAtom)
+  // 조치로 끝난 작업은 목록에서 빠진다: 지금 남아 있는 작업(과 지금 연 기록)만 센다
+  const live = useData<{ mine: { view: string; target: string }[]; going: { view: string; target: string }[] }>(opened.length ? '/tasks' : null)
+  const left = live ? new Set([...live.mine, ...live.going].map((t) => `${t.view}/${t.target}`)) : null
+  const nav = opened.filter((t) => !left || left.has(`${t.kind}/${t.id}`) || (t.kind === target?.kind && t.id === target?.id))
   const at = nav.findIndex((t) => t.kind === target?.kind && t.id === target?.id)
+  // 메뉴가 바로 그 기록을 보일 때(조항이 하나뿐인 규정)는 돌아갈 목록이 없다
+  if (!target) return null
   return (
     <HStack gap={2} vAlign="center">
       <Link color="secondary" onClick={() => setTarget(null)}>
@@ -93,23 +97,6 @@ export function Tiles({ items }: { items: TileItem[] }) {
   )
 }
 
-/** 레일의 칸 하나: 카드 + 접히는 제목 */
-export const RailCard = ({ title, icon, isOpen = true, children }: { title: string; icon?: ReactNode; isOpen?: boolean; children: ReactNode }) => (
-  <Card>
-    <Collapsible
-      trigger={
-        <HStack gap={2} vAlign="center">
-          {icon}
-          <Heading level={4}>{title}</Heading>
-        </HStack>
-      }
-      defaultIsOpen={isOpen}
-    >
-      {children}
-    </Collapsible>
-  </Card>
-)
-
 /**
  * 페이지 조치 하나: 누르면 확인 창. 분류(classes)가 있으면 창에서 사유를 고르고(must면 고를 때까지 실행이 눌리지 않는다). `send`에 사유(없으면 null)가 간다.
  * 확인 창의 제목은 `조치 · 대상`, 몸통은 `rows`(무엇이 어떻게 바뀌는지)
@@ -133,16 +120,11 @@ export type RecordTab = { value: string; label: string; body: ReactNode }
 
 /**
  * 기록 화면 하나. `title`은 Heading 1, `meta`는 `・`로 잇는 한 줄(상태 Badge · 아이콘 값 · 표시 Token · 출처 표지), `actions`는 오른쪽 위(주 버튼은 맨 끝),
- * `bad`는 서버가 거절한 낱말(조치 아래 error Badge). 탭이 하나뿐이면 탭 줄을 두지 않는다. `rail`은 레일 칸(RailCard)들
+ * `bad`는 서버가 거절한 낱말(조치 아래 error Badge). 탭이 하나뿐이면 탭 줄을 두지 않는다.
+ * 레일은 두지 않는다: 요약은 머리의 메타 · 타일과 겹치고, AI 보고는 오른쪽 AI 구역(대화 칸 위, AiPanel)에 있다
  */
-export function RecordPage({ title, meta, actions, bad, tabs, rail }: { title: string; meta: ReactNode[]; actions?: ReactNode; bad?: string | null; tabs: RecordTab[]; rail?: ReactNode }) {
+export function RecordPage({ title, meta, actions, bad, tabs }: { title: string; meta: ReactNode[]; actions?: ReactNode; bad?: string | null; tabs: RecordTab[] }) {
   const [tab, setTab] = useState(tabs[0]?.value)
-  const [showRail, setShowRail] = useState(true)
-  // 반응 계약(astryx docs layout/responsive — 세 칸을 쓸 폭이 없으면 한 칸을 내린다):
-  //   >1680  메뉴 | 본문 | 레일 320 | 대화 380
-  //   ≤1680  레일은 본문 아래 카드로(1440에서 메뉴 260 · 대화 380을 빼고 본문 약 800 — 표가 열을 합치지 않고 들어간다)
-  //   ≤1366  메뉴가 아이콘 줄로 접힌다(App)
-  const narrow = useMediaQuery('(max-width: 1680px)')
   const body = (tabs.find((t) => t.value === tab) ?? tabs[0])?.body
   return (
     <Layout
@@ -185,7 +167,6 @@ export function RecordPage({ title, meta, actions, bad, tabs, rail }: { title: s
                     ))}
                   </TabList>
                 </StackItem>
-                {rail && !narrow && <Button label={L.요약} variant="ghost" icon={<Icon icon={ViewColumnsIcon} size="sm" />} isIconOnly onClick={() => setShowRail(!showRail)} />}
               </HStack>
             )}
           </VStack>
@@ -195,16 +176,8 @@ export function RecordPage({ title, meta, actions, bad, tabs, rail }: { title: s
         <LayoutContent role="main" className="bg-body">
           <VStack gap={4}>
             {body}
-            {rail && narrow && rail}
           </VStack>
         </LayoutContent>
-      }
-      end={
-        rail && !narrow && showRail ? (
-          <LayoutPanel width={320} padding={4} role="complementary" className="bg-body">
-            <VStack gap={4}>{rail}</VStack>
-          </LayoutPanel>
-        ) : undefined
       }
     />
   )

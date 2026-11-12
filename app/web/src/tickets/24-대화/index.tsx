@@ -5,10 +5,9 @@
 import { useChat } from '@ai-sdk/react'
 import { Button } from '@astryxdesign/core/Button'
 import { Link } from '@astryxdesign/core/Link'
+import { List, ListItem } from '@astryxdesign/core/List'
 import { Badge } from '@astryxdesign/core/Badge'
-import { ClickableCard } from '@astryxdesign/core/ClickableCard'
 import { EmptyState } from '@astryxdesign/core/EmptyState'
-import { Grid } from '@astryxdesign/core/Grid'
 import { HStack, Layout, LayoutContent, LayoutHeader, VStack } from '@astryxdesign/core/Layout'
 import { ChatComposer, ChatComposerDrawer, ChatComposerInput, ChatLayout, ChatMessage, ChatMessageBubble, ChatMessageList, ChatSystemMessage } from '@astryxdesign/core/Chat'
 import { Icon } from '@astryxdesign/core/Icon'
@@ -176,18 +175,12 @@ function Panel() {
             <Section variant="transparent" padding={4}>
             <VStack gap={4}>
               <EmptyState title={L.대화} icon={<Icon icon={SparklesIcon} size="lg" color="accent" />} isCompact />
-              <Grid columns={1} gap={2}>
+              {/* 제안: 줄 전체가 하나의 단추(ListItem의 숨은 단추 — 키보드로도 고르고 Enter로 보낸다) */}
+              <List hasDividers>
                 {Object.entries(ASK).map(([name, prompt]) => (
-                  <ClickableCard key={name} label={name} variant="muted" padding={3} isDisabled={busy} onClick={() => send(prompt)}>
-                    <VStack gap={0.5}>
-                      <Heading level={4}>{name}</Heading>
-                      <Text type="supporting" color="secondary">
-                        {prompt}
-                      </Text>
-                    </VStack>
-                  </ClickableCard>
+                  <ListItem key={name} label={name} description={prompt} isDisabled={busy} onClick={() => send(prompt)} />
                 ))}
-              </Grid>
+              </List>
             </VStack>
             </Section>
           }

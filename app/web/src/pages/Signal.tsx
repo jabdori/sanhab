@@ -1,24 +1,18 @@
 // 정황 기록: 머리(← 작업 · n/전체 / 정황 이름 / 메타 한 줄 / 페이지 조치 / 탭) → 본문(근거 · 관계 · 가설 · 소명 영역) → 오른쪽 레일(AI 보고 · 요약).
 // 요청 · 기각은 내부 감시의 페이지 조치(누르면 확인 창에서 사유). AI 보고는 이 정황을 판단하는 가장 큰 재료라 레일에서 처음부터 펼쳐 둔다.
 import { Badge } from '@astryxdesign/core/Badge'
-import { Icon } from '@astryxdesign/core/Icon'
-import { HStack, VStack } from '@astryxdesign/core/Layout'
-import { Link } from '@astryxdesign/core/Link'
-import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
-import { SparklesIcon, BuildingStorefrontIcon, FlagIcon } from '@heroicons/react/24/outline'
-import { useSetAtom } from 'jotai'
+import { HStack } from '@astryxdesign/core/Layout'
+import { BuildingStorefrontIcon, FlagIcon } from '@heroicons/react/24/outline'
 import { useState } from 'react'
 import { L } from '../labels'
-import { api, changedAtom, store, targetAtom } from '../state'
-import { Act, Meta, RailCard, RecordPage, Tiles, byGrade } from '../ui/Record'
+import { api, changedAtom, store } from '../state'
+import { Act, Meta, RecordPage, Tiles, byGrade } from '../ui/Record'
 import { Region } from '../ui/Region'
 import { DECISION, Source } from '../ui/Source'
 import { badge, num } from '../ui/status'
-import { Line } from '../tickets/04-심사'
 import { Evidence, History, Links } from '../tickets/11-정황'
 import { type Signal as Data, useSignal } from '../tickets/11-정황/signal'
 import { OfSignal } from '../tickets/12-가설'
-import { AiReport } from '../tickets/17-보고'
 import { Of } from '../tickets/18-발송'
 
 /** 오른쪽 위 페이지 조치: 요청(주 버튼, 맨 끝) · 기각. 서버가 거절하면 `onBad`로 그 낱말 */
@@ -60,27 +54,6 @@ function SignalTiles({ d }: { d: Data }) {
   )
 }
 
-/** 레일의 요약: 본문을 읽기 전에 볼 값 */
-function Summary({ d }: { d: Data }) {
-  const setTarget = useSetAtom(targetAtom)
-  const last = d.history.at(-1)
-  return (
-    <MetadataList columns="single" label={{ position: 'start', width: 72 }}>
-      <MetadataListItem label={L.종류}>{d.signal.kind}</MetadataListItem>
-      <MetadataListItem label={L.대리점}>
-        <VStack gap={1}>
-          {d.signal.dealers.map((x) => (
-            <Link key={x.id} onClick={() => setTarget({ kind: L.대리점, id: x.id })}>
-              {x.name}
-            </Link>
-          ))}
-        </VStack>
-      </MetadataListItem>
-      <MetadataListItem label={L.담당}>{d.role}</MetadataListItem>
-      <MetadataListItem label={L.결정}>{last ? <Line d={last} /> : L.없음}</MetadataListItem>
-    </MetadataList>
-  )
-}
 
 export function Signal() {
   const d = useSignal()
@@ -122,16 +95,6 @@ export function Signal() {
           ),
         },
       ]}
-      rail={
-        <>
-          <RailCard title={`${L.AI} ${L.보고}`} icon={<Icon icon={SparklesIcon} size="sm" color="accent" />}>
-            <AiReport />
-          </RailCard>
-          <RailCard title={L.요약}>
-            <Summary d={d} />
-          </RailCard>
-        </>
-      }
     />
   )
 }

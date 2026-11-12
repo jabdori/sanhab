@@ -1,15 +1,15 @@
 // 13 변경: 대리점 기록의 페이지 조치 `변경`(항목, 값, 변경일을 확인 창에서 입력)과 이력. 변경을 넣을 수 있는 역할(영업지원, 서버의 `can`)에게만 조치가 있다.
 // 인지일(시스템의 오늘)·경로(신고)·출처(시연)는 서버가 찍는다. 되돌리기 어려운 조치라 확인 창을 거치고, 보낸 뒤 새 값을 받을 때까지는 다시 눌리지 않는다.
-import { Avatar } from '@astryxdesign/core/Avatar'
 import { DateInput } from '@astryxdesign/core/DateInput'
 import { VStack } from '@astryxdesign/core/Layout'
 import { List, ListItem } from '@astryxdesign/core/List'
 import { RadioList, RadioListItem } from '@astryxdesign/core/RadioList'
 import { Text } from '@astryxdesign/core/Text'
 import { TextInput } from '@astryxdesign/core/TextInput'
-import { Timestamp } from '@astryxdesign/core/Timestamp'
 import { useAtomValue } from 'jotai'
 import { type ComponentProps, useState } from 'react'
+import { Icon } from '@astryxdesign/core/Icon'
+import { UserCircleIcon } from '@heroicons/react/24/outline'
 import { L } from '../../labels'
 import { api, targetAtom, useData } from '../../state'
 import { Confirm } from '../../ui/Confirm'
@@ -90,10 +90,10 @@ export function History() {
         <ListItem
           key={i}
           align="start"
-          startContent={<Avatar name={x.role} size="sm" />}
+          startContent={<Icon icon={UserCircleIcon} size="md" color="secondary" />}
           label={[x.kind, x.role].join(' · ')}
           description={`${x.item} ${x.value} · ${L.변경일} ${x.since}`}
-          endContent={x.at ? <Timestamp value={x.at} format="date" /> : <Text type="supporting" color="secondary">{L.미상}</Text>}
+          endContent={x.at ? <Text type="supporting" color="secondary" hasTabularNumbers>{x.at}</Text> : <Text type="supporting" color="secondary">{L.미상}</Text>}
         />
       ))}
     </List>

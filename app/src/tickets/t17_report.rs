@@ -97,7 +97,7 @@ fn plain(text: &str) -> bool {
     }
     !text.is_empty() && !rest.chars().any(|c| c.is_ascii_digit())
 }
-fn comma(n: i64) -> String {
+pub(crate) fn comma(n: i64) -> String {
     let s = n.abs().to_string();
     let g = s.as_bytes().rchunks(3).rev().map(|c| std::str::from_utf8(c).unwrap_or_default()).collect::<Vec<_>>().join(",");
     if n < 0 { format!("-{g}") } else { g }

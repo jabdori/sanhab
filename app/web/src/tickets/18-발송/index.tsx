@@ -1,16 +1,16 @@
 // 18 발송: 소명 기록(pages/Clarify)의 본문 영역 — 요청서, 서류 목록 — 과 이력, 정황 기록의 "소명" 줄(Of).
 // 값은 모두 코드가 정한 것이다(AI가 쓴 요청서 초안은 요청서 영역의 글 칸에 들어간다). 발송 조치는 페이지 조치(pages/Clarify)이고, 쓰고 있는 글은 letterAtom이 둘을 잇는다.
 import { Badge } from '@astryxdesign/core/Badge'
-import { Avatar } from '@astryxdesign/core/Avatar'
 import { HStack } from '@astryxdesign/core/Layout'
 import { Link } from '@astryxdesign/core/Link'
 import { List, ListItem } from '@astryxdesign/core/List'
 import { Table, proportional } from '@astryxdesign/core/Table'
 import { Text } from '@astryxdesign/core/Text'
 import { TextArea } from '@astryxdesign/core/TextArea'
-import { Timestamp } from '@astryxdesign/core/Timestamp'
 import { atom, useAtom, useSetAtom } from 'jotai'
 import { useEffect } from 'react'
+import { Icon } from '@astryxdesign/core/Icon'
+import { UserCircleIcon } from '@heroicons/react/24/outline'
 import { L } from '../../labels'
 import { targetAtom, useData } from '../../state'
 import { Empty } from '../../ui/Empty'
@@ -95,10 +95,10 @@ export function ClarifyHistory() {
         <ListItem
           key={i}
           align="start"
-          startContent={<Avatar name={h.role} size="sm" />}
+          startContent={<Icon icon={UserCircleIcon} size="md" color="secondary" />}
           label={`${h.kind} · ${h.role}`}
           description={[h.reason?.class, h.reason?.memo].filter(Boolean).join(' · ') || undefined}
-          endContent={h.at ? <Timestamp value={h.at} format="date" /> : <Text type="supporting" color="secondary">{L.미상}</Text>}
+          endContent={h.at ? <Text type="supporting" color="secondary" hasTabularNumbers>{h.at}</Text> : <Text type="supporting" color="secondary">{L.미상}</Text>}
         />
       ))}
     </List>

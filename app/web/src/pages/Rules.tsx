@@ -10,6 +10,7 @@ import { Heading, Text } from '@astryxdesign/core/Text'
 import { useSetAtom } from 'jotai'
 import { useState } from 'react'
 import { L } from '../labels'
+import { Rule } from './Rule'
 import { targetAtom } from '../state'
 import { Source } from '../ui/Source'
 import { useRules, where } from '../tickets/22-규정'
@@ -26,6 +27,8 @@ export function Rules() {
   const { config, applyFilters } = usePowerSearchConfig(fields, L.규정)
   const rows: Line[] = (d?.clauses ?? []).map((c) => ({ id: c.id, title: c.title, place: c.file, where: where(c), rules: d!.rules.filter((r) => r.clause === c.id).length, source: c.source, sha: c.sha, first: c.first, last: c.last }))
   const visible = applyFilters(filters, rows)
+  // 조항이 하나뿐이면 한 줄짜리 목록 대신 그 조항의 기록을 바로 보인다
+  if (d?.clauses.length === 1) return <Rule />
   return (
     <Layout
       height="fill"

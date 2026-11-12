@@ -1,6 +1,5 @@
 // 심사 기록: astryx detail-page 템플릿에서 출발한 화면. 머리(← 작업 · n/전체 · 앞 뒤 / 제목 / 메타 한 줄 / 페이지 조치 / 탭) → 본문(바탕 위의 카드들) → 오른쪽 레일(요약 · AI 보고 카드).
 // 좁으면(본문이 레일과 나란히 설 수 없으면) 레일이 본문 아래로 간다. 조치는 누를 때 확인 창에서 사유(분류 · 메모)를 받는다.
-import { Avatar } from '@astryxdesign/core/Avatar'
 import { Badge } from '@astryxdesign/core/Badge'
 import { Banner } from '@astryxdesign/core/Banner'
 import { Citation } from '@astryxdesign/core/Citation'
@@ -11,22 +10,22 @@ import { List, ListItem } from '@astryxdesign/core/List'
 import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
 import { ProgressBar } from '@astryxdesign/core/ProgressBar'
 import { Text } from '@astryxdesign/core/Text'
-import { BuildingStorefrontIcon, SparklesIcon, UserIcon } from '@heroicons/react/24/outline'
+import { BuildingStorefrontIcon, UserIcon } from '@heroicons/react/24/outline'
 import { useSetAtom } from 'jotai'
 import { useState } from 'react'
 import { L } from '../labels'
 import { api, changedAtom, store, targetAtom, useData } from '../state'
 import { Empty } from '../ui/Empty'
 import { Mark } from '../ui/Mark'
-import { Act, Meta, RailCard, RecordPage, Tiles, byGrade } from '../ui/Record'
+import { Act, Meta, RecordPage, Tiles, byGrade } from '../ui/Record'
 import { Region } from '../ui/Region'
 import { Source } from '../ui/Source'
 import { badge, num } from '../ui/status'
-import { Line, Links, Members, Rules } from '../tickets/04-심사'
+import { Links, Members, Rules } from '../tickets/04-심사'
 import { bundled, useReview } from '../tickets/04-심사/review'
 import { History, useResubmit } from '../tickets/06-반려'
 import { Then } from '../tickets/09-재검토'
-import { Way } from '../tickets/10-추인'
+import { Way, useWay } from '../tickets/10-추인'
 import { Flags } from '../tickets/11-정황'
 import { OfReview } from '../tickets/12-가설'
 import { Picture, Timeline } from '../tickets/16-경위'
@@ -74,15 +73,21 @@ function ReviewTiles() {
         { name: L.한도, value: r.limit === null ? L.미상 : num(r.limit), below: over && <Badge variant="error" label={`+${num(r.total - r.limit!)}`} /> },
         {
           name: L.승인권자,
+          // 값은 실제로 결정하는 사람(서버 fn::holder). 합산으로 정한 승인권자와 다르면(정황의 가설로 올라감) 아래에 그 계산과 까닭
           value: (
             <HStack gap={2} vAlign="center">
-              <Avatar name={r.approver} size="sm" />
+              <Icon icon={UserIcon} size="sm" color="secondary" />
               <Text type="large" weight="semibold">
-                {r.approver}
+                {r.holder ?? r.approver}
               </Text>
             </HStack>
           ),
-          below: r.holder !== r.approver && <Text type="supporting" color="secondary">{`${L.담당} ${r.holder}`}</Text>,
+          below: r.holder && r.holder !== r.approver && (
+            <HStack gap={2} vAlign="center" wrap="wrap">
+              <Text type="supporting" color="secondary">{`${L.계산} ${r.approver}`}</Text>
+              <Mark>{L.가설}</Mark>
+            </HStack>
+          ),
           aside: <Source kind={L.계산} tip={L.승인권자} rows={[[L.승인권자, L['한도 이하 영업지원, 초과 영업임원']]]} />,
         },
       ]}
@@ -113,24 +118,6 @@ function Trail() {
   )
 }
 
-/** 레일의 요약: 본문을 읽기 전에 볼 값 */
-function Summary() {
-  const r = useReview()
-  if (!r) return null
-  const last = r.history.at(-1)
-  return (
-    <VStack gap={3}>
-      <MetadataList columns="single" label={{ position: 'start', width: 72 }}>
-        <MetadataListItem label={L.귀속월}>{r.review.ym}</MetadataListItem>
-        <MetadataListItem label={L.구성}>{r.members.map((m) => m.name).join(' · ')}</MetadataListItem>
-        <MetadataListItem label={L.담당}>{r.review.holder}</MetadataListItem>
-        <MetadataListItem label={L.결정}>{last ? <Line d={last} /> : L.없음}</MetadataListItem>
-      </MetadataList>
-      {/* 이 심사가 든 추인 묶음(10): 있으면 그리로 가는 링크 */}
-      <Way />
-    </VStack>
-  )
-}
 
 /** AI 보고 한 건: 그 정황의 가장 새 보고를 읽기로. 사실마다 근거(Citation), 추정 · 미확인은 목록 */
 function SignalReport({ id, name }: { id: string; name: string }) {
@@ -176,7 +163,7 @@ function SignalReport({ id, name }: { id: string; name: string }) {
 }
 
 /** 레일의 AI 보고: 이 심사에 걸린 정황마다 그 보고. 정황이 없으면 없음 */
-function Reports() {
+export function Reports() {
   const r = useReview()?.review
   const list = useData<{ id: string; name: string }[]>(r?.marks.includes(L.정황) ? `/reviews/${r.id}/signals` : null)
   if (!r?.marks.includes(L.정황) || !list?.length) return <Empty />
@@ -192,6 +179,7 @@ function Reports() {
 export function Review() {
   const r = useReview()
   const [bad, setBad] = useState<{ id: string; word: string } | null>(null)
+  const way = useWay()
   if (!r) return null
   const v = r.review
   return (
@@ -199,9 +187,11 @@ export function Review() {
       title={`${v.name} · ${v.ym}`}
       meta={[
         <Badge variant={badge(v.status)} label={v.status} />,
-        <Meta icon={UserIcon}>{v.approver}</Meta>,
+        <Meta icon={UserIcon}>{v.holder ?? v.approver}</Meta>,
         <Meta icon={BuildingStorefrontIcon}>{`${r.members.length}${L.곳}`}</Meta>,
         ...v.marks.map((m) => <Mark>{m}</Mark>),
+        // 이 심사가 든 추인 묶음(10): 있으면 그리로 가는 링크
+        ...(way ? [<Way b={way} />] : []),
       ]}
       actions={<Actions onBad={(word) => setBad(word ? { id: v.id, word } : null)} />}
       bad={bad?.id === v.id ? bad.word : null}
@@ -233,16 +223,6 @@ export function Review() {
           ),
         },
       ]}
-      rail={
-        <>
-          <RailCard title={L.요약}>
-            <Summary />
-          </RailCard>
-          <RailCard title={`${L.AI} ${L.보고}`} icon={<Icon icon={SparklesIcon} size="sm" color="accent" />} isOpen={false}>
-            <Reports />
-          </RailCard>
-        </>
-      }
     />
   )
 }

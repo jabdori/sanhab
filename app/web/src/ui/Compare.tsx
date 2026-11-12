@@ -13,7 +13,7 @@ export function Compare({ head, rows }: { head: [string, string]; rows: [string,
       idKey="name"
       density="compact"
       columns={[
-        { key: 'name', header: '', width: proportional(1, { minWidth: 80 }), renderCell: (r) => <Text color="secondary">{r.name}</Text> },
+        { key: 'name', header: '', width: proportional(1, { minWidth: 80 }), renderCell: (r) => <Text weight="semibold">{r.name}</Text> },
         { key: 'a', header: head[0], width: proportional(1, { minWidth: 80 }), renderCell: (r) => <Text weight={weight(r)} hasTabularNumbers>{r.a}</Text> },
         { key: 'b', header: head[1], width: proportional(1, { minWidth: 80 }), renderCell: (r) => <Text weight={weight(r)} hasTabularNumbers>{r.b ?? ''}</Text> },
       ]}

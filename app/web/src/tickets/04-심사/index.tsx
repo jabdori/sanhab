@@ -66,7 +66,7 @@ export function Members() {
               ),
           },
           { key: 'amount', header: L.금액, align: 'end', width: pixel(112), renderCell: (p) => p.amount != null && <Text weight="semibold" hasTabularNumbers>{num(p.amount)}</Text> },
-          { key: 'source', header: L.출처, align: 'end', width: pixel(64), renderCell: (p) => p.source && <Source kind={p.source} file={p.file ?? undefined} row={p.row ?? undefined} /> },
+          { key: 'source', header: L.출처, align: 'end', width: pixel(88), renderCell: (p) => p.source && <Source kind={p.source} file={p.file ?? undefined} row={p.row ?? undefined} /> },
         ]}
       />
     </Region>
@@ -124,7 +124,7 @@ export function Rules() {
               </Link>
             ),
           },
-          { key: 'name', header: L.규칙, width: pixel(96), renderCell: (x) => <Token size="sm" label={`${x.name} v${x.ver}`} /> },
+          { key: 'name', header: L.규칙, width: pixel(96), renderCell: (x) => <Text hasTabularNumbers>{`${x.name} v${x.ver}`}</Text> },
           {
             key: 'source',
             header: L.출처,

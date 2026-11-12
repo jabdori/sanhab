@@ -45,6 +45,8 @@ const MARK: Record<string, { color: 'orange' | 'purple' | 'blue' | 'red' | 'gray
   [L.정산]: { color: 'green', icon: CheckIcon },
   [L.거부]: { color: 'red', icon: NoSymbolIcon },
   [L.종결]: { color: 'gray', icon: StopIcon },
+  // 가설로 승인권자가 올라간 심사(정황이 사실이라고 놓았을 때)
+  [L.가설]: { color: 'orange', icon: FlagIcon },
 }
 export const mark = (m: string) => MARK[m] ?? { color: 'gray' as const, icon: FlagIcon }
 
@@ -53,7 +55,8 @@ export const dot = (marks: string[], state?: string | null): 'warning' | 'error'
   marks.includes(L.정황) ? 'warning' : state === L.반려 || state === L.재심사 ? 'error' : 'neutral'
 
 /** 식별자의 종류(일치) → Token 색 */
-const MATCH: Record<string, 'blue' | 'teal' | 'purple'> = { [L.대표자]: 'blue', [L.주소]: 'teal', [L.계좌]: 'purple' }
+// 상태 색(초록 좋음 · 보라 재심사 · 주황 정황 · 빨강 오류)과 겹치지 않는 색만
+const MATCH: Record<string, 'blue' | 'cyan' | 'pink'> = { [L.대표자]: 'blue', [L.주소]: 'cyan', [L.계좌]: 'pink' }
 export const match = (kind: string) => MATCH[kind] ?? 'default'
 
 /** 금액의 표기: 천 단위 쉼표("원"은 붙이지 않는다) */

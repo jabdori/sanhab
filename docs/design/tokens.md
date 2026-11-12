@@ -19,7 +19,7 @@
 - 상태는 `Badge` 변형, 표시(정황 · 재검토 …)는 색과 아이콘이 있는 `Token`, 주의 단계는 `StatusDot`, 날짜는 `Timestamp`, 사람(역할)은 `Avatar`, 비율은 `ProgressBar`, 경고는 `Banner`, 빈 자리는 `EmptyState`. 낱말 → 변형의 대응은 `ui/status.ts` 한 곳.
 - 비활성 · 표 여백 · 빈 영역은 astryx 부품의 기본 동작 그대로다. CSS로 덮지 않는다.
 - 레이아웃은 `Layout`·`LayoutHeader`·`LayoutContent`·`LayoutPanel`과 `VStack`·`HStack`·`Grid`. raw `div`·`span`으로 짜지 않는다. 바탕을 가를 때만 Tailwind 다리의 `bg-body`를 쓴다(테마의 토큰).
-- `#색`, 숫자가 든 직접 값(`w-[360px]`), `style=`은 `npm run lint`가 막는다. 구조의 폭(대화 칸 380, 레일 320, 접속 카드 360)은 부품 props의 숫자로 둔다(astryx scaffold: 구조의 폭만 px).
+- `#색`, 숫자가 든 직접 값(`w-[360px]`), `style=`은 `npm run lint`가 막는다. 구조의 폭(대화 칸 380, 접속 카드 360)은 부품 props의 숫자로 둔다(astryx scaffold: 구조의 폭만 px).
 - 금액·계좌·날짜는 고정폭 숫자(`hasTabularNumbers`). 금액은 오른쪽 정렬, 천 단위 쉼표, "원"은 붙이지 않는다.
 
 ## 자리의 폭 (기준 1440 × 900, 최소 1280)
@@ -27,6 +27,5 @@
 |---|---|
 | 메뉴(SideNav) | 테마 기본. 1366 이하에서는 아이콘 줄로 접힌 채 시작(단추로 펼침) |
 | 본문 | 나머지 |
-| 기록의 레일 | 320. 1680 이하에서는 본문 아래로(components.md의 반응 계약) |
-| 대화 | 380(320–560 폭 조절), 언제나 열림 |
+| 오른쪽(AI 보고 + 대화) | 380(320–560 폭 조절), 언제나 열림 |
 | 시연 서랍 | 360(Drawer) |

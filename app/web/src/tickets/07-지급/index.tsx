@@ -36,7 +36,8 @@ export function PayTiles() {
         {
           name: L.심사,
           value: (
-            <Link weight="semibold" onClick={() => setTarget({ kind: L.심사, id: pay.review.id })}>
+            // 다른 타일의 값과 같은 크기(large)로. 누르면 그 심사가 열린다
+            <Link type="large" weight="semibold" onClick={() => setTarget({ kind: L.심사, id: pay.review.id })}>
               {pay.review.name}
             </Link>
           ),

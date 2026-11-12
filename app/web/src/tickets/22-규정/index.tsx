@@ -29,7 +29,8 @@ export const useRules = () => useData<Data>('/rules')
 export function useClause() {
   const d = useRules()
   const target = useAtomValue(targetAtom)
-  const clause = d?.clauses.find((x) => x.id === target?.id)
+  // 조항이 하나뿐이면 목록 없이 그 조항이 열린 것으로 본다(메뉴 규정 → 바로 그 조항)
+  const clause = d?.clauses.find((x) => x.id === target?.id) ?? (!target && d?.clauses.length === 1 ? d.clauses[0] : undefined)
   return d && clause ? { d, clause, rules: d.rules.filter((r) => r.clause === clause.id) } : undefined
 }
 

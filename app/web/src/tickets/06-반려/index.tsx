@@ -1,12 +1,12 @@
 // 06 반려: 반려된 심사의 재상신(조치는 pages/Review의 페이지 조치, 사유는 그 확인 창)과 이력(결정과 재상신을 일어난 순서대로).
 import { atom, useAtomValue } from 'jotai'
 import { unwrap } from 'jotai/utils'
+import { Icon } from '@astryxdesign/core/Icon'
+import { UserCircleIcon } from '@heroicons/react/24/outline'
 import { L } from '../../labels'
 import { api, changedAtom, roleAtom, targetAtom } from '../../state'
-import { Avatar } from '@astryxdesign/core/Avatar'
 import { List, ListItem } from '@astryxdesign/core/List'
 import { Text } from '@astryxdesign/core/Text'
-import { Timestamp } from '@astryxdesign/core/Timestamp'
 import { Empty } from '../../ui/Empty'
 import type { Decision } from '../04-심사/review'
 
@@ -39,11 +39,11 @@ export function History() {
         <ListItem
           key={i}
           align="start"
-          startContent={<Avatar name={d.role} size="sm" />}
+          startContent={<Icon icon={UserCircleIcon} size="md" color="secondary" />}
           // 그룹이 바뀌어 옮겨 온 옛 심사의 줄(13, D56)은 그 심사의 이름을 앞에 단다
           label={[d.was, d.kind, d.role].filter(Boolean).join(' · ')}
           description={[d.reason?.class ?? `${L.사유} ${L.없음}`, d.reason?.memo, d.source === L.원본 ? L.원본 : null].filter(Boolean).join(' · ')}
-          endContent={d.at ? <Timestamp value={d.at} format="date" /> : <Text type="supporting" color="secondary">{L.미상}</Text>}
+          endContent={d.at ? <Text type="supporting" color="secondary" hasTabularNumbers>{d.at}</Text> : <Text type="supporting" color="secondary">{L.미상}</Text>}
         />
       ))}
     </List>

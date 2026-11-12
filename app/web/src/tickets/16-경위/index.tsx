@@ -1,13 +1,13 @@
 // 16 경위: 지급·심사·추인 기록의 경위 탭 — 그림(Picture)과 시간 순 목록(Timeline).
 // 그림: 원인은 왼쪽, 결과는 오른쪽, 방향은 바뀌지 않는다. 지금 대상의 줄기(앞뒤로 이어진 칸과 선)가 진하다. 칸을 누르면 그 대상으로 간다. 결정의 칸에는 사람과 사유가 붙는다.
-import { Avatar } from '@astryxdesign/core/Avatar'
 import { ClickableCard } from '@astryxdesign/core/ClickableCard'
 import { HStack, StackItem, VStack } from '@astryxdesign/core/Layout'
 import { List as Rows, ListItem } from '@astryxdesign/core/List'
 import { ScrollableArea } from '@astryxdesign/core/ScrollableArea'
 import { Text } from '@astryxdesign/core/Text'
-import { Timestamp } from '@astryxdesign/core/Timestamp'
 import { useAtomValue, useSetAtom } from 'jotai'
+import { Icon } from '@astryxdesign/core/Icon'
+import { UserCircleIcon, DocumentTextIcon } from '@heroicons/react/24/outline'
 import { L } from '../../labels'
 import { targetAtom, useData } from '../../state'
 import { Empty } from '../../ui/Empty'
@@ -46,10 +46,10 @@ export function Timeline() {
           key={n.key}
           align="start"
           isSelected={n.key === d.now}
-          startContent={<Avatar name={n.who?.role ?? n.kind} size="sm" />}
+          startContent={<Icon icon={n.who?.role ? UserCircleIcon : DocumentTextIcon} size="md" color="secondary" />}
           label={`${n.kind} · ${n.name}`}
           description={[n.who?.role, n.who?.reason?.class, n.who?.reason?.memo].filter(Boolean).join(' · ') || undefined}
-          endContent={n.at ? <Timestamp value={n.at} format="date" /> : <Text type="supporting" color="secondary">{L.미상}</Text>}
+          endContent={n.at ? <Text type="supporting" color="secondary" hasTabularNumbers>{n.at}</Text> : <Text type="supporting" color="secondary">{L.미상}</Text>}
           onClick={() => setTarget(n.go)}
         />
       ))}

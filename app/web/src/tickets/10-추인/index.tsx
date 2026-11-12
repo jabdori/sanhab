@@ -1,7 +1,6 @@
 // 10 추인: 추인·종결 작업에서 여는 화면(pages/Ratify가 이 파일의 영역·조치를 짠다). 대상은 현재 계산의 그룹 × 귀속월 묶음이고(D50), 그 달의 재검토인 과거의 승인이 모두 보인다.
 // 조치는 04의 결정 경로(/decide)에 묶음의 심사 하나를 보낸다 — 같은 결정이 묶음의 나머지에도 남는 것은 DB가 한다.
 // 과거의 심사 한 건은 표의 이름을 눌러 연다(04의 심사 상세).
-import { Avatar } from '@astryxdesign/core/Avatar'
 import { Badge } from '@astryxdesign/core/Badge'
 import { HStack } from '@astryxdesign/core/Layout'
 import { Link } from '@astryxdesign/core/Link'
@@ -10,10 +9,11 @@ import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
 import { ProgressBar } from '@astryxdesign/core/ProgressBar'
 import { Table, pixel, proportional } from '@astryxdesign/core/Table'
 import { Text } from '@astryxdesign/core/Text'
-import { Timestamp } from '@astryxdesign/core/Timestamp'
 import { atom, useAtomValue, useSetAtom } from 'jotai'
 import { unwrap } from 'jotai/utils'
 import { useEffect, useState } from 'react'
+import { Icon } from '@astryxdesign/core/Icon'
+import { UserCircleIcon, UserIcon } from '@heroicons/react/24/outline'
 import { L } from '../../labels'
 import { api, changedAtom, roleAtom, store, targetAtom } from '../../state'
 import { Compare } from '../../ui/Compare'
@@ -88,7 +88,7 @@ export function RatifyTiles() {
           name: L.승인권자,
           value: (
             <HStack gap={2} vAlign="center">
-              <Avatar name={r.approver} size="sm" />
+              <Icon icon={UserIcon} size="sm" color="secondary" />
               <Text type="large" weight="semibold">
                 {r.approver}
               </Text>
@@ -158,7 +158,7 @@ export function Past() {
           { key: 'total', header: L.금액, align: 'end', width: pixel(104), renderCell: (r) => <Text weight="semibold" hasTabularNumbers>{num(r.total)}</Text> },
           { key: 'approver', header: L.승인권자, width: pixel(80), renderCell: (r) => <Text>{r.approver}</Text> },
           { key: 'paid', header: L.지급일, width: pixel(112), renderCell: (r) => <Text hasTabularNumbers>{r.paid ?? L.미상}</Text> },
-          { key: 'source', header: L.출처, align: 'end', width: pixel(52), renderCell: (r) => <Source kind={r.source} file={r.file ?? undefined} row={r.row ?? undefined} /> },
+          { key: 'source', header: L.출처, align: 'end', width: pixel(88), renderCell: (r) => <Source kind={r.source} file={r.file ?? undefined} row={r.row ?? undefined} /> },
         ]}
       />
     </Region>
@@ -212,10 +212,10 @@ export function RatifyHistory() {
         <ListItem
           key={i}
           align="start"
-          startContent={<Avatar name={d.role} size="sm" />}
+          startContent={<Icon icon={UserCircleIcon} size="md" color="secondary" />}
           label={[d.kind, d.role].join(' · ')}
           description={[d.reason?.class ?? `${L.사유} ${L.없음}`, d.reason?.memo, d.source === L.원본 ? L.원본 : null].filter(Boolean).join(' · ')}
-          endContent={d.at ? <Timestamp value={d.at} format="date" /> : <Text type="supporting" color="secondary">{L.미상}</Text>}
+          endContent={d.at ? <Text type="supporting" color="secondary" hasTabularNumbers>{d.at}</Text> : <Text type="supporting" color="secondary">{L.미상}</Text>}
         />
       ))}
     </List>
@@ -223,7 +223,8 @@ export function RatifyHistory() {
 }
 
 /** 한 건 화면의 조치 자리: 이 심사가 든 묶음으로 가는 길. 추인·거부·종결·이견은 묶음에서 한다(D50) */
-export function Way() {
+/** 열어 둔 심사가 든 추인 묶음(없으면 null) */
+export function useWay() {
   const r = useReview()
   const [b, setB] = useState<{ id: string; name: string; ym: string } | null>(null)
   const id = r?.review.id
@@ -232,7 +233,11 @@ export function Way() {
     setB(null)
     if (id) api<{ id: string; name: string; ym: string }>(`/reviews/${id}/ratify`).then(setB, () => {})
   }, [id, marks])
-  if (!b) return null
+  return b
+}
+
+/** 추인 묶음으로 가는 링크(표시 + 이름 · 귀속월) */
+export function Way({ b }: { b: { id: string; name: string; ym: string } }) {
   return (
     <HStack gap={2} vAlign="center">
       <Mark>{L.추인}</Mark>

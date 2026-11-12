@@ -69,12 +69,15 @@ export function OfReview() {
   if (!list?.length) return null
   return (
     <Region title={L.가설} aside={<Tag adds={[...new Set(list.flatMap((h) => h.adds))]} />}>
-      {list.map((h) => (
-        <VStack key={h.id} gap={1}>
-          <Heading level={4}>{h.name}</Heading>
-          <Rows h={h} />
-        </VStack>
-      ))}
+      {/* 정황마다 표 하나. 표 사이는 넓게(한 표의 제목과 표보다) */}
+      <VStack gap={6}>
+        {list.map((h) => (
+          <VStack key={h.id} gap={1}>
+            <Heading level={4}>{h.name}</Heading>
+            <Rows h={h} />
+          </VStack>
+        ))}
+      </VStack>
     </Region>
   )
 }

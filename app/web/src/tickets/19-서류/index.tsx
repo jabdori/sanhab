@@ -96,21 +96,20 @@ function Aside() {
   return (
     <>
       <Text type="supporting" color="secondary" className="wrap-anywhere">{d.name}</Text>
-      {/* 판독은 글자 인식(AI)이 읽은 값이다 */}
-      <Source kind={L.AI} tip={L.판독} rows={[[L.접수, [d.role, d.at].join(' · ')], [L.판독, d.read_model ?? L.없음]]} />
       {all.docs.length > 1 && all.docs.map((x, i) => <ToggleButton key={x.id} label={String(i + 1)} size="sm" isPressed={i === at} onPressedChange={() => setSee(i)} />)}
     </>
   )
 }
 
-/** 원본 영역: 접수한 서류의 그림 */
+/** 이미지 영역: 접수한 서류의 그림 */
 export function OriginalDoc() {
   const all = useDocs()
   const d = useDoc()
   useWaiting(d)
   if (!all?.docs.length || !d) return null
   return (
-    <Region title={L.원본} aside={<Aside />}>
+    // 접수한 서류의 그림. 출처의 낱말 `원본`과 겹치지 않게 영역 이름은 `이미지`
+    <Region title={L.이미지} aside={<Aside />}>
       <Original d={d} />
     </Region>
   )
@@ -125,7 +124,8 @@ export function Read() {
   // 판독이 아직 없으면 영역을 두지 않는다(원본만 보이고, 기다리는 표시는 레일의 AI 정리에 있다)
   if (!all?.docs.length || !d || !rows.length) return null
   return (
-    <Region title={L.판독}>
+    // 판독은 글자 인식(AI)이 읽은 값이다: AI 표지는 이 영역에
+    <Region title={L.판독} aside={<Source kind={L.AI} tip={L.판독} rows={[[L.접수, [d.role, d.at].join(' · ')], [L.판독, d.read_model ?? L.없음]]} />}>
       <Table<Row>
           data={rows}
           idKey="item"
@@ -147,7 +147,7 @@ export function Read() {
             { key: 'read', header: L.판독, width: proportional(3, { minWidth: 96 }), renderCell: (r) => (r.read ? <Text hasTabularNumbers>{range(r.read)}</Text> : <Text color="secondary">{L.없음}</Text>) },
             { key: 'reg', header: L.등록, width: proportional(3, { minWidth: 96 }), renderCell: (r) => (r.reg?.value ? <Text hasTabularNumbers>{range(r.reg.value)}</Text> : <Text color="secondary">{L.없음}</Text>) },
             { key: 'result', header: L.비교, width: pixel(80), renderCell: (r) => r.result && <Badge variant={badge(r.result)} label={r.result} /> },
-            { key: 'source', header: L.출처, align: 'end', width: pixel(56), renderCell: (r) => <RegSource r={r} /> },
+            { key: 'source', header: L.출처, align: 'end', width: pixel(88), renderCell: (r) => <RegSource r={r} /> },
           ]}
         />
     </Region>

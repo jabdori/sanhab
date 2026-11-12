@@ -137,7 +137,7 @@ export function Payouts() {
               ),
           },
           // 어느 쪽이든 출처 표지는 원본의 행을 연다
-          { key: 'source', header: L.출처, align: 'end', width: pixel(72), renderCell: (p) => src(p.state ? { ...p, source: p.state_source ?? p.source } : p) },
+          { key: 'source', header: L.출처, align: 'end', width: pixel(88), renderCell: (p) => src(p.state ? { ...p, source: p.state_source ?? p.source } : p) },
         ]}
       />
     </Region>

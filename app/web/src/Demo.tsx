@@ -12,10 +12,10 @@ import { useAtomValue } from 'jotai'
 import { Confirm } from './ui/Confirm'
 import { Region } from './ui/Region'
 
-/** 시연 서랍(astryx Drawer): 메뉴 바닥의 `시연`이 연다. 제품이 아닌 시연 조작만 모은다 */
+/** 시연 서랍(astryx Drawer, 막지 않음 hasScrim={false}): 메뉴 바닥의 `시연`이 연다. 시연 조작을 하며 뒤 화면의 변화를 같이 본다. 제품이 아닌 시연 조작만 모은다 */
 export function DemoDrawer({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange: (open: boolean) => void }) {
   return (
-    <Drawer isOpen={isOpen} onOpenChange={onOpenChange} label={L.시연} width={360}>
+    <Drawer isOpen={isOpen} onOpenChange={onOpenChange} label={L.시연} width={360} hasScrim={false}>
       <Layout header={<DrawerHeader title={L.시연} onOpenChange={onOpenChange} />} content={<LayoutContent><Demo /></LayoutContent>} />
     </Drawer>
   )

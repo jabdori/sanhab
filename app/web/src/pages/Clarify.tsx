@@ -4,23 +4,22 @@ import { Badge } from '@astryxdesign/core/Badge'
 import { Icon } from '@astryxdesign/core/Icon'
 import { HStack } from '@astryxdesign/core/Layout'
 import { Link } from '@astryxdesign/core/Link'
-import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
 import { Text } from '@astryxdesign/core/Text'
 import { Token } from '@astryxdesign/core/Token'
-import { BuildingStorefrontIcon, CalendarIcon, ClockIcon, SparklesIcon } from '@heroicons/react/24/outline'
-import { useAtomValue, useSetAtom } from 'jotai'
+import { BuildingStorefrontIcon, CalendarIcon, ClockIcon } from '@heroicons/react/24/outline'
+import { useAtomValue } from 'jotai'
 import { useState } from 'react'
 import { L } from '../labels'
 import { api, changedAtom, store, targetAtom } from '../state'
 import { Region } from '../ui/Region'
-import { Act, Meta, RailCard, RecordPage, Tiles } from '../ui/Record'
+import { Act, Meta, RecordPage, Tiles } from '../ui/Record'
 import { Source } from '../ui/Source'
 import { badge, match } from '../ui/status'
 import { Docs, ClarifyHistory, Letter, letterAtom } from '../tickets/18-발송'
 import { type Clarify as Data, useClarify } from '../tickets/18-발송/clarify'
-import { OriginalDoc, Read, Tidy, Upload } from '../tickets/19-서류'
+import { OriginalDoc, Read, Upload } from '../tickets/19-서류'
 import { useDocs } from '../tickets/19-서류/docs'
-import { Excluded, Unknown, Verdicts } from '../tickets/20-소명'
+import { Excluded, Verdicts } from '../tickets/20-소명'
 
 /** 발송(영업지원, 주 버튼): 고친 요청서(없으면 AI 초안, 글 없이 목록만으로도 된다)를 보낸다. 되돌릴 수 없어 확인 창을 거친다 */
 function Send({ d, onBad }: { d: Data; onBad: (word: string | null) => void }) {
@@ -38,24 +37,6 @@ function Send({ d, onBad }: { d: Data; onBad: (word: string | null) => void }) {
   )
 }
 
-/** 레일의 요약: 대리점 · 정황(그 소명을 낳은) · 담당 · 일치 */
-function Summary({ d }: { d: Data }) {
-  const setTarget = useSetAtom(targetAtom)
-  const c = d.clarify
-  return (
-    <MetadataList columns="single" label={{ position: 'start', width: 72 }}>
-      <MetadataListItem label={L.대리점}>
-        <Link onClick={() => setTarget({ kind: L.대리점, id: c.dealer.id })}>{c.dealer.name}</Link>
-      </MetadataListItem>
-      {c.signal && (
-        <MetadataListItem label={L.정황}>
-          <Link onClick={() => setTarget({ kind: L.정황, id: c.signal!.id })}>{c.signal.name}</Link>
-        </MetadataListItem>
-      )}
-      <MetadataListItem label={L.담당}>{d.role}</MetadataListItem>
-    </MetadataList>
-  )
-}
 
 export function Clarify() {
   const d = useClarify()
@@ -71,6 +52,7 @@ export function Clarify() {
       meta={[
         <Badge variant={badge(c.state)} label={c.state} />,
         <Meta icon={BuildingStorefrontIcon}>{c.dealer.name}</Meta>,
+        ...(c.signal ? [<Link onClick={() => store.set(targetAtom, { kind: L.정황, id: c.signal!.id })}>{c.signal.name}</Link>] : []),
         ...(d.kinds.length
           ? [
               <HStack gap={1} vAlign="center">
@@ -107,14 +89,19 @@ export function Clarify() {
           label: L.내용,
           body: (
             <>
-              {read ? (
-                <Tiles
-                  items={[
-                    { name: L.누락, value: docs?.docs.at(-1)?.counts[L.누락] ?? 0, aside: <Source kind={L.계산} tip={L.누락} rows={[[L.누락, docs?.docs.at(-1)?.counts[L.누락] ?? 0]]} /> },
-                    { name: L.불일치, value: docs?.docs.at(-1)?.counts[L.불일치] ?? 0, aside: <Source kind={L.계산} tip={L.불일치} rows={[[L.불일치, docs?.docs.at(-1)?.counts[L.불일치] ?? 0]]} /> },
-                  ]}
-                />
-              ) : null}
+              {/* 숫자 타일: 요청한 서류 · 접수한 서류, 판독했으면 누락 · 불일치(계산) */}
+              <Tiles
+                items={[
+                  { name: L.서류, value: d.docs.length },
+                  { name: L.접수, value: docs?.docs.length ?? 0 },
+                  ...(read
+                    ? [
+                        { name: L.누락, value: docs?.docs.at(-1)?.counts[L.누락] ?? 0, aside: <Source kind={L.계산} tip={L.누락} rows={[[L.누락, docs?.docs.at(-1)?.counts[L.누락] ?? 0]]} /> },
+                        { name: L.불일치, value: docs?.docs.at(-1)?.counts[L.불일치] ?? 0, aside: <Source kind={L.계산} tip={L.불일치} rows={[[L.불일치, docs?.docs.at(-1)?.counts[L.불일치] ?? 0]]} /> },
+                      ]
+                    : []),
+                ]}
+              />
               <Letter />
               <Docs />
               <Read />
@@ -134,24 +121,6 @@ export function Clarify() {
           ),
         },
       ]}
-      rail={
-        <>
-          <RailCard title={L.요약}>
-            <Summary d={d} />
-          </RailCard>
-          {/* 서류가 접수된 뒤에만(그 전에는 정리할 것도 미확인도 없다) */}
-          {docs?.docs.length ? (
-            <>
-              <RailCard title={`${L.AI} ${L.정리}`} icon={<Icon icon={SparklesIcon} size="sm" color="accent" />}>
-                <Tidy />
-              </RailCard>
-              <RailCard title={L.미확인}>
-                <Unknown />
-              </RailCard>
-            </>
-          ) : null}
-        </>
-      }
     />
   )
 }
