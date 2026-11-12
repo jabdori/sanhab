@@ -45,7 +45,7 @@ function Rows({ h }: { h: Hypo }) {
   )
 }
 
-function OfSignal() {
+export function OfSignal() {
   const id = useSignal()?.signal.id
   const h = useData<Hypo>(id ? `/signals/${encodeURIComponent(id)}/hypo` : null)
   if (!id) return null
@@ -80,6 +80,4 @@ export function OfReview() {
   )
 }
 
-export default [
-  { slot: 'fact', kind: L.정황, View: OfSignal },
-] satisfies Piece[]
+export default [] satisfies Piece[]

@@ -3,7 +3,6 @@ import { atom, useAtomValue } from 'jotai'
 import { unwrap } from 'jotai/utils'
 import { L } from '../../labels'
 import { api, changedAtom, roleAtom, targetAtom } from '../../state'
-import { type Draft, blank } from '../../ui/Reason'
 import type { Decision } from '../04-심사/review'
 
 type Dot = { id: string; name: string }
@@ -60,9 +59,6 @@ export function useSignal() {
   const s = useAtomValue(latestAtom)
   return s && target?.kind === L.정황 && s.signal.id === target.id ? s : null
 }
-
-/** 요청·기각에 붙일 사유(쓰고 있는 것) */
-export const reasonAtom = atom<Draft>(blank)
 
 /** 근거 표에서 강조할 줄(그 기록의 id). 근거 연결(17 보고의 사실)이 정하고 1.2초 뒤 비운다 */
 export const markAtom = atom<string | null>(null)
