@@ -49,7 +49,7 @@ const OCR: &str = "ocr";
 /// 판독·정리를 부른 수(자동 검사가 "다시 부르지 않는다"를 셀 때 쓴다)
 static CALLS: AtomicUsize = AtomicUsize::new(0);
 /// 자동 검사가 판독 모델을 갈아 끼우는 자리(`fixture` 고정 응답, `fixture-down` 응답 없음)
-static READ: Mutex<Option<String>> = Mutex::new(None);
+pub(super) static READ: Mutex<Option<String>> = Mutex::new(None);
 
 fn read_model() -> String {
     READ.lock().unwrap().clone().or_else(|| std::env::var("UPSTAGE_MODEL").ok().filter(|m| !m.is_empty())).unwrap_or_else(|| OCR.into())
@@ -214,7 +214,7 @@ pub async fn sweep(db: &Db) -> Result<()> {
     sweep_with(db, std::env::var("UPSTAGE_API_KEY").ok().as_deref(), std::env::var("OPENAI_API_KEY").ok().as_deref()).await
 }
 /// `sweep`의 키를 인자로 뗀 것(자동 검사는 환경과 상관없이 키 없음을 탄다)
-async fn sweep_with(db: &Db, ocr_key: Option<&str>, ai_key: Option<&str>) -> Result<()> {
+pub(super) async fn sweep_with(db: &Db, ocr_key: Option<&str>, ai_key: Option<&str>) -> Result<()> {
     let ids = q1(db, &format!("
         RETURN (SELECT VALUE record::id(id) FROM doc WHERE
             (read = NONE AND (read_tried = NONE OR (time::now() - read_tried) > {RETRY}s)) OR
@@ -252,7 +252,7 @@ fn rows(ws: &[J], tidy: &[J], reg: &HashMap<&str, J>) -> Vec<J> {
 
 /// 소명의 서류 화면: 지금 역할이 올릴 수 있는지(`can`), 받는 종류와 크기, 서류마다 판독 낱말·정리·값 표·누락과 불일치의 수.
 /// 등록 값: 임차인은 소명한 대리점의 이름, 주소는 상대 대리점(정황의 두 번째 대리점)의 지금 주소(원본의 선), 호실은 상대 대리점의 호실(시연, `ROOMS`). 기간은 등록 값이 없다
-async fn list(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
+pub(super) async fn list(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
     let c = q1(&db, "
         LET $c = type::record('clarify', $id);
         LET $o = $c.signal.dealers[1];

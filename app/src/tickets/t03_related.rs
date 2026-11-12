@@ -29,10 +29,10 @@ pub struct Link {
 }
 
 /// 계산에 쓰는 선. `period`는 (첫날, 끝날) `YYYY-MM-DD`이고 없으면 시스템의 오늘 하루다.
-/// 유효 기간이 그 기간과 하루라도 겹치는 선을 읽고, 소명으로 제외된 선은 뺀다
+/// 유효 기간이 그 기간과 하루라도 겹치는 선을 읽고, 소명으로 제외된 선은 뺀다(제외의 기간(`ex_from`·`ex_to`, 20)이 있으면 그 기간과 겹칠 때만 뺀다)
 pub async fn links(db: &Db, period: Option<(&str, &str)>) -> Result<Vec<Link>> {
     let one = |i: usize, table: &str, value: &str| {
-        format!("(SELECT record::id(in) AS dealer, in.name AS name, {i} AS item, <string> out AS node, out.{value} AS value FROM {table} WHERE !excluded AND since <= $t AND (until = NONE OR until > $f))")
+        format!("(SELECT record::id(in) AS dealer, in.name AS name, {i} AS item, <string> out AS node, out.{value} AS value FROM {table} WHERE (!excluded OR (ex_from != NONE AND $t < ex_from) OR (ex_to != NONE AND $f > ex_to)) AND since <= $t AND (until = NONE OR until > $f))")
     };
     let sql = format!(
         "LET $f = IF $from THEN <datetime> ($from + 'T00:00:00Z') ELSE fn::today() END;

@@ -162,8 +162,14 @@ async fn detail(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): Pa
             can: fn::sendable($c),
             history: array::concat(
                 (SELECT kind, role, time::format(at, '%Y-%m-%d') AS at, reason, source, <string> stamp AS stamp FROM ruling WHERE id = type::record('ruling', $id)),
-                (SELECT '발송' AS kind, role, time::format(at, '%Y-%m-%d') AS at, NONE AS reason, source, <string> stamp AS stamp FROM dispatch WHERE clarify = $c)),
+                (SELECT '발송' AS kind, role, time::format(at, '%Y-%m-%d') AS at, NONE AS reason, source, <string> stamp AS stamp FROM dispatch WHERE clarify = $c),
+                (SELECT kind, role, time::format(at, '%Y-%m-%d') AS at, reason, source, <string> stamp AS stamp FROM verdict WHERE clarify = $c)),   -- 20: 소명의 결과(인정·불인정·보완)
         };", json!({ "id": id })).await?;
+    // 일어난 순서(보완 뒤에 다시 발송하면 줄이 섞이므로 시각으로 맞춘다)
+    let mut r = r;
+    if let Some(h) = r["history"].as_array_mut() {
+        h.sort_by(|a, b| a["stamp"].as_str().cmp(&b["stamp"].as_str()));
+    }
     let dealer = c["dealer_name"].as_str().unwrap_or_default();
     let draft = c["draft"].as_str().filter(|_| c["sent"].is_null()).map(|t| json!({ "text": fill(t, dealer), "model": c["draft_model"], "source": "AI" }));
     Ok(Json(json!({
