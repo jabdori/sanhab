@@ -5,18 +5,22 @@ import { Button } from '@astryxdesign/core/Button'
 import { Card } from '@astryxdesign/core/Card'
 import { Grid } from '@astryxdesign/core/Grid'
 import { Icon } from '@astryxdesign/core/Icon'
-import { HStack, Layout, LayoutContent, LayoutHeader, Section, StackItem, VStack } from '@astryxdesign/core/Layout'
+import { HStack, Layout, LayoutContent, LayoutHeader, LayoutPanel, Section, StackItem, VStack } from '@astryxdesign/core/Layout'
+import { Collapsible } from '@astryxdesign/core/Collapsible'
+import { List, ListItem } from '@astryxdesign/core/List'
+import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
 import { StatusDot } from '@astryxdesign/core/StatusDot'
 import { Token } from '@astryxdesign/core/Token'
 import { Link } from '@astryxdesign/core/Link'
 import { Tab, TabList } from '@astryxdesign/core/TabList'
 import { Heading, Text } from '@astryxdesign/core/Text'
-import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline'
-import { useAtom, useAtomValue } from 'jotai'
+import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, QueueListIcon, SparklesIcon, ViewColumnsIcon } from '@heroicons/react/24/outline'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { Fragment, type ReactNode, useState } from 'react'
 import { fail } from './status'
 import { L } from '../labels'
-import { menuAtom, navAtom, targetAtom, useData } from '../state'
+import { menuAtom, navAtom, paneAtom, sideAtom, talkAtom, targetAtom, useData } from '../state'
+import { AiBody } from '../AiPanel'
 import { type Draft, Reason, blank, ready, sent } from './Reason'
 import { Confirm } from './Confirm'
 import { grade } from './grade'
@@ -38,9 +42,12 @@ function Back() {
   const nav = opened.filter((t) => !left || left.has(`${t.kind}/${t.id}`) || (t.kind === target?.kind && t.id === target?.id))
   const at = nav.findIndex((t) => t.kind === target?.kind && t.id === target?.id)
   // 메뉴가 바로 그 기록을 보일 때(조항이 하나뿐인 규정)는 돌아갈 목록이 없다
+  const [pane, setPane] = useAtom(paneAtom)
   if (!target) return null
   return (
     <HStack gap={2} vAlign="center">
+      {/* 목록 사이드바를 펴고 접는다(기록을 열면 접힌 채 시작) */}
+      <Button label={L.목록} variant="ghost" size="sm" isIconOnly icon={<Icon icon={QueueListIcon} size="sm" />} onClick={() => setPane(!pane)} />
       <Link color="secondary" onClick={() => setTarget(null)}>
         <HStack gap={1} vAlign="center">
           <Icon icon={ArrowLeftIcon} size="sm" color="inherit" />
@@ -126,8 +133,9 @@ export type RecordTab = { value: string; label: string; body: ReactNode }
  * `bad`는 서버가 거절한 낱말(조치 아래 error Badge). 탭이 하나뿐이면 탭 줄을 두지 않는다.
  * 레일은 두지 않는다: 요약은 머리의 메타 · 타일과 겹치고, AI 보고는 오른쪽 AI 구역(대화 칸 위, AiPanel)에 있다
  */
-export function RecordPage({ title, meta, actions, bad, tabs }: { title: string; meta: ReactNode[]; actions?: ReactNode; bad?: string | null; tabs: RecordTab[] }) {
+export function RecordPage({ title, meta, actions, bad, tabs, props = [] }: { title: string; meta: ReactNode[]; actions?: ReactNode; bad?: string | null; tabs: RecordTab[]; props?: [string, ReactNode][] }) {
   const [tab, setTab] = useState(tabs[0]?.value)
+  const [side, setSide] = useAtom(sideAtom)
   const body = (tabs.find((t) => t.value === tab) ?? tabs[0])?.body
   return (
     <Layout
@@ -167,6 +175,8 @@ export function RecordPage({ title, meta, actions, bad, tabs }: { title: string;
                     ))}
                   </TabList>
                 </StackItem>
+                {/* 보조 칸(요약 · AI 보고 · 대화)을 펴고 접는다(work-item-detail의 Hide details) */}
+                <Button label={L.요약} variant="ghost" size="sm" isIconOnly icon={<Icon icon={ViewColumnsIcon} size="sm" />} onClick={() => setSide(!side)} />
               </HStack>
             )}
           </VStack>
@@ -178,6 +188,74 @@ export function RecordPage({ title, meta, actions, bad, tabs }: { title: string;
           <VStack gap={0}>{body}</VStack>
         </LayoutContent>
       }
+      end={
+        side && (
+          // 보조 칸(work-item-detail의 Details 레일): 접고 펴는 영역이 위에서 아래로 이어진다 — 요약 → AI 보고 → 대화. 칸 전체가 하나로 스크롤된다
+          <LayoutPanel width={300} hasDivider isScrollable padding={0} label={L.요약}>
+            <VStack gap={0}>
+              {props.length > 0 && (
+                <Fold title={L.요약}>
+                  <MetadataList>
+                    {props.map(([k, v]) => (
+                      <MetadataListItem key={k} label={k}>
+                        {v}
+                      </MetadataListItem>
+                    ))}
+                  </MetadataList>
+                </Fold>
+              )}
+              <AiFold />
+              <Talks />
+            </VStack>
+          </LayoutPanel>
+        )
+      }
     />
+  )
+}
+
+/** 보조 칸의 영역 하나: 제목을 누르면 접고 편다(열린 채 시작) */
+function Fold({ title, icon, children }: { title: string; icon?: typeof SparklesIcon; children: ReactNode }) {
+  return (
+    <Section variant="transparent" padding={4} dividers={['bottom']}>
+      <Collapsible
+        trigger={
+          <HStack gap={2} vAlign="center">
+            {icon && <Icon icon={icon} size="sm" color="accent" />}
+            <Heading level={4}>{title}</Heading>
+          </HStack>
+        }
+        defaultIsOpen
+      >
+        <VStack gap={3}>{children}</VStack>
+      </Collapsible>
+    </Section>
+  )
+}
+
+/** AI 보고 영역: AI가 쓴 것이 있을 때만 */
+function AiFold() {
+  const body = AiBody()
+  return body ? (
+    <Fold title={`${L.AI} ${L.보고}`} icon={SparklesIcon}>
+      {body}
+    </Fold>
+  ) : null
+}
+
+/** 이 기록을 다룬 대화(D61의 선 about을 거꾸로): 누르면 오른쪽 대화 칸에 그 대화가 열린다 */
+function Talks() {
+  const target = useAtomValue(targetAtom)
+  const setTalk = useSetAtom(talkAtom)
+  const list = useData<{ sessions: { id: string; title: string; updated: string }[] }>(target ? `/chat/sessions?of=${encodeURIComponent(`${target.kind}/${target.id}`)}` : null)
+  if (!list?.sessions.length) return null
+  return (
+    <Fold title={`${L.대화} ${list.sessions.length}`}>
+      <List density="compact">
+        {list.sessions.map((x) => (
+          <ListItem key={x.id} label={x.title || L.대화} description={x.updated} onClick={() => setTalk({ id: x.id, n: Date.now() })} />
+        ))}
+      </List>
+    </Fold>
   )
 }

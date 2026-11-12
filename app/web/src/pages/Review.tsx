@@ -19,7 +19,7 @@ import { Mark, State } from '../ui/Mark'
 import { Act, Meta, RecordPage, Tiles, byGrade } from '../ui/Record'
 import { Region } from '../ui/Region'
 import { Source } from '../ui/Source'
-import { caution, fail, meter, num } from '../ui/status'
+import { caution, fail, meter, num, plain } from '../ui/status'
 import { Links, Members, Rules } from '../tickets/04-심사'
 import { bundled, useReview } from '../tickets/04-심사/review'
 import { History, useResubmit } from '../tickets/06-반려'
@@ -71,25 +71,6 @@ function ReviewTiles() {
         // 원본의 과거 승인에는 적용한 규칙의 기록이 없다(09)
         // 넘친 금액은 보조 글자로(합산 막대가 이미 빨갛다 — 같은 경고를 두 번 칠하지 않는다)
         { name: L.한도, value: r.limit === null ? L.미상 : num(r.limit), below: over && <Text type="supporting" color="secondary" hasTabularNumbers>{`+${num(r.total - r.limit!)}`}</Text> },
-        {
-          name: L.승인권자,
-          // 값은 실제로 결정하는 사람(서버 fn::holder). 합산으로 정한 승인권자와 다르면(정황의 가설로 올라감) 아래에 그 계산과 까닭
-          value: (
-            <HStack gap={2} vAlign="center">
-              <Icon icon={UserIcon} size="md" color="secondary" />
-              <Text type="display-3">
-                {r.holder ?? r.approver}
-              </Text>
-            </HStack>
-          ),
-          below: r.holder && r.holder !== r.approver && (
-            <HStack gap={2} vAlign="center" wrap="wrap">
-              <Text type="supporting" color="secondary">{`${L.계산} ${r.approver}`}</Text>
-              <Mark>{L.가설}</Mark>
-            </HStack>
-          ),
-          aside: <Source kind={L.계산} tip={L.승인권자} rows={[[L.승인권자, L['한도 이하 영업지원, 초과 영업임원']]]} />,
-        },
       ]}
     />
   )
@@ -185,6 +166,14 @@ export function Review() {
       ]}
       actions={<Actions onBad={(word) => setBad(word ? { id: v.id, word } : null)} />}
       bad={bad?.id === v.id ? bad.word : null}
+      // 보조 칸의 요약: 상태 · 담당(실제로 결정하는 사람) · 승인권자(합산으로 정한 것, 가설로 올라갔으면 표시) · 귀속월 · 구성
+      props={[
+        [L.상태, plain(v.status) ? v.status : <State word={v.status} />],
+        [L.담당, v.holder ?? v.approver],
+        [L.승인권자, v.holder && v.holder !== v.approver ? <HStack gap={2} vAlign="center"><Text>{v.holder}</Text><Mark>{L.가설}</Mark></HStack> : v.approver],
+        [L.귀속월, v.ym],
+        [L.구성, r.members.map((m) => m.name).join(' · ')],
+      ]}
       tabs={[
         {
           value: 'body',

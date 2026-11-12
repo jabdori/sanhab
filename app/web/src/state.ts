@@ -17,17 +17,23 @@ export const menuAtom = atom<Menu>(MENUS[0])
 export const targetAtom = atom<Target | null>(null)
 /** 작업 목록에서 기록을 열 때의 목록 순서. 기록 화면의 `n/전체 · 앞 / 뒤`가 이것을 따른다 */
 export const navAtom = atom<Target[]>([])
+/** 목록 사이드바: 기록을 열면 접힌 채 시작하고 기록 머리의 `목록` 단추로 편다 */
+export const paneAtom = atom(false)
+/** 보조 칸: 기록 화면 오른쪽(속성 · AI 보고 · 대화). 열린 채 시작한다 */
+export const sideAtom = atom(true)
+/** 대화 칸에서 열 대화(보조 칸의 대화 목록에서 고른 것). n이 바뀌면 그 대화를 연다 */
+export const talkAtom = atom<{ id: string; n: number } | null>(null)
 /** 조치(POST)가 끝날 때마다 오른다. useData가 이것을 보고 다시 읽는다 */
 export const changedAtom = atom(0)
 
 export const store = getDefaultStore()
 
-/** GET(body 없음) 또는 POST. 지금 역할의 토큰으로 부른다. 실패하면 { status, data }를 가진 Error */
-export async function api<T = unknown>(path: string, body?: unknown): Promise<T> {
+/** GET(body 없음) 또는 POST(`method`로 PUT 등). 지금 역할의 토큰으로 부른다. 실패하면 { status, data }를 가진 Error */
+export async function api<T = unknown>(path: string, body?: unknown, method?: string): Promise<T> {
   const role = store.get(roleAtom)
   const token = store.get(rolesAtom).find((r) => r.role === role)?.token
   const res = await fetch(`/api${path}`, {
-    method: body === undefined ? 'GET' : 'POST',
+    method: method ?? (body === undefined ? 'GET' : 'POST'),
     headers: { ...(token && { authorization: `Bearer ${token}` }), ...(body !== undefined && { 'content-type': 'application/json' }) },
     body: body === undefined ? undefined : JSON.stringify(body),
   })

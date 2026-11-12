@@ -255,7 +255,78 @@ async fn canned(model: &str, ai: &Db, system: &str, recs: &[Rec], talk: &[(Strin
 }
 
 pub fn routes() -> Router<Arc<Db>> {
-    Router::new().route("/chat", post(chat).layer(axum::extract::DefaultBodyLimit::max(8 * 1024 * 1024))).route("/chat/report", post(keep)).route("/chat/names", get(names))
+    Router::new()
+        .route("/chat", post(chat).layer(axum::extract::DefaultBodyLimit::max(8 * 1024 * 1024)))
+        .route("/chat/report", post(keep))
+        .route("/chat/names", get(names))
+        .route("/chat/sessions", get(sessions).post(open_session))
+        .route("/chat/sessions/{id}", get(session).put(save_session).layer(axum::extract::DefaultBodyLimit::max(4 * 1024 * 1024)))
+}
+
+// ---- 대화 세션(D61): 그래프의 노드 `session`과 선 `about`(대화 → 다룬 기록: 문맥·붙임) · `reads`(대화 → AI가 읽은 기록).
+// 근거·경위(선 15·25)에는 들어가지 않는다 — 공식 기록이 되는 길은 "보고로 남기기" 하나. 역할마다 따로 보인다.
+// 업무 DB를 다시 적재해도(시연 초기화, 스키마가 바뀐 재배포) 남는다: main.rs의 `seed_all`이 이 세 테이블을 보관했다가 되살린다.
+// 화면이 답이 끝날 때마다 대화 전체를 저장한다(말 목록은 노드 안에, 읽은 기록·붙인 기록은 선으로).
+
+const SESSION: &str = "record::id(id) AS id, title, target, time::format(<datetime> updated + 9h, '%Y-%m-%d %H:%M') AS updated";
+
+/// `{ kind, id }` 목록 → 있는 기록만 `table:id` 문자열로(종류를 모르거나 없는 기록은 뺀다 — 화면이 보낸 값이라 서버가 거른다)
+async fn records_of(db: &Db, items: &J) -> Vec<String> {
+    let ids: Vec<String> = items.as_array().into_iter().flatten().filter_map(rec).filter_map(|r| table_of(&r.kind).map(|t| format!("{t}:`{}`", r.id.replace('`', "")))).take(50).collect();
+    let v = q1(db, "RETURN $ids.filter(|$s| (SELECT VALUE id FROM type::record($s)).len() > 0);", json!({ "ids": ids })).await.unwrap_or_default();
+    v.as_array().into_iter().flatten().filter_map(|x| x.as_str().map(String::from)).collect()
+}
+
+/// 이 역할의 대화 목록(최근 것부터). `?of=종류/id`이면 그 기록을 다룬 대화만 → `{ sessions: [{ id, title, target|null, updated }] }`
+async fn sessions(Extension(me): Extension<Me>, State(db): State<Arc<Db>>, Query(q): Query<HashMap<String, String>>) -> R {
+    let of = match q.get("of").and_then(|s| s.split_once('/')) {
+        Some((k, i)) => records_of(&db, &json!([{ "kind": k, "id": i }])).await.into_iter().next().ok_or_else(|| refuse("대상")).map(Some)?,
+        None => None,
+    };
+    let filter = if of.is_some() { "AND type::record($of) INSIDE ->about->?" } else { "" };
+    let list = q1(&db, &format!("SELECT {SESSION}, <datetime> updated AS at FROM session WHERE role = $role {filter} ORDER BY at DESC LIMIT 100;"), json!({ "role": me.role, "of": of })).await?;
+    Ok(Json(json!({ "sessions": list })))
+}
+
+/// 새 대화: `{ target?: { kind, id } }` → `{ id }`. 문맥이 있으면 그 기록에 `about` 선을 잇는다
+async fn open_session(Extension(me): Extension<Me>, State(db): State<Arc<Db>>, Body(b): Body) -> R {
+    let target = if b["target"].is_null() { None } else { Some(records_of(&db, &json!([b["target"]])).await.into_iter().next().ok_or_else(|| refuse("대상"))?) };
+    let r = q1(
+        &db,
+        "LET $s = (CREATE session SET role = $role, title = '', target = $t, messages = [], created = time::now(), updated = time::now())[0].id;
+         IF $r != NONE { RELATE $s->about->(type::record($r)) };
+         RETURN record::id($s);",
+        json!({ "role": me.role, "t": if target.is_some() { b["target"].clone() } else { J::Null }, "r": target }),
+    )
+    .await?;
+    Ok(Json(json!({ "id": r })))
+}
+
+/// 대화 하나 → `{ id, title, target, updated, messages, about[], reads[] }`(다른 역할의 대화는 404)
+async fn session(Extension(me): Extension<Me>, State(db): State<Arc<Db>>, axum::extract::Path(id): axum::extract::Path<String>) -> R {
+    let r = q1(&db, &format!("SELECT {SESSION}, messages, ->about->? AS about, ->reads->? AS reads FROM type::record('session', $id) WHERE role = $role;"), json!({ "id": id, "role": me.role })).await?;
+    r.get(0).cloned().map(Json).ok_or_else(|| err(StatusCode::NOT_FOUND, "없음"))
+}
+
+/// 대화 저장: `{ messages, title, about?: [{kind,id}], reads?: [{kind,id}] }` — 말 목록은 덮어쓰고, 다룬 기록·읽은 기록은 아직 없는 선만 더한다(파일 파트는 화면이 빼고 보낸다)
+async fn save_session(Extension(me): Extension<Me>, State(db): State<Arc<Db>>, axum::extract::Path(id): axum::extract::Path<String>, Body(b): Body) -> R {
+    let (Some(messages), title) = (b["messages"].as_array(), b["title"].as_str().unwrap_or("").chars().take(60).collect::<String>()) else { return Err(refuse("대상")) };
+    let (about, reads) = (records_of(&db, &b["about"]).await, records_of(&db, &b["reads"]).await);
+    let r = q1(
+        &db,
+        // 맨 바깥의 RETURN은 뒤 문장을 멈추지 않는다 — 역할이 맞을 때만 블록 안에서 고친다(다른 역할의 대화는 건드리지 못한다)
+        "LET $s = type::record('session', $id);
+         IF (SELECT VALUE role FROM $s)[0] = $role {
+             UPDATE $s SET messages = $m, title = $t, updated = time::now();
+             FOR $x IN $about { LET $o = type::record($x); IF $o NOT IN $s->about->? { RELATE $s->about->$o } };
+             FOR $x IN $reads { LET $o = type::record($x); IF $o NOT IN $s->reads->? { RELATE $s->reads->$o } };
+             RETURN $id;
+         } ELSE { RETURN NONE };",
+        json!({ "id": id, "role": me.role, "m": messages, "t": title, "about": about, "reads": reads }),
+    )
+    .await?;
+    if r.is_null() { return Err(err(StatusCode::NOT_FOUND, "없음")); }
+    Ok(Json(json!({ "id": r })))
 }
 
 /// 문맥 칩의 이름: `?items=[{ kind, id }]` → `{ names: [이름|null] }`. 화면이 제목 줄에 보이는 이름과 같다(정황 · 대리점 · 소명은 name, 심사는 `이름 · 귀속월`, 지급은 `대리점 · 귀속월`, 조항은 title).
@@ -347,6 +418,30 @@ pub async fn check(c: &Check) -> Result<()> {
     let bot = |t: &str| json!({ "role": "assistant", "id": "a", "parts": [{ "type": "text", "text": t }] });
     let counts = async || q1(&c.db, "RETURN [count(SELECT id FROM report), count(SELECT id FROM adoption), count(SELECT id FROM ruling), count(SELECT id FROM act), count(SELECT id FROM task), count(SELECT id FROM decision)];", json!({})).await;
     let http = reqwest::Client::new();
+    // 대화 세션(D61): 새로 → 저장 → 목록 맨 위 → 열면 말과 선이 그대로, 다른 역할에는 404 → (맨 끝에서) 다시 적재해도 남는다
+    let kept: String;
+    {
+        let (code, s) = c.post(support, "/api/chat/sessions", json!({ "target": { "kind": "심사", "id": "2026-06-D-001" } })).await?;
+        let id = s["id"].as_str().unwrap_or_default().to_string();
+        ensure!(code == 200 && !id.is_empty(), "새 대화 {code} {s}");
+        let path = format!("/api/chat/sessions/{id}");
+        let save = json!({ "messages": [say("근거"), bot("답")], "title": "근거", "reads": [{ "kind": "대리점", "id": "D-001" }, { "kind": "대리점", "id": "없는-대리점" }] });
+        let (code, _) = c.call(Some(c.token(support)), "PUT", &path, Some(save.clone())).await?;
+        ensure!(code == 200, "대화 저장 {code}");
+        c.call(Some(c.token(support)), "PUT", &path, Some(save)).await?; // 두 번 저장해도 선은 하나
+        let list = c.get(support, "/api/chat/sessions").await?;
+        ensure!(list["sessions"][0]["id"] == id.as_str() && list["sessions"][0]["title"] == "근거" && list["sessions"][0]["target"]["id"] == "2026-06-D-001", "대화 목록 {list}");
+        let of = c.get(support, "/api/chat/sessions?of=심사/2026-06-D-001").await?;
+        ensure!(of["sessions"][0]["id"] == id.as_str(), "기록을 다룬 대화(가장 최근 것이 방금 연 대화 — 앞선 실행의 대화는 다시 적재해도 남는다) {of}");
+        let graph = |v: &J| (v["about"].as_array().map(Vec::len), v["reads"].as_array().map(Vec::len));
+        let one = c.get(support, &path).await?;
+        ensure!(one["messages"].as_array().is_some_and(|m| m.len() == 2) && graph(&one) == (Some(1), Some(1)), "대화 열기(말 둘, 다룸 1 · 읽음 1 — 없는 기록은 잇지 않음) {one}");
+        let (code, _) = c.call(Some(c.token(audit)), "GET", &path, None).await?;
+        ensure!(code == 404, "다른 역할의 대화 {code}");
+        let (code, _) = c.call(Some(c.token(audit)), "PUT", &path, Some(json!({ "messages": [], "title": "x" }))).await?;
+        ensure!(code == 404, "다른 역할이 덮어쓰기 {code}");
+        kept = id;
+    }
     let stream = async |role: &str, body: J| -> Result<(u16, reqwest::header::HeaderMap, String)> {
         let res = http.post(format!("{}/api/chat", c.base())).bearer_auth(c.token(role)).json(&body).send().await?;
         let (code, head) = (res.status().as_u16(), res.headers().clone());
@@ -476,7 +571,12 @@ pub async fn check(c: &Check) -> Result<()> {
         Ok(())
     }.await;
     *USE.lock().unwrap() = was;
-    res
+    res?;
+    // 다시 적재해도(시연 초기화 · 스키마가 바뀐 재배포) 대화와 그 선이 남는다 — 토큰이 바뀌므로 맨 끝에서 root로 본다(검사 틀이 뒤에서 다시 초기화한다)
+    crate::boot(&c.db, true).await?;
+    let left = q1(&c.db, "SELECT array::len(messages) AS n, count(->about) AS about, count(->reads) AS reads FROM type::record('session', $id);", json!({ "id": kept })).await?;
+    ensure!(left[0]["n"] == 2 && left[0]["about"] == 1 && left[0]["reads"] == 1, "다시 적재 뒤 대화와 선 {left}");
+    Ok(())
 }
 fn urlenc(s: &str) -> String { s.bytes().map(|b| if b.is_ascii_alphanumeric() { (b as char).to_string() } else { format!("%{b:02X}") }).collect() }
 

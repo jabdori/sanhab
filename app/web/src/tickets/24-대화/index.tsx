@@ -1,14 +1,15 @@
-// 24 대화: 모든 화면 오른쪽의 대화 칸(App의 end, 폭 조절). 사람이 묻고 AI가 DB를 읽어 답한다. 대화는 임시라서 서버에도 남지 않고(화면이 매번 전체를 보낸다), 보고로 남길 때만 기록이 된다.
+// 24 대화: 모든 화면 오른쪽 끝의 대화 칸(App의 end, 폭 조절). 사람이 묻고 AI가 DB를 읽어 답한다.
+// 대화는 그래프의 노드다(D61): 기록을 열면 그 기록을 다룬 가장 최근 대화를 이어 열고, 새 대화·지난 대화를 고를 수 있다. 답이 끝날 때마다 서버에 저장한다(다룬 기록·읽은 기록은 선으로).
 // 받는 부품은 AI SDK의 useChat(UI 메시지 스트림 — docs/spike). 가운데(사실)에는 AI의 글이 없고 이 칸에만 있다.
 // 지금 열어 둔 대상이 문맥으로 따라오고(눌러서 끈다) 붙임으로 다른 기록을 더한다. 답 아래의 조회는 서버가 도구 결과에서 찾아 붙인 기록 목록이다.
-// 역할을 바꾸면 대화가 비워진다(임시). 누른 뒤 요청이 끝날 때까지 전송·보고는 다시 눌리지 않는다. AI가 멈춰 있어도 다른 화면은 그대로 된다.
+// 대화는 역할마다 따로다. 누른 뒤 요청이 끝날 때까지 전송·보고는 다시 눌리지 않는다. AI가 멈춰 있어도 다른 화면은 그대로 된다.
 import { useChat } from '@ai-sdk/react'
 import { Button } from '@astryxdesign/core/Button'
 import { Link } from '@astryxdesign/core/Link'
 import { List, ListItem } from '@astryxdesign/core/List'
 import { Badge } from '@astryxdesign/core/Badge'
 import { EmptyState } from '@astryxdesign/core/EmptyState'
-import { HStack, Layout, LayoutContent, LayoutHeader, VStack } from '@astryxdesign/core/Layout'
+import { HStack, Layout, LayoutContent, LayoutHeader, StackItem, VStack } from '@astryxdesign/core/Layout'
 import { ChatComposer, ChatComposerDrawer, ChatComposerInput, ChatLayout, ChatMessage, ChatMessageBubble, ChatMessageList, ChatSystemMessage } from '@astryxdesign/core/Chat'
 import { Icon } from '@astryxdesign/core/Icon'
 import { Heading } from '@astryxdesign/core/Text'
@@ -18,10 +19,12 @@ import { Section } from '@astryxdesign/core/Section'
 import { Token } from '@astryxdesign/core/Token'
 import { DefaultChatTransport, type UIMessage } from 'ai'
 import { useAtomValue } from 'jotai'
+import { Selector } from '@astryxdesign/core/Selector'
+import { PlusIcon } from '@heroicons/react/24/outline'
 import { useEffect, useRef, useState } from 'react'
 import { ASK, L } from '../../labels'
 import { State } from '../../ui/Mark'
-import { api, changedAtom, roleAtom, rolesAtom, store, targetAtom, type Target } from '../../state'
+import { api, changedAtom, roleAtom, rolesAtom, store, talkAtom, targetAtom, useData, type Target } from '../../state'
 import { fail } from '../../ui/status'
 import { Card as ActionCard, type CardData } from '../25-카드'
 
@@ -44,8 +47,16 @@ const word = (e: Error) => {
 /** 실패의 표지: AI가 응답하지 않으면 `대기`(17의 보고와 같은 뜻), 그 밖의 낱말(대상 · 오류)은 그대로 */
 const Mark = ({ word }: { word: string }) => <Badge variant={word === L.대기 ? 'neutral' : fail} label={word} />
 
-function Panel() {
+/** 대화 목록의 한 줄(서버 `/chat/sessions`) */
+type Sess = { id: string; title: string; target: Target | null; updated: string }
+
+/** 저장할 말: 파일 파트(data URL)는 빼고 */
+const lean = (ms: Talk[]) => ms.map((m) => ({ ...m, parts: m.parts.filter((p) => p.type !== 'file') }))
+
+function Panel({ sid, initial, list, onPick }: { sid: string | null; initial: Talk[]; list: Sess[]; onPick: (id: string) => void }) {
   const target = useAtomValue(targetAtom)
+  // 이 대화의 id: 새 대화면 첫 말을 보낼 때 서버에 만든다(만든 뒤에도 칸은 그대로 — 다시 그리지 않는다)
+  const session = useRef<string | null>(sid)
   const [follow, setFollow] = useState(true)
   const [pinned, setPinned] = useState<Target[]>([])
   const [text, setText] = useState('')
@@ -90,6 +101,15 @@ function Panel() {
   )
   const { messages, sendMessage, status, error, clearError } = useChat<Talk>({
     transport,
+    messages: initial,
+    // 답이 끝날 때마다 대화 전체를 저장한다: 제목은 첫 말, 다룬 기록은 문맥·붙임, 읽은 기록은 답 아래의 조회(D61)
+    onFinish: ({ messages: all }) => {
+      const id = session.current
+      if (!id) return
+      const first = all.find((m) => m.role === 'user')?.parts.map((p) => (p.type === 'text' ? p.text : '')).join('') ?? ''
+      const reads = all.flatMap((m) => m.parts.flatMap((p) => (p.type === 'data-reads' ? (p.data.go ?? []).filter((g): g is Target => !!g) : [])))
+      api(`/chat/sessions/${id}`, { messages: lean(all), title: first.slice(0, 40), about: [ctx.current.target, ...ctx.current.attach].filter(Boolean), reads }, 'PUT').catch(() => {})
+    },
     // AI가 파일을 소명의 서류로 넘겼으면 소명 화면이 다시 읽는다
     onData: (p) => {
       if (p.type === 'data-doc') store.set(changedAtom, (n) => n + 1)
@@ -97,9 +117,16 @@ function Panel() {
   })
   const busy = status === 'submitted' || status === 'streaming'
 
-  const send = (value: string) => {
+  const send = async (value: string) => {
     if (busy || !value.trim()) return
     clearError()
+    if (!session.current) {
+      try {
+        session.current = (await api<{ id: string }>('/chat/sessions', { target: ctx.current.target })).id
+      } catch {
+        session.current = null
+      }
+    }
     setKept(null)
     sendMessage({ text: value.trim(), files: file ? pick.current?.files ?? undefined : undefined })
     setText('')
@@ -128,11 +155,28 @@ function Panel() {
       height="fill"
       header={
         <LayoutHeader hasDivider>
-          <HStack gap={2} vAlign="center">
-            <Icon icon={SparklesIcon} size="sm" color="accent" />
-            <Heading level={3}>{L.대화}</Heading>
-            <Badge variant="neutral" label={L.임시} />
-          </HStack>
+          <VStack gap={2}>
+            <HStack gap={2} vAlign="center">
+              <Icon icon={SparklesIcon} size="sm" color="accent" />
+              <Heading level={3}>{L.대화}</Heading>
+            </HStack>
+            {/* 지난 대화를 고르거나 새 대화를 연다(대화는 저장된다 — D61) */}
+            <HStack gap={2} vAlign="center">
+              <StackItem size="fill">
+                <Selector
+                  label={L.대화}
+                  isLabelHidden
+                  size="sm"
+                  width="100%"
+                  value={session.current ?? ''}
+                  placeholder={`${L.새} ${L.대화}`}
+                  options={list.map((x) => ({ value: x.id, label: x.title || L.대화, description: x.updated }))}
+                  onChange={onPick}
+                />
+              </StackItem>
+              <Button label={`${L.새} ${L.대화}`} size="sm" variant="secondary" icon={<Icon icon={PlusIcon} size="sm" />} onClick={() => onPick('')} />
+            </HStack>
+          </VStack>
         </LayoutHeader>
       }
       content={
@@ -265,9 +309,35 @@ function Panel() {
   )
 }
 
-/** 대화 칸(astryx ai-chat 템플릿의 대화 열): 모든 화면의 오른쪽에 붙고 입력창이 늘 보인다. 역할을 바꾸면 비워진다(임시) */
+/**
+ * 대화 칸(astryx ai-chat 템플릿의 대화 열): 모든 화면의 오른쪽 끝에 붙고 입력창이 늘 보인다.
+ * 기본은 이어 하기: 기록을 열었으면 그 기록을 다룬 가장 최근 대화, 아니면 이 역할의 가장 최근 대화. `새 대화`나 목록에서 고르면 그것을 연다
+ */
 export function Chat() {
   const role = useAtomValue(roleAtom)
-  return <Panel key={role} />
+  const target = useAtomValue(targetAtom)
+  return <For key={`${role}/${target ? key(target) : ''}`} target={target} />
 }
 
+function For({ target }: { target: Target | null }) {
+  // 고른 대화: undefined = 기본(이어 하기), '' = 새 대화, 그 밖 = 그 대화. 고를 때마다 칸을 새로 그린다(n)
+  const [pick, setPick] = useState<{ id?: string; n: number }>({ n: 0 })
+  // 보조 칸의 대화 목록에서 고른 대화를 연다
+  const talk = useAtomValue(talkAtom)
+  const [seen, setSeen] = useState(talk?.n)
+  if (talk && talk.n !== seen) {
+    setSeen(talk.n)
+    setPick((p) => ({ id: talk.id, n: p.n + 1 }))
+  }
+  const all = useData<{ sessions: Sess[] }>(`/chat/sessions?n=${pick.n}`)
+  const of = useData<{ sessions: Sess[] }>(target ? `/chat/sessions?of=${encodeURIComponent(key(target))}` : null)
+  if (!all || (target && !of)) return null
+  const start = pick.id !== undefined ? pick.id || null : ((target ? of!.sessions : all.sessions)[0]?.id ?? null)
+  return <Load key={`${pick.n}/${start ?? ''}`} sid={start} list={all.sessions} onPick={(id) => setPick((p) => ({ id, n: p.n + 1 }))} />
+}
+
+function Load({ sid, list, onPick }: { sid: string | null; list: Sess[]; onPick: (id: string) => void }) {
+  const got = useData<{ messages: Talk[] }>(sid ? `/chat/sessions/${sid}` : null)
+  if (sid && !got) return null
+  return <Panel sid={sid} initial={got?.messages ?? []} list={list} onPick={onPick} />
+}

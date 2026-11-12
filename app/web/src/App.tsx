@@ -4,14 +4,13 @@ import { Layout, LayoutContent, LayoutPanel } from '@astryxdesign/core/Layout'
 import { ResizeHandle, useResizable } from '@astryxdesign/core/Resizable'
 import { Selector } from '@astryxdesign/core/Selector'
 import { SideNav, SideNavHeading, SideNavItem } from '@astryxdesign/core/SideNav'
-import { useMediaQuery } from '@astryxdesign/core/hooks'
 import { Icon } from '@astryxdesign/core/Icon'
 import { Text } from '@astryxdesign/core/Text'
 import { HStack, StackItem, VStack } from '@astryxdesign/core/Layout'
 import { UserCircleIcon, BeakerIcon, BookOpenIcon, CalendarIcon, BuildingStorefrontIcon, InboxStackIcon } from '@heroicons/react/24/outline'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { type ReactNode, useState } from 'react'
-import { AiPanel } from './AiPanel'
+import { Pane } from './Pane'
 import { DemoDrawer } from './Demo'
 import { Enter } from './Enter'
 import { APP, L } from './labels'
@@ -25,7 +24,7 @@ import { Rule } from './pages/Rule'
 import { Rules } from './pages/Rules'
 import { Signal } from './pages/Signal'
 import { Work } from './pages/Work'
-import { MENUS, type Menu, menuAtom, roleAtom, rolesAtom, targetAtom, useData } from './state'
+import { MENUS, type Menu, menuAtom, paneAtom, roleAtom, rolesAtom, targetAtom, useData } from './state'
 import { Chat } from './tickets/24-대화'
 
 /** 기록의 종류 → 화면. 메뉴 → 목록 화면 */
@@ -41,38 +40,39 @@ export function App() {
 }
 
 /**
- * 틀(astryx docs layout/scaffold: 콘솔은 SideNav): 메뉴(머리에 앱 이름과 역할, 바닥에 날짜와 시연) | 본문 | 대화(380, 폭 조절).
- * 본문은 메뉴와 연 기록으로 정해진다: 작업 목록 · 심사 기록 · 아직 옮기지 않은 화면(pages/Legacy)
+ * 틀: 메뉴 레일(아이콘, 머리에 역할 · 바닥에 날짜와 시연) | 목록 사이드바(기록을 열면 접힌 채, `목록`으로 편다) | 본문(목록 화면, 또는 기록 = 본문 + 보조 칸) | 대화(오른쪽 끝, 열린 채, 폭 조절).
+ * 1440에서 목록을 접으면 본문은 약 740, 1280에서 약 580
  */
 function Shell() {
   const menu = useAtomValue(menuAtom)
   const target = useAtomValue(targetAtom)
   const [demo, setDemo] = useState(false)
-  const narrow = useMediaQuery('(max-width: 1366px)')
-  const chat = useResizable({ defaultSize: 380, minSize: 320, maxSize: 560, autoSaveId: 'chat' })
+  const pane = useAtomValue(paneAtom)
+  const chat = useResizable({ defaultSize: 360, minSize: 320, maxSize: 560, autoSaveId: 'chat' })
   const Open = target ? RECORDS[target.kind] : undefined
   const List = LISTS[menu]
   // 기록은 대상마다 새로 그린다(탭·사유 입력이 다른 기록으로 넘어가지 않게)
   const page = Open && target ? <Open key={`${target.kind}/${target.id}`} /> : <List />
   return (
     <AppShell
-      // 1280처럼 좁으면 메뉴가 아이콘 줄로 접힌 채 시작한다(폭이 경계를 넘으면 다시 정한다). 접기 단추로 언제든 펼친다
-      sideNav={<Nav key={narrow ? 'rail' : 'full'} folded={narrow} onDemo={() => setDemo(true)} />}
+      // 메뉴는 아이콘 레일로 시작한다(접기 단추로 펼친다)
+      sideNav={<Nav folded onDemo={() => setDemo(true)} />}
     >
       <Layout
         height="fill"
+        start={
+          Open && pane ? (
+            <LayoutPanel width={300} hasDivider isScrollable padding={0} label={menu}>
+              <Pane />
+            </LayoutPanel>
+          ) : undefined
+        }
         content={<LayoutContent padding={0}>{page}</LayoutContent>}
         end={
           <>
             <ResizeHandle direction="horizontal" resizable={chat.props} isReversed hasDivider isAlwaysVisible={false} label={L.대화} />
             <LayoutPanel width={chat.size} padding={0} label={L.대화} isScrollable={false}>
-              {/* 오른쪽 = AI 구역: 위에 지금 연 기록의 AI 보고(접힘), 아래에 대화(입력창 상시) */}
-              <VStack height="100%" gap={0}>
-                <AiPanel />
-                <StackItem size="fill" className="min-h-0">
-                  <Chat />
-                </StackItem>
-              </VStack>
+              <Chat />
             </LayoutPanel>
           </>
         }

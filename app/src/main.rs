@@ -172,11 +172,26 @@ pub async fn boot(db: &Db, force: bool) -> anyhow::Result<bool> {
 }
 
 async fn seed_all(db: &Db, name: &str, ver: &str) -> anyhow::Result<()> {
+    // 대화(D61)는 업무 데이터가 아니라 다시 적재해도 남는다: 지우기 전에 노드와 선을 받아 두었다가 적재 뒤에 되살린다(기록의 id는 원본에서 그대로라 선이 이어진다)
+    let kept = q(db, "SELECT * FROM session; SELECT * FROM about; SELECT * FROM reads;", json!({})).await.unwrap_or_default();
     q(db, &format!("REMOVE DATABASE IF EXISTS {name}; DEFINE DATABASE {name};"), json!({})).await?;
     for s in tickets::SCHEMAS {
         q(db, s, json!({})).await?;
     }
     tickets::seed(db).await?;
+    if let [s, a, r] = kept.as_slice() {
+        if s.as_array().is_some_and(|x| !x.is_empty()) {
+            // 받아 둔 JSON에서 id·시각은 글자다 — 기록 id와 날짜로 되돌려 넣는다
+            q(
+                db,
+                "FOR $x IN $s { UPSERT type::record($x.id) SET role = $x.role, title = $x.title, target = $x.target, messages = $x.messages, created = <datetime> $x.created, updated = <datetime> $x.updated };
+                 FOR $x IN $a { RELATE (type::record($x.in))->about->(type::record($x.out)) };
+                 FOR $x IN $r { RELATE (type::record($x.in))->reads->(type::record($x.out)) };",
+                json!({ "s": s, "a": a, "r": r }),
+            )
+            .await?;
+        }
+    }
     db::forget_sessions();
     *TOKENS.lock().unwrap() = None; // 다시 적재하면 접속 역할이 새로 만들어져 받아 둔 토큰이 무효가 된다
     q(db, "UPDATE meta:v SET schema = $ver;", json!({ "ver": ver })).await?;

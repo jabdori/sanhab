@@ -1,0 +1,56 @@
+// 목록 사이드바(table-inbox의 목록 열): 기록을 연 채 같은 메뉴의 다른 줄로 옮겨 다닌다. 기록을 열면 접힌 채 시작하고(본문 폭), 기록 머리의 `목록` 단추로 편다.
+import { Icon } from '@astryxdesign/core/Icon'
+import { List, ListItem } from '@astryxdesign/core/List'
+import { Heading } from '@astryxdesign/core/Text'
+import { Section, VStack } from '@astryxdesign/core/Layout'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { FlagIcon } from '@heroicons/react/24/outline'
+import { L } from './labels'
+import { menuAtom, navAtom, targetAtom, useData, type Target } from './state'
+import type { Task } from './pages/Work'
+import { num } from './ui/status'
+import { useRules } from './tickets/22-규정'
+
+type Item = { go: Target; label: string; description?: string; flag?: boolean }
+
+export function Pane() {
+  const menu = useAtomValue(menuAtom)
+  const [target, setTarget] = useAtom(targetAtom)
+  const setNav = useSetAtom(navAtom)
+  const tasks = useData<{ mine: Task[] }>(menu === L.작업 ? '/tasks' : null)
+  const dealers = useData<{ id: string; name: string }[]>(menu === L.대리점 ? '/dealers' : null)
+  const rules = useRules()
+  const items: Item[] =
+    menu === L.작업
+      ? (tasks?.mine ?? []).map((t) => ({
+          go: { kind: t.view, id: t.target },
+          label: t.name ?? t.target,
+          description: [t.kind, t.ym, t.total != null ? num(t.total) : null].filter(Boolean).join(' · '),
+          flag: t.marks.includes(L.정황),
+        }))
+      : menu === L.대리점
+        ? (dealers ?? []).map((d) => ({ go: { kind: L.대리점, id: d.id }, label: d.name, description: d.id }))
+        : (rules?.clauses ?? []).map((c) => ({ go: { kind: L.규정, id: c.id }, label: c.title }))
+  return (
+    <VStack gap={0}>
+      <Section variant="transparent" padding={4} paddingBlockEnd={2}>
+        <Heading level={3}>{menu}</Heading>
+      </Section>
+      <List hasDividers density="compact">
+        {items.map((it) => (
+          <ListItem
+            key={`${it.go.kind}/${it.go.id}`}
+            label={it.label}
+            description={it.description}
+            isSelected={it.go.kind === target?.kind && it.go.id === target?.id}
+            endContent={it.flag ? <Icon icon={FlagIcon} size="sm" color="secondary" /> : undefined}
+            onClick={() => {
+              setNav(items.map((x) => x.go))
+              setTarget(it.go)
+            }}
+          />
+        ))}
+      </List>
+    </VStack>
+  )
+}
