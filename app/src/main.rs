@@ -136,6 +136,26 @@ pub async fn boot(db: &Db, force: bool) -> anyhow::Result<bool> {
         return Ok(false);
     }
     let name = db::dbname();
+    // 둘 이상이 동시에 뜨면(배포에서 컨테이너가 바뀌거나 다시 시작될 때) 한 곳만 적재한다. 다른 곳이 적재 중이면 끝나기를 기다린다.
+    // 잠금은 적재가 지우는 데이터베이스 밖(`boot`)에 둔다. 3분이 지난 잠금은 멈춘 것으로 보고 치운다
+    let me = format!("{:?}", std::time::SystemTime::now());
+    let lock = format!("USE DB boot; DEFINE TABLE IF NOT EXISTS lock SCHEMALESS; DELETE lock:boot WHERE at < time::now() - 3m; CREATE lock:boot SET by = $me, at = time::now(); USE DB {name};");
+    let unlock = format!("USE DB boot; DELETE lock:boot WHERE by = $me; USE DB {name};");
+    let mut waited = false;
+    while q(db, &lock, json!({ "me": me })).await.is_err() {
+        waited = true;
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    }
+    if waited && !force && q1(db, "RETURN meta:v.schema;", json!({})).await.is_ok_and(|v| v == ver.as_str()) {
+        q(db, &unlock, json!({ "me": me })).await.ok();
+        return Ok(false);
+    }
+    let r = seed_all(db, &name, &ver).await;
+    q(db, &unlock, json!({ "me": me })).await.ok();
+    r.map(|_| true)
+}
+
+async fn seed_all(db: &Db, name: &str, ver: &str) -> anyhow::Result<()> {
     q(db, &format!("REMOVE DATABASE IF EXISTS {name}; DEFINE DATABASE {name};"), json!({})).await?;
     for s in tickets::SCHEMAS {
         q(db, s, json!({})).await?;
@@ -143,7 +163,7 @@ pub async fn boot(db: &Db, force: bool) -> anyhow::Result<bool> {
     tickets::seed(db).await?;
     *TOKENS.lock().unwrap() = None; // 다시 적재하면 접속 역할이 새로 만들어져 받아 둔 토큰이 무효가 된다
     q(db, "UPDATE meta:v SET schema = $ver;", json!({ "ver": ver })).await?;
-    Ok(true)
+    Ok(())
 }
 
 pub fn app(db: Db) -> Router {
