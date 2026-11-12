@@ -1,17 +1,24 @@
 // 20 소명: 서류가 접수된 소명을 내부 감시가 인정 · 불인정 · 보완으로 정한다(사유 필수). 인정하면 소명한 대리점의 선이 관련자 계산에서 빠진다.
 // 가운데: 인정한 뒤의 "제외"(어느 선이 어느 기간 동안). 오른쪽: 조치 · 사유 · 보고의 "미확인"(코드가 찾은, 서류만으로 가를 수 없는 항목).
-// 인정은 되돌리기 어려워 확인 창을 거치고, 누른 뒤 새 값을 받을 때까지 다시 눌리지 않는다. 서버가 거절하면 그 낱말을 보인다.
-import { AlertDialog } from '@base-ui/react/alert-dialog'
-import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+// 인정(주 버튼)은 되돌리기 어려워 확인 창을 거치고, 누른 뒤 새 값을 받을 때까지 다시 눌리지 않는다. 서버가 거절하면 그 낱말을 보인다.
+import { Button } from '@astryxdesign/core/Button'
+import { FileInput } from '@astryxdesign/core/FileInput'
+import { Selector } from '@astryxdesign/core/Selector'
+import { Text } from '@astryxdesign/core/Text'
+import { ToggleButton } from '@astryxdesign/core/ToggleButton'
+import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useState } from 'react'
 import { L } from '../../labels'
 import type { Piece } from '../../pieces'
 import { api, changedAtom, menuAtom, roleAtom, store, targetAtom, useData } from '../../state'
+import { Confirm } from '../../ui/Confirm'
 import { Empty } from '../../ui/Empty'
+import { Figures } from '../../ui/Figures'
+import { grade } from '../../ui/grade'
 import { Pill } from '../../ui/Pill'
 import { Reason, blank, ready, sent as filled } from '../../ui/Reason'
+import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
-import { button, floating, label } from '../../ui/styles'
 import { Table } from '../../ui/Table'
 import { useClarify } from '../18-발송/clarify'
 import { bin, useDocs } from '../19-서류/docs'
@@ -25,18 +32,9 @@ function Excluded() {
   const v = useVerdict()
   if (!v?.excluded.length) return null
   return (
-    <section className="mb-4 flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <h2 className={label}>{L.제외}</h2>
-        <Source kind={L.계산}>
-          <dl className="grid grid-cols-2 gap-x-2 gap-y-1 tabular-nums">
-            <dt className={label}>{L.기간}</dt>
-            <dd>{span(v.excluded[0]?.since, v.excluded[0]?.until) ?? L.미상}</dd>
-          </dl>
-        </Source>
-      </div>
+    <Region title={L.제외} aside={<Source kind={L.계산} tip={L.기간} rows={[[L.기간, span(v.excluded[0]?.since, v.excluded[0]?.until) ?? L.미상]]} />}>
       <Table head={[L.종류, L.식별자, L.기간]} rows={v.excluded.map((e) => [e.item, e.value, span(e.since, e.until) ?? <Empty />])} />
-    </section>
+    </Region>
   )
 }
 
@@ -46,33 +44,17 @@ function Unknown() {
   const docs = useDocs()
   if (!v || !docs?.docs.length) return null
   return (
-    <section className="mt-4 flex flex-col gap-1">
+    <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
-        <h3 className={label}>{L.미확인}</h3>
-        <Source kind={L.계산}>
-          <dl className="grid grid-cols-2 gap-x-2 gap-y-1">
-            <dt className={label}>{L.서류}</dt>
-            <dd className="wrap-anywhere">{docs.docs.at(-1)?.name}</dd>
-          </dl>
-        </Source>
+        <Text weight="medium">{L.미확인}</Text>
+        <Source kind={L.계산} tip={L.서류} rows={[[L.서류, docs.docs.at(-1)?.name ?? L.없음]]} />
       </div>
-      {v.unknown.length ? (
-        <dl className="flex flex-col gap-1">
-          {v.unknown.map(([item, word]) => (
-            <div key={item + word} className="flex items-baseline gap-2">
-              <dt className={`shrink-0 ${label}`}>{item}</dt>
-              <dd className="text-base">{word}</dd>
-            </div>
-          ))}
-        </dl>
-      ) : (
-        <Empty />
-      )}
-    </section>
+      <Table head={[L.항목, L.확인]} rows={v.unknown.map(([item, word]) => [<Text weight="medium">{item}</Text>, word])} />
+    </div>
   )
 }
 
-/** 조치(내부 감시, 정할 수 있을 때): 인정 · 불인정 · 보완. 사유가 그 조치의 분류이고 다 채워졌을 때만 눌린다. 인정은 제외될 선과 기간을 보이는 확인 창을 거친다 */
+/** 조치(내부 감시, 정할 수 있을 때): 인정(주 버튼) · 불인정 · 보완. 사유가 그 조치의 분류이고 다 채워졌을 때만 눌린다. 인정은 제외될 선과 기간을 보이는 확인 창을 거친다 */
 function Action() {
   const v = useVerdict()
   const c = useClarify()
@@ -85,7 +67,7 @@ function Action() {
   const go = (kind: string) => {
     setSent(v)
     setBad(null)
-    api('/verdict', { id: v.id, kind, reason: filled(reason) ?? undefined }).then(
+    return api('/verdict', { id: v.id, kind, reason: filled(reason) ?? undefined }).then(
       () => setReason(blank),
       (e: Error) => {
         setBad(e.message)
@@ -95,38 +77,18 @@ function Action() {
   }
   const off = (kind: string) => sentFor === v || !ready(kind, true, reason)
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       {v.actions.map((a) =>
         a.kind === L.인정 ? (
-          <AlertDialog.Root key={a.kind}>
-            <AlertDialog.Trigger className={button} disabled={off(a.kind)}>
-              {a.kind}
-            </AlertDialog.Trigger>
-            <AlertDialog.Portal>
-              <AlertDialog.Popup className={`${floating} fixed top-1/2 left-1/2 flex w-list -translate-x-1/2 -translate-y-1/2 flex-col gap-4 p-6`}>
-                <AlertDialog.Title className="flex items-baseline gap-2 text-title wrap-anywhere">
-                  {a.kind}
-                  <span>{c.clarify.dealer.name}</span>
-                </AlertDialog.Title>
-                <p className={label}>{L.제외}</p>
-                {v.lines.length ? <Table head={[L.종류, L.식별자]} rows={v.lines.map((l) => [l.item, l.value])} /> : <p className="text-base">{L['제외 없음']}</p>}
-                <dl className="flex items-baseline gap-2">
-                  <dt className={label}>{L.기간}</dt>
-                  <dd className="text-base tabular-nums">{span(v.span?.[0], v.span?.[1]) ?? L.미상}</dd>
-                </dl>
-                <div className="flex justify-end gap-2">
-                  <AlertDialog.Close className={button}>{L.취소}</AlertDialog.Close>
-                  <AlertDialog.Close className={button} onClick={() => go(a.kind)}>
-                    {a.kind}
-                  </AlertDialog.Close>
-                </div>
-              </AlertDialog.Popup>
-            </AlertDialog.Portal>
-          </AlertDialog.Root>
+          <Confirm key={a.kind} label={a.kind} variant={grade(a.kind)} title={`${a.kind} ${c.clarify.dealer.name}`} isDisabled={off(a.kind)} onConfirm={() => go(a.kind)}>
+            <div className="flex flex-col gap-3">
+              <Text weight="medium">{L.제외}</Text>
+              {v.lines.length ? <Table head={[L.종류, L.식별자]} rows={v.lines.map((l) => [l.item, l.value])} /> : <Text>{L['제외 없음']}</Text>}
+              <Figures items={[[L.기간, span(v.span?.[0], v.span?.[1]) ?? L.미상]]} />
+            </div>
+          </Confirm>
         ) : (
-          <button key={a.kind} className={button} disabled={off(a.kind)} onClick={() => go(a.kind)}>
-            {a.kind}
-          </button>
+          <Button key={a.kind} label={a.kind} variant={grade(a.kind)} isDisabled={off(a.kind)} onClick={() => void go(a.kind)} />
         ),
       )}
       {bad && <Pill tone="bad">{bad}</Pill>}
@@ -147,19 +109,22 @@ function Box() {
 }
 
 type Near = { id: string; name: string; match: string[]; related: boolean }
+type Rel = { id: string; can: boolean; near: Near[] }
 
-/** 대리점 상세의 "접수"(영업지원, D59): 대리점이 먼저 낸 소명. 지금 일치가 있는 상대 대리점과 실제로 일치하는 종류를 고르고 서류(파일이나 시연 서류)를 올린다.
- * 요청서·발송은 없다 — 접수하면 곧 내부 감시의 소명 작업이 된다. 되돌리기 어려워 확인 창을 거치고, 누른 뒤 요청이 끝날 때까지 다시 눌리지 않는다 */
+/** 접수할 파일. 조치 칸(Intake)의 파일 입력과 시연 서랍의 시연 서류(IntakeSamples)가 함께 채운다 */
+const intakeFileAtom = atom<File | null>(null)
+
+/** 대리점 상세의 "접수"(영업지원, D59): 대리점이 먼저 낸 소명. 지금 일치가 있는 상대 대리점과 실제로 일치하는 종류를 고르고 서류(파일)를 올린다.
+ * 요청서·발송은 없다 — 접수(주 버튼)하면 곧 내부 감시의 소명 작업이 된다. 되돌리기 어려워 확인 창을 거치고, 누른 뒤 요청이 끝날 때까지 다시 눌리지 않는다 */
 function Intake() {
   const target = useAtomValue(targetAtom)
   const id = target?.kind === L.대리점 ? target.id : null
-  const rel = useData<{ id: string; can: boolean; near: Near[] }>(id ? `/dealers/${encodeURIComponent(id)}/clarify` : null)
-  const samples = useData<{ id: string; name: string; dealer: string }[]>(rel?.can ? '/samples' : null)
+  const rel = useData<Rel>(id ? `/dealers/${encodeURIComponent(id)}/clarify` : null)
   const setTarget = useSetAtom(targetAtom)
   const setMenu = useSetAtom(menuAtom)
   const [other, setOther] = useState<Near | null>(null)
   const [kind, setKind] = useState<string | null>(null)
-  const [file, setFile] = useState<File | null>(null)
+  const [file, setFile] = useAtom(intakeFileAtom)
   const [busy, setBusy] = useState(false)
   const [bad, setBad] = useState<string | null>(null)
   useEffect(() => {
@@ -167,21 +132,15 @@ function Intake() {
     setKind(null)
     setFile(null)
     setBad(null)
-  }, [id])
+  }, [id, setFile])
   if (!id || rel?.id !== id) return null
   // 영업지원이 아니거나 일치하는 대리점이 없으면 조치가 없다
   if (!rel.can || !rel.near.length) return <Empty />
-  const near = rel.near
-  if (!near.length) return null
-  const choose = (sid: string, name: string) =>
-    bin(`/samples/${sid}`)
-      .then((r) => r.blob())
-      .then((b) => setFile(new File([b], name, { type: b.type })), () => {})
   const go = () => {
     if (!other || !kind || !file) return
     setBusy(true)
     setBad(null)
-    bin(`/dealers/${encodeURIComponent(id)}/clarify`, file, `?other=${encodeURIComponent(other.id)}&kind=${encodeURIComponent(kind)}&name=${encodeURIComponent(file.name)}`)
+    return bin(`/dealers/${encodeURIComponent(id)}/clarify`, file, `?other=${encodeURIComponent(other.id)}&kind=${encodeURIComponent(kind)}&name=${encodeURIComponent(file.name)}`)
       .then((r) => r.json())
       .then((r: { id: string }) => {
         setMenu(L.작업)
@@ -190,77 +149,61 @@ function Intake() {
       .catch((e: Error) => setBad(e.message))
       .finally(() => setBusy(false))
   }
-  const pressed = `${button} aria-pressed:bg-line`
   return (
-    <section className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className={label}>{L.대리점}</span>
-        {near.map((n) => (
-          <button
-            key={n.id}
-            aria-pressed={other?.id === n.id}
-            className={pressed}
-            onClick={() => {
-              setOther(n)
-              setKind(n.match.length === 1 ? (n.match[0] ?? null) : null)
-            }}
-          >
-            {n.name}
-          </button>
-        ))}
-      </div>
+    <div className="flex flex-col gap-3">
+      <Text type="supporting">{L.접수}</Text>
+      <Selector
+        label={L.대리점}
+        isLabelHidden
+        placeholder={L.대리점}
+        hasClear
+        width="100%"
+        value={other?.id ?? null}
+        options={rel.near.map((n) => ({ value: n.id, label: n.name }))}
+        onChange={(k: string | null) => {
+          const n = rel.near.find((x) => x.id === k) ?? null
+          setOther(n)
+          setKind(n && n.match.length === 1 ? (n.match[0] ?? null) : null)
+        }}
+      />
       {other && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className={label}>{L.일치}</span>
-          {other.match.map((m) => (
-            <button key={m} aria-pressed={kind === m} className={pressed} onClick={() => setKind(m)}>
-              {m}
-            </button>
-          ))}
-        </div>
+        <Selector label={L.일치} isLabelHidden hasClear placeholder={L.일치} width="100%" value={kind} options={other.match.map((m) => ({ value: m, label: m }))} onChange={(k: string | null) => setKind(k)} />
       )}
+      <FileInput label={L.서류} isLabelHidden placeholder={L.서류} width="100%" accept="image/png,image/jpeg,application/pdf" value={file} onChange={(f) => setFile(f as File | null)} />
       <div className="flex flex-wrap items-center gap-2">
-        <label className={`${button} content-center`}>
-          {L.서류}
-          <input type="file" accept="image/png,image/jpeg,application/pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="sr-only" />
-        </label>
-        {!!samples?.length && (
-          <>
-            <span className={label}>{L.시연}</span>
-            {samples.map((s) => (
-              <button key={s.id} aria-label={s.name} aria-pressed={file?.name === s.name} className={pressed} onClick={() => choose(s.id, s.name)}>
-                {s.id} {s.dealer}
-              </button>
-            ))}
-          </>
-        )}
-        {file && <span className="text-base wrap-anywhere">{file.name}</span>}
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <AlertDialog.Root>
-          <AlertDialog.Trigger className={button} disabled={busy || !other || !kind || !file}>
-            {L.접수}
-          </AlertDialog.Trigger>
-          <AlertDialog.Portal>
-            <AlertDialog.Popup className={`${floating} fixed top-1/2 left-1/2 flex w-list -translate-x-1/2 -translate-y-1/2 flex-col gap-4 p-6`}>
-              <AlertDialog.Title className="flex items-baseline gap-2 text-title wrap-anywhere">
-                {L.접수}
-                <span>{kind}</span>
-              </AlertDialog.Title>
-              <Table head={[L.대리점, L.일치]} rows={[[other?.name ?? '', kind ?? '']]} />
-              <p className="text-base wrap-anywhere">{file?.name}</p>
-              <div className="flex justify-end gap-2">
-                <AlertDialog.Close className={button}>{L.취소}</AlertDialog.Close>
-                <AlertDialog.Close className={button} onClick={go}>
-                  {L.접수}
-                </AlertDialog.Close>
-              </div>
-            </AlertDialog.Popup>
-          </AlertDialog.Portal>
-        </AlertDialog.Root>
+        <Confirm label={L.접수} variant={grade(L.접수)} title={`${L.접수} ${kind ?? ''}`} isDisabled={busy || !other || !kind || !file} onConfirm={go}>
+          <div className="flex flex-col gap-3">
+            <Table head={[L.대리점, L.일치]} rows={[[other?.name ?? '', kind ?? '']]} />
+            <Text className="wrap-anywhere">{file?.name}</Text>
+          </div>
+        </Confirm>
         {bad && <Pill tone="bad">{bad}</Pill>}
       </div>
-    </section>
+    </div>
+  )
+}
+
+/** 시연 서랍(slot 'demo', 대리점을 열었을 때): 시연 서류를 골라 접수할 파일로 둔다. 제품의 조작이 아니므로 대리점 화면에는 없다 */
+function IntakeSamples() {
+  const target = useAtomValue(targetAtom)
+  const id = target?.kind === L.대리점 ? target.id : null
+  const rel = useData<Rel>(id ? `/dealers/${encodeURIComponent(id)}/clarify` : null)
+  const samples = useData<{ id: string; name: string; dealer: string }[]>(rel?.can ? '/samples' : null)
+  const [file, setFile] = useAtom(intakeFileAtom)
+  if (!rel?.can || !rel.near.length || !samples?.length) return null
+  const choose = (sid: string, name: string) =>
+    bin(`/samples/${sid}`)
+      .then((r) => r.blob())
+      .then((b) => setFile(new File([b], name, { type: b.type })), () => {})
+  return (
+    <div className="flex flex-col gap-2">
+      <Text type="supporting">{L.서류}</Text>
+      <div className="flex flex-wrap items-center gap-2">
+        {samples.map((s) => (
+          <ToggleButton key={s.id} label={`${s.id} ${s.dealer}`} size="sm" isPressed={file?.name === s.name} onPressedChange={() => choose(s.id, s.name)} />
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -270,4 +213,5 @@ export default [
   { slot: 'action', kind: L.소명, View: Action },
   { slot: 'reason', kind: L.소명, View: Box },
   { slot: 'action', kind: L.대리점, View: Intake },
+  { slot: 'demo', kind: L.대리점, View: IntakeSamples },
 ] satisfies Piece[]

@@ -1,6 +1,11 @@
 // 19 서류: 소명 상세의 가운데(왼쪽 원본, 오른쪽 값 표 — 항목, 판독, 등록, 비교), 오른쪽 보고의 정리(AI), 영업지원의 조치(서류 접수).
 // 가운데에는 AI의 글이 없다: 판독은 글자 인식이 읽은 그대로, 등록은 원본(호실은 시연), 비교는 코드다. 값의 줄과 원본의 위치(판독의 위치 상자)가 서로 강조된다.
 // 판독이나 정리가 아직 없으면(멈춰 있으면) 원본만 보이고 값은 없음이다. 그동안 몇 초마다 다시 읽는다.
+import { Button } from '@astryxdesign/core/Button'
+import { FileInput } from '@astryxdesign/core/FileInput'
+import { Link } from '@astryxdesign/core/Link'
+import { Text } from '@astryxdesign/core/Text'
+import { ToggleButton } from '@astryxdesign/core/ToggleButton'
 import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useState } from 'react'
 import { L } from '../../labels'
@@ -8,9 +13,10 @@ import type { Piece } from '../../pieces'
 import { menuAtom, targetAtom, useData } from '../../state'
 import { Empty } from '../../ui/Empty'
 import { Figures } from '../../ui/Figures'
+import { grade } from '../../ui/grade'
 import { Pill } from '../../ui/Pill'
+import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
-import { button, label } from '../../ui/styles'
 import { Table } from '../../ui/Table'
 import { pill } from '../18-발송'
 import { bin, type Doc, pick, pickAtom, seeAtom, tickAtom, useDoc, useDocs } from './docs'
@@ -47,11 +53,11 @@ function Original({ d }: { d: Doc }) {
     }
   }, [d.id])
   if (!url) return <Empty />
-  if (d.mime === 'application/pdf') return <object data={url} type={d.mime} aria-label={d.name} className="aspect-3/4 w-full rounded-box border border-line" />
+  if (d.mime === 'application/pdf') return <object data={url} type={d.mime} aria-label={d.name} className="aspect-3/4 w-full rounded-md border border-border" />
   const boxes = d.rows.flatMap((r) => r.words.map((i) => ({ item: r.item, w: d.words?.[i] })).filter((b) => b.w))
   return (
-    <div className="relative rounded-box border border-line">
-      <img src={url} alt={d.name} className="block w-full rounded-box" />
+    <div className="relative rounded-md border border-border">
+      <img src={url} alt={d.name} className="block w-full rounded-md" />
       <svg viewBox="0 0 1 1" preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
         {boxes.map(({ item, w }, i) => (
           <rect
@@ -62,7 +68,7 @@ function Original({ d }: { d: Doc }) {
             height={w!.box[3] - w!.box[1]}
             vectorEffect="non-scaling-stroke"
             onClick={() => pick(item)}
-            className={`cursor-pointer stroke-2 ${item === picked ? 'fill-mark/60 stroke-action' : 'fill-transparent stroke-line'}`}
+            className={`cursor-pointer stroke-2 ${item === picked ? 'fill-yellow-subtle/60 stroke-primary' : 'fill-transparent stroke-border'}`}
           >
             <title>{item}</title>
           </rect>
@@ -72,26 +78,13 @@ function Original({ d }: { d: Doc }) {
   )
 }
 
-/** 등록 값과 출처 표지(원본이면 그 행, 시연이면 이름표와 값) */
+/** 등록 값과 출처 표지(원본이면 그 행 번호만, 시연이면 합성 D58) */
 const Registered = ({ r }: { r: Doc['rows'][number] }) =>
   r.reg ? (
     <span className="flex items-baseline gap-2">
       {r.reg.value}
       {/* 시연으로 넣은 등록 호실(D58)은 합성: 설명은 스펙의 D58에서 온다 */}
-      <Source kind={r.reg.source === L.시연 ? L.합성 : r.reg.source} of={r.reg.source === L.시연 ? L.호실 : undefined} file={r.reg.file} row={r.reg.row}>
-        <dl className="grid grid-cols-2 gap-x-2 gap-y-1">
-          <dt className={label}>{r.item}</dt>
-          <dd>{r.reg.value}</dd>
-          <dt className={label}>{L.출처}</dt>
-          <dd>{r.reg.source}</dd>
-          {r.reg.source === L.시연 && (
-            <>
-              <dt className={label}>{L.원본}</dt>
-              <dd>{L.미상}</dd>
-            </>
-          )}
-        </dl>
-      </Source>
+      {r.reg.source === L.시연 ? <Source kind={L.합성} of={L.호실} rows={[[L.원본, L.미상]]} /> : <Source kind={r.reg.source} file={r.reg.file} row={r.reg.row} />}
     </span>
   ) : (
     <Empty />
@@ -109,37 +102,30 @@ function Center() {
   if (!all?.docs.length || !d) return null
   const at = all.docs.indexOf(d)
   return (
-    <section className="mb-4 flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className={label}>{L.서류}</h2>
-        <span className="text-base wrap-anywhere">{d.name}</span>
-        <Source kind={d.source}>
-          <dl className="grid grid-cols-2 gap-x-2 gap-y-1 tabular-nums">
-            <dt className={label}>{L.접수}</dt>
-            <dd>{[d.role, d.at].join(' · ')}</dd>
-            <dt className={label}>{L.판독}</dt>
-            <dd className="wrap-anywhere">{d.read_model ?? L.없음}</dd>
-          </dl>
-        </Source>
-        {all.docs.length > 1 &&
-          all.docs.map((x, i) => (
-            <button key={x.id} aria-pressed={i === at} onClick={() => setSee(i)} className={`${button} aria-pressed:bg-line`}>
-              {i + 1}
-            </button>
-          ))}
-      </div>
+    <Region
+      title={L.서류}
+      aside={
+        <>
+          <Text className="wrap-anywhere">{d.name}</Text>
+          {/* 판독은 글자 인식(AI)이 읽은 값이다 */}
+          <Source kind={L.AI} tip={L.판독} rows={[[L.접수, [d.role, d.at].join(' · ')], [L.판독, d.read_model ?? L.없음]]} />
+          {all.docs.length > 1 &&
+            all.docs.map((x, i) => <ToggleButton key={x.id} label={String(i + 1)} size="sm" isPressed={i === at} onPressedChange={() => setSee(i)} />)}
+        </>
+      }
+    >
       <div className="grid grid-cols-3 items-start gap-4">
         <div className="min-w-0">
           <Original d={d} />
         </div>
-        <div className="col-span-2 flex min-w-0 flex-col gap-2">
+        <div className="col-span-2 flex min-w-0 flex-col gap-3">
           <Table
             head={[L.항목, L.판독, L.등록, L.비교]}
             mark={picked ? d.rows.findIndex((r) => r.item === picked) : undefined}
             rows={d.rows.map((r) => [
-              <button className="cursor-pointer text-left text-action hover:text-action-hover" onClick={() => pick(r.item)}>
+              <Link color="primary" weight="medium" onClick={() => pick(r.item)}>
                 {r.item}
-              </button>,
+              </Link>,
               r.read ?? <Empty />,
               <Registered r={r} />,
               r.result ? <Pill tone={tones[r.result as keyof typeof tones] ?? 'wait'}>{r.result}</Pill> : <Empty />,
@@ -152,19 +138,12 @@ function Center() {
                 [L.불일치, d.counts[L.불일치] ?? 0],
               ]}
             >
-              <Source kind={L.계산}>
-                <dl className="grid grid-cols-2 gap-x-2 gap-y-1 tabular-nums">
-                  <dt className={label}>{L.누락}</dt>
-                  <dd>{d.counts[L.누락] ?? 0}</dd>
-                  <dt className={label}>{L.불일치}</dt>
-                  <dd>{d.counts[L.불일치] ?? 0}</dd>
-                </dl>
-              </Source>
+              <Source kind={L.계산} tip={`${L.누락} · ${L.불일치}`} rows={[[L.누락, d.counts[L.누락] ?? 0], [L.불일치, d.counts[L.불일치] ?? 0]]} />
             </Figures>
           )}
         </div>
       </div>
-    </section>
+    </Region>
   )
 }
 
@@ -175,45 +154,36 @@ function Tidy() {
   // 소명의 보고 칸에는 이 조각뿐이라 서류가 없으면 없음을 적는다
   if (!d) return all ? <Empty /> : null
   return (
-    <section className="flex flex-col gap-1">
+    <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
-        <h3 className={label}>{L.정리}</h3>
-        <Source kind={L.AI}>
-          <dl className="grid grid-cols-2 gap-x-2 gap-y-1">
-            <dt className={label}>{L.모델}</dt>
-            <dd className="tabular-nums wrap-anywhere">{d.tidy_model ?? L.없음}</dd>
-          </dl>
-        </Source>
+        <Text weight="medium">{L.정리}</Text>
+        <Source kind={L.AI} rows={[[L.모델, d.tidy_model ?? L.없음]]} />
         {!d.tidy && <Pill tone="wait">{L.대기}</Pill>}
       </div>
       {d.tidy ? (
-        <dl className="flex flex-col gap-1">
-          {d.tidy.map((t) => (
-            <div key={t.item} className="flex items-baseline gap-2">
-              <dt className={`shrink-0 ${label}`}>{t.item}</dt>
-              <dd className="text-base wrap-anywhere">{t.value ?? <Empty />}</dd>
-              <dd className="shrink-0">
-                {t.words.length > 0 && (
-                  <button aria-label={t.item} onClick={() => pick(t.item)} className="cursor-pointer text-action hover:text-action-hover">
-                    ↗
-                  </button>
-                )}
-              </dd>
-            </div>
-          ))}
-        </dl>
+        <Table
+          head={[L.항목, L.값, '']}
+          rows={d.tidy.map((t) => [
+            <Text weight="medium">{t.item}</Text>,
+            t.value ?? <Empty />,
+            t.words.length > 0 && (
+              <Link aria-label={t.item} onClick={() => pick(t.item)}>
+                ↗
+              </Link>
+            ),
+          ])}
+        />
       ) : (
         <Empty />
       )}
-    </section>
+    </div>
   )
 }
 
-/** 조치(영업지원, 올릴 수 있을 때): 파일(이미지·PDF)이나 시연 서류를 골라 접수. 누른 뒤 요청이 끝날 때까지 다시 눌리지 않고, 서버가 거절하면 그 낱말을 보인다 */
-/** 접수할 파일. 조치 칸(Upload)의 파일 고르기와 시연 서랍의 시연 서류(Samples)가 함께 채운다 */
+/** 접수할 파일. 조치 칸(Upload)의 파일 입력과 시연 서랍의 시연 서류(Samples)가 함께 채운다 */
 const fileAtom = atom<File | null>(null)
 
-/** 시연 서랍(slot 'demo'): 시연 서류를 골라 조치 칸의 접수할 파일로 둔다. 제품의 조작이 아니므로 소명 화면에는 없다 */
+/** 시연 서랍(slot 'demo'): 시연 서류를 골라 조치 칸의 접수할 파일로 둔다. 제품의 조작이 아니므로 소명 화면에는 없다. 그렇게 올린 서류는 출처가 모의다 */
 function Samples() {
   const d = useDocs()
   const samples = useData<{ id: string; name: string; dealer: string; source: string }[]>(d?.can ? '/samples' : null)
@@ -224,19 +194,18 @@ function Samples() {
       .then((r) => r.blob())
       .then((b) => setFile(new File([b], name, { type: b.type })), () => {})
   return (
-    <section className="flex flex-col gap-2">
-      <span className={label}>{L.서류}</span>
+    <div className="flex flex-col gap-2">
+      <Text type="supporting">{L.서류}</Text>
       <div className="flex flex-wrap items-center gap-2">
         {samples.map((s) => (
-          <button key={s.id} aria-label={s.name} onClick={() => choose(s.id, s.name)} aria-pressed={file?.name === s.name} className={`${button} aria-pressed:bg-line`}>
-            {s.id} {s.dealer}
-          </button>
+          <ToggleButton key={s.id} label={`${s.id} ${s.dealer}`} size="sm" isPressed={file?.name === s.name} onPressedChange={() => choose(s.id, s.name)} />
         ))}
       </div>
-    </section>
+    </div>
   )
 }
 
+/** 조치(영업지원, 올릴 수 있을 때): 파일(이미지·PDF)을 골라 접수(주 버튼). 누른 뒤 요청이 끝날 때까지 다시 눌리지 않고, 서버가 거절하면 그 낱말을 보인다 */
 function Upload() {
   const d = useDocs()
   const target = useAtomValue(targetAtom)
@@ -257,16 +226,10 @@ function Upload() {
       .finally(() => setBusy(false))
   }
   return (
-    <div className="mt-4 flex flex-col gap-2">
-      <label className={`${button} self-start content-center`}>
-        {L.서류}
-        <input type="file" accept={d.kinds.join(',')} onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="sr-only" />
-      </label>
-      {file && <span className="text-base wrap-anywhere">{file.name}</span>}
+    <div className="flex flex-col gap-3">
+      <FileInput label={L.서류} isLabelHidden placeholder={L.서류} width="100%" accept={d.kinds.join(',')} value={file} onChange={(f) => setFile(f as File | null)} />
       <div className="flex flex-wrap items-center gap-2">
-        <button className={button} disabled={!file || busy} onClick={go}>
-          {L.접수}
-        </button>
+        <Button label={L.접수} variant={grade(L.접수)} isDisabled={!file || busy} onClick={go} />
         {bad && <Pill tone="bad">{bad}</Pill>}
       </div>
     </div>
@@ -281,24 +244,22 @@ function OfDealer() {
   const setMenu = useSetAtom(menuAtom)
   if (!list?.length) return null
   return (
-    <section className="mb-4 flex flex-col gap-2">
-      <h2 className={label}>{L.소명}</h2>
+    <Region title={L.소명}>
       <Table
         head={[L.소명, L.상태]}
         rows={list.map((c) => [
-          <button
-            className="cursor-pointer text-left text-action hover:text-action-hover"
+          <Link color="primary" weight="medium"
             onClick={() => {
               setMenu(L.작업)
               setTarget({ kind: L.소명, id: c.id })
             }}
           >
             {c.name}
-          </button>,
+          </Link>,
           pill(c.state),
         ])}
       />
-    </section>
+    </Region>
   )
 }
 
