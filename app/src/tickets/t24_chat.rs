@@ -4,6 +4,7 @@
 //! AI는 17의 읽기 전용 계정(`ai_session`)의 `read_db`만 쓴다. 답 아래의 조회한 기록 목록은 AI가 쓰지 않고, 도구가 돌려준 결과에서 코드가 찾아 붙인다(`data-reads`).
 //! 자동 검사는 OpenAI를 부르지 않는다: 모델 이름이 `fixture`로 시작하면 고정한 답을 쓰고(`fixture-down` 응답 없음, `fixture-slow` 느리게 흐름), 키는 인자로 받는다.
 use super::t25_card::{card_tool, make as make_card};
+use super::t26_chatdoc::{Up, distinct, doc_tool, files_of, hand};
 use super::t17_report::{USE, ai_session, ask, basis, model, read_db, read_tool, settle, verify};
 use crate::check::Check;
 use crate::db::{Db, q1};
@@ -57,6 +58,7 @@ DB는 read_db 도구로만 읽는다(SurrealQL의 SELECT와 RETURN만. 쓰기는
 - 승인, 반려, 보류, 요청, 기각, 추인 같은 조치를 해도 되는지 해야 하는지 묻는 말에는 판정 의견을 내지 않는다. 그 판단에 관련된 사실과 규정을 보여 주고 결정은 사람이 한다고 밝힌다.
 - 합산, 승인권자, 관련자 여부, 재검토 여부는 DB에 계산되어 있는 값을 읽어 전한다. 직접 계산하거나 고치지 않는다.
 - 조치를 실행하지 못하고 기록을 만들거나 바꾸지 못한다. 사용자가 승인, 보류, 반려, 추인, 거부, 요청, 기각, 인정, 불인정, 보완 같은 조치를 하라고 지시하면 card 도구로 조치 카드를 낸다(대상의 id는 먼저 읽어 확인한다). 카드는 내용일 뿐이고 실행은 사람이 카드에서 누른다. 사유의 분류와 메모는 사용자가 말한 것만 옮겨 적고 말하지 않았으면 비운다(지어내지 않는다). 사용자가 지시하지 않았으면 카드를 내지 않는다. 도구가 카드를 내지 않는다고 하면 그 까닭(권한이 없다 · 지금 상태에서는 할 수 없다 · 분류가 맞지 않는다)을 짧게 알린다.
+- 사용자가 대화에 파일을 올리고 소명의 서류로 넘기라고 하면 doc 도구로 넘긴다(문맥에 사용자가 올린 파일이 있을 때만). 어느 소명인지 사용자가 말하지 않았고 열어 둔 대상도 소명이 아니면 clarify를 비워 불러 받을 수 있는 소명을 얻고 사용자에게 묻는다(추측하지 않는다). 넘기지 못했다고 하면 그 까닭을 짧게 알린다. 서류의 내용을 읽거나 판단하지 않는다.
 - 도구는 꼭 필요한 만큼만 부르고(대개 서너 번) 그 안에 답한다. 읽지 않은 값은 말하지 않는다. 모르면 모른다고 한다. 확신을 숫자나 퍼센트로 쓰지 않는다.
 - 답에는 테이블 이름과 id를 쓰지 않고 이름(대리점 이름, 귀속월 …)으로 적는다. id는 도구를 부를 때만 쓴다.
 - 한국어로 짧게 쓴다. 마크다운(표, 굵은 글씨, 제목)은 쓰지 않고 줄글이나 줄마다 `-`로 쓴다.";
@@ -75,17 +77,18 @@ fn table_of(kind: &str) -> Option<&'static str> {
 }
 
 /// 요청의 본문: (대화, 문맥, 붙인 기록). 틀리면 400 `대상`
-struct Ask { talk: Vec<(String, String)>, target: Option<Rec>, attach: Vec<Rec> }
+struct Ask { talk: Vec<(String, String)>, target: Option<Rec>, attach: Vec<Rec>, files: Vec<Up> }
 /// `asking`이면 마지막이 사람의 말이어야 한다(답을 청하는 요청). 보고로 남길 때는 AI의 답으로 끝난다
 fn parse(b: &J, asking: bool) -> Result<Ask, ApiError> {
     let bad = || refuse("대상");
     let list = b["messages"].as_array().filter(|m| !m.is_empty()).ok_or_else(bad)?;
-    let mut talk = vec![];
+    let (mut talk, mut files) = (vec![], vec![]);
     // 대화가 길어지면 마지막 TURNS개만 쓴다(거절하지 않는다)
     for m in &list[list.len().saturating_sub(TURNS)..] {
         let role = m["role"].as_str().filter(|r| ["user", "assistant"].contains(r)).ok_or_else(bad)?;
         let text: String = m["parts"].as_array().ok_or_else(bad)?.iter().filter(|p| p["type"] == "text").filter_map(|p| p["text"].as_str()).collect();
         if text.chars().count() > CHARS { return Err(bad()); }
+        if role == "user" { files.extend(files_of(m["parts"].as_array().map_or(&[][..], Vec::as_slice))); }
         if !text.trim().is_empty() { talk.push((role.to_string(), text)); }
     }
     if talk.last().is_none_or(|(r, _)| asking && r != "user") { return Err(bad()); }
@@ -95,7 +98,7 @@ fn parse(b: &J, asking: bool) -> Result<Ask, ApiError> {
         Some(a) if a.len() <= ATTACH => a.iter().map(|r| rec(r).ok_or_else(bad)).collect::<Result<_, _>>()?,
         Some(_) => return Err(bad()),
     };
-    Ok(Ask { talk, target, attach })
+    Ok(Ask { talk, target, attach, files: distinct(files) })
 }
 
 /// 모델에게 알리는 문맥: 역할, 지금 열어 둔 대상(끄면 없다), 붙인 기록
@@ -104,6 +107,7 @@ fn context(role: &str, a: &Ask, names: &HashMap<String, String>) -> String {
     let mut s = format!("{SYSTEM}\n사용자의 역할은 {role}이다.");
     match &a.target { Some(t) => s += &format!("\n사용자가 지금 열어 둔 대상: {}. 묻는 말에 대상이 따로 없으면 이것을 가리킨다.", one(t)), None => s += "\n사용자가 열어 둔 대상은 없다." }
     if !a.attach.is_empty() { s += &format!("\n사용자가 붙인 기록: {}.", a.attach.iter().map(one).collect::<Vec<_>>().join(", ")); }
+    if !a.files.is_empty() { s += &format!("\n사용자가 올린 파일: {}.", a.files.iter().map(|f| f.name.as_str()).collect::<Vec<_>>().join(", ")); }
     s
 }
 
@@ -133,18 +137,20 @@ fn cited(text: &str, out: &mut BTreeSet<String>) {
 }
 
 /// UI 메시지 스트림의 이벤트(JSON)를 흘린다. 끝에는 조회한 기록 목록(`data-reads`)이 붙는다. 실패는 `error` 이벤트(낱말: 대기 — AI가 응답하지 않는다. 키가 없는 것도 같다)
-fn talk(model: String, key: Option<String>, ai: Db, me: Db, system: String, talk: Vec<(String, String)>) -> impl Stream<Item = J> {
+fn talk(model: String, key: Option<String>, ai: Db, me: Db, system: String, talk: Vec<(String, String)>, files: Vec<Up>) -> impl Stream<Item = J> {
     async_stream::stream! {
         // 답마다 다른 id: 같은 id면 화면(AI SDK)이 앞 답을 덮어쓴다
         yield json!({ "type": "start", "messageId": format!("msg-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos())) });
         let seen = Arc::new(Mutex::new(BTreeSet::new()));
         // 조치 카드(25): AI가 도구로 낸 카드의 내용. 실행은 하지 않는다
         let cards = Arc::new(Mutex::new(Vec::<J>::new()));
+        // 서류(26): 넘긴 파일. 넘기는 일은 도구가 그 사람의 세션으로 19와 같은 길에서 한다
+        let (files, handed) = (Arc::new(files), Arc::new(Mutex::new(Vec::<J>::new())));
         let mut n = 0;
         let mut open = false;
         let mut word: Option<&str> = None;
         if model.starts_with("fixture") {
-            let say = match fixture_card(&model, &me, &talk, &cards).await { Some(t) => Some((t, 5)), None => canned(&model, &ai, &system, &talk, &seen).await };
+            let say = match match fixture_card(&model, &me, &talk, &cards).await { None => fixture_doc(&model, &me, &talk, &files, &handed).await, c => c } { Some(t) => Some((t, 5)), None => canned(&model, &ai, &system, &talk, &seen).await };
             match say {
                 None => word = Some("대기"),
                 Some((text, pause)) => for piece in text.split_inclusive(' ') {
@@ -156,11 +162,11 @@ fn talk(model: String, key: Option<String>, ai: Db, me: Db, system: String, talk
         } else if key.as_deref().is_none_or(str::is_empty) {
             word = Some("대기");
         } else {
-            let tool = read_tool(&ai, { let seen = seen.clone(); Arc::new(move |out: &str| cited(out, &mut seen.lock().unwrap())) }).and_then(|t| card_tool(&me, cards.clone()).map(|c| (t, c)));
+            let tool = read_tool(&ai, { let seen = seen.clone(); Arc::new(move |out: &str| cited(out, &mut seen.lock().unwrap())) }).and_then(|t| card_tool(&me, cards.clone()).map(|c| (t, c))).and_then(|(t, c)| doc_tool(&me, files.clone(), handed.clone()).map(|d| (t, c, d)));
             let started = match tool {
-                Ok((tool, card)) => LanguageModelRequest::builder()
+                Ok((tool, card, doc)) => LanguageModelRequest::builder()
                     .model(OpenAI::<aisdk::core::DynamicModel>::model_name(&model)).messages(messages(system, &talk))
-                    .with_tool(tool).with_tool(card).stop_when(step_count_is(STEPS)).build().stream_text().await.ok(),
+                    .with_tool(tool).with_tool(card).with_tool(doc).stop_when(step_count_is(STEPS)).build().stream_text().await.ok(),
                 Err(_) => None,
             };
             match started {
@@ -186,10 +192,12 @@ fn talk(model: String, key: Option<String>, ai: Db, me: Db, system: String, talk
         }
         if open { yield json!({ "type": "text-end", "id": format!("t{n}") }); }
         // 글 없이 끝났으면(단계를 다 쓰고도 답하지 못함) 응답이 없는 것과 같다
-        if n == 0 && word.is_none() && cards.lock().unwrap().is_empty() { word = Some("대기"); }
+        if n == 0 && word.is_none() && cards.lock().unwrap().is_empty() && handed.lock().unwrap().is_empty() { word = Some("대기"); }
         if let Some(w) = word { yield json!({ "type": "error", "errorText": w }); }
         let drawn: Vec<J> = cards.lock().unwrap().clone();
         for card in drawn { yield json!({ "type": "data-card", "data": card }); }
+        let given: Vec<J> = handed.lock().unwrap().clone();
+        for d in given { yield json!({ "type": "data-doc", "data": d }); }
         let ids: Vec<String> = seen.lock().unwrap().iter().take(LISTED).cloned().collect();
         let listed = reads_names(&ai, &ids).await;
         if !listed.is_empty() { yield json!({ "type": "data-reads", "data": { "names": listed } }); }
@@ -206,6 +214,15 @@ async fn fixture_card(model: &str, me: &Db, talk: &[(String, String)], cards: &A
         Ok(c) => { cards.lock().unwrap().push(c); "카드를 그렸다.".into() }
         Err(w) => format!("카드를 내지 않는다: {w}."),
     })
+}
+
+/// 고정한 서류 넘기기(자동 검사용, 모델 `fixture`만): 사람의 말이 `서류|소명 id|파일 이름`이면 실제 도구와 같은 `hand`로 넘긴다. 글은 `hand`의 결과 그대로다
+async fn fixture_doc(model: &str, me: &Db, talk: &[(String, String)], files: &Arc<Vec<Up>>, handed: &Arc<Mutex<Vec<J>>>) -> Option<String> {
+    let ask = talk.last().map(|(_, t)| t.as_str())?;
+    let f: Vec<&str> = ask.strip_prefix("서류|").filter(|_| model == "fixture")?.split('|').collect();
+    let (text, done) = hand(me, files, f.first().copied().unwrap_or_default(), f.get(1).copied().unwrap_or_default()).await;
+    if let Some(d) = done { handed.lock().unwrap().push(d); }
+    Some(text)
 }
 
 /// 고정한 답(자동 검사용): DB를 한 번 읽고(AI의 세션) 읽은 것과 받은 문맥을 풀어 쓴다. 판정 의견은 내지 않는다. (글, 조각 사이의 쉼 밀리초). `fixture-down`은 없음
@@ -228,7 +245,7 @@ async fn canned(model: &str, ai: &Db, system: &str, talk: &[(String, String)], s
 }
 
 pub fn routes() -> Router<Arc<Db>> {
-    Router::new().route("/chat", post(chat)).route("/chat/report", post(keep)).route("/chat/names", get(names))
+    Router::new().route("/chat", post(chat).layer(axum::extract::DefaultBodyLimit::max(8 * 1024 * 1024))).route("/chat/report", post(keep)).route("/chat/names", get(names))
 }
 
 /// 문맥 칩의 이름: `?items=[{ kind, id }]` → `{ names: [이름|null] }`. 화면이 제목 줄에 보이는 이름과 같다(정황 · 대리점 · 소명은 name, 심사는 `이름 · 귀속월`, 지급은 `대리점 · 귀속월`, 조항은 title).
@@ -263,7 +280,7 @@ async fn chat(Extension(me): Extension<Me>, State(db): State<Arc<Db>>, Body(b): 
     let got = names_of(&db, &recs).await.map_err(|_| refuse("대상"))?;
     if got.iter().any(Option::is_none) { return Err(refuse("대상")); }
     let names: HashMap<String, String> = recs.iter().zip(got).map(|(r, n)| (format!("{}/{}", r.kind, r.id), n.unwrap_or_default())).collect();
-    let events = talk(model(), std::env::var("OPENAI_API_KEY").ok(), ai, me.db.clone(), context(&me.role, &a, &names), a.talk)
+    let events = talk(model(), std::env::var("OPENAI_API_KEY").ok(), ai, me.db.clone(), context(&me.role, &a, &names), a.talk, a.files)
         .chain(futures::stream::once(async { json!("[DONE]") }))
         .map(|v| Ok::<_, Infallible>(Event::default().data(v.as_str().map_or_else(|| v.to_string(), String::from))));
     Ok((
@@ -379,7 +396,7 @@ pub async fn check(c: &Check) -> Result<()> {
 
         // 키 없이 실제 모델 이름이면 부르지 않고 오류 낱말(키는 인자다. OpenAI를 부르지 않는다)
         let ai = ai_session(&c.db).await?;
-        let (ev, _) = (talk("gpt-검사".into(), None, ai.clone(), ai.clone(), SYSTEM.into(), vec![("user".into(), "안녕".into())]).collect::<Vec<_>>().await, ());
+        let (ev, _) = (talk("gpt-검사".into(), None, ai.clone(), ai.clone(), SYSTEM.into(), vec![("user".into(), "안녕".into())], vec![]).collect::<Vec<_>>().await, ());
         ensure!(ev.iter().any(|e| e["type"] == "error" && e["errorText"] == "대기") && said(&ev).is_empty(), "키 없음 {ev:?}");
 
         set("fixture");

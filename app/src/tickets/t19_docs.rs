@@ -54,7 +54,7 @@ pub(super) static READ: Mutex<Option<String>> = Mutex::new(None);
 fn read_model() -> String {
     READ.lock().unwrap().clone().or_else(|| std::env::var("UPSTAGE_MODEL").ok().filter(|m| !m.is_empty())).unwrap_or_else(|| OCR.into())
 }
-fn sha(b: &[u8]) -> String {
+pub(super) fn sha(b: &[u8]) -> String {
     Sha256::digest(b).iter().map(|x| format!("{x:02x}")).collect()
 }
 
@@ -317,10 +317,14 @@ fn looks(mime: &str, b: &[u8]) -> bool {
 pub(super) async fn upload(Extension(me): Extension<Me>, Path(id): Path<String>, Query(qs): Query<HashMap<String, String>>, h: HeaderMap, body: Result<Bytes, BytesRejection>) -> R {
     let mime = h.get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or_default().split(';').next().unwrap_or_default().trim().to_string();
     let name = qs.get("name").map(|n| n.trim().to_string()).unwrap_or_default();
-    let bytes = body.unwrap_or_default();
-    let bad = !looks(&mime, &bytes) || bytes.is_empty() || bytes.len() > MAX || name.is_empty() || name.chars().count() > 200;
-    let vars = json!({ "id": id, "bad": bad, "name": name, "mime": mime, "size": bytes.len(), "sha": sha(&bytes), "data": if bad { String::new() } else { B64.encode(&bytes) } });
-    let made = attempt(&me.db, "
+    accept(&me.db, &id, &name, &mime, &body.unwrap_or_default()).await
+}
+
+/// 접수의 본체. 화면의 올리기와 26 대화의 도구가 같은 길로 부른다(`db`는 그 사람의 세션이라 권한은 DB가 정한다)
+pub(super) async fn accept(db: &Db, id: &str, name: &str, mime: &str, bytes: &[u8]) -> R {
+    let bad = !looks(mime, bytes) || bytes.is_empty() || bytes.len() > MAX || name.is_empty() || name.chars().count() > 200;
+    let vars = json!({ "id": id, "bad": bad, "name": name, "mime": mime, "size": bytes.len(), "sha": sha(bytes), "data": if bad { String::new() } else { B64.encode(bytes) } });
+    let made = attempt(db, "
         LET $c = type::record('clarify', $id);
         RETURN IF $c.id = NONE OR $bad THEN '대상' ELSE IF $auth.role != '영업지원' THEN '권한' ELSE IF !fn::uploadable($c) THEN '상태' END;",
         "CREATE doc SET clarify = type::record('clarify', $id), name = $name, mime = $mime, size = $size, sha = $sha, data = $data RETURN VALUE record::id(id);", vars).await?;

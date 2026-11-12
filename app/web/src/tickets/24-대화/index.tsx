@@ -8,13 +8,13 @@ import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useRef, useState } from 'react'
 import { L } from '../../labels'
 import type { Piece } from '../../pieces'
-import { api, chatOpenAtom, listOpenAtom, roleAtom, rolesAtom, store, targetAtom, type Target } from '../../state'
+import { api, changedAtom, chatOpenAtom, listOpenAtom, roleAtom, rolesAtom, store, targetAtom, type Target } from '../../state'
 import { Pill } from '../../ui/Pill'
 import { Card, type CardData } from '../25-카드'
 import { button, label } from '../../ui/styles'
 
 /** 답에 붙는 조회한 기록(서버가 `data-reads`로 보낸다) */
-type Talk = UIMessage<never, { reads: { names: string[] }; card: CardData }>
+type Talk = UIMessage<never, { reads: { names: string[] }; card: CardData; doc: { id: string; name: string } }>
 
 /** 칩에 보이는 이름. 아직 받지 못했거나 모르면 id */
 const key = (t: Target) => `${t.kind}/${t.id}`
@@ -43,6 +43,10 @@ function Panel() {
   const [text, setText] = useState('')
   const [kept, setKept] = useState<{ state?: string; error?: string } | null>(null)
   const [keeping, setKeeping] = useState(false)
+  // 올릴 파일(26): 보내면 AI가 소명의 서류로 넘긴다
+  const [file, setFile] = useState<File | null>(null)
+  const pick = useRef<HTMLInputElement>(null)
+  const [tooBig, setTooBig] = useState(false)
   // 보낼 때의 문맥을 읽는 곳(전송기는 한 번만 만든다)
   const ctx = useRef<{ target: Target | null; attach: Target[] }>({ target: null, attach: [] })
   const now = follow ? target : null
@@ -68,10 +72,21 @@ function Panel() {
           return token ? { authorization: `Bearer ${token}` } : {}
         },
         // 대화가 길어지면 마지막 20개만 보낸다
-        prepareSendMessagesRequest: ({ messages }) => ({ body: { messages: messages.slice(-20), ...ctx.current } }),
+        // 파일은 가장 나중에 올린 말의 것만 싣는다(본문이 커지지 않게: 파일은 data URL이라 4/3배, 한도 8MB)
+        prepareSendMessagesRequest: ({ messages }) => {
+          const last = messages.map((m) => m.parts.some((p) => p.type === 'file')).lastIndexOf(true)
+          const sent = messages.slice(-20).map((m) => (m === messages[last] ? m : { ...m, parts: m.parts.filter((p) => p.type !== 'file') }))
+          return { body: { messages: sent, ...ctx.current } }
+        },
       }),
   )
-  const { messages, sendMessage, status, error, clearError } = useChat<Talk>({ transport })
+  const { messages, sendMessage, status, error, clearError } = useChat<Talk>({
+    transport,
+    // AI가 파일을 소명의 서류로 넘겼으면 소명 화면이 다시 읽는다
+    onData: (p) => {
+      if (p.type === 'data-doc') store.set(changedAtom, (n) => n + 1)
+    },
+  })
   const busy = status === 'submitted' || status === 'streaming'
   const end = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -82,8 +97,11 @@ function Panel() {
     if (busy || !text.trim()) return
     clearError()
     setKept(null)
-    sendMessage({ text: text.trim() })
+    sendMessage({ text: text.trim(), files: file ? pick.current?.files ?? undefined : undefined })
     setText('')
+    setFile(null)
+    setTooBig(false)
+    if (pick.current) pick.current.value = ''
   }
   // 보고로 남기기의 대상은 정황이다(열어 둔 정황, 없으면 붙인 정황)
   const signal = [now, ...pinned].some((t) => t?.kind === L.정황)
@@ -136,6 +154,7 @@ function Panel() {
           return (
             <div key={m.id} className={`flex flex-col gap-1 ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
               {m.role === 'assistant' && (body || ids.length > 0 || cards.length > 0) && <span className={label}>{L.AI}</span>}
+              {m.parts.map((p) => (p.type === 'file' ? <span key={p.url.slice(-40) + p.filename} className={`${chip} cursor-default`}>{p.filename}</span> : null))}
               {body && <p className={`${bubble} ${m.role === 'user' ? 'bg-surface' : 'bg-bg'} max-w-full text-body`}>{body}</p>}
               {cards.map((c) => (
                 <Card key={`${c.kind}/${c.id}/${c.action}`} card={c} />
@@ -183,7 +202,26 @@ function Panel() {
             }
           }}
         />
+        {file && (
+          <div className="flex flex-wrap items-center gap-1">
+            <button className={chip} onClick={() => { setFile(null); if (pick.current) pick.current.value = '' }}>
+              {file.name} ×
+            </button>
+          </div>
+        )}
+        <input ref={pick} type="file" hidden aria-label={L.서류} accept="image/png,image/jpeg,application/pdf" onChange={(e) => {
+            // 19의 한도(2MB, 이미지·PDF)를 넘으면 붙이지 않는다
+            const f = e.target.files?.[0] ?? null
+            const ok = !f || (f.size <= 2 * 1024 * 1024 && ['image/png', 'image/jpeg', 'application/pdf'].includes(f.type))
+            setTooBig(!ok)
+            setFile(ok ? f : null)
+            if (!ok) e.target.value = ''
+          }} />
+        {tooBig && <Mark word={L.대상} />}
         <div className="flex gap-2">
+          <button className={button} disabled={busy} onClick={() => pick.current?.click()}>
+            {L.서류}
+          </button>
           <button className={button} disabled={busy || !text.trim()} onClick={send}>
             {L.전송}
           </button>
