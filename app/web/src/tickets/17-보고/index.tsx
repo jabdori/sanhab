@@ -5,7 +5,7 @@ import { Button } from '@astryxdesign/core/Button'
 import { Collapsible } from '@astryxdesign/core/Collapsible'
 import { Link } from '@astryxdesign/core/Link'
 import { Text } from '@astryxdesign/core/Text'
-import { useAtom, useSetAtom } from 'jotai'
+import { atom, useAtom, useSetAtom } from 'jotai'
 import { type ReactNode, useEffect, useState } from 'react'
 import { L } from '../../labels'
 import type { Piece } from '../../pieces'
@@ -13,10 +13,10 @@ import { api, store } from '../../state'
 import { Empty } from '../../ui/Empty'
 import { grade } from '../../ui/grade'
 import { Pill } from '../../ui/Pill'
-import { blank, ready, sent as filled } from '../../ui/Reason'
+import { type Draft, Reason, blank, ready, sent as filled } from '../../ui/Reason'
 import { Source } from '../../ui/Source'
 import { Line } from '../04-심사'
-import { markAtom, reasonAtom, useSignal } from '../11-정황/signal'
+import { markAtom, useSignal } from '../11-정황/signal'
 import { tickAtom, useReport } from './report'
 
 // 상태의 색(tokens.md): 대기·검토는 대기, 채택은 좋음, 오류·불채택은 아님
@@ -149,19 +149,26 @@ function Body() {
   )
 }
 
-/** 채택 · 불채택: 같은 무게의 버튼(둘 다 늘 눌린다). 사유는 사유 칸에서 고르고, 불채택은 분류가 필수다 — 없이 누르면 `사유`가 보인다. 누른 뒤 요청이 끝날 때까지 다시 눌리지 않는다.
+/** 보고의 결정에 붙일 사유(채택·불채택). 정황의 조치(요청·기각)의 사유와 따로 두어 그 자리(보고 칸)에서 고른다 */
+const adoptAtom = atom<Draft>(blank)
+
+/** 채택 · 불채택: 같은 무게의 버튼(둘 다 늘 눌린다). 사유는 버튼 위의 분류·메모에서 고르고, 불채택은 분류가 필수다 — 없이 누르면 `사유`가 보인다. 누른 뒤 요청이 끝날 때까지 다시 눌리지 않는다.
  * 결정이 남으면 결정 한 줄과, AI의 의견과 정황의 조치(그때까지 내린 것)를 이름표와 값으로 보인다 */
 function Decide() {
   const d = useReport()
-  const [reason, setReason] = useAtom(reasonAtom)
+  const [reason, setReason] = useAtom(adoptAtom)
   const [busy, setBusy] = useState(false)
   const [bad, setBad] = useState<string | null>(null)
   const id = d?.report?.id
-  useEffect(() => setBad(null), [id])
+  useEffect(() => {
+    setBad(null)
+    setReason(blank)
+  }, [id, setReason])
   if (!d || !d.report) return null
   const { decision: x, actions } = d
   return (
     <>
+      {actions.length > 0 && <Reason groups={actions.map((a) => ({ of: a.kind, classes: a.classes }))} value={reason} onChange={setReason} />}
       {actions.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           {actions.map((a) => (

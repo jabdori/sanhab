@@ -199,8 +199,8 @@ fn talk(model: String, key: Option<String>, ai: Db, me: Db, system: String, talk
         let given: Vec<J> = handed.lock().unwrap().clone();
         for d in given { yield json!({ "type": "data-doc", "data": d }); }
         let ids: Vec<String> = seen.lock().unwrap().iter().take(LISTED).cloned().collect();
-        let listed = reads_names(&ai, &ids).await;
-        if !listed.is_empty() { yield json!({ "type": "data-reads", "data": { "names": listed } }); }
+        let (listed, go) = reads_names(&ai, &ids).await;
+        if !listed.is_empty() { yield json!({ "type": "data-reads", "data": { "names": listed, "go": go } }); }
         yield json!({ "type": "finish" });
     }
 }
@@ -262,13 +262,18 @@ async fn names_of(db: &Db, recs: &[Rec]) -> Result<Vec<Option<String>>> {
     Ok(v.as_array().into_iter().flatten().zip(recs).map(|(n, r)| n.as_str().filter(|_| table_of(&r.kind).is_some()).map(String::from)).collect())
 }
 /// 조회한 기록(`테이블:id`)의 이름들. 이름이 없는 기록은 빼고 같은 이름은 한 번만
-async fn reads_names(db: &Db, ids: &[String]) -> Vec<String> {
-    let v = q1(db, &format!("RETURN $ids.map(|$s| type::record($s)).map(|$r| {NAME});"), json!({ "ids": ids })).await.unwrap_or_default();
-    let mut out: Vec<String> = vec![];
-    for n in v.as_array().into_iter().flatten().filter_map(|n| n.as_str()) {
-        if !n.is_empty() && !out.iter().any(|o| o == n) { out.push(n.into()); }
+/// 조회한 기록의 이름과, 화면에서 그 기록을 여는 길(`go`: 이름과 같은 순서. `{ kind: 화면의 종류, id }`, 열 화면이 없는 기록(사람·주소·규칙 …)은 null)
+async fn reads_names(db: &Db, ids: &[String]) -> (Vec<String>, Vec<J>) {
+    let v = q1(db, &format!("RETURN $ids.map(|$s| type::record($s)).map(|$r| {{ name: {NAME}, tb: record::tb($r), id: <string> record::id($r) }});"), json!({ "ids": ids })).await.unwrap_or_default();
+    let view = |tb: &str| match tb { "review" => Some("심사"), "ratify" => Some("추인"), "payout" => Some("지급"), "dealer" => Some("대리점"), "signal" => Some("정황"), "clarify" => Some("소명"), _ => None };
+    let (mut out, mut go): (Vec<String>, Vec<J>) = (vec![], vec![]);
+    for r in v.as_array().into_iter().flatten() {
+        let Some(n) = r["name"].as_str() else { continue };
+        if n.is_empty() || out.iter().any(|o| o == n) { continue; }
+        out.push(n.into());
+        go.push(view(r["tb"].as_str().unwrap_or_default()).map_or(J::Null, |k| json!({ "kind": k, "id": r["id"] })));
     }
-    out
+    (out, go)
 }
 
 /// 답을 조각으로 흘린다. 프록시가 모아 두지 않게 하는 머리글을 둔다(AXHub는 웹소켓이 없어 이 응답 본문이 길이다)
@@ -367,7 +372,7 @@ pub async fn check(c: &Check) -> Result<()> {
         ensure!(text.contains("조회한 기록: ") && text.contains("대리점 금강상사11"), "문맥이 따라왔다 {text}");
         let reads = ev.iter().find(|e| e["type"] == "data-reads").map(|e| e["data"].clone()).unwrap_or_default();
         // 조회한 기록은 이름으로 보이고(테이블 · id가 없다) 그 이름은 모두 DB의 대리점 이름이다
-        ensure!(reads["names"] == json!(["대성상사1", "대륙상사2"]) && reads.get("ids").is_none() && !text.contains("테이블") && !text.contains("D-0"), "조회한 기록 {reads} {text}");
+        ensure!(reads["names"] == json!(["대성상사1", "대륙상사2"]) && reads.get("ids").is_none() && reads["go"] == json!([{ "kind": "대리점", "id": "D-001" }, { "kind": "대리점", "id": "D-002" }]) && !text.contains("테이블") && !text.contains("D-0"), "조회한 기록 {reads} {text}");
 
         // 문맥은 끌 수 있고, 붙인 기록이 따라온다. 판정을 묻는 말에는 사실과 규정을 답하고 판정 의견을 내지 않는다
         let (_, _, body) = stream(support, json!({ "messages": [say("이 지급을 승인해도 되나?")], "target": null, "attach": [{ "kind": "정황", "id": "계좌-D-024" }, { "kind": "지급", "id": "RB-00001" }] })).await?;

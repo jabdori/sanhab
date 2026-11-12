@@ -69,6 +69,28 @@ body {
   padding-inline-end: var(--spacing-6);
 }
 
+/* 줄임표로 자르는 표의 칸(ui/Table의 clip): 안의 Link는 단추(inline-flex)라 칸의 줄임표가 닿지 않는다 — Link 자신이 잘리게 */
+[data-clip] .astryx-link {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: start;
+}
+[data-clip] .astryx-link * {
+  display: inline;
+}
+
+/* 목록(줄 전체가 눌리는 표)의 이름 Link: 줄마다 밑줄이 늘어서지 않게 머문 줄에서만 밑줄 */
+.rows-open .astryx-link {
+  text-decoration-line: none;
+}
+.rows-open tr:hover .astryx-link,
+.rows-open .astryx-link:focus-visible {
+  text-decoration-line: underline;
+}
+
 /* 근거 연결이 가리킨 줄(ui/Table의 mark): 잠깐 노랗게 */
 @keyframes mark {
   from { background: var(--color-background-yellow); }

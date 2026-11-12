@@ -54,7 +54,7 @@ function Head() {
   if (!c) return null
   return (
     <Title name={c.title}>
-      <Source kind={c.source} tip={where(c)} rows={[[L.위치, where(c)], [L.해시, c.sha]]} />
+      <Source kind={c.source} tip={where(c)} place={`${c.first}–${c.last}${L.행}`} rows={[[L.위치, where(c)], [L.해시, c.sha]]} />
     </Title>
   )
 }

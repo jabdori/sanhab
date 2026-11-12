@@ -90,7 +90,7 @@ export function Source({ kind, file, row, place, quiet, side, of, decision, line
         </MetadataList>
       )}
       {/* 글(조항의 원문 등 마크다운)은 그려서 보인다(## · ** 원문이 그대로 나오지 않게) */}
-      {typeof children === 'string' ? <Markdown density="compact">{children}</Markdown> : children && <div className="flex flex-col gap-2 text-sm">{children}</div>}
+      {typeof children === 'string' ? <Markdown density="compact" headingLevelStart={5}>{children}</Markdown> : children && <div className="flex flex-col gap-2 text-sm">{children}</div>}
     </div>
   )
   const trigger = isOrigin || quiet ? (
@@ -117,7 +117,7 @@ const LONG = 160
  * 가정·합성의 설명(A05 §6: 추가한 값의 식별자·적용 시점·원본 연결·생성 이유): 번호 · 내용(스펙의 그 줄) · 적용 시점(기준일부터) · 위치(문서와 행) · 이유(결정의 본문, 길면 접힘) · 쓰임
  */
 function Decision({ s }: { s: Spec }) {
-  const why = <Markdown density="compact">{s.body}</Markdown>
+  const why = <Markdown density="compact" headingLevelStart={5}>{s.body}</Markdown>
   return (
     <MetadataList label={{ width: 72 }}>
       <MetadataListItem label={L.번호}>{s.id}</MetadataListItem>
@@ -130,7 +130,8 @@ function Decision({ s }: { s: Spec }) {
             ))}
           </ul>
         ) : (
-          s.text.replace(/^-\s*/, '')
+          // 스펙 줄의 글머리(`- `, `4. `)와 맨 앞의 `가정 —`는 떼고 내용만
+          s.text.replace(/^(-|\d+\.)\s*/, '').replace(new RegExp(`^${L.가정}\\s*—\\s*`), '')
         )}
       </MetadataListItem>
       <MetadataListItem label={L['적용 시점']}>

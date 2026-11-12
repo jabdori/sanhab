@@ -39,7 +39,7 @@ function Form({ id }: { id: string }) {
         ))}
       </RadioList>
       <TextInput label={L.값} width="100%" value={value} onChange={setValue} />
-      <DateInput label={L.변경일} width="100%" placeholder="YYYY-MM-DD" format="system_date" value={(since || undefined) as ComponentProps<typeof DateInput>['value']} onChange={(v) => setSince(v ?? '')} />
+      <DateInput label={L.변경일} width="100%" presentation="native" max={(today || undefined) as ComponentProps<typeof DateInput>['max']} format="system_date" value={(since || undefined) as ComponentProps<typeof DateInput>['value']} onChange={(v) => setSince(v ?? '')} />
       <div className="flex flex-wrap items-center gap-2">
         <Confirm label={L.변경} variant={grade(L.변경)} isDisabled={!ok || sent === d}
           title={`${L.변경} ${d.dealer.name} ${item}`}

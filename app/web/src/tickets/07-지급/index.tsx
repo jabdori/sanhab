@@ -31,33 +31,15 @@ function Head() {
   const cell = 'flex items-baseline gap-2'
   return (
     <>
+      {/* 지급은 원본의 한 행이다: 대리점 상세처럼 제목 줄에 그 행 번호(조용한 출처). 계좌의 원본 행은 대리점 상세의 등록 표에 있다 */}
       <Title name={pay.name} sub={pay.ym}>
+        <Source kind={pay.source} file={pay.file} row={pay.row} />
         {pill(pay.state)}
       </Title>
       <Figures
         items={[
-          [
-            L.금액,
-            <span className={cell}>
-              {num(pay.amount)}
-              <Source kind={pay.source} file={pay.file} row={pay.row} />
-            </span>,
-          ],
-          [
-            L.계좌,
-            p.accounts.length ? (
-              <span className={cell}>
-                {p.accounts.map((a) => (
-                  <span key={a.value} className={cell}>
-                    {a.value}
-                    <Source kind={a.source} file={a.file} row={a.row} />
-                  </span>
-                ))}
-              </span>
-            ) : (
-              <Empty />
-            ),
-          ],
+          [L.금액, num(pay.amount)],
+          [L.계좌, p.accounts.length ? <span className={cell}>{p.accounts.map((a) => a.value).join(' · ')}</span> : <Empty />],
           [L.심사, <Link type="inherit" onClick={() => setTarget({ kind: L.심사, id: pay.review.id })}>{pay.review.name}</Link>],
         ]}
       />

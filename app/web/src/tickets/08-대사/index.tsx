@@ -76,8 +76,37 @@ function Fact() {
     </span>
   )
   const cmp = (r: Recon['history'][number] | null, item: string) => (!r ? none : r.result === L.실패 ? verdict(L.실패) : recon ? verdict(recon.diff.includes(item) ? L.불일치 : L.일치) : none)
+  // 열의 출처는 영역 제목 옆에(표 안에 출처 줄을 두지 않는다): 회신은 시연 서랍에서 넣은 모의 회신, 비교는 계산
+  const sources = (
+    <>
+      {recon && verdict(recon.verdict)}
+      {last && (
+        // 모의 회신(시연 서랍에서 넣은 가상의 은행 회신, A05 §6): 종류 · 대상 · 넣은 값 · 누가 언제 · 이유
+        <Source
+          kind={last.source}
+          tip={L.회신}
+          rows={[
+            [L.종류, L.회신],
+            [L.대상, d.name],
+            [L.값, [num(last.amount), last.account, last.result].join(' · ')],
+            [L['적용 시점'], [last.role, last.at].join(' · ')],
+            [L.이유, L.시연],
+          ]}
+        />
+      )}
+      <Source
+        kind={L.계산}
+        tip={L.비교}
+        rows={[
+          [L.일치, L['결과 성공, 금액과 계좌 같음']],
+          [L.불일치, L['결과 성공, 금액이나 계좌 다름']],
+          [L.실패, L['결과 실패']],
+        ]}
+      />
+    </>
+  )
   return (
-    <Region title={L.대사} aside={recon && verdict(recon.verdict)}>
+    <Region title={L.대사} aside={sources}>
       <Table
         head={['', L.승인, L.회신, L.비교]}
         right={[1, 2]}
@@ -86,38 +115,6 @@ function Fact() {
             [name(i, L.금액), num(d.want.amount), r ? num(r.amount) : none, cmp(r, L.금액)],
             [name(i, L.계좌), accounts, r ? r.account : none, cmp(r, L.계좌)],
           ]),
-          // 열마다의 출처: 회신은 사람이 넣은 것(모의, 누가 언제), 비교는 코드가 맞춰 본 것(무엇이 같으면 일치인지). 승인의 금액과 계좌는 머리의 숫자 줄에 출처가 있다
-          [
-            <Text color="secondary">{L.출처}</Text>,
-            null,
-            last ? (
-              // 모의 회신(시연 서랍에서 넣은 가상의 은행 회신, A05 §6): 종류 · 대상 · 넣은 값 · 누가 언제 · 이유
-              <Source
-                kind={last.source}
-                side="top"
-                tip={L.회신}
-                rows={[
-                  [L.종류, L.회신],
-                  [L.대상, d.name],
-                  [L.값, [num(last.amount), last.account, last.result].join(' · ')],
-                  [L['적용 시점'], [last.role, last.at].join(' · ')],
-                  [L.이유, L.시연],
-                ]}
-              />
-            ) : (
-              none
-            ),
-            <Source
-              kind={L.계산}
-              side="top"
-              tip={L.비교}
-              rows={[
-                [L.일치, L['결과 성공, 금액과 계좌 같음']],
-                [L.불일치, L['결과 성공, 금액이나 계좌 다름']],
-                [L.실패, L['결과 실패']],
-              ]}
-            />,
-          ],
         ]}
       />
     </Region>

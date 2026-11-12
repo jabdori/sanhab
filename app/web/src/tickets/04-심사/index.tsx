@@ -81,7 +81,7 @@ function Tasks() {
     {
       head: L.대상,
       cell: (t) => (
-        <Link color="primary" weight="medium" onClick={() => open(t)}>
+        <Link color="primary" weight="medium" tooltip={narrow ? t.name : undefined} onClick={() => open(t)}>
           {t.name}
         </Link>
       ),
@@ -101,6 +101,8 @@ function Tasks() {
       </TabList>
       <Table
         fit={[0]}
+        // 좁은 목록(360)에서는 이름(`… 외 n`)을 줄임표로 줄여 금액이 늘 보이게
+        clip={narrow ? [2] : []}
         head={cols.map((c) => c.head)}
         right={cols.flatMap((c, i) => (c.right ? [i] : []))}
         current={list.findIndex((t) => t.view === target?.kind && t.target === target?.id)}

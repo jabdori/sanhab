@@ -1,5 +1,4 @@
 import { Table as Grid, TableBody, TableCell, TableHeader, TableHeaderCell, TableRow } from '@astryxdesign/core/Table'
-import { Text } from '@astryxdesign/core/Text'
 import type { ReactNode } from 'react'
 import { Empty } from './Empty'
 
@@ -19,7 +18,8 @@ export function Table({ head, rows, right = [], clip = [], wrap = [], fit = [], 
   // 칸은 내용 폭을 따른다(astryx는 칸을 같은 폭으로 자르는 max-width:0을 둔다 — 금액·이름이 잘리지 않게 푼다)
   const side = (i: number) => `${clip.includes(i) ? 'w-full max-w-0' : 'max-w-none'} ${fit.includes(i) ? 'w-0' : ''} ${wrap.includes(i) ? 'whitespace-normal break-keep' : ''} ${right.includes(i) ? 'text-right' : ''}`
   return (
-    <div className="min-w-0 whitespace-nowrap tabular-nums">
+    // 줄 전체가 눌리는 표(목록)의 이름 Link는 머물 때만 밑줄(theme.css의 .rows-open)
+    <div className={`min-w-0 whitespace-nowrap tabular-nums ${onRow ? 'rows-open' : ''}`}>
       <Grid density="compact" hasHover={!!onRow}>
         <TableHeader>
           <TableRow isHeaderRow>
@@ -43,9 +43,10 @@ export function Table({ head, rows, right = [], clip = [], wrap = [], fit = [], 
               {r.map((c, i) => (
                 <TableCell key={i} className={side(i)}>
                   {clip.includes(i) ? (
-                    <Text maxLines={1} display="block">
+                    // 한 줄로 자르고 줄임표. 글자뿐이면 머물 때 전체(title)
+                    <span data-clip="" className="block truncate" title={typeof c === 'string' ? c : undefined}>
                       {c}
-                    </Text>
+                    </span>
                   ) : (
                     c
                   )}

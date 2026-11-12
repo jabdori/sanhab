@@ -180,7 +180,8 @@ function Box() {
   const [draft, setDraft] = useAtom(reasonAtom)
   useEffect(() => setDraft(blank), [d?.signal.id, d?.history.length, r?.trail.length ?? 0, role, setDraft])
   if (!d) return null
-  const groups = [...d.actions, ...(r?.actions ?? [])].map((a) => ({ of: a.kind, classes: a.classes }))
+  // 정황의 조치(요청·기각)의 사유만. 조치가 없으면 접힌다(보고의 채택·불채택은 보고 칸에서 고른다 — 17)
+  const groups = d.actions.map((a) => ({ of: a.kind, classes: a.classes }))
   return groups.length ? <Reason groups={groups} value={draft} onChange={setDraft} /> : <Empty />
 }
 

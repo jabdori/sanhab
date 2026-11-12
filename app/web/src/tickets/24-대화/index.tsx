@@ -4,6 +4,7 @@
 // 역할을 바꾸면 대화가 비워진다(임시). 누른 뒤 요청이 끝날 때까지 전송·보고는 다시 눌리지 않는다. AI가 멈춰 있어도 다른 화면은 그대로 된다.
 import { useChat } from '@ai-sdk/react'
 import { Button } from '@astryxdesign/core/Button'
+import { Link } from '@astryxdesign/core/Link'
 import { ChatComposer, ChatComposerInput, ChatMessage, ChatMessageBubble, ChatMessageList } from '@astryxdesign/core/Chat'
 import { Text } from '@astryxdesign/core/Text'
 import { Token } from '@astryxdesign/core/Token'
@@ -16,8 +17,8 @@ import { api, changedAtom, chatOpenAtom, listOpenAtom, roleAtom, rolesAtom, stor
 import { Pill } from '../../ui/Pill'
 import { Card, type CardData } from '../25-카드'
 
-/** 답에 붙는 조회한 기록(서버가 `data-reads`로 보낸다) */
-type Talk = UIMessage<never, { reads: { names: string[] }; card: CardData; doc: { id: string; name: string } }>
+/** 답에 붙는 조회한 기록(서버가 `data-reads`로 보낸다). go는 이름과 같은 순서의 여는 길(열 화면이 없는 기록은 null) */
+type Talk = UIMessage<never, { reads: { names: string[]; go?: (Target | null)[] }; card: CardData; doc: { id: string; name: string } }>
 
 /** 칩에 보이는 이름. 아직 받지 못했거나 모르면 id */
 const key = (t: Target) => `${t.kind}/${t.id}`
@@ -137,7 +138,8 @@ function Panel() {
       <div className="min-h-0 flex-1 overflow-auto p-3">
         <ChatMessageList align="top" density="compact" isStreaming={busy}>
           {messages.map((m) => {
-            const ids = m.parts.flatMap((p) => (p.type === 'data-reads' ? p.data.names : []))
+            const reads = m.parts.flatMap((p) => (p.type === 'data-reads' ? p.data.names.map((name, i) => ({ name, go: p.data.go?.[i] ?? null })) : []))
+            const ids = reads.map((r) => r.name)
             const cards = m.parts.flatMap((p) => (p.type === 'data-card' ? [p.data] : []))
             const body = m.parts.map((p) => (p.type === 'text' ? p.text : '')).join('')
             const ai = m.role === 'assistant'
@@ -150,11 +152,18 @@ function Panel() {
                   ids.length > 0 && (
                     <div className="flex flex-col gap-1">
                       <Text type="supporting">{L.조회}</Text>
-                      {ids.map((id) => (
-                        <Text key={id} type="supporting" hasTabularNumbers>
-                          <span className="wrap-anywhere">{id}</span>
-                        </Text>
-                      ))}
+                      {/* 화면이 있는 기록은 이동 링크(다른 화면의 이동과 같은 꼴), 없는 것(사람·주소 …)은 글자 */}
+                      {reads.map(({ name, go }) =>
+                        go ? (
+                          <Link key={name} type="supporting" onClick={() => store.set(targetAtom, go)}>
+                            {name}
+                          </Link>
+                        ) : (
+                          <Text key={name} type="supporting" hasTabularNumbers>
+                            <span className="wrap-anywhere">{name}</span>
+                          </Text>
+                        ),
+                      )}
                     </div>
                   )
                 }

@@ -35,7 +35,7 @@ function useTrail() {
 function Go({ node }: { node: Node }) {
   const setTarget = useSetAtom(targetAtom)
   return (
-    <Link onClick={() => setTarget(node.go)}>{node.name}</Link>
+    <Link tooltip={node.name} onClick={() => setTarget(node.go)}>{node.name}</Link>
   )
 }
 
@@ -140,9 +140,12 @@ function Picture() {
               >
                 <span className="flex items-baseline justify-between gap-2">
                   <Text weight="semibold">{n.kind}</Text>
-                  <Text type="supporting" hasTabularNumbers>
-                    {n.at ?? L.미상}
-                  </Text>
+                  {/* 아직 일어나지 않은 칸(결정 전의 심사, 표시 전의 지급)은 날짜를 비운다 */}
+                  {n.at && (
+                    <Text type="supporting" hasTabularNumbers>
+                      {n.at}
+                    </Text>
+                  )}
                 </span>
                 <Text maxLines={2} display="block">
                   {n.name}
