@@ -6,7 +6,9 @@ import type { Piece } from '../../pieces'
 import { useData } from '../../state'
 import { Compare } from '../../ui/Compare'
 import { Region } from '../../ui/Region'
-import { Figures } from '../../ui/Figures'
+import { HStack } from '@astryxdesign/core/Layout'
+import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
+import { Timestamp } from '@astryxdesign/core/Timestamp'
 import { Source } from '../../ui/Source'
 import { num } from '../../ui/Table'
 import { useReview } from '../04-심사/review'
@@ -33,17 +35,18 @@ export function Then() {
   if (!r || d?.id !== r.id) return null
   const rule = d.now.rules.find((x) => x.name === L.한도)
   const paid = d.paid.length > 0 && (
-    <div>
-      <Figures
-        items={d.paid.map((p) => [
-          L.지급일,
-          <span className="flex items-baseline gap-2">
-            {p.at}
-            <Source kind={p.source} file={p.file} row={p.row} />
-          </span>,
-        ])}
-      />
-    </div>
+    <Region title={L.지급일}>
+      <MetadataList columns="single" label={{ position: 'start', width: 72 }}>
+        {d.paid.map((p, i) => (
+          <MetadataListItem key={i} label={L.지급일}>
+            <HStack gap={2} vAlign="center">
+              <Timestamp value={p.at} format="date" type="body" color="primary" />
+              <Source kind={p.source} file={p.file} row={p.row} />
+            </HStack>
+          </MetadataListItem>
+        ))}
+      </MetadataList>
+    </Region>
   )
   if (!r.marks.includes(L.재검토)) return paid
   return (

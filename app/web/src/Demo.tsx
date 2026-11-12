@@ -1,5 +1,5 @@
 import { Drawer, DrawerHeader } from '@astryxdesign/core/Drawer'
-import { Layout, LayoutContent } from '@astryxdesign/core/Layout'
+import { HStack, Layout, LayoutContent, VStack } from '@astryxdesign/core/Layout'
 import { NumberInput } from '@astryxdesign/core/NumberInput'
 import { useSetAtom } from 'jotai'
 import { useState } from 'react'
@@ -34,16 +34,16 @@ function Demo() {
   const [days, setDays] = useState<number | null>(15)
   const ok = days !== null && Number.isInteger(days) && days >= 1 && days <= 365
   return (
-    <div className="flex flex-col gap-6">
+    <VStack gap={4}>
       <Region title={L.날짜}>
-        <div className="flex items-end gap-2">
+        <HStack gap={2} vAlign="end">
           <NumberInput label={L.일} isLabelHidden value={days} onChange={setDays} min={1} max={365} isIntegerOnly units={L.일} width={120} />
           <Confirm label={L.넘기기} title={`${L.넘기기} ${days ?? ''}${L.일}`} rows={[[L.날짜, `${today} → ${ok ? plus(today, days) : ''}`]]} isDisabled={!ok} onConfirm={() => api('/advance', { days }).catch(() => {})} />
-        </div>
+        </HStack>
       </Region>
       {pieces.length > 0 && <SlotView slot="demo" />}
       <Region title={L.초기화}>
-        <div>
+        <HStack>
           <Confirm
             label={L.초기화}
             variant="destructive"
@@ -54,8 +54,8 @@ function Demo() {
             ]}
             onConfirm={() => api('/reset', {}).then(() => setTarget(null), () => {})}
           />
-        </div>
+        </HStack>
       </Region>
-    </div>
+    </VStack>
   )
 }

@@ -8,6 +8,7 @@ import { L } from '../../labels'
 import type { Piece } from '../../pieces'
 import { api, changedAtom, roleAtom, store, targetAtom } from '../../state'
 import { Button } from '@astryxdesign/core/Button'
+import { HStack } from '@astryxdesign/core/Layout'
 import { Link } from '@astryxdesign/core/Link'
 import { Text } from '@astryxdesign/core/Text'
 import { Compare } from '../../ui/Compare'
@@ -205,12 +206,12 @@ export function Way() {
   }, [id, marks])
   if (!b) return null
   return (
-    <div className="flex items-baseline gap-2">
-      <Text type="supporting">{L.추인}</Text>
+    <HStack gap={2} vAlign="center">
+      <Mark>{L.추인}</Mark>
       <Link onClick={() => store.set(targetAtom, { kind: L.추인, id: b.id })}>
         {b.name} · {b.ym}
       </Link>
-    </div>
+    </HStack>
   )
 }
 

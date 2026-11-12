@@ -1,7 +1,11 @@
 // 11 정황: 정황 상세(가운데: 제목·숫자 줄, 근거, 관계 / 오른쪽: 조치(요청 · 기각), 사유, 이력)와 심사 상세의 "정황" 줄.
 // 가운데의 조각은 order -40(제목·숫자 줄) · -30(근거) · -20(관계)이다. 뒤 티켓이 kind: L.정황으로 끼우는 조각은 order를 적지 않으면 관계 아래에 놓인다(12의 가설).
 // 가운데의 값은 모두 코드가 기록에서 읽은 것이다(AI의 글은 오른쪽 "보고"에 — 17).
+import { Badge } from '@astryxdesign/core/Badge'
 import { Button } from '@astryxdesign/core/Button'
+import { HStack } from '@astryxdesign/core/Layout'
+import { List, ListItem } from '@astryxdesign/core/List'
+import { StatusDot } from '@astryxdesign/core/StatusDot'
 import { Link } from '@astryxdesign/core/Link'
 import { Text } from '@astryxdesign/core/Text'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
@@ -16,6 +20,7 @@ import { Mark } from '../../ui/Mark'
 import { Pill } from '../../ui/Pill'
 import { Reason, blank, ready, sent as filled } from '../../ui/Reason'
 import { Region } from '../../ui/Region'
+import { badge } from '../../ui/status'
 import { Relation } from '../../ui/Relation'
 import { DECISION, Source } from '../../ui/Source'
 import { Table, num } from '../../ui/Table'
@@ -201,20 +206,25 @@ export function Flags() {
   const list = useData<{ id: string; kind: string; name: string; state: string }[]>(r && on ? `/reviews/${r.id}/signals` : null)
   const setTarget = useSetAtom(targetAtom)
   if (!on || !list) return null
+  // ItemWithMetadata 꼴: 주의 점 · 정황 이름 / 종류 · 상태 Badge. 누르면 그 정황이 열린다. 기준이 가정인 종류(근접 D51, 지연 D30)는 그 가정의 표지
   return (
-    <Region title={L.정황}>
-      <Table
-        head={[L.정황, L.상태, L.출처]}
-        onRow={(y) => setTarget({ kind: L.정황, id: list[y].id })}
-        rows={list.map((s) => [
-          <Link color="primary" weight="medium" onClick={() => setTarget({ kind: L.정황, id: s.id })}>
-            {s.name}
-          </Link>,
-          pill(s.state),
-          // 기준이 가정인 종류(근접 D51, 지연 D30)는 그 가정의 표지
-          DECISION[s.kind] && <Source kind={L.가정} of={s.kind} />,
-        ])}
-      />
+    <Region title={L.정황} aside={<Badge variant="warning" label={String(list.length)} />}>
+      <List density="compact" hasDividers>
+        {list.map((s) => (
+          <ListItem
+            key={s.id}
+            label={s.name}
+            startContent={<StatusDot variant={s.state === L.해소 || s.state === L.기각 ? 'neutral' : 'warning'} label={s.state} />}
+            endContent={
+              <HStack gap={2} vAlign="center">
+                {DECISION[s.kind] && <Source kind={L.가정} of={s.kind} />}
+                <Badge variant={badge(s.state)} label={s.state} />
+              </HStack>
+            }
+            onClick={() => setTarget({ kind: L.정황, id: s.id })}
+          />
+        ))}
+      </List>
     </Region>
   )
 }

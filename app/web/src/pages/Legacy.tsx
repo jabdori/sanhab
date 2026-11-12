@@ -70,19 +70,21 @@ export function LegacyRecord() {
         </LayoutHeader>
       }
       content={
-        <LayoutContent role="main">
+        <LayoutContent role="main" className="bg-body">
           <VStack gap={4}>
             <SlotView slot={trail ? 'map' : 'fact'} />
           </VStack>
         </LayoutContent>
       }
       end={
-        <LayoutPanel width={320} padding={0} role="complementary">
-          {RAIL.map(([slot, name]) => (
-            <Region key={slot} title={name}>
-              <SlotView slot={slot} />
-            </Region>
-          ))}
+        <LayoutPanel width={320} padding={4} role="complementary" className="bg-body">
+          <VStack gap={4}>
+            {RAIL.map(([slot, name]) => (
+              <Region key={slot} title={name}>
+                <SlotView slot={slot} />
+              </Region>
+            ))}
+          </VStack>
         </LayoutPanel>
       }
     />

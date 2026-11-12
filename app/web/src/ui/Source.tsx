@@ -1,4 +1,6 @@
 import { Collapsible } from '@astryxdesign/core/Collapsible'
+import { VStack } from '@astryxdesign/core/Layout'
+import { Link } from '@astryxdesign/core/Link'
 import { Markdown } from '@astryxdesign/core/Markdown'
 import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
 import { Popover } from '@astryxdesign/core/Popover'
@@ -77,7 +79,7 @@ export function Source({ kind, file, row, place, quiet, side, of, decision, line
     setOpen(true)
   }
   const content = (
-    <div className="flex max-h-96 flex-col gap-3 overflow-y-auto">
+    <VStack gap={3} className="max-h-96 overflow-y-auto">
       <Text weight="semibold">{line}</Text>
       {origin && file && row && <Origin file={file} row={row} o={origin} />}
       {spec && <Decision s={spec} />}
@@ -91,13 +93,14 @@ export function Source({ kind, file, row, place, quiet, side, of, decision, line
         </MetadataList>
       )}
       {/* 글(조항의 원문 등 마크다운)은 그려서 보인다(## · ** 원문이 그대로 나오지 않게) */}
-      {typeof children === 'string' ? <Markdown density="compact" headingLevelStart={5}>{children}</Markdown> : children && <div className="flex flex-col gap-2 text-sm">{children}</div>}
-    </div>
+      {typeof children === 'string' ? <Markdown density="compact" headingLevelStart={5}>{children}</Markdown> : children && <VStack gap={2}>{children}</VStack>}
+    </VStack>
   )
   const trigger = isOrigin || quiet ? (
-    <button type="button" className="shrink-0 cursor-pointer rounded-sm px-0.5 text-sm font-normal whitespace-nowrap text-secondary tabular-nums hover:text-primary hover:underline">
+    // 원본은 표지 없이 조용한 행 번호(보조 색 Link)
+    <Link type="supporting" color="secondary" onClick={() => {}}>
       {file && row ? `${row}${L.행}` : (place ?? L.원본)}
-    </button>
+    </Link>
   ) : (
     // Token은 onClick이 있으면 안에 단추를 둔다(설명 칸이 그 단추에 붙는다)
     <Token label={name} size="sm" onClick={() => {}} />
@@ -125,24 +128,24 @@ function Decision({ s }: { s: Spec }) {
       <MetadataListItem label={L.내용}>
         {/* 스펙의 표 한 줄(D46의 "숫자가 기대는 가정")은 칸마다 한 줄로 푼다 */}
         {s.text.includes(' | ') ? (
-          <ul className="flex flex-col gap-1">
+          <VStack gap={1}>
             {s.text.split(' | ').map((c, i) => (
-              <li key={i}>{c.trim()}</li>
+              <Text key={i}>{c.trim()}</Text>
             ))}
-          </ul>
+          </VStack>
         ) : (
           // 스펙 줄의 글머리(`- `, `4. `)와 맨 앞의 `가정 —`는 떼고 내용만
           s.text.replace(/^(-|\d+\.)\s*/, '').replace(new RegExp(`^${L.가정}\\s*—\\s*`), '')
         )}
       </MetadataListItem>
       <MetadataListItem label={L['적용 시점']}>
-        <span className="tabular-nums">{s.since} ~</span>
+        <Text hasTabularNumbers>{s.since} ~</Text>
       </MetadataListItem>
       <MetadataListItem label={L.위치}>
-        <span className="break-all">
+        <Text className="break-all">
           {s.file} {s.row}
           {L.행}
-        </span>
+        </Text>
       </MetadataListItem>
       <MetadataListItem label={L.이유}>
         {s.body.length > LONG ? (
@@ -150,10 +153,10 @@ function Decision({ s }: { s: Spec }) {
             {why}
           </Collapsible>
         ) : (
-          <div className="flex flex-col gap-1">
+          <VStack gap={1}>
             <Text weight="medium">{s.title}</Text>
             {why}
-          </div>
+          </VStack>
         )}
       </MetadataListItem>
       {s.used.length > 0 && <MetadataListItem label={L.쓰임}>{s.used.map((u) => u.view).join(' · ')}</MetadataListItem>}
@@ -166,21 +169,23 @@ function Origin({ file, row, o }: { file: string; row: number; o: Row }) {
   return (
     <MetadataList>
       <MetadataListItem label={L.원본}>
-        <span className="break-all">
+        <Text className="break-all">
           {file} {row}
           {L.행}
-        </span>
+        </Text>
       </MetadataListItem>
       {o.cells.map(([k, v]) => (
         <MetadataListItem key={k} label={k}>
-          <span className="tabular-nums">{v}</span>
+          <Text hasTabularNumbers>{v}</Text>
         </MetadataListItem>
       ))}
       <MetadataListItem label={L.해시}>
         {/* 64자 해시는 앞부분만(머물면 전체) — 설명 칸이 가로로 밀리지 않게 */}
-        <span className="text-secondary tabular-nums" title={o.sha}>
-          {o.sha.slice(0, 16)}…
-        </span>
+        <Tooltip content={o.sha}>
+          <Text color="secondary" hasTabularNumbers>
+            {o.sha.slice(0, 16)}…
+          </Text>
+        </Tooltip>
       </MetadataListItem>
     </MetadataList>
   )

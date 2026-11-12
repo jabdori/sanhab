@@ -4,8 +4,10 @@ import { Layout, LayoutContent, LayoutPanel } from '@astryxdesign/core/Layout'
 import { ResizeHandle, useResizable } from '@astryxdesign/core/Resizable'
 import { Selector } from '@astryxdesign/core/Selector'
 import { SideNav, SideNavHeading, SideNavItem } from '@astryxdesign/core/SideNav'
-import { Text } from '@astryxdesign/core/Text'
-import { BookOpenIcon, BuildingStorefrontIcon, InboxStackIcon } from '@heroicons/react/24/outline'
+import { Icon } from '@astryxdesign/core/Icon'
+import { HStack, StackItem } from '@astryxdesign/core/Layout'
+import { Timestamp } from '@astryxdesign/core/Timestamp'
+import { BeakerIcon, BookOpenIcon, CalendarIcon, BuildingStorefrontIcon, InboxStackIcon } from '@heroicons/react/24/outline'
 import { useAtom, useAtomValue } from 'jotai'
 import { useState } from 'react'
 import { DemoDrawer } from './Demo'
@@ -53,16 +55,15 @@ function Shell() {
             />
           }
           footer={
-            <div className="flex items-center gap-2">
-              <Text type="supporting" color="secondary">
-                {L.날짜}
-              </Text>
-              <Text type="supporting" weight="medium" hasTabularNumbers>
-                {today ?? ''}
-              </Text>
-              <span className="flex-1" />
-              <Button label={L.시연} size="sm" variant="secondary" onClick={() => setDemo(true)} />
-            </div>
+            <HStack gap={2} vAlign="center">
+              <StackItem size="fill">
+                <HStack gap={2} vAlign="center">
+                  <Icon icon={CalendarIcon} size="sm" color="secondary" />
+                  {today && <Timestamp value={today} format="date" type="supporting" color="primary" weight="medium" />}
+                </HStack>
+              </StackItem>
+              <Button label={L.시연} size="sm" variant="secondary" icon={<Icon icon={BeakerIcon} size="sm" />} onClick={() => setDemo(true)} />
+            </HStack>
           }
         >
           {MENUS.map((m) => (

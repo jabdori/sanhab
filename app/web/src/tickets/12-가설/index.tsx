@@ -3,7 +3,8 @@
 import { L } from '../../labels'
 import type { Piece } from '../../pieces'
 import { useData } from '../../state'
-import { Text } from '@astryxdesign/core/Text'
+import { VStack } from '@astryxdesign/core/Layout'
+import { Heading } from '@astryxdesign/core/Text'
 import { Compare } from '../../ui/Compare'
 import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
@@ -70,10 +71,10 @@ export function OfReview() {
   return (
     <Region title={L.가설} aside={<Tag adds={[...new Set(list.flatMap((h) => h.adds))]} />}>
       {list.map((h) => (
-        <div key={h.id} className="flex flex-col gap-1">
-          <Text weight="semibold">{h.name}</Text>
+        <VStack key={h.id} gap={1}>
+          <Heading level={4}>{h.name}</Heading>
           <Rows h={h} />
-        </div>
+        </VStack>
       ))}
     </Region>
   )

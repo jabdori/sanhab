@@ -1,6 +1,10 @@
 // 작업: astryx incident-console 템플릿에서 출발한 목록. 머리(제목 · 건수 / 전체·담당·진행) → 검색 → 종류별 묶음의 줄.
 // 템플릿의 오른쪽 검사기 대신 줄을 누르면 기록 화면이 열린다(오른쪽은 대화 칸이 쓴다). 심사 묶음은 체크로 골라 띠에서 한꺼번에 승인한다.
+import { Badge } from '@astryxdesign/core/Badge'
+import { Card } from '@astryxdesign/core/Card'
 import { CheckboxInput } from '@astryxdesign/core/CheckboxInput'
+import { Grid } from '@astryxdesign/core/Grid'
+import { StatusDot } from '@astryxdesign/core/StatusDot'
 import { EmptyState } from '@astryxdesign/core/EmptyState'
 import { HStack, Layout, LayoutContent, LayoutHeader, StackItem, VStack } from '@astryxdesign/core/Layout'
 import { List, ListItem } from '@astryxdesign/core/List'
@@ -16,13 +20,10 @@ import { api, changedAtom, navAtom, store, targetAtom, useData } from '../state'
 import { Confirm } from '../ui/Confirm'
 import { grade } from '../ui/grade'
 import { Mark } from '../ui/Mark'
-import { Pill } from '../ui/Pill'
+import { badge, dot } from '../ui/status'
 import { num } from '../ui/Table'
 
 export type Task = { id: string; kind: string; view: string; target: string; name?: string; ym?: string; total?: number | null; marks: string[]; role: string; pick: boolean; state?: string; pay?: string | null }
-
-/** 상태 표지의 색: 심사·지급 작업의 상태 */
-const tones = { [L.대기]: 'wait', [L.승인]: 'good', [L.보류]: 'hold', [L.반려]: 'bad', [L.재심사]: 'again', [L.이체]: 'wait', [L.완료]: 'good' } as const
 
 /** 종류의 묶음(위에서 아래로). 한 건씩 정하는 작업이 위, 묶어서 승인하는 심사가 맨 아래 */
 const GROUPS: string[][] = [[L.추인, L.종결], [L.정황], [L.발송, L.소명, L.미응답], [L.지급, L.대사], [L.재상신, L.심사]]
@@ -58,6 +59,13 @@ export function Work() {
   const can = (t: Task) => t.pick && mine.some((m) => m.id === t.id)
   const chosen = mine.filter((t) => can(t) && picked.has(t.target))
   const toggle = (ids: string[], on: boolean) => setPicked((p) => new Set([...p].filter((x) => !ids.includes(x)).concat(on ? ids : [])))
+  // 요약 타일: 담당 · 진행 · 정황(내 차례 가운데 정황이 걸린 것, 주의) · 금액(내 차례의 합)
+  const tiles: [string, string, 'warning' | undefined][] = [
+    [L.담당, String(mine.length), undefined],
+    [L.진행, String(d?.going.length ?? 0), undefined],
+    [L.정황, String(mine.filter((t) => t.marks.includes(L.정황)).length), 'warning'],
+    [L.금액, num(mine.reduce((n, t) => n + (t.total ?? 0), 0)), undefined],
+  ]
   const open = (t: Task) => {
     setNav(rows.map((r) => ({ kind: r.view, id: r.target })))
     setTarget({ kind: t.view, id: t.target })
@@ -87,9 +95,26 @@ export function Work() {
       content={
         <LayoutContent padding={0}>
           <VStack gap={0} height="100%">
-            <div className="p-3">
+            <VStack gap={3} className="p-3">
+              <Grid columns={{ minWidth: 140 }} gap={3}>
+                {tiles.map(([name, value, tone]) => (
+                  <Card key={name} padding={3}>
+                    <VStack gap={1}>
+                      <HStack gap={2} vAlign="center">
+                        {tone && <StatusDot variant={tone} label={name} />}
+                        <Text type="supporting" color="secondary">
+                          {name}
+                        </Text>
+                      </HStack>
+                      <Text type="large" weight="semibold" hasTabularNumbers>
+                        {value}
+                      </Text>
+                    </VStack>
+                  </Card>
+                ))}
+              </Grid>
               <PowerSearch config={config} filters={filters} onChange={(f) => setFilters([...f])} label={L.검색} placeholder={L.검색} resultCount={String(visible.length)} />
-            </div>
+            </VStack>
             {chosen.length > 0 && (
               <TableSelectionToolbar
                 label={L.선택}
@@ -120,9 +145,7 @@ export function Work() {
                           <Text type="label" color="secondary">
                             {g.kinds.filter((k) => g.items.some((t) => t.kind === k)).join(' · ')}
                           </Text>
-                          <Text type="supporting" color="secondary" hasTabularNumbers>
-                            {g.items.length}
-                          </Text>
+                          <Badge variant="neutral" label={String(g.items.length)} />
                         </HStack>
                         <List density="compact" hasDividers>
                           {g.items.map((t) => (
@@ -131,19 +154,22 @@ export function Work() {
                               label={t.name ?? t.target}
                               description={[t.ym, t.total != null && num(t.total), t.role].filter(Boolean).join(' · ')}
                               startContent={
-                                box && (
-                                  // 줄을 여는 누름과 따로: 체크만 바뀐다
-                                  <span onClick={(e) => e.stopPropagation()}>
-                                    <CheckboxInput label={L.선택} isLabelHidden size="sm" isDisabled={!can(t)} value={picked.has(t.target) && can(t)} onChange={(on) => toggle([t.target], on)} />
-                                  </span>
-                                )
+                                <HStack gap={3} vAlign="center">
+                                  {box && (
+                                    // 줄을 여는 누름과 따로: 체크만 바뀐다
+                                    <HStack onClick={(e) => e.stopPropagation()}>
+                                      <CheckboxInput label={L.선택} isLabelHidden size="sm" isDisabled={!can(t)} value={picked.has(t.target) && can(t)} onChange={(on) => toggle([t.target], on)} />
+                                    </HStack>
+                                  )}
+                                  <StatusDot variant={dot(t.marks, t.pay ?? t.state)} label={t.marks.join(' · ') || (t.pay ?? t.state ?? t.kind)} />
+                                </HStack>
                               }
                               endContent={
                                 <HStack gap={3} vAlign="center">
                                   {t.marks.map((m) => (
                                     <Mark key={m}>{m}</Mark>
                                   ))}
-                                  {(t.pay ?? t.state) && <Pill tone={tones[(t.pay ?? t.state) as keyof typeof tones] ?? 'wait'}>{(t.pay ?? t.state)!}</Pill>}
+                                  {(t.pay ?? t.state) && <Badge variant={badge((t.pay ?? t.state)!)} label={(t.pay ?? t.state)!} />}
                                 </HStack>
                               }
                               onClick={() => open(t)}

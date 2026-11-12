@@ -1,3 +1,4 @@
+import { HStack, VStack } from '@astryxdesign/core/Layout'
 import { Text } from '@astryxdesign/core/Text'
 
 /**
@@ -5,11 +6,13 @@ import { Text } from '@astryxdesign/core/Text'
  * 결정(04의 Line), 지급 표시(07), 회신(08), 발송·접수(18) 모두 이것으로 그린다
  */
 export const Line = ({ kind, parts, memo }: { kind: string; parts: (string | null | undefined)[]; memo?: string | null }) => (
-  <div className="flex flex-col gap-0.5 break-keep">
-    <div className="flex flex-wrap items-center gap-x-2 tabular-nums">
+  <VStack gap={0.5}>
+    <HStack gap={2} vAlign="center" wrap="wrap">
       <Text weight="semibold">{kind}</Text>
-      <Text color="secondary">{parts.filter(Boolean).join(' · ')}</Text>
-    </div>
-    {memo && <p className="wrap-anywhere text-secondary">{memo}</p>}
-  </div>
+      <Text color="secondary" hasTabularNumbers>
+        {parts.filter(Boolean).join(' · ')}
+      </Text>
+    </HStack>
+    {memo && <Text color="secondary">{memo}</Text>}
+  </VStack>
 )

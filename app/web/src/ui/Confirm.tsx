@@ -1,6 +1,8 @@
 import { Button } from '@astryxdesign/core/Button'
 import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog'
 import { HStack } from '@astryxdesign/core/HStack'
+import { VStack } from '@astryxdesign/core/Layout'
+import { Text } from '@astryxdesign/core/Text'
 import { Layout, LayoutContent, LayoutFooter } from '@astryxdesign/core/Layout'
 import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
 import { type ReactNode, useState } from 'react'
@@ -35,18 +37,18 @@ export function Confirm({ label, trigger, title, rows, variant = 'secondary', is
           content={
             (rows || children) && (
               <LayoutContent>
-                <div className="flex flex-col gap-3">
+                <VStack gap={3}>
                   {rows && (
                     <MetadataList label={{ width: 72 }}>
                       {rows.map(([k, v]) => (
                         <MetadataListItem key={k} label={k}>
-                          <span className="tabular-nums">{v}</span>
+                          <Text hasTabularNumbers>{v}</Text>
                         </MetadataListItem>
                       ))}
                     </MetadataList>
                   )}
                   {children}
-                </div>
+                </VStack>
               </LayoutContent>
             )
           }

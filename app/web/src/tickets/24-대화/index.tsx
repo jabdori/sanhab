@@ -6,19 +6,24 @@ import { useChat } from '@ai-sdk/react'
 import { Button } from '@astryxdesign/core/Button'
 import { Link } from '@astryxdesign/core/Link'
 import { Avatar } from '@astryxdesign/core/Avatar'
+import { Badge } from '@astryxdesign/core/Badge'
+import { ClickableCard } from '@astryxdesign/core/ClickableCard'
+import { EmptyState } from '@astryxdesign/core/EmptyState'
+import { Grid } from '@astryxdesign/core/Grid'
+import { HStack, Layout, LayoutContent, LayoutHeader, VStack } from '@astryxdesign/core/Layout'
 import { ChatComposer, ChatComposerDrawer, ChatComposerInput, ChatLayout, ChatMessage, ChatMessageBubble, ChatMessageList, ChatSystemMessage } from '@astryxdesign/core/Chat'
 import { Icon } from '@astryxdesign/core/Icon'
 import { Heading } from '@astryxdesign/core/Text'
-import { DocumentArrowUpIcon, PaperClipIcon } from '@heroicons/react/24/outline'
+import { DocumentArrowUpIcon, PaperClipIcon, SparklesIcon } from '@heroicons/react/24/outline'
 import { Text } from '@astryxdesign/core/Text'
 import { Token } from '@astryxdesign/core/Token'
 import { DefaultChatTransport, type UIMessage } from 'ai'
 import { useAtomValue } from 'jotai'
 import { useEffect, useRef, useState } from 'react'
-import { L } from '../../labels'
+import { ASK, L } from '../../labels'
 import type { Piece } from '../../pieces'
 import { api, changedAtom, roleAtom, rolesAtom, store, targetAtom, type Target } from '../../state'
-import { Pill } from '../../ui/Pill'
+import { badge } from '../../ui/status'
 import { Card, type CardData } from '../25-카드'
 
 /** 답에 붙는 조회한 기록(서버가 `data-reads`로 보낸다). go는 이름과 같은 순서의 여는 길(열 화면이 없는 기록은 null) */
@@ -38,7 +43,7 @@ const word = (e: Error) => {
 }
 
 /** 실패의 표지: AI가 응답하지 않으면 `대기`(17의 보고와 같은 뜻), 그 밖의 낱말(대상 · 오류)은 그대로 */
-const Mark = ({ word }: { word: string }) => <Pill tone={word === L.대기 ? 'wait' : 'bad'}>{word}</Pill>
+const Mark = ({ word }: { word: string }) => <Badge variant={word === L.대기 ? 'neutral' : 'error'} label={word} />
 
 function Panel() {
   const target = useAtomValue(targetAtom)
@@ -120,12 +125,21 @@ function Panel() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-        <Heading level={3}>{L.대화}</Heading>
-        <Pill tone="wait">{L.임시}</Pill>
-      </div>
-      <div className="flex min-h-0 flex-1 flex-col">
+    <Layout
+      height="fill"
+      header={
+        <LayoutHeader hasDivider>
+          <HStack gap={2} vAlign="center">
+            <Icon icon={SparklesIcon} size="sm" color="accent" />
+            <Heading level={3}>{L.대화}</Heading>
+            <Badge variant="neutral" label={L.임시} />
+          </HStack>
+        </LayoutHeader>
+      }
+      content={
+        <LayoutContent padding={0}>
+        {/* ChatLayout은 flex 1로 높이를 채운다: 세로 Stack(높이 100%) 안에 둔다 */}
+        <VStack height="100%">
         <ChatLayout
           density="compact"
           composer={
@@ -138,7 +152,7 @@ function Panel() {
               input={<ChatComposerInput label={L.대화} placeholder={L.대화} maxRows={4} />}
               drawer={
                 <ChatComposerDrawer label={L.문맥}>
-                  <div className="flex flex-wrap items-center gap-1">
+                  <HStack gap={1} vAlign="center" wrap="wrap">
                     {now && <Token label={shown(now)} size="sm" onClick={() => setFollow(false)} />}
                     {pinned.map((t) => (
                       <Token key={key(t)} label={shown(t)} size="sm" onRemove={() => setPinned(pinned.filter((p) => !same(p, t)))} />
@@ -146,7 +160,7 @@ function Panel() {
                     {!follow && target && <Token label={shown(target)} size="sm" color="gray" onClick={() => setFollow(true)} />}
                     {file && <Token label={file.name} size="sm" onRemove={() => { setFile(null); if (pick.current) pick.current.value = '' }} />}
                     {!now && !pinned.length && !file && <Text type="supporting">{L.문맥} {L.없음}</Text>}
-                  </div>
+                  </HStack>
                 </ChatComposerDrawer>
               }
               headerActions={
@@ -158,7 +172,26 @@ function Panel() {
               footerActions={<Button label={L.보고} variant="ghost" size="sm" isDisabled={busy || keeping || !answered || !signal} onClick={keep} />}
             />
           }
+          emptyState={
+            // ai-chat-landing 꼴: 비었을 때 제목과 질문 제안. 제안을 누르면 그 말을 보낸다
+            <VStack gap={4} className="p-4">
+              <EmptyState title={L.대화} icon={<Icon icon={SparklesIcon} size="lg" color="accent" />} isCompact />
+              <Grid columns={1} gap={2}>
+                {Object.entries(ASK).map(([name, prompt]) => (
+                  <ClickableCard key={name} label={name} variant="muted" padding={3} isDisabled={busy} onClick={() => send(prompt)}>
+                    <VStack gap={0.5}>
+                      <Heading level={4}>{name}</Heading>
+                      <Text type="supporting" color="secondary">
+                        {prompt}
+                      </Text>
+                    </VStack>
+                  </ClickableCard>
+                ))}
+              </Grid>
+            </VStack>
+          }
         >
+          {messages.length > 0 || error ? (
           <ChatMessageList isStreaming={busy}>
             {messages.map((m) => {
               const reads = m.parts.flatMap((p) => (p.type === 'data-reads' ? p.data.names.map((name, i) => ({ name, go: p.data.go?.[i] ?? null })) : []))
@@ -173,7 +206,7 @@ function Panel() {
                   avatar={ai ? <Avatar name={L.AI} size="sm" /> : null}
                   metadata={
                     ids.length > 0 && (
-                      <div className="flex flex-col gap-1">
+                      <VStack gap={1}>
                         <Text type="supporting">{L.조회}</Text>
                         {/* 화면이 있는 기록은 이동 링크(다른 화면의 이동과 같은 꼴), 없는 것(사람·주소 …)은 글자 */}
                         {reads.map(({ name, go }) =>
@@ -182,19 +215,19 @@ function Panel() {
                               {name}
                             </Link>
                           ) : (
-                            <Text key={name} type="supporting" hasTabularNumbers>
-                              <span className="wrap-anywhere">{name}</span>
+                            <Text key={name} type="supporting" hasTabularNumbers className="wrap-anywhere">
+                              {name}
                             </Text>
                           ),
                         )}
-                      </div>
+                      </VStack>
                     )
                   }
                 >
                   {m.parts.map((p) => (p.type === 'file' ? <Token key={p.url.slice(-40) + p.filename} label={p.filename ?? L.서류} size="sm" /> : null))}
                   {body && (
                     <ChatMessageBubble variant={ai ? 'ghost' : undefined}>
-                      <span className="break-keep wrap-anywhere whitespace-pre-wrap">{body}</span>
+                      <Text className="break-keep wrap-anywhere whitespace-pre-wrap">{body}</Text>
                     </ChatMessageBubble>
                   )}
                   {cards.map((c) => (
@@ -207,20 +240,22 @@ function Panel() {
             })}
             {(error || kept || tooBig) && (
               <ChatSystemMessage>
-                <span className="inline-flex flex-wrap items-center gap-2">
+                <HStack gap={2} vAlign="center" wrap="wrap">
                   {error && <Mark word={word(error)} />}
                   {tooBig && <Mark word={L.대상} />}
                   {kept && (
                     <>
                       <Text type="supporting">{L.보고}</Text>
-                      {kept.state ? <Pill tone="wait">{kept.state}</Pill> : <Mark word={kept.error ?? L.오류} />}
+                      {kept.state ? <Badge variant={badge(kept.state)} label={kept.state} /> : <Mark word={kept.error ?? L.오류} />}
                     </>
                   )}
-                </span>
+                </HStack>
               </ChatSystemMessage>
             )}
           </ChatMessageList>
+          ) : null}
         </ChatLayout>
+        </VStack>
         <input ref={pick} type="file" hidden aria-label={L.서류} accept="image/png,image/jpeg,application/pdf" onChange={(e) => {
             // 19의 한도(2MB, 이미지·PDF)를 넘으면 붙이지 않는다
             const f = e.target.files?.[0] ?? null
@@ -229,8 +264,9 @@ function Panel() {
             setFile(ok ? f : null)
             if (!ok) e.target.value = ''
           }} />
-      </div>
-    </div>
+        </LayoutContent>
+      }
+    />
   )
 }
 
