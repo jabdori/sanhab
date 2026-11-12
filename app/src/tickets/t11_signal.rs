@@ -62,7 +62,7 @@ pub async fn detect(db: &Db) -> Result<()> {
     super::t12_hypo::raise(db).await
 }
 
-pub fn routes() -> Router<Db> {
+pub fn routes() -> Router<std::sync::Arc<Db>> {
     Router::new().route("/signals/{id}", get(detail)).route("/reviews/{id}/signals", get(of_review)).route("/rule", post(rule))
 }
 
@@ -104,7 +104,7 @@ async fn of_review(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
 }
 
 /// 요청 또는 기각: `{ id, kind, reason? }`. 쓰기 전에 거절의 낱말을 정해 돌려주고(`refuse`: 대상 → 권한 → 상태 → 사유), 역할의 세션으로 `ruling`을 만든다. DB의 권한 규칙은 마지막 방어선이다
-async fn rule(State(db): State<Db>, Extension(me): Extension<Me>, Body(b): Body) -> R {
+async fn rule(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<Me>, Body(b): Body) -> R {
     let bad = || refuse("대상");
     let (Some(id), Some(kind)) = (b["id"].as_str().filter(|i| !i.is_empty()), b["kind"].as_str()) else {
         return Err(bad());

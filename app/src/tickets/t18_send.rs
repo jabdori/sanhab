@@ -34,7 +34,7 @@ const CUT: usize = 2000;
 /// AI 호출의 수(자동 검사가 "같은 소명에는 다시 부르지 않는다"를 셀 때 쓴다)
 static CALLS: AtomicUsize = AtomicUsize::new(0);
 
-pub fn routes() -> Router<Db> {
+pub fn routes() -> Router<std::sync::Arc<Db>> {
     Router::new().route("/clarifies/{id}", get(detail)).route("/signals/{id}/clarifies", get(of_signal)).route("/send", post(send))
 }
 
@@ -68,14 +68,18 @@ async fn row(db: &Db, id: &str) -> Result<Option<(J, BTreeSet<&'static str>, Vec
     let c = q1(db, "
         LET $c = type::record('clarify', $id);
         RETURN (SELECT record::id(id) AS id, name, state, source, record::id(dealer) AS dealer, dealer.name AS dealer_name,
-            record::id(signal) AS signal, signal.kind AS signal_kind, signal.name AS signal_name, signal.state AS signal_state,
-            signal.dealers.map(|$d| record::id($d)) AS dealers, docs, body, draft, draft_model,
+            IF signal THEN record::id(signal) END AS signal, signal.kind AS signal_kind, signal.name AS signal_name, signal.state AS signal_state,
+            (pair ?? signal.dealers).map(|$d| record::id($d)) AS dealers, kind AS own_kind, docs, body, draft, draft_model,
             IF sent THEN time::format(sent, '%Y-%m-%d') END AS sent, IF due THEN time::format(due, '%Y-%m-%d') END AS due FROM $c)[0];", json!({ "id": id })).await?;
     if c.is_null() {
         return Ok(None);
     }
     let ds: Vec<String> = c["dealers"].as_array().into_iter().flatten().filter_map(|d| d.as_str().map(String::from)).collect();
-    let ks = kinds(db, c["signal_kind"].as_str().unwrap_or_default(), &ds).await?;
+    // 대리점이 먼저 낸 소명(20, D59)은 그 일치 종류 하나다
+    let ks = match c["own_kind"].as_str().and_then(|k| ITEMS.iter().find(|i| **i == k)) {
+        Some(k) => BTreeSet::from([*k]),
+        None => kinds(db, c["signal_kind"].as_str().unwrap_or_default(), &ds).await?,
+    };
     let docs = if c["sent"].is_null() {
         docs_of(&ks)
     } else {
@@ -143,7 +147,7 @@ pub async fn sweep(db: &Db) -> Result<()> {
 /// `sweep`의 키를 인자로 뗀 것(자동 검사는 환경과 상관없이 키 없음을 탄다)
 async fn sweep_with(db: &Db, key: Option<&str>) -> Result<()> {
     let ids = q1(db, &format!("
-        RETURN (SELECT VALUE record::id(id) FROM clarify WHERE sent = NONE AND draft = NONE AND state = '요청' AND (draft_tried = NONE OR (time::now() - draft_tried) > {RETRY}s) ORDER BY id);"), json!({})).await?;
+        RETURN (SELECT VALUE record::id(id) FROM clarify WHERE sent = NONE AND pair = NONE AND draft = NONE AND state = '요청' AND (draft_tried = NONE OR (time::now() - draft_tried) > {RETRY}s) ORDER BY id);"), json!({})).await?;
     for id in ids.as_array().into_iter().flatten().filter_map(|i| i.as_str()) {
         draft(db, id, key).await.ok();
     }
@@ -154,7 +158,7 @@ async fn sweep_with(db: &Db, key: Option<&str>) -> Result<()> {
 
 /// 소명 상세. 가운데: 소명(`clarify`: 이름, 상태, 대리점, 정황), 일치 종류(`kinds`)와 서류 목록(`docs`: `[종류, 서류]`. 발송했으면 그때의 것), 발송한 날(`sent`)과 기한(`due`), 발송한 요청서의 글(`body`).
 /// 오른쪽: 요청서 초안(`draft`: 값 자리를 채운 글과 모델. 없으면 AI가 아직 쓰지 못했다), 지금 역할이 발송할 수 있는지(`can`), 담당하는 역할(`role`), 이력(`history`: 요청, 발송). 없는 소명은 404
-async fn detail(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
+async fn detail(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
     let Some((c, ks, docs)) = row(&db, &id).await.map_err(|_| err(StatusCode::NOT_FOUND, "없음"))? else { return Err(err(StatusCode::NOT_FOUND, "없음")) };
     let r = q1(&me.db, "
         LET $c = type::record('clarify', $id);
@@ -162,16 +166,24 @@ async fn detail(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): Pa
             can: fn::sendable($c),
             history: array::concat(
                 (SELECT kind, role, time::format(at, '%Y-%m-%d') AS at, reason, source, <string> stamp AS stamp FROM ruling WHERE id = type::record('ruling', $id)),
-                (SELECT '발송' AS kind, role, time::format(at, '%Y-%m-%d') AS at, NONE AS reason, source, <string> stamp AS stamp FROM dispatch WHERE clarify = $c)),
+                (SELECT '발송' AS kind, role, time::format(at, '%Y-%m-%d') AS at, NONE AS reason, source, <string> stamp AS stamp FROM dispatch WHERE clarify = $c),
+                (SELECT kind, role, time::format(at, '%Y-%m-%d') AS at, reason, source, <string> stamp AS stamp FROM verdict WHERE clarify = $c),
+                IF $c.pair != NONE THEN (SELECT '접수' AS kind, role, time::format(at, '%Y-%m-%d') AS at, NONE AS reason, source, <string> stamp AS stamp FROM doc WHERE clarify = $c ORDER BY stamp LIMIT 1) ELSE [] END),   -- 20(D59): 대리점이 먼저 낸 소명은 처음 서류를 받은 것이 접수   -- 20: 소명의 결과(인정·불인정·보완)
         };", json!({ "id": id })).await?;
+    // 일어난 순서(보완 뒤에 다시 발송하면 줄이 섞이므로 시각으로 맞춘다)
+    let mut r = r;
+    if let Some(h) = r["history"].as_array_mut() {
+        h.sort_by(|a, b| a["stamp"].as_str().cmp(&b["stamp"].as_str()));
+    }
     let dealer = c["dealer_name"].as_str().unwrap_or_default();
     let draft = c["draft"].as_str().filter(|_| c["sent"].is_null()).map(|t| json!({ "text": fill(t, dealer), "model": c["draft_model"], "source": "AI" }));
     Ok(Json(json!({
         "clarify": { "id": c["id"], "name": c["name"], "state": c["state"], "source": c["source"],
-            "dealer": { "id": c["dealer"], "name": c["dealer_name"] }, "signal": { "id": c["signal"], "kind": c["signal_kind"], "name": c["signal_name"], "state": c["signal_state"] } },
+            "dealer": { "id": c["dealer"], "name": c["dealer_name"] },
+            "signal": if c["signal"].is_null() { J::Null } else { json!({ "id": c["signal"], "kind": c["signal_kind"], "name": c["signal_name"], "state": c["signal_state"] }) } },
         "kinds": DOCS.iter().map(|d| d.0).filter(|k| ks.contains(k)).collect::<Vec<_>>(),
         "docs": docs, "body": c["body"], "sent": c["sent"], "due": c["due"], "draft": draft,
-        "role": "영업지원", "can": r["can"], "history": r["history"],
+        "role": if c["state"] == "접수" { "내부 감시" } else { "영업지원" }, "can": r["can"], "history": r["history"],
     })))
 }
 
@@ -183,7 +195,7 @@ async fn of_signal(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
 
 /// 발송으로 표시: `{ id, body? }`. 쓰기 전에 거절의 낱말을 정해 돌려주고(`refuse`: 대상 → 권한 → 상태), 역할의 세션으로 `dispatch`를 만든다. 서류 목록은 코드가 정한다(보낸 값은 받지 않는다).
 /// 서류 목록이 비고(일치 종류가 없는 정황) 글도 없으면 보낼 것이 없어 대상이다. DB의 권한 규칙은 마지막 방어선이다
-async fn send(State(db): State<Db>, Extension(me): Extension<Me>, Body(b): Body) -> R {
+async fn send(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<Me>, Body(b): Body) -> R {
     let bad = || refuse("대상");
     let id = b["id"].as_str().filter(|i| !i.is_empty()).ok_or_else(bad)?;
     let text = match &b["body"] {

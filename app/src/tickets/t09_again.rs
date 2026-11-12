@@ -82,13 +82,13 @@ pub async fn remark(db: &Db) -> Result<()> {
     super::t10_ratify::bundle(db, &now).await
 }
 
-pub fn routes() -> Router<Db> {
+pub fn routes() -> Router<std::sync::Arc<Db>> {
     Router::new().route("/reviews/{id}/again", get(again))
 }
 
 /// 당시 / 현재: 굳은 승인의 당시 값(`then`: 구성원 수, 합산, 승인권자)과 현재 계산(`now`: 구성원, 합산, 한도, 승인권자, 규칙 버전).
 /// `known`은 현재의 구성을 만든 식별자 선의 인지일 가운데 가장 늦은 날(모두 미상이면 null), `paid`는 그 심사의 지급 가운데 원본에 지급일이 있는 것. 굳은 승인이 아니면 404
-async fn again(State(db): State<Db>, Path(id): Path<String>) -> R {
+async fn again(State(db): State<std::sync::Arc<Db>>, Path(id): Path<String>) -> R {
     let Some(n) = current(&db).await?.remove(&id) else {
         return Err(err(StatusCode::NOT_FOUND, "없음"));
     };

@@ -29,10 +29,10 @@ pub struct Link {
 }
 
 /// 계산에 쓰는 선. `period`는 (첫날, 끝날) `YYYY-MM-DD`이고 없으면 시스템의 오늘 하루다.
-/// 유효 기간이 그 기간과 하루라도 겹치는 선을 읽고, 소명으로 제외된 선은 뺀다
+/// 유효 기간이 그 기간과 하루라도 겹치는 선을 읽고, 소명으로 제외된 선은 뺀다(제외의 기간(`ex_from`·`ex_to`, 20)이 있으면 그 기간과 겹칠 때만 뺀다)
 pub async fn links(db: &Db, period: Option<(&str, &str)>) -> Result<Vec<Link>> {
     let one = |i: usize, table: &str, value: &str| {
-        format!("(SELECT record::id(in) AS dealer, in.name AS name, {i} AS item, <string> out AS node, out.{value} AS value FROM {table} WHERE !excluded AND since <= $t AND (until = NONE OR until > $f))")
+        format!("(SELECT record::id(in) AS dealer, in.name AS name, {i} AS item, <string> out AS node, out.{value} AS value FROM {table} WHERE (!excluded OR (ex_from != NONE AND $t < ex_from) OR (ex_to != NONE AND $f > ex_to)) AND since <= $t AND (until = NONE OR until > $f))")
     };
     let sql = format!(
         "LET $f = IF $from THEN <datetime> ($from + 'T00:00:00Z') ELSE fn::today() END;
@@ -90,12 +90,12 @@ pub fn groups(links: &[Link]) -> Vec<Vec<String>> {
     out.into_values().collect()
 }
 
-pub fn routes() -> Router<Db> {
+pub fn routes() -> Router<std::sync::Arc<Db>> {
     Router::new().route("/dealers/{id}/related", get(related))
 }
 
 /// 대리점의 관계(지금): 자기 식별자(`idents`), 그 가운데 하나라도 함께 가리키는 대리점(`near`: 일치하는 종류와 관련자 여부), 그림의 선(`lines`), 그룹(`group`, 자기 포함)
-async fn related(State(db): State<Db>, Path(id): Path<String>) -> R {
+async fn related(State(db): State<std::sync::Arc<Db>>, Path(id): Path<String>) -> R {
     let all = links(&db, None).await?;
     let mine: Vec<&Link> = all.iter().filter(|l| l.dealer == id).collect();
     // 유효한 선이 하나도 없는 대리점(모두 제외되었거나 기간이 지남)도 있는 대리점이다: 이웃 없이 자기만 든 그룹

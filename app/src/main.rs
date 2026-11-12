@@ -68,7 +68,7 @@ pub struct Me {
 pub fn demo_pass() -> String { std::env::var("DEMO_PASS").unwrap_or_else(|_| "demo".into()) }
 
 /// /api 전체의 문. 토큰은 DB가 검증한다. 접속(`/api/enter`)만 이 문 밖에 있다.
-async fn gate(State(db): State<Db>, mut req: Request, next: Next) -> Result<Response, ApiError> {
+async fn gate(State(db): State<std::sync::Arc<Db>>, mut req: Request, next: Next) -> Result<Response, ApiError> {
     let deny = || err(StatusCode::UNAUTHORIZED, "접속");
     let token = req.headers().get(header::AUTHORIZATION).and_then(|v| v.to_str().ok()).and_then(|v| v.strip_prefix("Bearer ")).ok_or_else(deny)?;
     let s = as_user(&db, token).await.map_err(|_| deny())?;
@@ -81,20 +81,56 @@ async fn gate(State(db): State<Db>, mut req: Request, next: Next) -> Result<Resp
 async fn sign_all(db: &Db, pass: &str) -> anyhow::Result<J> {
     let mut roles = vec![];
     for (user, role) in tickets::ROLES {
-        roles.push(json!({ "role": role, "token": db::signin(db, user, pass).await? }));
+        let t = tokio::time::timeout(std::time::Duration::from_secs(30), db::signin(db, user, pass)).await.map_err(|_| anyhow::anyhow!("{user} 로그인 30초 초과"))??;
+        roles.push(json!({ "role": role, "token": t }));
     }
     Ok(json!({ "roles": roles }))
 }
 
-async fn enter(State(db): State<Db>, Body(b): Body) -> R {
-    let r = sign_all(&db, b["pass"].as_str().unwrap_or("")).await.map_err(|_| err(StatusCode::UNAUTHORIZED, "접속"))?;
-    Ok(Json(r))
+/// 발급해 둔 토큰(접속마다 네 번 로그인하면 argon2 대조가 작은 파드에서 수십 초 걸린다). 초기화 때 새로 채운다.
+/// ponytail: 토큰 하나를 접속한 모두가 같이 쓴다(시연용 공용 패스워드라 사람마다 나눌 것이 없다). 유효 12시간이라 11시간이 지나면 다시 받는다
+static TOKENS: std::sync::Mutex<Option<(J, std::time::Instant)>> = std::sync::Mutex::new(None);
+
+async fn tokens(db: &Db, fresh: bool) -> anyhow::Result<J> {
+    if !fresh {
+        if let Some((t, at)) = TOKENS.lock().unwrap().clone() {
+            if at.elapsed() < std::time::Duration::from_secs(11 * 3600) {
+                return Ok(t);
+            }
+        }
+    }
+    let t = sign_all(db, &demo_pass()).await?;
+    // 받은 토큰의 세션도 미리 인증해 둔다(첫 화면이 기다리지 않게)
+    for r in t["roles"].as_array().into_iter().flatten() {
+        db::as_user(db, r["token"].as_str().unwrap_or("")).await?;
+    }
+    *TOKENS.lock().unwrap() = Some((t.clone(), std::time::Instant::now()));
+    Ok(t)
+}
+
+async fn enter(State(db): State<std::sync::Arc<Db>>, Body(b): Body) -> R {
+    use subtle_eq::eq;
+    if !eq(b["pass"].as_str().unwrap_or("").as_bytes(), demo_pass().as_bytes()) {
+        return Err(err(StatusCode::UNAUTHORIZED, "접속"));
+    }
+    Ok(Json(tokens(&db, false).await.map_err(|_| err(StatusCode::UNAUTHORIZED, "접속"))?))
+}
+
+/// 길이와 상관없이 끝까지 견주는 비교(패스워드 대조의 시간으로 값을 알아내지 못하게)
+mod subtle_eq {
+    pub fn eq(a: &[u8], b: &[u8]) -> bool {
+        let mut d = a.len() ^ b.len();
+        for i in 0..a.len().max(b.len()) {
+            d |= (*a.get(i).unwrap_or(&0) ^ *b.get(i).unwrap_or(&0)) as usize;
+        }
+        d == 0
+    }
 }
 
 /// 초기화: DB를 원본 상태로 되돌린다. 토큰이 새로 발급되므로 접속과 같은 응답을 준다.
-async fn reset(State(db): State<Db>) -> R {
+async fn reset(State(db): State<std::sync::Arc<Db>>) -> R {
     boot(&db, true).await?;
-    Ok(Json(sign_all(&db, &demo_pass()).await?))
+    Ok(Json(tokens(&db, true).await?))
 }
 
 /// 스키마와 원본 적재. 볼륨이 사라져도(크레딧 소진) 원본에서 같은 상태로 다시 만든다.
@@ -105,16 +141,40 @@ pub async fn boot(db: &Db, force: bool) -> anyhow::Result<bool> {
         return Ok(false);
     }
     let name = db::dbname();
+    // 둘 이상이 동시에 뜨면(배포에서 컨테이너가 바뀌거나 다시 시작될 때) 한 곳만 적재한다. 다른 곳이 적재 중이면 끝나기를 기다린다.
+    // 잠금은 적재가 지우는 데이터베이스 밖(`boot`)에 둔다. 3분이 지난 잠금은 멈춘 것으로 보고 치운다
+    let me = format!("{:?}", std::time::SystemTime::now());
+    let lock = format!("USE DB boot; DEFINE TABLE IF NOT EXISTS lock SCHEMALESS; DELETE lock:boot WHERE at < time::now() - 3m; CREATE lock:boot SET by = $me, at = time::now(); USE DB {name};");
+    let unlock = format!("USE DB boot; DELETE lock:boot WHERE by = $me; USE DB {name};");
+    let mut waited = false;
+    while q(db, &lock, json!({ "me": me })).await.is_err() {
+        waited = true;
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    }
+    if waited && !force && q1(db, "RETURN meta:v.schema;", json!({})).await.is_ok_and(|v| v == ver.as_str()) {
+        q(db, &unlock, json!({ "me": me })).await.ok();
+        return Ok(false);
+    }
+    let r = seed_all(db, &name, &ver).await;
+    q(db, &unlock, json!({ "me": me })).await.ok();
+    r.map(|_| true)
+}
+
+async fn seed_all(db: &Db, name: &str, ver: &str) -> anyhow::Result<()> {
     q(db, &format!("REMOVE DATABASE IF EXISTS {name}; DEFINE DATABASE {name};"), json!({})).await?;
     for s in tickets::SCHEMAS {
         q(db, s, json!({})).await?;
     }
     tickets::seed(db).await?;
+    db::forget_sessions();
+    *TOKENS.lock().unwrap() = None; // 다시 적재하면 접속 역할이 새로 만들어져 받아 둔 토큰이 무효가 된다
     q(db, "UPDATE meta:v SET schema = $ver;", json!({ "ver": ver })).await?;
-    Ok(true)
+    Ok(())
 }
 
 pub fn app(db: Db) -> Router {
+    // 같은 루트 클라이언트를 요청마다 복제(clone)하면 SDK가 복제마다 새 세션을 만들어 쿼리 하나에 몇 초씩 걸렸다 — Arc로 나눠 쓴다
+    let db = std::sync::Arc::new(db);
     let api = tickets::routes()
         .route("/reset", post(reset))
         .fallback(|| async { err(StatusCode::NOT_FOUND, "없음") })
@@ -126,7 +186,7 @@ pub fn app(db: Db) -> Router {
         .route("/assets/app.js", file("text/javascript; charset=utf-8", JS.as_bytes()))
         .route("/assets/app.css", file("text/css; charset=utf-8", CSS.as_bytes()))
         .route("/assets/PretendardVariable.woff2", file("font/woff2", FONT))
-        .route("/healthz", get(|State(db): State<Db>| async move { Json(json!({ "ok": db.health().await.is_ok() })) }))
+        .route("/healthz", get(|State(db): State<std::sync::Arc<Db>>| async move { Json(json!({ "ok": db.health().await.is_ok() })) }))
         .nest("/api", api)
         .with_state(db)
 }
@@ -173,7 +233,20 @@ async fn main() -> anyhow::Result<std::process::ExitCode> {
         println!("check OK");
     } else {
         println!("boot seeded: {}", boot(&db, false).await?);
-        tokio::spawn(tickets::ai_worker(db.clone()));
+        // 첫 접속이 기다리지 않게 토큰을 미리 받아 둔다
+        {
+            let d = db.clone();
+            tokio::spawn(async move {
+                let t0 = std::time::Instant::now();
+                match tokio::time::timeout(std::time::Duration::from_secs(600), tokens(&d, true)).await {
+                    Ok(Ok(_)) => println!("tokens ready {:.1}s", t0.elapsed().as_secs_f32()),
+                    Ok(Err(e)) => println!("tokens failed {:.1}s: {e:#}", t0.elapsed().as_secs_f32()),
+                    Err(_) => println!("tokens timeout 600s"),
+                }
+            });
+        }
+        // 일꾼은 따로 연결한다: 같은 클라이언트를 쓰면 일꾼의 요청 뒤에 화면의 요청이 줄을 서서 작은 파드에서 몇 초씩 밀렸다
+        tokio::spawn(tickets::ai_worker(connect_retry().await?));
         let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
         println!("listening :{port}");
         axum::serve(listener, app(db)).with_graceful_shutdown(async { tokio::signal::ctrl_c().await.ok(); }).await?;

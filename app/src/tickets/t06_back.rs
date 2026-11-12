@@ -11,7 +11,7 @@ use serde_json::{Value as J, json};
 
 pub const SCHEMA: &str = include_str!("../../db/06-반려.surql");
 
-pub fn routes() -> Router<Db> {
+pub fn routes() -> Router<std::sync::Arc<Db>> {
     Router::new().route("/reviews/{id}/resubmit", get(state)).route("/resubmit", post(resubmit))
 }
 
