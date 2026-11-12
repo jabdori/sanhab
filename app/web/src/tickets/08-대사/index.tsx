@@ -81,15 +81,16 @@ function Fact() {
     <>
       {recon && verdict(recon.verdict)}
       {last && (
-        // 모의 회신(시연 서랍에서 넣은 가상의 은행 회신, A05 §6): 종류 · 대상 · 넣은 값 · 누가 언제 · 이유
+        // 모의 회신(시연 서랍에서 넣은 가상의 은행 회신, A05 §6): 종류 · 대상 · 넣은 값 · 역할 · 날짜 · 이유
         <Source
-          kind={last.source}
+          kind={L.모의}
           tip={L.회신}
           rows={[
             [L.종류, L.회신],
             [L.대상, d.name],
             [L.값, [num(last.amount), last.account, last.result].join(' · ')],
-            [L['적용 시점'], [last.role, last.at].join(' · ')],
+            [L.역할, last.role],
+            [L.날짜, last.at],
             [L.이유, L.시연],
           ]}
         />

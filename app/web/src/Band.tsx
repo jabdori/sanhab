@@ -82,7 +82,16 @@ function Demo() {
       {pieces.length > 0 && <SlotView slot="demo" />}
       <Region title={L.초기화}>
         <div>
-          <Confirm label={L.초기화} variant="destructive" rows={[[L.날짜, `${today} → ${START}`]]} onConfirm={() => api('/reset', {}).then(() => setTarget(null), () => {})} />
+          <Confirm
+            label={L.초기화}
+            variant="destructive"
+            rows={[
+              // 사람이 앱에서 만든 기록 전부가 지워지고 원본만 남는다
+              [L.대상, [L.결정, L.변경, L.정황, L.소명, L.서류, L.지급, L.회신, L.보고].join(' · ')],
+              [L.날짜, `${today} → ${START}`],
+            ]}
+            onConfirm={() => api('/reset', {}).then(() => setTarget(null), () => {})}
+          />
         </div>
       </Region>
     </div>
