@@ -13,6 +13,7 @@ import { Confirm } from '../../ui/Confirm'
 import { Empty } from '../../ui/Empty'
 import { grade } from '../../ui/grade'
 import { Pill } from '../../ui/Pill'
+import { Region } from '../../ui/Region'
 
 const ITEMS = [L.대표자, L.주소, L.계좌] as const
 
@@ -76,7 +77,11 @@ function Action() {
   const target = useAtomValue(targetAtom)
   if (!target || can === undefined) return null
   if (!can) return <Empty />
-  return <Form key={target.id} id={target.id} />
+  return (
+    <Region title={L.변경}>
+      <Form key={target.id} id={target.id} />
+    </Region>
+  )
 }
 
 type Change = { kind: string; role: string; at: string; item: string; value: string; since: string }
