@@ -1,13 +1,13 @@
 // 16 경위: 지급·심사·추인의 오른쪽 경위 칸에 시간순 목록(날짜, 종류, 대상)과 `그림` 버튼. 누르면 가운데가 경위 그림으로 바뀐다.
 // 그림: 원인은 왼쪽, 결과는 오른쪽, 방향은 바뀌지 않는다. 지금 대상의 줄기(앞뒤로 이어진 칸과 선)가 진하다. 칸을 누르면 그 대상으로 간다. 결정의 칸에는 사람과 사유가 붙는다.
 import { Link } from '@astryxdesign/core/Link'
+import { Text } from '@astryxdesign/core/Text'
 import { ToggleButton } from '@astryxdesign/core/ToggleButton'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { L } from '../../labels'
 import type { Piece } from '../../pieces'
 import { targetAtom, trailOpenAtom, useData } from '../../state'
 import { Empty } from '../../ui/Empty'
-import { button, label } from '../../ui/styles'
 import { Table } from '../../ui/Table'
 
 type Node = {
@@ -101,13 +101,13 @@ function Picture() {
   const height = (Math.max(...Object.values(rows)) + 1) * (H + GAP_Y) - GAP_Y
   return (
     <div className="overflow-x-auto">
-      <svg role="img" aria-label={L.경위} viewBox={`0 0 ${width} ${height}`} width={width} height={height} className="h-auto max-w-full text-label">
+      <svg role="img" aria-label={L.경위} viewBox={`0 0 ${width} ${height}`} width={width} height={height} className="h-auto max-w-full">
         <defs>
-          <marker id="head" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" orient="auto">
-            <path d="M0 0L8 4L0 8z" className="fill-text-mute" />
+          <marker id="head" markerUnits="userSpaceOnUse" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" orient="auto">
+            <path d="M0 0L8 4L0 8z" className="fill-disabled" />
           </marker>
-          <marker id="head-on" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" orient="auto">
-            <path d="M0 0L8 4L0 8z" className="fill-text" />
+          <marker id="head-on" markerUnits="userSpaceOnUse" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" orient="auto">
+            <path d="M0 0L8 4L0 8z" className="fill-primary" />
           </marker>
         </defs>
         {d.edges.map(([a, b]) => {
@@ -120,7 +120,7 @@ function Picture() {
               x2={pos[b].x}
               y2={pos[b].y + H / 2}
               markerEnd={`url(#${strong ? 'head-on' : 'head'})`}
-              className={strong ? 'stroke-text' : 'stroke-text-mute'}
+              className={strong ? 'stroke-primary' : 'stroke-disabled'}
               strokeWidth={strong ? 2 : 1}
             />
           )
@@ -131,21 +131,25 @@ function Picture() {
               type="button"
               aria-current={n.key === d.now || undefined}
               onClick={() => setTarget(n.go)}
-              className={`flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-box border px-2 py-1 text-left hover:bg-surface ${n.key === d.now ? 'border-2 border-text bg-surface' : on.has(n.key) ? 'border-text-sub bg-bg' : 'border-line bg-bg opacity-60'}`}
+              className={`flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-md border px-2 py-1 text-left hover:bg-muted ${n.key === d.now ? 'border-2 border-primary bg-muted' : on.has(n.key) ? 'border-secondary bg-surface' : 'border-border bg-surface opacity-60'}`}
             >
-              <span className={label}>{n.kind}</span>
-              <span className={`${label} whitespace-nowrap tabular-nums`}>{n.at ?? L.미상}</span>
-              <span className="line-clamp-2 text-base break-keep" title={n.name}>
-                {n.name}
+              <Text type="supporting">{n.kind}</Text>
+              <span className="whitespace-nowrap">
+                <Text type="supporting" hasTabularNumbers>
+                  {n.at ?? L.미상}
+                </Text>
+              </span>
+              <span className="line-clamp-2 break-keep" title={n.name}>
+                <Text weight="medium">{n.name}</Text>
               </span>
               {n.who?.role && (
-                <span className={`${label} line-clamp-2`}>
-                  {[n.who.role, n.who.reason?.class].filter(Boolean).join(' · ')}
+                <span className="line-clamp-2">
+                  <Text type="supporting">{[n.who.role, n.who.reason?.class].filter(Boolean).join(' · ')}</Text>
                 </span>
               )}
               {n.who?.reason?.memo && (
-                <span className={`${label} line-clamp-2`} title={n.who.reason.memo}>
-                  {n.who.reason.memo}
+                <span className="line-clamp-2" title={n.who.reason.memo}>
+                  <Text type="supporting">{n.who.reason.memo}</Text>
                 </span>
               )}
             </button>

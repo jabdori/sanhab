@@ -1,19 +1,20 @@
 // 08 대사: 지급 상세의 가운데에 "대사" 표(승인 / 회신 / 비교, 지급 시도마다 줄), 오른쪽 조치에 은행 회신 입력(금액, 계좌, 결과), 이력에 지급 표시와 회신을 일어난 순서대로.
 // 회신은 사람이 넣은 것(출처 시연), 비교는 코드가 맞춰 본 것(출처 계산)이다.
-import { AlertDialog } from '@base-ui/react/alert-dialog'
-import { Input } from '@base-ui/react/input'
-import { Radio } from '@base-ui/react/radio'
-import { RadioGroup } from '@base-ui/react/radio-group'
+import { RadioList, RadioListItem } from '@astryxdesign/core/RadioList'
+import { Text } from '@astryxdesign/core/Text'
+import { TextInput } from '@astryxdesign/core/TextInput'
 import { atom, useAtomValue } from 'jotai'
 import { unwrap } from 'jotai/utils'
 import { useState } from 'react'
 import { L } from '../../labels'
 import type { Piece } from '../../pieces'
 import { api, changedAtom, roleAtom, store, targetAtom } from '../../state'
+import { Confirm } from '../../ui/Confirm'
 import { Empty } from '../../ui/Empty'
+import { grade } from '../../ui/grade'
 import { Pill } from '../../ui/Pill'
+import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
-import { button, floating, label } from '../../ui/styles'
 import { Table, num } from '../../ui/Table'
 
 type Recon = {
@@ -54,7 +55,7 @@ function useRecon() {
 }
 
 const verdict = (v: string) => <Pill tone={v === L.일치 ? 'good' : 'bad'}>{v}</Pill>
-const none = <span className="text-text-mute">{L.없음}</span>
+const none = <Text color="secondary">{L.없음}</Text>
 
 /** 대사 표: 지급 시도마다 금액·계좌 두 줄에 승인 / 회신 / 비교. 실패한 시도의 비교는 실패, 성공한 시도는 항목마다 일치·불일치.
  *  아직 회신이 없는 시도(지급 전, 실패 뒤 다시 지급할 것 포함)는 승인 쪽만 채워져 있다. 맨 아래 줄은 열마다의 출처 */
@@ -69,17 +70,13 @@ function Fact() {
   const accounts = d.want.accounts.length ? d.want.accounts.join(' · ') : none
   const name = (i: number, item: string) => (
     <span className="flex items-baseline gap-2">
-      {tries.length > 1 && <span className="text-text-sub">{i + 1}</span>}
-      {item}
+      {tries.length > 1 && <Text type="supporting">{i + 1}</Text>}
+      <Text weight="medium">{item}</Text>
     </span>
   )
   const cmp = (r: Recon['history'][number] | null, item: string) => (!r ? none : r.result === L.실패 ? verdict(L.실패) : recon ? verdict(recon.diff.includes(item) ? L.불일치 : L.일치) : none)
   return (
-    <section className="mb-4 flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <h2 className={label}>{L.대사}</h2>
-        {recon && verdict(recon.verdict)}
-      </div>
+    <Region title={L.대사} aside={recon && verdict(recon.verdict)}>
       <Table
         head={['', L.승인, L.회신, L.비교]}
         right={[1, 2]}
@@ -88,47 +85,35 @@ function Fact() {
             [name(i, L.금액), num(d.want.amount), r ? num(r.amount) : none, cmp(r, L.금액)],
             [name(i, L.계좌), accounts, r ? r.account : none, cmp(r, L.계좌)],
           ]),
-          // 열마다의 출처: 회신은 사람이 넣은 것(누가 언제), 비교는 코드가 맞춰 본 것(무엇이 같으면 일치인지). 승인의 금액과 계좌는 위의 숫자 줄에 출처가 있다
+          // 열마다의 출처: 회신은 사람이 넣은 것(모의, 누가 언제), 비교는 코드가 맞춰 본 것(무엇이 같으면 일치인지). 승인의 금액과 계좌는 머리의 숫자 줄에 출처가 있다
           [
-            L.출처,
+            <Text color="secondary">{L.출처}</Text>,
             null,
-            last ? (
-              <Source kind={last.source} side="top">
-                <dl className="grid grid-cols-2 gap-x-2 gap-y-1">
-                  <dt className={label}>{L.역할}</dt>
-                  <dd>{last.role}</dd>
-                  <dt className={label}>{L.날짜}</dt>
-                  <dd className="tabular-nums">{last.at}</dd>
-                </dl>
-              </Source>
-            ) : (
-              none
-            ),
-            <Source kind={L.계산} side="top">
-              <dl className="grid grid-cols-2 gap-x-2 gap-y-1">
-                <dt className={label}>{L.일치}</dt>
-                <dd>{L['결과 성공, 금액과 계좌 같음']}</dd>
-                <dt className={label}>{L.불일치}</dt>
-                <dd>{L['결과 성공, 금액이나 계좌 다름']}</dd>
-                <dt className={label}>{L.실패}</dt>
-                <dd>{L['결과 실패']}</dd>
-              </dl>
-            </Source>,
+            last ? <Source kind={last.source} side="top" tip={L.회신} rows={[[L.역할, last.role], [L.날짜, last.at]]} /> : none,
+            <Source
+              kind={L.계산}
+              side="top"
+              tip={L.비교}
+              rows={[
+                [L.일치, L['결과 성공, 금액과 계좌 같음']],
+                [L.불일치, L['결과 성공, 금액이나 계좌 다름']],
+                [L.실패, L['결과 실패']],
+              ]}
+            />,
           ],
         ]}
       />
-    </section>
+    </Region>
   )
 }
 
-/** 이력 한 줄: 지급 · 사람 · 날짜 / 회신 · 결과 · 사람 · 날짜 */
+/** 이력 한 줄: 지급 · 사람 · 날짜 / 회신 · 결과 · 사람 · 날짜. 앞의 낱말이 굵다 */
 const Line = ({ r }: { r: { kind?: string; result?: string | null; role: string; at: string } }) => (
-  <p className="text-base tabular-nums">{[r.kind ?? L.회신, r.result, r.role, r.at].filter(Boolean).join(' · ')}</p>
+  <div className="flex flex-wrap items-center gap-x-2 tabular-nums">
+    <Text weight="semibold">{r.kind ?? L.회신}</Text>
+    <Text color="secondary">{[r.result, r.role, r.at].filter(Boolean).join(' · ')}</Text>
+  </div>
 )
-
-const row = 'flex items-center gap-2'
-const name = `w-8 shrink-0 ${label}`
-const field = 'h-head min-w-0 flex-1 rounded-box border border-line bg-bg px-2 text-base tabular-nums outline-none focus:border-text-sub'
 
 /** 은행 회신 입력: 금액, 계좌, 결과. 승인된 값이 미리 들어 있고 고쳐서 보낸다(모의 처리). 고칠 수 없는 조치라 확인 창을 거치고, 보낸 뒤 새 값을 받을 때까지는 다시 눌리지 않는다 */
 function Form({ d }: { d: Recon }) {
@@ -140,56 +125,27 @@ function Form({ d }: { d: Recon }) {
   const won = /^[\d,]+$/.test(amount.trim()) ? Number(amount.replace(/,/g, '')) : 0
   const ok = won >= 1 && account.trim() !== ''
   return (
-    <div className="flex flex-col gap-2">
-      <label className={row}>
-        <span className={name}>{L.금액}</span>
-        <Input inputMode="numeric" className={`${field} text-right`} value={amount} onValueChange={setAmount} />
-      </label>
-      <label className={row}>
-        <span className={name}>{L.계좌}</span>
-        <Input className={field} value={account} onValueChange={setAccount} />
-      </label>
-      <div className={row}>
-        <span className={name}>{L.결과}</span>
-        <RadioGroup aria-label={L.결과} value={result} onValueChange={(v) => setResult(v as string)} className="flex gap-4">
-          {[L.성공, L.실패].map((v) => (
-            <label key={v} className="flex cursor-pointer items-center gap-1 text-base">
-              <Radio.Root value={v} className="flex size-4 items-center justify-center rounded-pill border border-text-sub bg-bg data-checked:border-action">
-                <Radio.Indicator className="size-2 rounded-pill bg-action data-unchecked:hidden" />
-              </Radio.Root>
-              {v}
-            </label>
-          ))}
-        </RadioGroup>
+    <>
+      <TextInput label={L.금액} inputMode="numeric" width="100%" value={amount} onChange={setAmount} />
+      <TextInput label={L.계좌} width="100%" value={account} onChange={setAccount} />
+      <RadioList label={L.결과} orientation="horizontal" value={result} onChange={setResult}>
+        {[L.성공, L.실패].map((v) => (
+          <RadioListItem key={v} value={v} label={v} />
+        ))}
+      </RadioList>
+      <div>
+        <Confirm
+          label={L.회신}
+          variant={grade(L.회신)}
+          title={[L.회신, d.name, ok && num(won), result].filter(Boolean).join(' ')}
+          isDisabled={!ok || sent === d}
+          onConfirm={() => {
+            setSent(d)
+            return api('/reply', { id: d.id, amount: won, account: account.trim(), result }).catch(() => store.set(changedAtom, (n) => n + 1))
+          }}
+        />
       </div>
-      <AlertDialog.Root>
-        <AlertDialog.Trigger className={`${button} self-start`} disabled={!ok || sent === d}>
-          {L.회신}
-        </AlertDialog.Trigger>
-        <AlertDialog.Portal>
-          <AlertDialog.Popup className={`${floating} fixed top-1/2 left-1/2 flex w-list -translate-x-1/2 -translate-y-1/2 flex-col gap-4 p-6`}>
-            <AlertDialog.Title className="flex flex-wrap items-baseline gap-2 text-title">
-              {L.회신}
-              <span>{d.name}</span>
-              <span className="tabular-nums">{ok && num(won)}</span>
-              <span>{result}</span>
-            </AlertDialog.Title>
-            <div className="flex justify-end gap-2">
-              <AlertDialog.Close className={button}>{L.취소}</AlertDialog.Close>
-              <AlertDialog.Close
-                className={button}
-                onClick={() => {
-                  setSent(d)
-                  api('/reply', { id: d.id, amount: won, account: account.trim(), result }).catch(() => store.set(changedAtom, (n) => n + 1))
-                }}
-              >
-                {L.회신}
-              </AlertDialog.Close>
-            </div>
-          </AlertDialog.Popup>
-        </AlertDialog.Portal>
-      </AlertDialog.Root>
-    </div>
+    </>
   )
 }
 
@@ -202,8 +158,8 @@ function Action() {
   if (d.state !== L.이체) return null
   return (
     <div className="flex items-baseline gap-2">
-      <span className={label}>{L.담당}</span>
-      <span className="text-figure">{d.role}</span>
+      <Text type="supporting">{L.담당}</Text>
+      <Text weight="semibold">{d.role}</Text>
     </div>
   )
 }
@@ -211,7 +167,11 @@ function Action() {
 /** 시연 서랍(slot 'demo'): 은행 회신을 넣는다(모의 회신 — 실제 은행이 없다). 넣은 회신은 지급 화면에 출처 모의로 남는다 */
 function Reply() {
   const d = useRecon()
-  return d?.can ? <Form key={d.id} d={d} /> : null
+  return d?.can ? (
+    <Region title={L.회신}>
+      <Form key={d.id} d={d} />
+    </Region>
+  ) : null
 }
 
 function History() {
