@@ -53,6 +53,8 @@ pub(super) async fn hand(me: &Db, files: &[Up], clarify: &str, file: &str) -> (S
     let Some(up) = (if file.is_empty() && files.len() == 1 { files.first() } else { files.iter().find(|f| f.name == file) }) else {
         return no(&if files.is_empty() { "넘길 파일이 없다: 대화에 올라온 파일이 없다".to_string() } else { format!("어느 파일인지 묻는다: {}", files.iter().map(|f| f.name.as_str()).collect::<Vec<_>>().join(", ")) });
     };
+    // 영업지원이 아니면 후보를 찾기 전에 권한으로 답한다(19와 같은 규칙: 서류는 영업지원만 올린다)
+    if q1(me, "RETURN $auth.role;", json!({})).await.ok().and_then(|r| r.as_str().map(String::from)).as_deref() != Some("영업지원") { return no("넘기지 않았다: 이 역할은 서류를 올릴 수 없다(권한)"); }
     // 후보는 이름으로만 보인다(id는 화면에 나가지 않게): 사용자에게는 이름을, 도구에는 번호를 준다
     let open = q1(me, "RETURN (SELECT name, record::id(id) AS id FROM clarify WHERE fn::uploadable(id) ORDER BY id);", json!({})).await.unwrap_or_default();
     let open = open.as_array().cloned().unwrap_or_default();
@@ -74,7 +76,7 @@ pub(super) async fn hand(me: &Db, files: &[Up], clarify: &str, file: &str) -> (S
         }
         Err(e) => no(match e.1["error"].as_str() {
             Some("권한") => "넘기지 않았다: 이 역할은 서류를 올릴 수 없다(권한)",
-            Some("상태") => "넘기지 않았다: 그 소명은 지금 서류를 받지 않는다(요청 상태이고 발송한 소명만 받는다)",
+            Some("상태") => "넘기지 않았다: 그 소명은 서류를 받을 수 있는 상태가 아니다(요청 상태이고 발송한 소명만 받는다)",
             _ => "넘기지 않았다: 없는 소명이거나 받을 수 없는 파일이다(대상. 이미지나 PDF, 2MB까지)",
         }),
     }
@@ -120,11 +122,11 @@ pub async fn check(c: &Check) -> Result<()> {
     let (support, audit) = ("영업지원", "내부 감시");
     let http = reqwest::Client::new();
     let png = SAMPLES[0].2;
-    let url = format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(png));
+    let other = SAMPLES[1].2;
     // 대화에서 파일을 올린다(고정 응답: OpenAI를 부르지 않는다) → (AI의 글, 넘긴 서류의 `data-doc`)
-    let say = async |role: &str, line: &str, with_file: bool| -> Result<(String, Vec<J>)> {
+    let say = async |role: &str, line: &str, file: Option<&[u8]>| -> Result<(String, Vec<J>)> {
         let mut parts = vec![json!({ "type": "text", "text": line })];
-        if with_file { parts.push(json!({ "type": "file", "mediaType": "image/png", "filename": "임대차.png", "url": url })); }
+        if let Some(f) = file { parts.push(json!({ "type": "file", "mediaType": "image/png", "filename": "임대차.png", "url": format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(f)) })); }
         let body = json!({ "messages": [{ "role": "user", "id": "u", "parts": parts }] });
         let res = http.post(format!("{}/api/chat", c.base())).bearer_auth(c.token(role)).json(&body).send().await?;
         ensure!(res.status() == 200, "대화 {}", res.status());
@@ -136,7 +138,7 @@ pub async fn check(c: &Check) -> Result<()> {
     *USE.lock().unwrap() = Some("fixture".into());
     let res = async {
         // 요청 상태의 소명이 없으면 넘기지 않고 그 사실을 답한다
-        let (text, done) = say(support, "서류||", true).await?;
+        let (text, done) = say(support, "서류||", Some(png)).await?;
         ensure!(done.is_empty() && text.contains("넘길 수 있는 소명이 없다"), "소명이 없을 때 {text}");
         // 정황 → 요청 → 발송: 서류를 받을 수 있는 소명 둘
         let mut ids = vec![];
@@ -149,19 +151,22 @@ pub async fn check(c: &Check) -> Result<()> {
         }
         let (a, b) = (&ids[0], &ids[1]);
         // 어느 소명인지 정해지지 않으면 묻고, 아무것도 넘기지 않는다
-        let (text, done) = say(support, "서류||", true).await?;
+        let (text, done) = say(support, "서류||", Some(png)).await?;
         ensure!(done.is_empty() && text.contains("어느 소명") && text.contains("1 ") && text.contains("2 ") && !text.contains(a.as_str()) && !text.contains(b.as_str()) && count(a).await? == 0 && count(b).await? == 0, "어느 소명 {text}");
         // 파일이 없으면 넘길 것이 없다
-        let (text, done) = say(support, &format!("서류|{a}|"), false).await?;
+        let (text, done) = say(support, &format!("서류|{a}|"), None).await?;
         ensure!(done.is_empty() && text.contains("넘길 파일이 없다") && count(a).await? == 0, "파일 없음 {text}");
         // 영업지원이 아니면 권한(19와 같은 길): 넘기지 않는다
-        let (text, done) = say(audit, &format!("서류|{a}|"), true).await?;
+        let (text, done) = say(audit, &format!("서류|{a}|"), Some(png)).await?;
         ensure!(done.is_empty() && text.contains("권한") && count(a).await? == 0, "내부 감시 {text}");
+        // 영업지원이 아니면 소명을 말하지 않아도 권한이다(후보가 없다는 답이 아니다)
+        let (text, done) = say(audit, "서류||", Some(png)).await?;
+        ensure!(done.is_empty() && text.contains("권한") && !text.contains("소명이 없다"), "내부 감시, 소명 없이 {text}");
         // 없는 소명
-        let (text, done) = say(support, "서류|없는-소명|", true).await?;
+        let (text, done) = say(support, "서류|없는-소명|", Some(png)).await?;
         ensure!(done.is_empty() && text.contains("대상"), "없는 소명 {text}");
         // 넘긴다: 서류가 소명 상세에 나타나고 소명은 접수가 되며 내부 감시의 소명 작업이 생긴다 — 소명 화면에서 올린 것과 같다
-        let (text, done) = say(support, &format!("서류|{a}|"), true).await?;
+        let (text, done) = say(support, &format!("서류|{a}|"), Some(png)).await?;
         ensure!(text.contains("넘겼다") && done.len() == 1 && done[0]["id"] == a.as_str() && count(a).await? == 1, "넘김 {text} {done:?}");
         let d = c.get(audit, &format!("/api/clarifies/{a}/docs")).await?;
         let doc = &d["docs"][0];
@@ -170,15 +175,15 @@ pub async fn check(c: &Check) -> Result<()> {
         ensure!(file.as_ref() == png, "원본 그대로");
         ensure!(q1(&c.db, "RETURN type::record('clarify', $id).state;", json!({ "id": a })).await? == "접수", "접수");
         // 같은 파일을 다시 넘기지 않는다
-        let (text, done) = say(support, &format!("서류|{a}|"), true).await?;
+        let (text, done) = say(support, &format!("서류|{a}|"), Some(png)).await?;
         ensure!(done.is_empty() && text.contains("이미") && count(a).await? == 1, "같은 파일 {text}");
-        // 접수된 소명은 요청이 아니라 더 받지 않는다(상태). 남은 요청 상태의 소명은 하나뿐이라 후보도 하나다
-        let (text, done) = say(support, &format!("서류|{a}|"), true).await?;
-        ensure!(done.is_empty() && count(a).await? == 1, "접수 뒤 {text}");
-        let (text, done) = say(support, "서류||", true).await?;
+        // 접수된 소명은 요청이 아니라 더 받지 않는다(상태). 다른 내용의 파일로 보내 중복 검사가 아니라 상태 거절을 본다. 남은 요청 상태의 소명은 하나뿐이라 후보도 하나다
+        let (text, done) = say(support, &format!("서류|{a}|"), Some(other)).await?;
+        ensure!(done.is_empty() && text.contains("상태가 아니다") && count(a).await? == 1, "접수 뒤 {text}");
+        let (text, done) = say(support, "서류||", Some(png)).await?;
         ensure!(done.is_empty() && text.contains("어느 소명") && text.contains("1 ") && !text.contains("2 ") && !text.contains(b.as_str()), "후보는 요청 상태만, id 없이 {text}");
         // 번호로 고르면 그 소명에 넘어간다
-        let (text, done) = say(support, "서류|1|", true).await?;
+        let (text, done) = say(support, "서류|1|", Some(png)).await?;
         ensure!(text.contains("넘겼다") && done.len() == 1 && done[0]["id"] == b.as_str() && count(b).await? == 1, "번호로 고름 {text}");
         // 넘겨진 파일도 판독 · 정리 · 비교를 똑같이 거친다
         *READ.lock().unwrap() = Some("fixture".into());
