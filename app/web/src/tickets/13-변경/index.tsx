@@ -47,7 +47,7 @@ function Form({ id }: { id: string }) {
       </div>
       <label className={row}>
         <span className={name}>{L.값}</span>
-        <Input className={field} value={value} onValueChange={setValue} />
+        <Input className={field} maxLength={200} value={value} onValueChange={setValue} />
       </label>
       <label className={row}>
         <span className={name}>{L.변경일}</span>
@@ -114,4 +114,25 @@ function Action() {
   return <Form key={target.id} id={target.id} />
 }
 
-export default [{ slot: 'action', kind: L.대리점, View: Action }] satisfies Piece[]
+type Change = { kind: string; role: string; at: string; item: string; value: string; since: string }
+
+/** 이력: 그 대리점에 들어온 변경을 일어난 순서대로. `변경 · 영업지원 · 2026-07-01` 아래에 `주소 고양시 중앙로 128 · 변경일 2026-02-01` */
+function History() {
+  const target = useAtomValue(targetAtom)
+  const h = useData<Change[]>(target && `/dealers/${target.id}/changes`)
+  if (!target || !h) return null
+  if (!h.length) return <Empty />
+  return h.map((x, i) => (
+    <div key={i} className="text-body break-keep">
+      <p className="tabular-nums">{[x.kind, x.role, x.at].join(' · ')}</p>
+      <p className="text-text-sub wrap-anywhere tabular-nums">
+        {x.item} {x.value} · {L.변경일} {x.since}
+      </p>
+    </div>
+  ))
+}
+
+export default [
+  { slot: 'action', kind: L.대리점, View: Action },
+  { slot: 'history', kind: L.대리점, View: History },
+] satisfies Piece[]

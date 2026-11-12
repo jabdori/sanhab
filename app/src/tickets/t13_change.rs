@@ -7,15 +7,25 @@ use crate::check::Check;
 use crate::db::{Db, as_user, q, q1};
 use crate::{Body, Me, R, attempt, refuse};
 use anyhow::{Result, ensure};
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::routing::get;
 use axum::{Extension, Json, Router};
 use serde_json::{Value as J, json};
 
 pub const SCHEMA: &str = include_str!("../../db/13-변경.surql");
 
+/// 새 값의 최대 길이(글자). 넘으면 대상
+const MAX: usize = 200;
+
 pub fn routes() -> Router<std::sync::Arc<Db>> {
-    Router::new().route("/change", get(can).post(change))
+    Router::new().route("/change", get(can).post(change)).route("/dealers/{id}/changes", get(changes))
+}
+
+/// 대리점 상세의 이력: 그 대리점에 들어온 변경(사건)을 일어난 순서대로
+async fn changes(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
+    let r = q1(&me.db, "SELECT kind, role, time::format(at, '%Y-%m-%d') AS at, item, value, time::format(since, '%Y-%m-%d') AS since, source, stamp FROM incident
+        WHERE dealer = type::record('dealer', $id) ORDER BY stamp;", json!({ "id": id })).await?;
+    Ok(Json(r))
 }
 
 /// `YYYY-MM-DD`의 꼴인지(없는 날짜는 DB의 변환이 거절한다)
@@ -32,7 +42,7 @@ async fn can(Extension(me): Extension<Me>) -> R {
 /// 상태(지금 값과 같거나, 변경일이 지금 값의 변경일보다 뒤가 아님). 쓴 뒤에 심사·재검토·정황을 다시 계산한다
 async fn change(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<Me>, Body(b): Body) -> R {
     let text = |k: &str| b[k].as_str().map(str::trim).filter(|v| !v.is_empty());
-    let (Some(id), Some(item), Some(value), Some(since)) = (text("id"), text("item"), text("value"), text("since").filter(|s| day(s))) else {
+    let (Some(id), Some(item), Some(value), Some(since)) = (text("id"), text("item"), text("value").filter(|v| v.chars().count() <= MAX), text("since").filter(|s| day(s))) else {
         return Err(refuse("대상"));
     };
     let made = attempt(&me.db, "
@@ -132,6 +142,7 @@ async fn main_flow(c: &Check) -> Result<()> {
         (change("D-999", "주소", &addr41, "2026-02-01"), "대상"),
         (change("D-034", "전화", &addr41, "2026-02-01"), "대상"),
         (change("D-034", "주소", " ", "2026-02-01"), "대상"),
+        (change("D-034", "주소", &"가".repeat(201), "2026-02-01"), "대상"),
         (json!({ "id": "D-034" }), "대상"),
         (change("D-034", "주소", "대전시 중앙로 260", "2026-02-01"), "상태"),
         (change("D-034", "주소", &addr41, "2021-08-13"), "상태"),
@@ -169,6 +180,11 @@ async fn main_flow(c: &Check) -> Result<()> {
     ensure!(reg[0]["value"] == "대전시 중앙로 260" && reg[0]["since"] == "2021-08-13" && reg[0]["until"] == "2026-02-01" && reg[0]["via"] == "원본" && reg[0]["source"] == "원본", "이전 값 {}", reg[0]);
     ensure!(reg[1]["value"] == addr41.as_str() && reg[1]["since"] == "2026-02-01" && reg[1]["until"].is_null() && reg[1]["known"] == "2026-07-01" && reg[1]["via"] == "신고" && reg[1]["source"] == "시연", "새 값 {}", reg[1]);
     ensure!(c.get(support, "/api/dealers").await?[33]["address"] == json!([addr41]), "목록의 지금 값");
+    ensure!(reg[0]["last"] == "2026-01-31" && reg[1]["last"].is_null(), "이전 값의 마지막 날");
+    // 대리점 상세의 이력: 변경 · 영업지원 · 2026-07-01 / 주소 고양시 중앙로 128 · 변경일 2026-02-01
+    let h = c.get(exec, "/api/dealers/D-034/changes").await?;
+    ensure!(rows(&h).len() == 1 && h[0]["kind"] == "변경" && h[0]["role"] == support && h[0]["at"] == "2026-07-01" && h[0]["item"] == "주소" && h[0]["value"] == addr41.as_str() && h[0]["since"] == "2026-02-01", "대리점의 이력 {h}");
+    ensure!(c.get(exec, "/api/dealers/D-041/changes").await? == json!([]), "변경 없는 대리점의 이력");
 
     // 두 곳이 2월부터 관련자다(대표자·주소)
     let rel = c.get(support, "/api/dealers/D-034/related").await?;

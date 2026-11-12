@@ -13,7 +13,7 @@ DEFINE TABLE incident SCHEMAFULL PERMISSIONS
 DEFINE FIELD kind ON incident TYPE string ASSERT $value IN ['변경'];
 DEFINE FIELD dealer ON incident TYPE record<dealer>;                   -- 선 22: 사건 → 대상
 DEFINE FIELD item ON incident TYPE string ASSERT $value IN ['대표자', '주소', '계좌'];
-DEFINE FIELD value ON incident TYPE string ASSERT string::len(string::trim($value)) > 0;
+DEFINE FIELD value ON incident TYPE string ASSERT string::len(string::trim($value)) > 0 AND string::len($value) <= 200;   -- 처리기도 200자로 막는다(MAX)
 DEFINE FIELD since ON incident TYPE datetime ASSERT $value <= fn::today();   -- 변경일. 오늘보다 뒤일 수 없다
 DEFINE FIELD known ON incident TYPE datetime VALUE IF $auth.id THEN fn::today() ELSE $value END;   -- 인지일
 DEFINE FIELD via ON incident TYPE string VALUE IF $auth.id THEN '신고' ELSE $value END;            -- 경로

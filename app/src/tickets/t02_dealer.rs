@@ -26,7 +26,7 @@ async fn list(Extension(me): Extension<Me>) -> R {
     Ok(Json(q1(&me.db, sql, json!({})).await?))
 }
 
-/// 대리점 상세: 등록(식별자와 변경일·다음 값으로 바뀐 날(`until`, 13)·인지일·경로)과 귀속월별 지급. 인지일이 없으면(null) 미상이다.
+/// 대리점 상세: 등록(식별자와 변경일·다음 값으로 바뀐 날(`until`, 13)·유효했던 마지막 날(`last` = 그 전날)·인지일·경로)과 귀속월별 지급. 인지일이 없으면(null) 미상이다.
 /// 지급의 `status`는 원본의 값, `state`·`state_source`는 이 앱이 준 지급의 상태와 그 출처(07. 없으면 아직 손대지 않은 지급),
 /// `review`는 그 지급의 심사(09. 과거의 결정이거나 승인된 것. 심사를 기다리는 지급에는 없다)
 async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
@@ -34,7 +34,7 @@ async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
     let edge = |item: &str, table: &str, value: &str| {
         format!(
             "(SELECT '{item}' AS item, {value}, source, file.path AS file, row, time::format(since, '%Y-%m-%d') AS since, \
-             IF until THEN time::format(until, '%Y-%m-%d') END AS until, IF known THEN time::format(known, '%Y-%m-%d') END AS known, via, excluded FROM {table} WHERE in = $d ORDER BY since)"
+             IF until THEN time::format(until, '%Y-%m-%d') END AS until, IF until THEN time::format(until - 1d, '%Y-%m-%d') END AS last, IF known THEN time::format(known, '%Y-%m-%d') END AS known, via, excluded FROM {table} WHERE in = $d ORDER BY since)"
         )
     };
     let sql = format!(
@@ -149,7 +149,7 @@ pub async fn check(c: &Check) -> Result<()> {
     let d = c.get(role, "/api/dealers/D-034").await?;
     ensure!(d["dealer"]["name"] == "한라인상사34");
     let file = "01_corevia/master/m_agency_cv.csv";
-    let reg = |item: &str, value: &str| json!({ "item": item, "value": value, "source": "원본", "file": file, "row": 35, "since": "2021-08-13", "until": null, "known": null, "via": "원본", "excluded": false });
+    let reg = |item: &str, value: &str| json!({ "item": item, "value": value, "source": "원본", "file": file, "row": 35, "since": "2021-08-13", "until": null, "last": null, "known": null, "via": "원본", "excluded": false });
     let mut rep = reg("대표자", "박준호");
     rep["same"] = json!("미상");
     ensure!(d["registered"] == json!([rep, reg("주소", "대전시 중앙로 260"), reg("계좌", "신한 971-13-131178")]), "등록 {}", d["registered"]);
