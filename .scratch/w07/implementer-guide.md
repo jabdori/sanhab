@@ -195,11 +195,14 @@
 
 13 변경이 정한 것(D15, D30, D47).
 - **사건**(`app/db/13-변경.surql`): `incident`(`kind` 변경, `dealer`(선 22), `item` 대표자·주소·계좌, `value`, `since` 변경일, `known` 인지일, `via` 경로, `by`, `role`, `at`, `source`, `stamp`). 역할이 쓰는 것은 이것뿐이고(`fn::changeable()` = 영업지원), 인지일(오늘)·경로(신고)·출처(시연)는 DB가 채운다. 이벤트 `t13_change`가 그 항목의 열린 선(`until = NONE`)을 `until = 변경일`로 닫고 새 값의 노드(없으면 만든다)로 선을 잇는다. 새 선은 `incident`로 그 사건을 가리킨다(**16 경위는 여기서 거슬러 오른다**). 원본의 선에는 `incident`가 없다.
-- **조치의 경로**: `GET /api/change` → `{ can }` · `POST /api/change { id, item, value, since }`(`refuse`·`Body`·`attempt`. 대상: 없는 대리점·항목, 꼴이 틀린 날짜, 오늘보다 뒤의 변경일 / 권한: 영업지원이 아님 / 상태: 지금 값과 같거나 변경일이 지금 값의 변경일보다 뒤가 아님). 쓴 뒤에 root로 `recalc` → `remark` → `detect`를 부른다. 화면은 `tickets/13-변경`(`{ slot: 'action', kind: L.대리점 }`, 확인 창).
+- **조치의 경로**: `GET /api/change` → `{ can }` · `POST /api/change { id, item, value, since }`(`refuse`·`Body`·`attempt`. 대상: 없는 대리점·항목, 꼴이 틀린 날짜, 오늘보다 뒤의 변경일 / 권한: 영업지원이 아님 / 상태: 지금 값과 같거나 변경일이 지금 값의 변경일보다 뒤가 아님). 쓴 뒤에 root로 `regroup`(아래) → `attach`(D57)를 부른다. 화면은 `tickets/13-변경`(`{ slot: 'action', kind: L.대리점 }`, 확인 창).
 - **지금 값**: `fn::current(대리점, 항목)` → `[{ since, value }]`(오늘 유효한 선). 02의 목록이 이것을 쓰고, 02의 상세 `registered[]`에 `until`(없으면 null)이 더해졌다(화면은 `until`이 있는 줄에 `이전`). **귀속월 안의 변경은 03의 `links(period)` 그대로 — 그 달에 하루라도 유효했던 값을 모두 본다(D47).**
 - **당시 미인지**: 09의 `GET /api/reviews/{id}/again`에 `late`(인지일이 `review.fixed`보다 뒤)가 더해졌다. 당시 / 현재의 인지일 줄은 `late`이면 `미인지 | 인지일`, 아니면 `인지일 또는 미상`.
-- **11의 계좌 정황은 회수 날짜에 유효한 등록만 본다**(자기 계좌도, 다른 대리점의 계좌도). 동명 정황은 같은 그룹이 되어도 `detect`가 닫지 않는다(접수된 채로 남아 합쳐진 심사에 정황 표시가 붙는다 — 유저 결정 대기).
-- **열린 선택(유저 결정 대기)**: 그룹이 바뀌어 대기 심사가 합쳐지거나 없어질 때 그 심사에 붙은 결정(보류·반려·재상신 작업)을 어떻게 할지. 지금은 04·06의 동작 그대로다 — 살아남는 id(귀속월-첫 대리점)의 심사는 상태·결정이 그대로 이어지고, 없어지는 쪽은 심사와 작업이 지워지고 결정은 가리킬 심사 없이 남는다.
+- **11의 계좌 정황은 회수 날짜에 유효한 등록만 본다**(자기 계좌도, 다른 대리점의 계좌도).
+- **선을 바꾼 뒤에는 `super::t13_change::regroup(db).await?` 하나를 부른다**(`recalc` → D56의 결정 옮기기 → `remark` → `detect`). 20 소명(선의 `excluded`)도 `recalc`·`remark`·`detect`를 따로 부르지 말고 이것을 부르면 D56이 따라온다.
+- **D56(합쳐지는 심사의 결정)**: 결정·재상신이 붙은 굳지 않은 심사의 그룹이 바뀌면(id가 달라지거나 구성이 달라지면) 그 `decision`·`resubmit`에 `moved`(그 지급이 든 새 심사)와 `was`(옛 심사의 이름)가 찍힌다. 기록은 지우지 않고 `review`도 바꾸지 않는다. 새 심사는 `status = '대기'`, 심사 작업은 `대기`로 다시 시작하고, 재상신 작업은 `완료`로 닫혀 새 심사를 가리킨다. 06의 `lines`는 `review = $r OR moved = $r`이고 줄에 `was`가 있으면 화면이 그 이름을 위에 단다. 04의 `history`는 `was`가 없는 결정만이다(조치 자리의 마지막 결정이 옛 심사의 것이 되지 않게). **심사의 결정을 세는 새 조건은 `was = NONE`을 더한다.**
+- **D57(동명 정황의 새 근거)**: 변경 뒤 `attach()`가 그 대리점이 든 동명 정황(접수·요청) 가운데 변경의 새 노드를 다른 구성 대리점도 가리키는 것에 `[사건, 새 선, 그 대리점의 선]`을 `fn::signal`로 붙인다(상태는 그대로). **15(재접수)는 `t13_change.rs`의 `attach`의 상태 조건에 `기각`을 더하고, `fn::signal`의 `ELSE` 갈래(11의 규약)에서 다시 접수한다** — 그러면 기각된 동명 정황이 변경의 근거와 함께 다시 올라온다. 근거 표에는 사건이 `변경 · 대리점 · 변경일 · 새 값 · 항목`으로 보인다(13이 `fn::evidence`를 덮어 `incident` 갈래를 더했다 — **`fn::evidence`를 다시 덮는 티켓은 이 갈래를 남긴다**). 17의 보고는 근거가 달라져 `stale`이 되고 새 보고 대상이 된다. 12의 가설은 동명에 더할 선이 없어 그대로다.
+- **선택은 D56·D57로 정해졌다**(위).
 
 22 규정이 정한 것.
 - **조회 경로**: `GET /api/rules`(모든 역할, 같은 내용) → `{ clauses[{ id, title, file, sha, first, last, text, source }], rules[{ id, name, ver, value, clause, since, until, prev{ name, ver } | null, source }], assumes[{ id(결정 번호), title, text, file, row, used[{ view, kind, id }], source: "가정" }] }`. 조항·규칙은 04의 테이블을 읽기만 한다. `GET /api/reviews/{id}`의 `rules[]`에 `clause`(조항의 id)가 더해졌다.

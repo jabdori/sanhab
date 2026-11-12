@@ -152,7 +152,7 @@ async fn tasks(Extension(me): Extension<Me>) -> R {
 }
 
 /// 심사 상세. 가운데: 제목과 숫자 줄(`review`), 구성(`members`: 그 귀속월의 지급 전부(`pays`)와 다른 구성원과 일치하는 식별자), 관계(`relation`), 규정(`rules`).
-/// 오른쪽: 지금 역할이 할 수 있는 조치(`actions`), 이력(`history`). 일치와 관계는 그 귀속월의 선으로 계산한다
+/// 오른쪽: 지금 역할이 할 수 있는 조치(`actions`), 이력(`history`. 그룹이 바뀌기 전의 옛 심사의 결정(13, D56의 `was`)은 빼고 06의 이력에만 보인다). 일치와 관계는 그 귀속월의 선으로 계산한다
 async fn detail(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
     let mut r = q1(&me.db, "
         LET $r = type::record('review', $id);
@@ -161,7 +161,7 @@ async fn detail(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): Pa
             payouts: (SELECT record::id((->payout_of->dealer)[0]) AS dealer, amount, source, file.path AS file, row FROM payout WHERE id INSIDE $r.payouts),
             rules: (SELECT name, ver, value, record::id(clause) AS clause, clause.title AS title, clause.doc.path AS file, clause.first AS first, clause.last AS last, clause.text AS text, clause.source AS source FROM rule WHERE id INSIDE $r.rules ORDER BY name),
             actions: (SELECT record::id(id) AS kind, fn::must(record::id(id), $r) AS reason, fn::classes(record::id(id), $r) AS classes, seq FROM act WHERE fn::can(record::id(id), $r) ORDER BY seq, kind),
-            history: (SELECT kind, role, IF at THEN time::format(at, '%Y-%m-%d') END AS at, reason, source, stamp FROM decision WHERE review = $r ORDER BY stamp),
+            history: (SELECT kind, role, IF at THEN time::format(at, '%Y-%m-%d') END AS at, reason, source, stamp FROM decision WHERE review = $r AND was = NONE ORDER BY stamp),
         };", json!({ "id": id })).await?;
     if r["review"].is_null() {
         return Err(err(StatusCode::NOT_FOUND, "없음"));

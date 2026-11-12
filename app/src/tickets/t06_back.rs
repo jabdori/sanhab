@@ -15,13 +15,13 @@ pub fn routes() -> Router<Db> {
     Router::new().route("/reviews/{id}/resubmit", get(state)).route("/resubmit", post(resubmit))
 }
 
-/// 지금 역할이 그 심사를 재상신할 수 있는지(`can`), 재상신의 사유에 고를 수 있는 분류(`classes`)와 이력(`lines`: 결정과 재상신을 일어난 순서대로. 줄의 꼴은 04의 `history`와 같다)
+/// 지금 역할이 그 심사를 재상신할 수 있는지(`can`), 재상신의 사유에 고를 수 있는 분류(`classes`)와 이력(`lines`: 결정과 재상신을 일어난 순서대로. 줄의 꼴은 04의 `history`와 같다. 13(D56): 그룹이 바뀌어 옮겨 온 옛 심사의 줄도 들고, 그 줄에는 옛 심사의 이름 `was`가 있다)
 async fn state(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
     let r = q1(&me.db, "
         LET $r = type::record('review', $id);
         LET $all = array::concat(
-            (SELECT kind, role, IF at THEN time::format(at, '%Y-%m-%d') END AS at, reason, source, stamp FROM decision WHERE review = $r),
-            (SELECT '재상신' AS kind, role, time::format(at, '%Y-%m-%d') AS at, reason, source, stamp FROM resubmit WHERE review = $r));
+            (SELECT kind, role, IF at THEN time::format(at, '%Y-%m-%d') END AS at, reason, source, stamp, was FROM decision WHERE review = $r OR moved = $r),
+            (SELECT '재상신' AS kind, role, time::format(at, '%Y-%m-%d') AS at, reason, source, stamp, was FROM resubmit WHERE review = $r OR moved = $r));
         RETURN { can: fn::resubmittable($r), classes: fn::resubmit_classes(), lines: (SELECT * FROM $all ORDER BY stamp) };", json!({ "id": id })).await?;
     Ok(Json(r))
 }

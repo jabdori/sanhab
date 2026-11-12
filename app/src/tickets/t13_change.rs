@@ -1,6 +1,6 @@
 //! 13 변경: 영업지원이 대리점의 식별자 변경(항목, 새 값, 변경일)을 넣는다. 입력은 사건으로 남고(`incident`), DB의 이벤트가 선 1~3을 바꾼다(이전 값은 변경일 전날까지 유효로 남는다).
 //! 그 뒤 코드가 심사(04 `recalc`) → 재검토와 추인 묶음(09 `remark`) → 정황(11 `detect`)을 다시 계산한다. 인지일은 시스템의 오늘, 경로는 신고, 출처는 시연이다(D15, D30).
-use super::t04_review::recalc;
+use super::t04_review::{compute, recalc};
 use super::t09_again::remark;
 use super::t11_signal::detect;
 use crate::check::Check;
@@ -47,17 +47,71 @@ async fn change(State(db): State<Db>, Extension(me): Extension<Me>, Body(b): Bod
         "CREATE incident SET kind = '변경', dealer = type::record('dealer', $id), item = $item, value = $value, since = <datetime> ($since + 'T00:00:00Z') RETURN VALUE record::id(id);",
         json!({ "id": id, "item": item, "value": value, "since": since }),
     ).await?;
-    recalc(&db).await?;
-    remark(&db).await?;
-    detect(&db).await?;
+    regroup(&db).await?;
+    attach(&db, made[0].as_str().unwrap_or_default()).await?;
     Ok(Json(json!({ "id": made[0] })))
+}
+
+/// 선이 바뀐 뒤의 다시 계산: 심사(04 `recalc`) → 재검토와 추인 묶음(09 `remark`) → 정황(11 `detect`).
+/// D56: 결정(보류·반려·재상신)이 붙은 굳지 않은 심사의 그룹이 바뀌면(없어지거나 다른 심사에 합쳐지거나 구성이 달라지면) 그 기록은 지우지 않고
+/// 그 지급이 든 새 심사의 이력으로 옮겨(`moved`, 옛 심사의 이름 `was`) 보이고, 새 심사는 대기로 다시 시작하며(심사 작업도 대기) 남은 재상신 작업은 닫는다.
+/// 선을 바꾸는 다른 티켓(20 소명 …)도 `recalc` 대신 이것을 부르면 같은 규칙이 따른다
+pub async fn regroup(db: &Db) -> Result<()> {
+    let plan = compute(db, &[]).await?;
+    let open = q1(db, "SELECT record::id(id) AS id, name, members.map(|$d| record::id($d)) AS members, payouts.map(|$p| record::id($p)) AS payouts FROM review
+        WHERE fixed = NONE AND (count(SELECT id FROM decision WHERE review = $parent.id AND was = NONE) > 0 OR count(SELECT id FROM resubmit WHERE review = $parent.id AND was = NONE) > 0);", json!({})).await?;
+    let mut moves = vec![];
+    for r in open.as_array().into_iter().flatten() {
+        let mine = |p: &&J| p["payouts"].as_array().is_some_and(|ps| ps.iter().any(|x| r["payouts"].as_array().is_some_and(|o| o.contains(x))));
+        // 옛 심사의 지급이 든 새 심사(갈라졌으면 합산이 큰 쪽). 같은 id에 구성도 같으면 그대로다
+        let Some(p) = plan.iter().filter(mine).max_by_key(|p| p["total"].as_i64()) else { continue };
+        if p["id"] != r["id"] || p["members"] != r["members"] {
+            moves.push(json!({ "old": r["id"], "name": r["name"], "new": p["id"] }));
+        }
+    }
+    q(db, "FOR $m IN $moves {
+            LET $o = type::record('review', $m.old);
+            LET $n = type::record('review', $m.new);
+            UPDATE decision SET was = $m.name, moved = $n WHERE review = $o AND was = NONE;
+            UPDATE resubmit SET was = $m.name, moved = $n WHERE review = $o AND was = NONE;
+            -- 재상신 작업은 닫고 새 심사를 가리키게 둔다(06의 t06_gone이 지우지 않게)
+            UPDATE task SET state = '완료', target = $n WHERE target = $o AND kind = '재상신';
+        };", json!({ "moves": moves })).await?;
+    recalc(db).await?;
+    q(db, "FOR $m IN $moves {
+            LET $n = type::record('review', $m.new);
+            UPDATE $n SET status = '대기' WHERE status != '대기';
+            UPDATE task SET state = '대기' WHERE target = $n AND kind = '심사' AND state != '대기';
+        };", json!({ "moves": moves })).await?;
+    remark(db).await?;
+    detect(db).await
+}
+
+/// D57: 변경으로 두 곳이 새로 일치하게 되면, 이미 있는 동명 정황(접수·요청)에 그 변경(사건)과 새 일치의 선을 근거로 붙인다(닫지 않는다).
+/// 정황의 상태는 그대로다. 기각된 정황이 새 근거로 다시 올라오는 것은 15의 일이다 — 15는 아래의 상태 조건에 기각을 더하고 `fn::signal`의 갈래를 덮는다
+async fn attach(db: &Db, incident: &str) -> Result<()> {
+    q(db, "
+        LET $i = type::record('incident', $id);
+        LET $line = (SELECT VALUE id FROM rep, addr, acct WHERE incident = $i)[0];
+        FOR $s IN (SELECT id, kind, dealers FROM signal WHERE kind = '동명' AND state INSIDE ['접수', '요청'] AND dealers CONTAINS $i.dealer) {
+            LET $same = (SELECT VALUE id FROM rep, addr, acct WHERE out = $line.out AND in INSIDE $s.dealers AND in != $i.dealer AND !excluded AND since <= fn::today() AND (until = NONE OR until > $i.since));
+            IF array::len($same) > 0 {
+                fn::signal($s.kind, string::replace(record::id($s.id), string::concat($s.kind, '-'), ''), '', $s.dealers, array::concat([$i, $line], $same), '계산');
+            };
+        };", json!({ "id": incident })).await?;
+    Ok(())
 }
 
 pub async fn seed(_: &Db) -> Result<()> {
     Ok(())
 }
 
-pub async fn check(c: &Check) -> Result<()> {
+pub async fn check(c: &mut Check) -> Result<()> {
+    main_flow(c).await?;
+    merged(c).await
+}
+
+async fn main_flow(c: &Check) -> Result<()> {
     let (support, exec, acct) = ("영업지원", "영업임원", "회계·자금");
     let rows = |v: &J| v.as_array().cloned().unwrap_or_default();
     let again = async |id: &str| c.get(support, &format!("/api/reviews/{id}/again")).await;
@@ -91,6 +145,15 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(q1(&c.db, "RETURN count(SELECT id FROM incident);", json!({})).await? == 0, "거절된 변경이 남음");
 
     ensure!(c.get(support, "/api/change").await? == json!({ "can": true }) && c.get(exec, "/api/change").await? == json!({ "can": false }), "조치의 can");
+
+    // 17 보고: 동명 정황의 보고를 변경 전에 써 둔다(고정 응답). 변경으로 근거가 붙으면 입력이 달라져 새 보고 대상이 된다(stale)
+    let audit = "내부 감시";
+    *super::t17_report::USE.lock().unwrap() = Some("fixture".into());
+    let made17 = super::t17_report::make(&c.db, "동명-박준호", true).await;
+    *super::t17_report::USE.lock().unwrap() = None;
+    made17?;
+    let stale = async || Ok::<_, anyhow::Error>(c.get(audit, "/api/signals/동명-박준호/report").await?["report"]["stale"].clone());
+    ensure!(stale().await? == false, "변경 전의 보고");
 
     // 시나리오 4의 1: 한라인상사34가 2월 1일부터 금강상사41의 주소를 쓴다(7월 1일 신고)
     let (code, made) = c.post(support, "/api/change", me13.clone()).await?;
@@ -139,9 +202,19 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(r["review"]["total"] == 2_255_709 && r["review"]["approver"] == exec && r["review"]["status"] == "대기" && rows(&r["members"]).len() == 2 && r["review"]["name"] == "한라인상사34 외 1", "6월의 심사 {}", r["review"]);
     ensure!(c.call(Some(c.token(exec)), "GET", "/api/reviews/2026-06-D-041", None).await?.0 == 404, "금강상사41의 6월 심사");
     ensure!(mine.iter().any(|t| t["kind"] == "심사" && t["target"] == "2026-06-D-034"), "영업임원의 심사 작업");
-    // 11 정황: 동명(박준호)은 같은 그룹이 되어 새로 잡히지 않지만, 이미 접수된 정황은 그대로 열려 있어 합쳐진 심사에 정황 표시가 남는다(어떻게 할지는 유저의 결정을 기다린다)
-    let sig = q1(&c.db, "RETURN signal:`동명-박준호`.state;", json!({})).await?;
-    ensure!(sig == "접수" && rows(&r["review"]["marks"]).contains(&json!("정황")), "동명 정황 {sig} {}", r["review"]["marks"]);
+    // D57: 동명(박준호) 정황은 닫히지 않고(접수 그대로, 합쳐진 심사에 정황 표시), 변경(사건)과 새 일치(두 곳의 주소 선)가 근거로 붙는다
+    let sig = c.get(audit, "/api/signals/동명-박준호").await?;
+    ensure!(sig["signal"]["state"] == "접수" && rows(&r["review"]["marks"]).contains(&json!("정황")), "동명 정황 {} {}", sig["signal"], r["review"]["marks"]);
+    let ev = rows(&sig["evidence"]);
+    let inc = format!("incident:{}", made["id"].as_str().unwrap_or_default());
+    let change_row = ev.iter().find(|e| e["id"] == inc.as_str());
+    ensure!(change_row.is_some_and(|e| e["item"] == "변경" && e["dealer"]["id"] == "D-034" && e["at"] == "2026-02-01" && e["node"]["name"] == addr41.as_str() && e["value"] == "주소" && e["source"] == "시연"), "근거의 변경 {ev:?}");
+    let addrs: Vec<&J> = ev.iter().filter(|e| e["item"] == "주소" && e["node"]["name"] == addr41.as_str()).collect();
+    ensure!(addrs.len() == 2 && ev.iter().filter(|e| e["item"] == "대표자").count() == 2, "근거의 새 일치 {ev:?}");
+    // 17: 근거가 달라져 보고는 다시 써야 한다(이전 보고는 남는다). 12: 동명은 가설이 더하는 선이 없어 그룹과 승인권자가 현재 그대로다
+    ensure!(stale().await? == true, "변경 뒤의 보고");
+    let h = c.get(audit, "/api/signals/동명-박준호/hypo").await?;
+    ensure!(h["approver"][0] == h["approver"][1] && h["group"][0] == h["group"][1], "동명의 가설 {h}");
 
     // 11 계좌 정황은 회수 날짜에 유효한 등록만 본다: 금강상사11·대륙상사37이 2026-01-01부터 다른 계좌를 쓰면(회수는 3~4월) 성일상사24의 회수는 계좌 정황이 아니다
     // (한 곳씩 바꾸는 사이에는 남은 곳의 등록으로 정황이 잡히므로, 둘 다 바꾼 뒤 정황을 지우고 다시 찾는다)
@@ -165,6 +238,45 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(c.get(support, "/api/dealers").await?[0]["account"] == json!(["시연 200-00-000001"]), "목록의 새 계좌");
     let (code, _) = c.post(acct, "/api/reply", json!({ "id": pay, "amount": p["pay"]["amount"], "account": old, "result": "성공" })).await?;
     ensure!(code == 200 && c.get(acct, &format!("/api/pays/{pay}/recon")).await?["recon"]["verdict"] == "일치", "지급한 날의 계좌로 일치");
+    Ok(())
+}
+
+/// D56: 합쳐지는 6월 심사에 결정이 붙어 있으면(금강상사41 쪽 / 한라인상사34 쪽의 보류·반려, 반려 뒤 재상신) 어느 경우든
+/// 합쳐진 심사는 대기로 다시 시작하고(영업임원의 담당), 옛 결정은 지워지지 않고 합쳐진 심사의 이력에 옛 심사의 이름과 함께 보이며, 남은 재상신 작업은 닫힌다
+async fn merged(c: &mut Check) -> Result<()> {
+    let (support, exec) = ("영업지원", "영업임원");
+    let change = json!({ "id": "D-034", "item": "주소", "value": "고양시 중앙로 128", "since": "2026-02-01" });
+    for (on, kind, back, was) in [
+        ("2026-06-D-041", "보류", false, "금강상사41"),
+        ("2026-06-D-034", "보류", false, "한라인상사34"),
+        ("2026-06-D-041", "반려", false, "금강상사41"),
+        ("2026-06-D-034", "반려", false, "한라인상사34"),
+        ("2026-06-D-041", "반려", true, "금강상사41"),
+    ] {
+        c.reset().await?;
+        let case = format!("{on} {kind}{}", if back { " 재상신" } else { "" });
+        let why = json!({ "class": "정황" });
+        ensure!(c.post(support, "/api/decide", json!({ "ids": [on], "kind": kind, "reason": why })).await?.0 == 200, "{case}: 결정");
+        let mut lines = vec![kind];
+        if back {
+            ensure!(c.post(support, "/api/resubmit", json!({ "id": on, "reason": { "class": "서류" } })).await?.0 == 200, "{case}: 재상신");
+            lines.push("재상신");
+        }
+        ensure!(c.post(support, "/api/change", change.clone()).await?.0 == 200, "{case}: 변경");
+        let id = "2026-06-D-034";
+        let r = c.get(exec, &format!("/api/reviews/{id}")).await?;
+        ensure!(r["review"]["status"] == "대기" && r["review"]["approver"] == exec && r["review"]["total"] == 2_255_709 && r["history"] == json!([]), "{case}: 합쳐진 심사 {}", r["review"]);
+        ensure!(c.call(Some(c.token(exec)), "GET", "/api/reviews/2026-06-D-041", None).await?.0 == 404, "{case}: 금강상사41의 심사");
+        let l = c.get(exec, &format!("/api/reviews/{id}/resubmit")).await?["lines"].clone();
+        let got: Vec<(&str, &str)> = l.as_array().into_iter().flatten().filter_map(|x| Some((x["kind"].as_str()?, x["was"].as_str()?))).collect();
+        ensure!(got == lines.iter().map(|k| (*k, was)).collect::<Vec<_>>() && l[0]["reason"] == why && l[0]["role"] == support, "{case}: 이력 {l}");
+        let t = c.get(exec, "/api/tasks").await?;
+        ensure!(t["mine"].as_array().is_some_and(|m| m.iter().any(|x| x["kind"] == "심사" && x["target"] == id)), "{case}: 영업임원의 담당 {t}");
+        let s = c.get(support, "/api/tasks").await?;
+        ensure!(!["mine", "going"].iter().any(|k| s[k].as_array().is_some_and(|m| m.iter().any(|x| x["kind"] == "재상신"))), "{case}: 재상신 작업 {s}");
+        // 영업임원은 처음부터 판단한다: 승인할 수 있다(정황이 걸려 사유 필수)
+        ensure!(c.post(exec, "/api/decide", json!({ "ids": [id], "kind": "승인", "reason": { "class": "정상" } })).await?.0 == 200, "{case}: 영업임원의 승인");
+    }
     Ok(())
 }
 

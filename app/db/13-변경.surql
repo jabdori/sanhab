@@ -55,3 +55,28 @@ DEFINE EVENT t13_change ON incident WHEN $event = 'CREATE' THEN {
         RELATE ($a.dealer)->acct->$n CONTENT $e;
     };
 };
+
+-- D56: 그룹이 바뀌어 없어지거나 합쳐진 심사의 결정·재상신은 지우지 않고, 합쳐진 심사(`moved`)의 이력에 옛 심사의 이름(`was`)과 함께 보인다.
+-- 코드(`t13_change::regroup`)만 채운다. 역할의 기록에는 들어가지 않는다
+DEFINE FIELD was ON decision TYPE option<string> VALUE IF $auth.id THEN NONE ELSE $value END;
+DEFINE FIELD moved ON decision TYPE option<record<review>> VALUE IF $auth.id THEN NONE ELSE $value END;
+DEFINE FIELD was ON resubmit TYPE option<string> VALUE IF $auth.id THEN NONE ELSE $value END;
+DEFINE FIELD moved ON resubmit TYPE option<record<review>> VALUE IF $auth.id THEN NONE ELSE $value END;
+
+-- 근거 한 줄(11의 fn::evidence)에 사건의 갈래를 더했다(D57: 변경이 동명 정황의 근거로 붙는다). 이 함수를 다시 덮는 티켓은 이 갈래를 남긴다
+DEFINE FUNCTION OVERWRITE fn::evidence($e: record) -> object {
+    LET $t = record::tb($e);
+    LET $v = IF $t = 'deposit' THEN { item: '회수', dealer: ($e->deposit_of->dealer)[0], at: time::format($e.date, '%Y-%m-%d'), node: ($e->deposit_into->account)[0], amount: $e.amount }
+        ELSE IF $t = 'payout' THEN { item: '지급', dealer: ($e->payout_of->dealer)[0], ym: $e.ym, amount: $e.amount }
+        ELSE IF $t INSIDE ['rep', 'addr', 'acct'] THEN { item: { rep: '대표자', addr: '주소', acct: '계좌' }[$t], dealer: $e.in, node: $e.out }
+        ELSE IF $t = 'recon' THEN { item: '대사', dealer: ($e.payout->payout_of->dealer)[0], ym: $e.payout.ym, value: array::join($e.diff, ' · '),
+            want: { amount: $e.amount, accounts: $e.accounts }, got: { amount: $e.reply.amount, account: $e.reply.account } }
+        ELSE IF $t = 'incident' THEN { item: $e.kind, dealer: $e.dealer, at: time::format($e.since, '%Y-%m-%d'), node: (SELECT VALUE out FROM rep, addr, acct WHERE incident = $e)[0], value: $e.item }
+        ELSE { item: $t } END;
+    RETURN {
+        id: <string> $e, item: $v.item, at: $v.at, ym: $v.ym, amount: $v.amount, value: $v.value, want: $v.want, got: $v.got,
+        dealer: IF $v.dealer THEN { id: record::id($v.dealer), name: $v.dealer.name } END,
+        node: IF $v.node THEN { id: <string> $v.node, name: $v.node.value ?? $v.node.name } END,
+        source: $e.source, file: $e.file.path, row: $e.row,
+    };
+} PERMISSIONS FULL;
