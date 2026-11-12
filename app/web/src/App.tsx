@@ -39,7 +39,7 @@ function Shell() {
   // 규정은 모의(23)를 할 수 있는 역할에게만 판단할 것이 있다. 없으면 오른쪽(판단) 칸을 두지 않는다
   const mock = useData<{ can: boolean }>(target?.kind === L.규정 ? '/mock' : null)
   const judge = !(target?.kind === L.규정 && mock?.can === false)
-  // 소명을 열면 목록이 접힌다(서류에 폭을 준다, ux-plan). 접힌 자리의 손잡이를 누르면 펼쳐지고, 다른 대상을 열면 다시 접힌다
+  // 소명·대리점을 열면 목록이 접힌다(서류에 폭을 준다, ux-plan). 접힌 자리의 손잡이를 누르면 펼쳐지고, 다른 대상을 열면 다시 접힌다
   const [listOpen, setListOpen] = useAtom(listOpenAtom)
   const [chatOpen, setChatOpen] = useAtom(chatOpenAtom)
   const [trailOpen, setTrailOpen] = useAtom(trailOpenAtom)
@@ -49,7 +49,8 @@ function Shell() {
   }, [target, setListOpen, setTrailOpen])
   // 대화를 펼쳐도 목록이 나머지를 다 쓰고 있을 때(대상이 없을 때)는 접을 것이 없다
   // 경위 그림을 펼쳐도 목록이 접힌다(그림에 폭을 준다)
-  const folded = (target?.kind === L.소명 || trailOpen || (chatOpen && !wide)) && !listOpen
+  // 대리점 상세도 목록이 접힌다(등록·관계·지급 세 표가 1280에서 밀려 나지 않게 가운데에 폭을 준다)
+  const folded = (target?.kind === L.소명 || target?.kind === L.대리점 || trailOpen || (chatOpen && !wide)) && !listOpen
   const list = (
     <div className="flex flex-col gap-4">
       <SlotView slot="list" />

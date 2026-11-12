@@ -63,6 +63,12 @@ body {
   opacity: 0.35;
 }
 
+/* 표의 마지막 열: 영역 끝까지 그은 줄(bleed) 안에서 글자가 자리 끝에 붙지 않게 오른쪽 여백 24.
+   astryx 칸의 여백(StyleX 원자 클래스)보다 우선하도록 표 클래스로 한 단계 좁힌다 */
+.astryx-table :is(.astryx-table-cell, .astryx-table-header-cell):last-child {
+  padding-inline-end: var(--spacing-6);
+}
+
 /* 근거 연결이 가리킨 줄(ui/Table의 mark): 잠깐 노랗게 */
 @keyframes mark {
   from { background: var(--color-background-yellow); }

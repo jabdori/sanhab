@@ -59,26 +59,25 @@ function Tasks() {
   const open = (t: Task) => setTarget({ kind: t.view, id: t.target })
   // 상세가 열려 목록이 좁으면(360) 표시는 첫 열에 아이콘만 둔다(고르기 칸이 있는 줄은 표시가 없다 — 정황이 없어야 고를 수 있다). 넓으면 표시 열에 낱말까지
   const narrow = !!target
-  // 첫 열은 종류이고 그 앞에 고정 폭의 고르기 칸(좁으면 표시 아이콘)이 있다. 열이 가장 왼쪽에서 시작하므로 종류 글자의 자리가 모든 역할·탭에서 같다.
+  // 첫 열은 고정 폭의 고르기 칸(좁으면 표시 아이콘), 그다음이 종류다. 첫 열의 폭이 언제나 같아 종류 글자의 자리가 모든 역할·탭에서 같다.
   // 나머지 열은 값이 있는 줄이 하나라도 있을 때만 둔다
   const cols: { head: string; right?: boolean; cell: (t: Task) => ReactNode }[] = [
     {
-      head: L.종류,
+      // 고르기 칸(좁으면 표시 아이콘): 언제나 같은 폭이라 다음 열(종류)의 머리글과 값이 같은 자리에서 시작한다
+      head: '',
       cell: (t) => (
-        <span className="flex items-center gap-2">
-          <span className="flex w-8 items-center gap-1">
-            {t.pick ? (
-              <CheckboxInput label={L.선택} isLabelHidden size="sm" value={chosen.includes(t.target)}
-                onChange={(on) => setPicked(on ? [...chosen, t.target] : chosen.filter((id) => id !== t.target))}
-              />
-            ) : (
-              narrow && marks(t.marks, true)
-            )}
-          </span>
-          <Text color="secondary">{t.kind}</Text>
+        <span className="flex w-8 items-center gap-1">
+          {t.pick ? (
+            <CheckboxInput label={L.선택} isLabelHidden size="sm" value={chosen.includes(t.target)}
+              onChange={(on) => setPicked(on ? [...chosen, t.target] : chosen.filter((id) => id !== t.target))}
+            />
+          ) : (
+            narrow && marks(t.marks, true)
+          )}
         </span>
       ),
     },
+    { head: L.종류, cell: (t) => <Text color="secondary">{t.kind}</Text> },
     {
       head: L.대상,
       cell: (t) => (
@@ -101,6 +100,7 @@ function Tasks() {
         ))}
       </TabList>
       <Table
+        fit={[0]}
         head={cols.map((c) => c.head)}
         right={cols.flatMap((c, i) => (c.right ? [i] : []))}
         current={list.findIndex((t) => t.view === target?.kind && t.target === target?.id)}

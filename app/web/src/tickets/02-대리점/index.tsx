@@ -2,6 +2,7 @@
 import { Link } from '@astryxdesign/core/Link'
 import { Text } from '@astryxdesign/core/Text'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { Fragment } from 'react'
 import { L } from '../../labels'
 import type { Piece } from '../../pieces'
 import { targetAtom, useData } from '../../state'
@@ -77,12 +78,22 @@ function Registered() {
   return (
     <Region title={L.등록}>
       <Table
-        head={[L.식별자, L.값, L.변경일, L.인지일, L.경로, L.출처]}
+        // 값(주소·계좌)은 좁으면 띄어쓰기에서 줄을 바꾸고, 출처(원본의 행 번호)는 경로 옆에 둔다(경로가 원본이면 그 행)
+        head={[L.식별자, L.값, L.변경일, L.인지일, L.경로]}
+        wrap={[1]}
         rows={d.registered.map((r) => [
           <Text weight="medium">{r.item}</Text>,
           // 값 아래에 덧말(동일인·제외·이전)을 보조 줄로 둔다
           <span className="flex flex-col">
-            <span>{r.value}</span>
+            {/* 줄은 띄어쓰기에서만 바꾼다(계좌번호의 - 에서 끊기지 않게) */}
+            <span>
+              {r.value.split(' ').map((w, i) => (
+                <Fragment key={i}>
+                  {i > 0 && ' '}
+                  <span className="whitespace-nowrap">{w}</span>
+                </Fragment>
+              ))}
+            </span>
             {r.same && (
               <Text type="supporting">
                 {L.동일인} {r.same}
@@ -102,8 +113,10 @@ function Registered() {
           </span>,
           r.since,
           r.known ?? L.미상,
-          r.via,
-          src(r),
+          <span className="flex items-center gap-2">
+            {r.via}
+            {src(r)}
+          </span>,
         ])}
       />
     </Region>

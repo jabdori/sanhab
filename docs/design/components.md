@@ -14,7 +14,7 @@
 | `Title` | 화면 제목: 대상 이름 + 귀속월 + 상태 표지 + 덧표시 | Heading 1, Text large | slot `head`에 둔다(가운데 위에 고정) |
 | `Figures` | 숫자 줄(합산 · 한도 · 승인권자) | Text supporting / large | 이름표 위(모두 같은 높이), 값 아래(높이 고정 — 값 옆의 표지가 줄을 밀지 않는다). 값이 없으면 값 등급의 `없음`. 한 값의 출처는 그 값 옆(`[이름, <span>{값}<Source/></span>]`), 줄 전체의 출처는 children(마지막 항목에 붙어 함께 넘어간다). 문장으로 쓰지 않는다. 이동하는 값의 Link는 `type="inherit"` |
 | `Region` | 영역: 제목 + 몸통 | Heading 3(h2) | 가운데의 사실 하나, 오른쪽의 칸 하나가 영역 하나. `aside`에 출처 표지 |
-| `Table` | 구성, 근거, 값, 대사, 목록 | Table(children 모드, `compact`) | `head`·`rows`·`right`(금액 열)·`clip`(좁은 칸에서 줄임표로 자르는 열 — 머물면 전체)·`current`·`mark`·`onRow`. 마지막 열은 오른쪽 여백 24. 첫 열은 사람이 읽는 이름(`Text weight="medium"` 또는 `Link`). 줄에 조치 버튼을 두지 않는다 |
+| `Table` | 구성, 근거, 값, 대사, 목록 | Table(children 모드, `compact`) | `head`·`rows`·`right`(금액 열)·`clip`(좁은 칸에서 줄임표로 자르는 열 — 머물면 전체)·`fit`(내용 폭만 쓰는 열 — 고르기 칸)·`wrap`(좁으면 낱말 단위로 줄을 바꾸는 열 — 주소처럼 잘라서는 안 되는 값)·`current`·`mark`·`onRow`. 마지막 열은 오른쪽 여백 24. 첫 열은 사람이 읽는 이름(`Text weight="medium"` 또는 `Link`). 줄에 조치 버튼을 두지 않는다 |
 | `Compare` | 두 열 비교(당시/현재, 현재/가설, 현재/모의) | Table | 첫 열은 다른 표의 이름 열처럼 중간 굵기, 두 값이 다른 줄만 굵게 |
 | `Pill` | 상태 표지 | Badge | `tokens.md`의 다섯 갈래 |
 | `Mark` | 덧표시 | Text supporting | 아이콘 + 글자, 색 없음 |
