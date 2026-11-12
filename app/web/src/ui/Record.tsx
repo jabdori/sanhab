@@ -84,7 +84,7 @@ export function Tiles({ items }: { items: TileItem[] }) {
               {t.aside}
             </HStack>
             {typeof t.value === 'string' || typeof t.value === 'number' ? (
-              <Text type="large" weight="semibold" hasTabularNumbers>
+              <Text type="large" weight="semibold" hasTabularNumbers className="whitespace-nowrap">
                 {t.value}
               </Text>
             ) : (

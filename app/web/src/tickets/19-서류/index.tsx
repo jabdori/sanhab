@@ -98,6 +98,8 @@ function Aside() {
   return (
     <>
       <Text type="supporting" color="secondary" className="wrap-anywhere">{d.name}</Text>
+      {/* 시연 서랍에서 넣은 서류는 가상 입력(A05 §6) */}
+      {d.source === L.시연 && <Source kind={L.모의} tip={L.서류} rows={[[L.종류, L.서류], [L.대상, d.name], [L.이유, L.시연]]} />}
       {all.docs.length > 1 && all.docs.map((x, i) => <ToggleButton key={x.id} label={String(i + 1)} size="sm" isPressed={i === at} onPressedChange={() => setSee(i)} />)}
     </>
   )

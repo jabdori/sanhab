@@ -49,7 +49,8 @@ export function Timeline() {
           startContent={<Icon icon={n.who?.role ? UserCircleIcon : DocumentTextIcon} size="md" color="secondary" />}
           label={`${n.kind} · ${n.name}`}
           description={[n.who?.role, n.who?.reason?.class, n.who?.reason?.memo].filter(Boolean).join(' · ') || undefined}
-          endContent={n.at ? <Text type="supporting" color="secondary" hasTabularNumbers>{n.at}</Text> : <Text type="supporting" color="secondary">{L.미상}</Text>}
+          // 아직 일어나지 않은 칸(대기 중인 심사)은 그림처럼 날짜를 비운다
+          endContent={n.at ? <Text type="supporting" color="secondary" hasTabularNumbers>{n.at}</Text> : undefined}
           onClick={() => setTarget(n.go)}
         />
       ))}

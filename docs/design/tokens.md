@@ -23,7 +23,11 @@
 | 규칙 버전 | 글자 | 색 없음 |
 | 주 버튼 | `Button variant="primary"` | 테마의 검정, 조치 묶음마다 하나 |
 
-- **기본 상태는 표지 없이**(astryx Badge: "Skip the badge for the default state; only highlight exceptions"): 대기 · 일치는 Badge를 그리지 않는다(`ui/status.ts`의 `DEFAULT`, 그리는 곳은 `ui/Mark`의 `State` 하나). 상태 칸이 모두 기본 상태면 칸째 두지 않는다.
+- **기본 상태는 표지 없이**(astryx Badge: "Skip the badge for the default state; only highlight exceptions"): 대기 · 일치 · 접수(정황·소명의 출발 상태)는 Badge를 그리지 않는다(`ui/status.ts`의 `DEFAULT`, 그리는 곳은 `ui/Mark`의 `State` 하나). 상태 칸이 모두 기본 상태면 칸째 두지 않는다.
+  - 예외: **결과 자체인 곳**(대사 영역의 `일치`)은 표지 대신 글자로 보인다 — 숨기면 시나리오의 결론이 화면에서 사라진다.
+- 표시의 색: 주의(warning)는 `정황` 하나다. `가설`·재검토·추인 등은 색 없는 아이콘 Token.
+- 한도 초과(합산 막대·`+초과` 표지)는 오류(error)다 — 승인권자가 바뀌는 사실이라 의미가 있는 색이다(`meter`·`fail`).
+- 정황이 걸린 심사에 큰 경고 띠(Banner)를 두지 않는다: 머리 칩 `⚑ 정황`과 확인 창의 사유 필수로 충분하다(템플릿도 상세 머리에 경고 띠가 없다).
 - 낱말 → 색의 대응은 `ui/status.ts` 한 곳에만 둔다. 다른 파일은 색 이름(`color="red"`, `variant="warning"` …)을 쓰지 않는다(`npm run lint`가 막는다).
 - 나머지 글자는 검정(primary)과 보조(secondary) 둘뿐이다.
 

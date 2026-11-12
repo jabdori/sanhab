@@ -38,7 +38,7 @@ export function AiPanel() {
   if (!Body || !target || none) return null
   return (
     // 대화 칸의 머리 위에 고정. 길면 칸 높이의 절반까지만 차지하고 그 안에서 스크롤
-    <Section key={`${target.kind}/${target.id}`} dividers={['bottom']} padding={4} className="max-h-1/2 overflow-y-auto">
+    <Section key={`${target.kind}/${target.id}`} dividers={['bottom']} padding={4} className="max-h-2/3 overflow-y-auto">
       <Collapsible
         trigger={
           <HStack gap={2} vAlign="center">

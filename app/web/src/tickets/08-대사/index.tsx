@@ -85,7 +85,8 @@ export function Recon() {
       title={L.대사}
       aside={
         <>
-          {recon && verdict(recon.verdict)}
+          {/* 대사는 일치 자체가 결과다: 기본 상태라도 표지 대신 글자로 보인다(tokens.md 기본 상태의 예외) */}
+          {recon && (plain(recon.verdict) ? <Text weight="medium">{recon.verdict}</Text> : verdict(recon.verdict))}
           {last && (
             // 모의 회신(시연 서랍에서 넣은 가상의 은행 회신, A05 §6): 종류 · 대상 · 넣은 값 · 역할 · 날짜 · 이유
             <Source

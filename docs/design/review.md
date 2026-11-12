@@ -14,14 +14,14 @@
 - 면: 흰 면 하나인가. 회색 면이 묶음 머리 밖에 있는가
 - 경계: 영역이 Section · Divider · 표의 줄로 나뉘는가. 영역마다 Card가 있는가(Card soup — 막힘)
 - 색: 색이 StatusDot · 상태 Badge(주의 · 오류 · 완료) · 정황 표시 밖에 쓰였는가(분류 · 일치 · 출처 · 규칙에 색 — 어김)
-- 기본 상태: 대기 · 일치 같은 기본 상태에 Badge가 달렸는가(달지 않는다 — `ui/status.ts`의 `DEFAULT`, `ui/Mark`의 `State`). 예외(보류 · 반려 · 재심사 · 누락 · 불일치 …)만 Badge
+- 기본 상태: 대기 · 일치 · 접수 같은 기본 상태에 Badge가 달렸는가(달지 않는다 — `ui/status.ts`의 `DEFAULT`, `ui/Mark`의 `State`). 예외(보류 · 반려 · 재심사 · 누락 · 불일치 …)만 Badge
 - 머리 칩 줄: 한 줄인가(상태 · 대상 · 핵심 하나둘). 날짜 · 기한 같은 값은 숫자 타일이나 본문으로
 - 위계: 흐리게 봐도 제목 → 칩 줄 → 영역 제목 → 본문 순으로 읽히는가. 주 버튼(검정)이 묶음마다 하나인가
 - 머리: 기록은 work-item-detail처럼 돌아가기 줄 · 제목 · 칩 줄인가. 작업은 table-grouped처럼 묶음 머리(접힘 · 건수)가 있는 표인가
 
 ## 2. is-my-code-good (Full product review)
 `npx astryx docs is-my-code-good --full`의 루브릭을 화면마다 돌린다: App fit · Astryx components · Icons · Styling · Layout · Images · Code health. 항목마다 good / needs work / not inspected와 근거(파일:줄 또는 화면 파일). 확인하지 못한 것은 not inspected로 남긴다.
-- 기계 검사: `npm run build`(lint — 낱말 · 직접 값 · `style=` · Card 허용 파일 · 색 이름은 `ui/status.ts`만 — 와 tsc), `cargo test`, `cargo run -- check`.
+- 기계 검사(`cargo run -- check`는 DB를 초기화하므로 **앱이 쓰지 않는 별도 DB**로 돌린다): `npm run build`(lint — 낱말 · 직접 값 · `style=` · Card 허용 파일 · 색 이름은 `ui/status.ts`만 — 와 tsc), `cargo test`, `cargo run -- check`.
 
 ## 3. 시나리오 (네 역할, 1280 · 1440)
 `docs/user-scenarios.md`의 시나리오 1~6을 영업지원 · 영업임원 · 내부 감시 · 회계·자금으로 실제로 눌러 가며 따라간다(확인 창 · 일괄 승인 · 발송 · 서류 · 보완 · 인정 · 지급 · 모의 회신 · 변경 · 추인 · 모의). 단계마다 찍는다(`시나리오-단계-역할.png`).

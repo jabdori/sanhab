@@ -10,7 +10,7 @@ import { Empty } from './Empty'
 export const Region = ({ title, aside, actions, children }: { title: string; aside?: ReactNode; actions?: ReactNode; children: ReactNode }) =>
   isValidElement(children) && children.type === Empty && !actions ? null : (
     <Section variant="transparent" padding={6} dividers={['top']}>
-      <VStack gap={4}>
+      <VStack gap={6}>
         <HStack gap={2} vAlign="center" wrap="wrap">
           <StackItem size="fill">
             <HStack gap={2} vAlign="center">

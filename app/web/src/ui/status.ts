@@ -10,7 +10,7 @@ const WARNING = [L.보류, L.보완, L.미응답, L.재심사]
 const ERROR = [L.반려, L.불채택, L.오류, L.불인정, L.불일치, L.실패, L.누락, L.거부]
 
 /** 기본 상태: 표지를 달지 않는다(astryx Badge — "Skip the badge for the default state; only highlight exceptions"). 일이 늘 처음 놓이는 대기, 비교가 맞은 일치 */
-export const DEFAULT: string[] = [L.대기, L.일치]
+export const DEFAULT: string[] = [L.대기, L.일치, L.접수]
 export const plain = (state?: string | null) => !state || DEFAULT.includes(state)
 
 /** 상태(심사 · 지급 · 정황 · 소명 · 보고 · 대사의 비교) → Badge 변형 */
@@ -37,7 +37,7 @@ const ICON: Record<string, typeof FlagIcon> = {
   [L.거부]: NoSymbolIcon,
   [L.종결]: StopIcon,
 }
-export const mark = (m: string) => ({ icon: ICON[m] ?? FlagIcon, caution: m === L.정황 || m === L.가설 })
+export const mark = (m: string) => ({ icon: ICON[m] ?? FlagIcon, caution: m === L.정황 })
 
 /** 줄의 주의 단계(StatusDot): 정황이 걸리면 주의, 반려 · 재심사는 오류, 나머지는 neutral */
 export const dot = (marks: string[], state?: string | null): Tone =>

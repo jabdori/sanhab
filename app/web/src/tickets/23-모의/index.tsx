@@ -114,8 +114,8 @@ export function Result() {
             },
             { key: 'ym', header: L.귀속월, width: pixel(76), renderCell: (x) => <Text hasTabularNumbers>{x.ym}</Text> },
             { key: 'total', header: L.합산, align: 'end', width: pixel(100), renderCell: (x) => <Text weight="semibold" hasTabularNumbers>{num(x.total)}</Text> },
-            { key: 'now', header: L.현재, width: pixel(78), renderCell: (x) => <Text color="secondary">{x.approver[0]}</Text> },
-            { key: 'mock', header: L.모의, width: pixel(78), renderCell: (x) => <Text weight="semibold">{x.approver[1]}</Text> },
+            { key: 'now', header: L.현재, width: pixel(96), renderCell: (x) => <Text color="secondary">{x.approver[0]}</Text> },
+            { key: 'mock', header: L.모의, width: pixel(96), renderCell: (x) => <Text weight="semibold">{x.approver[1]}</Text> },
           ]}
         />
       </VStack>
