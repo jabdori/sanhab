@@ -139,9 +139,8 @@ async fn intake(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<M
 
 async fn settle(db: &Db, id: &str, kind: &str) -> Result<()> {
     if kind == "인정" {
-        super::t04_review::recalc(db).await?;
-        super::t09_again::remark(db).await?;
-        super::t11_signal::detect(db).await?;
+        // 13: recalc → (D56 합쳐졌던 심사의 결정 옮기기) → remark → detect
+        super::t13_change::regroup(db).await?;
     }
     if kind != "보완" {
         q(db, "
