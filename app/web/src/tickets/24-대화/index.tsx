@@ -3,6 +3,10 @@
 // 지금 열어 둔 대상이 문맥으로 따라오고(눌러서 끈다) 붙임으로 다른 기록을 더한다. 답 아래의 조회는 서버가 도구 결과에서 찾아 붙인 기록 목록이다.
 // 역할을 바꾸면 대화가 비워진다(임시). 누른 뒤 요청이 끝날 때까지 전송·보고는 다시 눌리지 않는다. AI가 멈춰 있어도 다른 화면은 그대로 된다.
 import { useChat } from '@ai-sdk/react'
+import { Button } from '@astryxdesign/core/Button'
+import { ChatComposer, ChatComposerInput, ChatMessage, ChatMessageBubble, ChatMessageList } from '@astryxdesign/core/Chat'
+import { Text } from '@astryxdesign/core/Text'
+import { Token } from '@astryxdesign/core/Token'
 import { DefaultChatTransport, type UIMessage } from 'ai'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useRef, useState } from 'react'
@@ -11,7 +15,6 @@ import type { Piece } from '../../pieces'
 import { api, changedAtom, chatOpenAtom, listOpenAtom, roleAtom, rolesAtom, store, targetAtom, type Target } from '../../state'
 import { Pill } from '../../ui/Pill'
 import { Card, type CardData } from '../25-카드'
-import { button, label } from '../../ui/styles'
 
 /** 답에 붙는 조회한 기록(서버가 `data-reads`로 보낸다) */
 type Talk = UIMessage<never, { reads: { names: string[] }; card: CardData; doc: { id: string; name: string } }>
@@ -19,9 +22,6 @@ type Talk = UIMessage<never, { reads: { names: string[] }; card: CardData; doc: 
 /** 칩에 보이는 이름. 아직 받지 못했거나 모르면 id */
 const key = (t: Target) => `${t.kind}/${t.id}`
 const same = (a: Target, b: Target) => a.kind === b.kind && a.id === b.id
-const chip = 'max-w-full cursor-pointer rounded-pill border border-line px-2 text-label wrap-anywhere hover:text-action-hover'
-/** 임시를 드러내는 점선 테두리(보고의 실선 칸과 구분) */
-const bubble = 'rounded-box border border-dashed border-line px-3 py-2 break-keep wrap-anywhere whitespace-pre-wrap'
 
 /** 서버의 오류: 200이 아니면 본문 `{ error }`, 스트림 안의 오류는 낱말 그대로 */
 const word = (e: Error) => {
@@ -93,11 +93,11 @@ function Panel() {
     end.current?.scrollIntoView({ block: 'end' })
   }, [messages, status, error])
 
-  const send = () => {
-    if (busy || !text.trim()) return
+  const send = (value: string) => {
+    if (busy || !value.trim()) return
     clearError()
     setKept(null)
-    sendMessage({ text: text.trim(), files: file ? pick.current?.files ?? undefined : undefined })
+    sendMessage({ text: value.trim(), files: file ? pick.current?.files ?? undefined : undefined })
     setText('')
     setFile(null)
     setTooBig(false)
@@ -121,94 +121,74 @@ function Panel() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" hidden={!open}>
-      <div className="flex flex-col gap-2 border-b border-line p-3">
+      <div className="flex flex-col gap-2 border-b border-border p-3">
         <div className="flex flex-wrap items-center gap-1">
-          <span className={label}>{L.문맥}</span>
-          {now && (
-            <button className={chip} aria-pressed={follow} onClick={() => setFollow(false)}>
-              {shown(now)}
-            </button>
-          )}
+          <Text type="supporting">{L.문맥}</Text>
+          {now && <Token label={shown(now)} size="sm" onClick={() => setFollow(false)} />}
           {pinned.map((t) => (
-            <button key={`${t.kind}/${t.id}`} className={chip} onClick={() => setPinned(pinned.filter((p) => !same(p, t)))}>
-              {shown(t)} ×
-            </button>
+            <Token key={key(t)} label={shown(t)} size="sm" onRemove={() => setPinned(pinned.filter((p) => !same(p, t)))} />
           ))}
-          {!follow && target && (
-            <button className={`${chip} text-text-mute line-through`} aria-pressed={false} onClick={() => setFollow(true)}>
-              {shown(target)}
-            </button>
-          )}
+          {!follow && target && <Token label={shown(target)} size="sm" color="gray" onClick={() => setFollow(true)} />}
         </div>
         <div>
-          <button className={button} disabled={!target || pinned.some((p) => same(p, target))} onClick={() => target && setPinned([...pinned, target].slice(-5))}>
-            {L.붙임}
-          </button>
+          <Button label={L.붙임} size="sm" isDisabled={!target || pinned.some((p) => same(p, target))} onClick={() => target && setPinned([...pinned, target].slice(-5))} />
         </div>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3">
-        {messages.map((m) => {
-          const ids = m.parts.flatMap((p) => (p.type === 'data-reads' ? p.data.names : []))
-          const cards = m.parts.flatMap((p) => (p.type === 'data-card' ? [p.data] : []))
-          const body = m.parts.map((p) => (p.type === 'text' ? p.text : '')).join('')
-          return (
-            <div key={m.id} className={`flex flex-col gap-1 ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
-              {m.role === 'assistant' && (body || ids.length > 0 || cards.length > 0) && <span className={label}>{L.AI}</span>}
-              {m.parts.map((p) => (p.type === 'file' ? <span key={p.url.slice(-40) + p.filename} className={`${chip} cursor-default`}>{p.filename}</span> : null))}
-              {body && <p className={`${bubble} ${m.role === 'user' ? 'bg-surface' : 'bg-bg'} max-w-full text-base`}>{body}</p>}
-              {cards.map((c) => (
-                <Card key={`${c.kind}/${c.id}/${c.action}`} card={c} />
-              ))}
-              {ids.length > 0 && (
-                <div className="flex flex-col gap-1">
-                  <span className={label}>{L.조회}</span>
-                  <ul className="flex flex-col gap-1">
-                    {ids.map((id) => (
-                      <li key={id} className="text-label tabular-nums wrap-anywhere text-text-sub">
-                        {id}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )
-        })}
-        {status === 'submitted' && <span className="text-text-mute">…</span>}
+      <div className="min-h-0 flex-1 overflow-auto p-3">
+        <ChatMessageList align="top" density="compact" isStreaming={busy}>
+          {messages.map((m) => {
+            const ids = m.parts.flatMap((p) => (p.type === 'data-reads' ? p.data.names : []))
+            const cards = m.parts.flatMap((p) => (p.type === 'data-card' ? [p.data] : []))
+            const body = m.parts.map((p) => (p.type === 'text' ? p.text : '')).join('')
+            const ai = m.role === 'assistant'
+            return (
+              <ChatMessage
+                key={m.id}
+                sender={ai ? 'assistant' : 'user'}
+                name={ai && (body || ids.length > 0 || cards.length > 0) ? L.AI : null}
+                metadata={
+                  ids.length > 0 && (
+                    <div className="flex flex-col gap-1">
+                      <Text type="supporting">{L.조회}</Text>
+                      {ids.map((id) => (
+                        <Text key={id} type="supporting" hasTabularNumbers>
+                          <span className="wrap-anywhere">{id}</span>
+                        </Text>
+                      ))}
+                    </div>
+                  )
+                }
+              >
+                {m.parts.map((p) => (p.type === 'file' ? <Token key={p.url.slice(-40) + p.filename} label={p.filename ?? L.서류} size="sm" /> : null))}
+                {body && (
+                  <ChatMessageBubble>
+                    <span className="break-keep wrap-anywhere whitespace-pre-wrap">{body}</span>
+                  </ChatMessageBubble>
+                )}
+                {cards.map((c) => (
+                  <ChatMessageBubble key={`${c.kind}/${c.id}/${c.action}`} variant="ghost" width="100%">
+                    <Card card={c} />
+                  </ChatMessageBubble>
+                ))}
+              </ChatMessage>
+            )
+          })}
+        </ChatMessageList>
         {error && (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <Mark word={word(error)} />
           </div>
         )}
         <div ref={end} />
       </div>
-      <div className="flex flex-col gap-2 border-t border-line p-3">
+      <div className="flex flex-col gap-2 border-t border-border p-3">
         {kept && (
           <div className="flex flex-wrap items-center gap-2">
-            <span className={label}>{L.보고}</span>
+            <Text type="supporting">{L.보고}</Text>
             {kept.state ? <Pill tone="wait">{kept.state}</Pill> : <Mark word={kept.error ?? L.오류} />}
           </div>
         )}
-        <textarea
-          aria-label={L.대화}
-          rows={3}
-          className="w-full resize-none rounded-box border border-line bg-bg p-2 text-base outline-none focus:border-action"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-              e.preventDefault()
-              send()
-            }
-          }}
-        />
-        {file && (
-          <div className="flex flex-wrap items-center gap-1">
-            <button className={chip} onClick={() => { setFile(null); if (pick.current) pick.current.value = '' }}>
-              {file.name} ×
-            </button>
-          </div>
-        )}
+        {file && <Token label={file.name} size="sm" onRemove={() => { setFile(null); if (pick.current) pick.current.value = '' }} />}
         <input ref={pick} type="file" hidden aria-label={L.서류} accept="image/png,image/jpeg,application/pdf" onChange={(e) => {
             // 19의 한도(2MB, 이미지·PDF)를 넘으면 붙이지 않는다
             const f = e.target.files?.[0] ?? null
@@ -218,17 +198,20 @@ function Panel() {
             if (!ok) e.target.value = ''
           }} />
         {tooBig && <Mark word={L.대상} />}
-        <div className="flex gap-2">
-          <button className={button} disabled={busy} onClick={() => pick.current?.click()}>
-            {L.서류}
-          </button>
-          <button className={button} disabled={busy || !text.trim()} onClick={send}>
-            {L.전송}
-          </button>
-          <button className={button} disabled={busy || keeping || !answered || !signal} onClick={keep}>
-            {L.보고}
-          </button>
-        </div>
+        <ChatComposer
+          value={text}
+          onChange={setText}
+          onSubmit={send}
+          elevation="none"
+          density="compact"
+          input={<ChatComposerInput label={L.대화} placeholder={L.대화} maxRows={4} />}
+          footerActions={
+            <>
+              <Button label={L.서류} size="sm" isDisabled={busy} onClick={() => pick.current?.click()} />
+              <Button label={L.보고} size="sm" isDisabled={busy || keeping || !answered || !signal} onClick={keep} />
+            </>
+          }
+        />
       </div>
     </div>
   )
@@ -240,16 +223,20 @@ function Chat() {
   const setListOpen = useSetAtom(listOpenAtom)
   const role = useAtomValue(roleAtom)
   return (
-    <aside className={`flex shrink-0 flex-col border-l border-line bg-surface ${open ? 'w-chat-open' : 'w-chat'}`}>
-      <div className={`flex items-center gap-2 pt-3 ${open ? 'border-b border-line px-3 pb-3' : 'justify-center'}`}>
-        <button className={`cursor-pointer ${label} hover:text-action`} aria-expanded={open} onClick={() => {
+    <aside className={`flex shrink-0 flex-col border-l border-border bg-surface ${open ? 'w-chat-open' : 'w-chat'}`}>
+      <div className={`flex items-center gap-2 pt-3 ${open ? 'border-b border-border px-3 pb-3' : 'justify-center'}`}>
+        {/* 40폭의 손잡이: 버튼 부품의 안쪽 여백이 낱말을 자르므로 글자 그대로 누른다 */}
+        <button type="button" className="cursor-pointer" aria-expanded={open} onClick={() => {
             setOpen(!open)
             // 둘 중 하나만 펼쳐진다: 대화를 펼치면 목록이 접힌다
             if (!open) setListOpen(false)
-          }}>
-          {L.대화}
+          }}
+        >
+          <Text type="supporting" color="secondary" weight="medium">
+            {L.대화}
+          </Text>
         </button>
-        {open && <span className={`rounded-pill border border-line px-2 ${label}`}>{L.임시}</span>}
+        {open && <Pill tone="wait">{L.임시}</Pill>}
       </div>
       <Panel key={role} />
     </aside>

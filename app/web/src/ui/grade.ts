@@ -3,7 +3,7 @@
 // 보고의 채택·불채택은 예외로 둘 다 secondary(같은 무게, research-ux)
 import { L } from '../labels'
 
-const PRIMARY: string[] = [L.승인, L.추인, L.종결, L.요청, L.인정, L.발송, L.지급, L.회신, L.재상신, L.변경, L.접수]
+const PRIMARY: string[] = [L.승인, L.추인, L.종결, L.요청, L.인정, L.발송, L.지급, L.회신, L.재상신, L.변경, L.접수, L.모의]
 
 /** 조치의 낱말 → 버튼 등급 */
 export const grade = (kind: string): 'primary' | 'secondary' => (PRIMARY.includes(kind) ? 'primary' : 'secondary')
