@@ -81,6 +81,14 @@ const Registered = ({ r }: { r: Doc['rows'][number] }) =>
         <dl className="grid grid-cols-2 gap-x-2 gap-y-1">
           <dt className={label}>{r.item}</dt>
           <dd>{r.reg.value}</dd>
+          <dt className={label}>{L.출처}</dt>
+          <dd>{r.reg.source}</dd>
+          {r.reg.source === L.시연 && (
+            <>
+              <dt className={label}>{L.원본}</dt>
+              <dd>{L.미상}</dd>
+            </>
+          )}
         </dl>
       </Source>
     </span>
@@ -119,11 +127,11 @@ function Center() {
             </button>
           ))}
       </div>
-      <div className="flex flex-wrap items-start gap-4">
-        <div className="min-w-0 flex-1 basis-list">
+      <div className="grid grid-cols-3 items-start gap-4">
+        <div className="min-w-0">
           <Original d={d} />
         </div>
-        <div className="flex min-w-0 flex-1 basis-list flex-col gap-2">
+        <div className="col-span-2 flex min-w-0 flex-col gap-2">
           <Table
             head={[L.항목, L.판독, L.등록, L.비교]}
             mark={picked ? d.rows.findIndex((r) => r.item === picked) : undefined}
@@ -162,7 +170,9 @@ function Center() {
 /** 오른쪽 보고의 정리(AI가 다듬은 값): 항목마다 값과 연결(↗ — 누르면 가운데의 판독 줄과 원본의 위치가 강조된다). 정리가 없으면 대기 */
 function Tidy() {
   const d = useDoc()
-  if (!d) return null
+  const all = useDocs()
+  // 소명의 보고 칸에는 이 조각뿐이라 서류가 없으면 없음을 적는다
+  if (!d) return all ? <Empty /> : null
   return (
     <section className="flex flex-col gap-1">
       <div className="flex items-center gap-2">
@@ -202,7 +212,7 @@ function Tidy() {
 function Upload() {
   const d = useDocs()
   const target = useAtomValue(targetAtom)
-  const samples = useData<{ id: string; name: string; source: string }[]>(d?.can ? '/samples' : null)
+  const samples = useData<{ id: string; name: string; dealer: string; source: string }[]>(d?.can ? '/samples' : null)
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [bad, setBad] = useState<string | null>(null)
@@ -234,7 +244,7 @@ function Upload() {
           <span className={label}>{L.시연}</span>
           {samples.map((s) => (
             <button key={s.id} aria-label={s.name} onClick={() => choose(s.id, s.name)} aria-pressed={file?.name === s.name} className={`${button} aria-pressed:bg-surface`}>
-              {s.id}
+              {s.id} {s.dealer}
             </button>
           ))}
         </div>

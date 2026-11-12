@@ -36,11 +36,11 @@ pub const KINDS: [&str; 3] = ["image/png", "image/jpeg", "application/pdf"];
 pub const ITEMS: [&str; 4] = ["임차인", "주소", "호실", "기간"];
 /// 상대 대리점의 호실(시연). 원본의 주소는 도로명·건물번호까지만 있어(D10) 호실을 견줄 등록 값이 없다. 시연에서 견줄 값으로만 쓰고 출처는 시연이다
 pub const ROOMS: [(&str, &str); 2] = [("D-011", "101호"), ("D-041", "205호")];
-/// 시연용 서류 세 장(D27): 이름, 그림, 판독의 고정 응답(그 그림을 업스테이지 OCR에 한 번 보낸 응답). 그림은 `app/db/19-서류/make.py`가 그린다
-pub const SAMPLES: [(&str, &[u8], &str); 3] = [
-    ("임대차계약서-1.png", include_bytes!("../../db/19-서류/1.png"), include_str!("../../db/19-서류/1.json")),
-    ("임대차계약서-2.png", include_bytes!("../../db/19-서류/2.png"), include_str!("../../db/19-서류/2.json")),
-    ("임대차계약서-3.png", include_bytes!("../../db/19-서류/3.png"), include_str!("../../db/19-서류/3.json")),
+/// 시연용 서류 세 장(D27): 이름, 누구의 서류인지(임차인 — 원본의 대리점 이름), 그림, 판독의 고정 응답(그 그림을 업스테이지 OCR에 한 번 보낸 응답). 그림은 `app/db/19-서류/make.py`가 그린다
+pub const SAMPLES: [(&str, &str, &[u8], &str); 3] = [
+    ("임대차계약서-1.png", "성일상사24", include_bytes!("../../db/19-서류/1.png"), include_str!("../../db/19-서류/1.json")),
+    ("임대차계약서-2.png", "성일상사24", include_bytes!("../../db/19-서류/2.png"), include_str!("../../db/19-서류/2.json")),
+    ("임대차계약서-3.png", "한라인상사34", include_bytes!("../../db/19-서류/3.png"), include_str!("../../db/19-서류/3.json")),
 ];
 /// 판독·정리를 다시 시도하는 간격(초)
 const RETRY: u64 = 60;
@@ -88,7 +88,7 @@ fn words(raw: &J) -> Option<Vec<J>> {
 /// 업스테이지: `POST https://api.upstage.ai/v1/document-digitization`, multipart의 `document`(파일)와 `model`
 async fn ocr(model: &str, key: Option<&str>, bytes: &[u8], mime: &str) -> Option<Vec<J>> {
     if let Some(m) = model.strip_prefix("fixture") {
-        let fx = SAMPLES.iter().find(|s| m.is_empty() && sha(s.1) == sha(bytes))?.2;
+        let fx = SAMPLES.iter().find(|s| m.is_empty() && sha(s.2) == sha(bytes))?.3;
         return words(&serde_json::from_str(fx).ok()?);
     }
     let key = key.filter(|k| !k.is_empty())?;
@@ -295,20 +295,30 @@ async fn file(Extension(me): Extension<Me>, Path(id): Path<String>) -> Result<im
 
 /// 시연용 서류의 목록과 그 원본(출처 시연). 실행 파일에 들어 있어 초기화해도 언제나 있다
 async fn samples() -> Json<J> {
-    Json(json!(SAMPLES.iter().enumerate().map(|(i, s)| json!({ "id": (i + 1).to_string(), "name": s.0, "source": "시연" })).collect::<Vec<_>>()))
+    Json(json!(SAMPLES.iter().enumerate().map(|(i, s)| json!({ "id": (i + 1).to_string(), "name": s.0, "dealer": s.1, "source": "시연" })).collect::<Vec<_>>()))
 }
 async fn sample(Path(n): Path<usize>) -> Result<impl IntoResponse, ApiError> {
     let s = n.checked_sub(1).and_then(|i| SAMPLES.get(i)).ok_or_else(|| err(StatusCode::NOT_FOUND, "없음"))?;
-    Ok(([(header::CONTENT_TYPE, "image/png")], s.1))
+    Ok(([(header::CONTENT_TYPE, "image/png")], s.2))
+}
+
+/// 파일의 시작 표시가 선언한 종류와 맞는지(PNG·JPEG·PDF). 받는 종류가 아니면 거짓
+fn looks(mime: &str, b: &[u8]) -> bool {
+    match mime {
+        "image/png" => b.starts_with(b"\x89PNG\r\n\x1a\n"),
+        "image/jpeg" => b.starts_with(&[0xFF, 0xD8, 0xFF]),
+        "application/pdf" => b.starts_with(b"%PDF-"),
+        _ => false,
+    }
 }
 
 /// 서류 접수: 본문은 파일 그대로, `Content-Type`은 그 종류, 쿼리 `name`은 파일 이름. 쓰기 전에 거절의 낱말을 정한다(`refuse`: 대상 → 권한 → 상태):
-/// 없는 소명, 이미지·PDF가 아니거나 비었거나 2MB를 넘거나 이름이 없으면 대상, 영업지원이 아니면 권한, 발송 전이거나 요청 상태가 아니면 상태
+/// 없는 소명, 이미지·PDF가 아니거나 시작 표시가 그 종류와 다르거나 비었거나 2MB를 넘거나 이름이 없으면 대상, 영업지원이 아니면 권한, 발송 전이거나 요청 상태가 아니면 상태
 async fn upload(Extension(me): Extension<Me>, Path(id): Path<String>, Query(qs): Query<HashMap<String, String>>, h: HeaderMap, body: Result<Bytes, BytesRejection>) -> R {
     let mime = h.get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or_default().split(';').next().unwrap_or_default().trim().to_string();
     let name = qs.get("name").map(|n| n.trim().to_string()).unwrap_or_default();
     let bytes = body.unwrap_or_default();
-    let bad = !KINDS.contains(&mime.as_str()) || bytes.is_empty() || bytes.len() > MAX || name.is_empty() || name.chars().count() > 200;
+    let bad = !looks(&mime, &bytes) || bytes.is_empty() || bytes.len() > MAX || name.is_empty() || name.chars().count() > 200;
     let vars = json!({ "id": id, "bad": bad, "name": name, "mime": mime, "size": bytes.len(), "sha": sha(&bytes), "data": if bad { String::new() } else { B64.encode(&bytes) } });
     let made = attempt(&me.db, "
         LET $c = type::record('clarify', $id);
@@ -326,7 +336,7 @@ mod tests {
     use super::*;
 
     fn sample_words(n: usize) -> Vec<J> {
-        words(&serde_json::from_str(SAMPLES[n].2).unwrap()).unwrap()
+        words(&serde_json::from_str(SAMPLES[n].3).unwrap()).unwrap()
     }
 
     #[test]
@@ -385,7 +395,7 @@ pub async fn check(c: &Check) -> Result<()> {
         Ok(id)
     };
     let send = async |id: &str| c.post(support, "/api/send", json!({ "id": id })).await;
-    let png = SAMPLES[0].1;
+    let png = SAMPLES[0].2;
     let none = || { *USE.lock().unwrap() = None; *READ.lock().unwrap() = None; };
 
     // 호실이 다른 서류(성일상사24 ↔ 금강상사11)
@@ -397,7 +407,7 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(c.get(support, &format!("/api/clarifies/{one}/docs")).await?["can"] == true && docs(&one).await?["can"] == false, "올리는 칸은 영업지원에게만");
     // 틀린 파일은 대상: 종류, 빈 파일, 2MB 초과, 이름 없음, 없는 소명. 다른 역할은 권한
     let big = vec![0u8; MAX + 1];
-    for (name, bytes, kind) in [("a.txt", png, "text/plain"), ("a.png", &b""[..], "image/png"), ("a.png", &big[..], "image/png"), ("", png, "image/png")] {
+    for (name, bytes, kind) in [("a.txt", png, "text/plain"), ("a.png", &b"not a png"[..], "image/png"), ("a.pdf", png, "application/pdf"), ("a.png", &b""[..], "image/png"), ("a.png", &big[..], "image/png"), ("", png, "image/png")] {
         let r = up(support, &one, name, bytes, kind).await?;
         ensure!(r == (400, json!({ "error": "대상" })), "틀린 파일 {name} {kind} {} → {r:?}", bytes.len());
     }
@@ -414,7 +424,8 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(c.get(audit, &format!("/api/clarifies/{one}")).await?["clarify"]["state"] == "요청", "거절 뒤의 상태");
 
     // 접수(2MB에 꼭 맞는 파일도 받는다 — DB에 들어가는지): 소명이 접수가 되고 내부 감시의 담당에 소명 작업, 영업지원은 진행
-    let full = vec![7u8; MAX];
+    let mut full = vec![7u8; MAX];
+    full[..3].copy_from_slice(&[0xFF, 0xD8, 0xFF]);
     let two = open("2", "D-024", "D-011").await?;
     ensure!(send(&two).await?.0 == 200, "발송 2");
     ensure!(up(support, &two, "임대차계약서-2.png", &full, "image/jpeg").await?.0 == 200, "2MB 접수");
@@ -433,7 +444,7 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(up(support, &one, "b.png", png, "image/png").await? == (400, json!({ "error": "상태" })), "다시 접수");
     let three = open("3", "D-034", "D-041").await?;
     ensure!(send(&three).await?.0 == 200, "발송 3");
-    let both = tokio::join!(up(support, &three, "c.png", SAMPLES[2].1, "image/png"), up(support, &three, "c.png", SAMPLES[2].1, "image/png"));
+    let both = tokio::join!(up(support, &three, "c.png", SAMPLES[2].2, "image/png"), up(support, &three, "c.png", SAMPLES[2].2, "image/png"));
     let mut got = [both.0?, both.1?];
     got.sort_by_key(|g| g.0);
     ensure!(got[0].0 == 200 && got[1] == (400, json!({ "error": "상태" })), "동시 접수 {got:?}");
@@ -483,7 +494,7 @@ pub async fn check(c: &Check) -> Result<()> {
 
     // 호실까지 같은 서류 → 모두 일치. 호실이 빠진 서류(한라인상사34 ↔ 금강상사41) → 호실 누락이 맨 위
     let four = open("4", "D-024", "D-011").await?;
-    ensure!(send(&four).await?.0 == 200 && up(support, &four, SAMPLES[1].0, SAMPLES[1].1, "image/png").await?.0 == 200, "접수 4");
+    ensure!(send(&four).await?.0 == 200 && up(support, &four, SAMPLES[1].0, SAMPLES[1].2, "image/png").await?.0 == 200, "접수 4");
     again().await?;
     sweep_with(&c.db, None, None).await?;
     sweep_with(&c.db, None, None).await?;
@@ -495,7 +506,8 @@ pub async fn check(c: &Check) -> Result<()> {
     // 대리점 상세에서 소명으로 가는 길
     ensure!(c.get(support, "/api/dealers/D-034/clarifies").await? == json!([{ "id": three, "name": "기타 · t19-3", "state": "접수" }]), "대리점의 소명");
     // 시연 서류는 언제나 받을 수 있다(실행 파일에 들어 있다)
-    ensure!(c.get(support, "/api/samples").await?.as_array().is_some_and(|s| s.len() == 3), "시연 서류");
+    let s = c.get(support, "/api/samples").await?;
+    ensure!(s.as_array().is_some_and(|s| s.len() == 3) && s[2]["dealer"] == "한라인상사34" && s[0]["dealer"] == "성일상사24", "시연 서류 {s}");
     none();
     Ok(())
 }
