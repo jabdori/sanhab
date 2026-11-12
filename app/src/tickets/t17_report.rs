@@ -319,7 +319,7 @@ pub async fn sweep(db: &Db) -> Result<()> {
     Ok(())
 }
 /// 앱이 도는 동안 몇 초마다 `sweep`을 부른다
-pub async fn work(db: Db) {
+pub async fn work(db: std::sync::Arc<Db>) {
     loop {
         sweep(&db).await.ok();
         super::t18_send::sweep(&db).await.ok();
