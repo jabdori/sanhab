@@ -3,7 +3,7 @@ use anyhow::{Context, Result, bail};
 use serde_json::{Value as Json, json};
 use surrealdb::Surreal;
 use surrealdb::engine::remote::http::{Client, Http};
-use surrealdb::opt::auth::{Record, Root};
+use surrealdb::opt::auth::Root;
 use surrealdb::types::Value;
 
 pub type Db = Surreal<Client>;
@@ -31,13 +31,22 @@ pub async fn connect() -> Result<Db> {
 }
 
 /// 레코드 사용자 로그인. clone()은 새 세션이므로 root 세션은 그대로 남는다.
-pub async fn signin(db: &Db, user: &str, pass: &str) -> Result<String> {
-    let s = db.clone();
-    let t = s
-        .signin(Record { namespace: ns(), database: dbname(), access: "staff".into(), params: json!({ "user": user, "pass": pass }) })
+/// 역할 사용자의 로그인. SDK의 `signin`은 같은 클라이언트를 같이 쓰는 다른 요청(일꾼의 AI 로그인 등)과 겹치면 첫 번에 20초 넘게 멈추고
+/// 작은 파드에서는 끝나지 않았다(배포에서 접속이 504). DB의 `/signin`에 직접 보내면 0.05초다. 토큰은 그대로 `as_user`에 쓴다.
+pub async fn signin(_db: &Db, user: &str, pass: &str) -> Result<String> {
+    let r = reqwest::Client::new()
+        .post(format!("http://{}/signin", env("SURREAL_ADDR", "localhost:18000")))
+        .header("Accept", "application/json")
+        .json(&json!({ "ns": ns(), "db": dbname(), "ac": "staff", "user": user, "pass": pass }))
+        .timeout(std::time::Duration::from_secs(30))
+        .send()
         .await
         .context("로그인 실패")?;
-    Ok(t.access.into_insecure_token())
+    if !r.status().is_success() {
+        bail!("로그인 실패 {}", r.status());
+    }
+    let b: Json = r.json().await.context("로그인 실패")?;
+    b["token"].as_str().map(String::from).context("로그인 실패")
 }
 
 /// 토큰으로 인증된 별도 세션 — 이 세션의 쿼리에는 DB PERMISSIONS가 적용된다.
