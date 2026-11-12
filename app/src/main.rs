@@ -71,9 +71,20 @@ pub fn demo_pass() -> String { std::env::var("DEMO_PASS").unwrap_or_else(|_| "de
 async fn gate(State(db): State<std::sync::Arc<Db>>, mut req: Request, next: Next) -> Result<Response, ApiError> {
     let deny = || err(StatusCode::UNAUTHORIZED, "접속");
     let token = req.headers().get(header::AUTHORIZATION).and_then(|v| v.to_str().ok()).and_then(|v| v.strip_prefix("Bearer ")).ok_or_else(deny)?;
-    let s = as_user(&db, token).await.map_err(|_| deny())?;
-    let role = q1(&s, "RETURN $auth.role;", json!({})).await.ok().and_then(|r| r.as_str().map(String::from)).ok_or_else(deny)?;
-    req.extensions_mut().insert(Me { db: s, role });
+    let me = match as_user(&db, token).await {
+        Ok(s) => q1(&s, "RETURN $auth.role;", json!({})).await.ok().and_then(|r| r.as_str().map(String::from)).map(|role| Me { db: s, role }),
+        Err(_) => None,
+    };
+    let Some(me) = me else {
+        // 다른 프로세스(배포 중 함께 뜬 앱)가 다시 적재하면 받아 둔 토큰이 무효가 된다 — 그 토큰이면 받아 둔 토큰과 세션을 비워 다음 접속이 새로 받게 한다
+        let mut g = TOKENS.lock().unwrap();
+        if g.as_ref().is_some_and(|(t, _)| t.to_string().contains(token)) {
+            *g = None;
+            db::forget_sessions();
+        }
+        return Err(deny());
+    };
+    req.extensions_mut().insert(me);
     Ok(next.run(req).await)
 }
 
