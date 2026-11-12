@@ -40,6 +40,11 @@ pub fn pick<'a>(rules: &'a [Rule], ym: &str) -> Vec<&'a Rule> {
     rules.iter().filter(|r| r.since.as_deref().is_none_or(|s| s <= last.as_str()) && r.until.as_deref().is_none_or(|u| u > last.as_str())).collect()
 }
 
+/// 승인권자: 합산이 한도 이하이면 영업지원, 넘으면 영업임원(모의(23)도 이 비교를 그대로 쓴다)
+pub fn approver(total: i64, limit: i64) -> &'static str {
+    if total <= limit { "영업지원" } else { "영업임원" }
+}
+
 /// 지급 한 건. `open`은 아직 굳은 심사에 들지 않은 미지급(심사를 기다리는 것)
 #[derive(Clone, Debug, Deserialize)]
 pub struct Pay {
@@ -68,7 +73,7 @@ pub fn plan(ym: &str, groups: &[Vec<String>], pays: &[Pay], limit: i64) -> Vec<J
         let total: i64 = ps.iter().map(|p| p.amount).sum();
         Some(json!({
             "id": format!("{ym}-{first}"), "ym": ym, "members": g, "payouts": ps.iter().map(|p| &p.id).collect::<Vec<_>>(),
-            "total": total, "limit": limit, "approver": if total <= limit { "영업지원" } else { "영업임원" },
+            "total": total, "limit": limit, "approver": approver(total, limit),
         }))
     }).collect()
 }
