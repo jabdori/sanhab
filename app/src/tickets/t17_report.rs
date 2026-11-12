@@ -28,7 +28,7 @@ const RETRY: u64 = 60;
 /// AI가 한 번 읽어 올 수 있는 글자 수
 const CUT: usize = 6000;
 /// 가리킬 수 있는 기록: `fn::evidence`가 값을 읽어 주는 종류
-const CITE: [&str; 6] = ["deposit", "payout", "rep", "addr", "acct", "recon"];
+const CITE: [&str; 7] = ["deposit", "payout", "rep", "addr", "acct", "recon", "incident"];
 /// 문장 틀의 값 자리
 const SLOTS: [&str; 7] = ["dealer", "node", "amount", "item", "at", "ym", "value"];
 
@@ -152,7 +152,7 @@ async fn exists(db: &Db, r: &str) -> Option<String> {
 const SYSTEM: &str = "너는 판매장려금 심사에서 내부 감시를 돕는 조사 담당 AI다. 주어진 정황을 조사해 보고를 JSON 하나로만 답한다(다른 글, 코드 울타리 없이).
 DB는 read_db 도구로 읽는다(SurrealQL의 SELECT와 RETURN만. 쓰기는 되지 않는다). 테이블: dealer(name) · rep/addr/acct(대리점 → 사람/주소/계좌 선. 속성 since, via) · deposit(date, amount. ->deposit_of->dealer, ->deposit_into->account) · payout(ym, amount. ->payout_of->dealer) · review · signal · ruling · recon. id에 -가 있으면 `D-024`처럼 백틱으로 감싼다.
 규칙:
-- facts(사실): 기록을 가리키기만 한다. 항목마다 ref(기록의 id: 정황의 근거 목록이나 도구 결과에 나온 id 그대로. deposit, payout, rep, addr, acct, recon 기록만)와 text(문장의 틀)를 준다. 금액, 이름, 날짜, 계좌는 직접 쓰지 말고 {dealer} {node} {amount} {item} {at} {ym} {value} 자리 표시로만 쓴다(그 기록이 가진 값만 채워진다). 틀의 나머지 글에는 숫자를 쓰지 않는다. 값은 무엇이 올지 모르므로 값 자리 바로 뒤에 은/는, 이/가, 을/를, 과/와 같은 조사를 붙이지 않는다(\"{dealer}의 {at} 회수\", \"계좌 {node}\"처럼 조사가 필요 없게 쓴다). 사실은 1~6개.
+- facts(사실): 기록을 가리키기만 한다. 항목마다 ref(기록의 id: 정황의 근거 목록이나 도구 결과에 나온 id 그대로. deposit, payout, rep, addr, acct, recon, incident 기록만)와 text(문장의 틀)를 준다. 금액, 이름, 날짜, 계좌는 직접 쓰지 말고 {dealer} {node} {amount} {item} {at} {ym} {value} 자리 표시로만 쓴다(그 기록이 가진 값만 채워진다). 틀의 나머지 글에는 숫자를 쓰지 않는다. 값은 무엇이 올지 모르므로 값 자리 바로 뒤에 은/는, 이/가, 을/를, 과/와 같은 조사를 붙이지 않는다(\"{dealer}의 {at} 회수\", \"계좌 {node}\"처럼 조사가 필요 없게 쓴다). 사실은 1~6개.
 - guess(추정): 사실에서 이끌어 낸 짐작. 문자열 목록.
 - unknown(미확인): 기록으로 확인되지 않아 사람이 확인해야 할 것. 문자열 목록.
 - opinion(의견): action(요청 또는 기각)과 text. 요청은 대리점에 소명을 청하는 것, 기각은 정황이 아니라고 보는 것이다.
@@ -231,9 +231,11 @@ fn canned(model: &str, b: &J) -> Option<String> {
         Some("회수") => "{dealer}의 {at} 회수가 {node}에 들어갔다",
         Some("지급") => "{dealer}의 {ym} 지급 {amount}",
         Some("대사") => "{dealer}의 {ym} 대사 불일치 {value}",
+        Some("변경") => "{dealer}의 {at} {item} {value} 변경 {node}",
         _ => "{dealer}의 {item} 등록 {node}",
     };
-    let mut facts: Vec<J> = ev.iter().take(3).map(|e| json!({ "ref": e["id"], "text": tpl(e) })).collect();
+    // 앞의 셋에 더해 변경(사건)이 근거에 있으면 그것도 가리킨다(재접수의 새 근거)
+    let mut facts: Vec<J> = ev.iter().enumerate().filter(|(i, e)| *i < 3 || e["item"] == "변경").map(|(_, e)| e).map(|e| json!({ "ref": e["id"], "text": tpl(e) })).collect();
     let mut opinion = json!({ "action": "요청", "text": "근거가 서로 이어져 있어 대리점에 소명을 청해 볼 만하다" });
     match model {
         "fixture" => {}
