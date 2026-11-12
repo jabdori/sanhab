@@ -12,7 +12,6 @@ import { ToggleButton } from '@astryxdesign/core/ToggleButton'
 import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useState } from 'react'
 import { L } from '../../labels'
-import type { Piece } from '../../pieces'
 import { menuAtom, targetAtom, useData } from '../../state'
 import { Empty } from '../../ui/Empty'
 import { Region } from '../../ui/Region'
@@ -197,7 +196,7 @@ export function Tidy() {
 export const fileAtom = atom<File | null>(null)
 
 /** 시연 서랍(slot 'demo'): 시연 서류를 골라 조치 칸의 접수할 파일로 둔다. 제품의 조작이 아니므로 소명 화면에는 없다. 그렇게 올린 서류는 출처가 모의다 */
-function Samples() {
+export function Samples() {
   const d = useDocs()
   const samples = useData<{ id: string; name: string; dealer: string; source: string }[]>(d?.can ? '/samples' : null)
   const [file, setFile] = useAtom(fileAtom)
@@ -287,4 +286,3 @@ export function OfDealer() {
   )
 }
 
-export default [{ slot: 'demo', kind: L.소명, View: Samples }] satisfies Piece[]

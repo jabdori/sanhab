@@ -11,7 +11,6 @@ import { Timestamp } from '@astryxdesign/core/Timestamp'
 import { useAtomValue } from 'jotai'
 import { type ComponentProps, useState } from 'react'
 import { L } from '../../labels'
-import type { Piece } from '../../pieces'
 import { api, targetAtom, useData } from '../../state'
 import { Confirm } from '../../ui/Confirm'
 import { Empty } from '../../ui/Empty'
@@ -101,4 +100,3 @@ export function History() {
   )
 }
 
-export default [] satisfies Piece[]

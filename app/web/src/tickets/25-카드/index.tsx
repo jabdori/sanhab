@@ -2,18 +2,18 @@
 // 사유는 사람이 말한 것을 옮겨 적은 것이라 여기서 고칠 수 있고, 사유가 필수인 조치는 채우기 전에는 실행이 눌리지 않는다.
 // 실행은 사람이 누른다: 화면에서 직접 한 조치와 같은 경로를 그 사람의 세션으로 부르므로 이력과 경위에 똑같이 남는다. 누른 뒤 끝날 때까지 다시 눌리지 않는다.
 // 인정은 되돌리기 어려워 20의 조치처럼 제외될 선과 기간을 보이는 확인 창을 거친다.
+import { Badge } from '@astryxdesign/core/Badge'
 import { Button } from '@astryxdesign/core/Button'
+import { HStack, VStack } from '@astryxdesign/core/Layout'
 import { Card as Box } from '@astryxdesign/core/Card'
 import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
 import { Text } from '@astryxdesign/core/Text'
 import { useState } from 'react'
 import { L } from '../../labels'
-import type { Piece } from '../../pieces'
 import { api, useData } from '../../state'
 import { Confirm } from '../../ui/Confirm'
-import { Pill } from '../../ui/Pill'
 import { Reason, ready, sent, type Draft } from '../../ui/Reason'
-import { Table } from '../../ui/Table'
+import { badge } from '../../ui/status'
 
 /** 서버가 `data-card`로 보내는 카드: 대상(종류, 이름), 조치, 사유가 필수인지와 고를 수 있는 분류, 옮겨 적은 사유, 실행이 부를 경로 */
 export type CardData = {
@@ -28,23 +28,28 @@ export type CardData = {
   run: { path: string; body: Record<string, unknown> }
 }
 
-// 실행한 뒤의 결과 표지: 다른 화면의 상태 표지와 같은 색(tokens.md)
-const tones = { [L.승인]: 'good', [L.추인]: 'good', [L.인정]: 'good', [L.보류]: 'hold', [L.보완]: 'hold', [L.반려]: 'bad', [L.거부]: 'bad', [L.불인정]: 'bad', [L.요청]: 'wait', [L.기각]: 'wait' } as const
-
 /** 인정의 확인 창: 제외될 선과 기간(20의 결과 경로가 주는 값) */
 function Excluded({ id }: { id: string }) {
   const v = useData<{ span: [string, string] | null; lines: { item: string; value: string }[] }>(`/clarifies/${encodeURIComponent(id)}/verdict`)
   if (!v) return null
   return (
-    <div className="flex flex-col gap-3">
+    <VStack gap={3}>
       <Text type="supporting">{L.제외}</Text>
-      {v.lines.length ? <Table head={[L.종류, L.식별자]} rows={v.lines.map((l) => [l.item, l.value])} /> : <Text>{L['제외 없음']}</Text>}
       <MetadataList label={{ width: 72 }}>
+        {v.lines.length ? (
+          v.lines.map((l, i) => (
+            <MetadataListItem key={i} label={l.item}>
+              {l.value}
+            </MetadataListItem>
+          ))
+        ) : (
+          <MetadataListItem label={L.제외}>{L['제외 없음']}</MetadataListItem>
+        )}
         <MetadataListItem label={L.기간}>
-          <span className="tabular-nums">{v.span ? `${v.span[0]} ~ ${v.span[1]}` : L.미상}</span>
+          <Text hasTabularNumbers>{v.span ? `${v.span[0]} ~ ${v.span[1]}` : L.미상}</Text>
         </MetadataListItem>
       </MetadataList>
-    </div>
+    </VStack>
   )
 }
 
@@ -66,24 +71,25 @@ export function Card({ card }: { card: CardData }) {
   }
   const off = busy || !ready(card.action, card.must, draft)
   return (
-    <section aria-label={L['조치 카드']} className="w-full">
-      <Box variant="muted" padding={3}>
-        <div className="flex flex-col gap-3">
+      <Box variant="muted" padding={3} width="100%" aria-label={L['조치 카드']}>
+        <VStack gap={3}>
           <Text type="supporting">{L['조치 카드']}</Text>
           <MetadataList label={{ width: 72 }}>
             <MetadataListItem label={L.대상}>
-              <span className="wrap-anywhere">
+              <Text className="wrap-anywhere">
                 {card.kind} {card.name}
-              </span>
+              </Text>
             </MetadataListItem>
             <MetadataListItem label={L.조치}>{card.action}</MetadataListItem>
           </MetadataList>
           {done ? (
-            <Pill tone={tones[card.action as keyof typeof tones] ?? 'wait'}>{card.action}</Pill>
+            <HStack>
+              <Badge variant={badge(card.action)} label={card.action} />
+            </HStack>
           ) : (
             <>
               <Reason groups={[{ of: card.action, classes: card.classes }]} value={draft} onChange={setDraft} />
-              <div className="flex flex-wrap items-center gap-2">
+              <HStack gap={2} vAlign="center" wrap="wrap">
                 {card.action === L.인정 ? (
                   // 인정은 되돌리기 어려워 제외될 선과 기간을 보이는 확인 창을 거친다. 창의 실행 버튼은 결과의 낱말
                   <Confirm trigger={L.실행} label={card.action} variant="primary" title={`${card.action} ${card.name}`} isDisabled={off} onConfirm={go}>
@@ -92,15 +98,12 @@ export function Card({ card }: { card: CardData }) {
                 ) : (
                   <Button label={L.실행} variant="primary" isDisabled={off} onClick={go} />
                 )}
-                {bad && <Pill tone="bad">{bad}</Pill>}
-              </div>
+                {bad && <Badge variant="error" label={bad} />}
+              </HStack>
             </>
           )}
-        </div>
+        </VStack>
       </Box>
-    </section>
   )
 }
 
-// 카드는 대화 안에서만 그려진다(24가 data-card 파트를 이 부품으로 그린다). 끼우는 조각은 없다
-export default [] satisfies Piece[]

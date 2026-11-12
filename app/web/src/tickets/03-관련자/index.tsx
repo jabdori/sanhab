@@ -6,7 +6,6 @@ import { Text } from '@astryxdesign/core/Text'
 import { Token } from '@astryxdesign/core/Token'
 import { useAtom, useAtomValue } from 'jotai'
 import { L } from '../../labels'
-import type { Piece } from '../../pieces'
 import { targetAtom, useData } from '../../state'
 import { Empty } from '../../ui/Empty'
 import { Region } from '../../ui/Region'
@@ -84,4 +83,3 @@ export function Links() {
   )
 }
 
-export default [] satisfies Piece[]

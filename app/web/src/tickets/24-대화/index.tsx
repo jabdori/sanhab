@@ -21,7 +21,6 @@ import { DefaultChatTransport, type UIMessage } from 'ai'
 import { useAtomValue } from 'jotai'
 import { useEffect, useRef, useState } from 'react'
 import { ASK, L } from '../../labels'
-import type { Piece } from '../../pieces'
 import { api, changedAtom, roleAtom, rolesAtom, store, targetAtom, type Target } from '../../state'
 import { badge } from '../../ui/status'
 import { Card, type CardData } from '../25-카드'
@@ -278,4 +277,3 @@ export function Chat() {
   return <Panel key={role} />
 }
 
-export default [] satisfies Piece[]

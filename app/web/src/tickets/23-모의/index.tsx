@@ -9,14 +9,13 @@ import { Text } from '@astryxdesign/core/Text'
 import { atom, useAtomValue, useSetAtom } from 'jotai'
 import { useState } from 'react'
 import { L } from '../../labels'
-import type { Piece } from '../../pieces'
 import { api, menuAtom, roleAtom, targetAtom, useData } from '../../state'
 import { Compare } from '../../ui/Compare'
 import { Confirm } from '../../ui/Confirm'
 import { grade } from '../../ui/grade'
 import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
-import { Tiles } from '../../ui/Record'
+import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
 import { num } from '../../ui/status'
 
 type Mock = {
@@ -74,12 +73,17 @@ export function Result() {
   return (
     <Region title={L.모의} aside={<Source kind={L.계산} tip={`${L.한도} ${num(m.limit)}`} rows={[[L.한도, num(m.limit)]]} />}>
       <VStack gap={4}>
-        <Tiles
-          items={[
-            { name: L.한도, value: num(m.limit) },
-            { name: L.변동, value: m.changed, below: <Text type="supporting" color="secondary" hasTabularNumbers>{`${L.전체} ${m.total}`}</Text> },
-          ]}
-        />
+        {/* 카드 안의 카드를 피해 숫자는 이름표 · 값 줄로(copy.md: 변동 n / 전체 n · 한도) */}
+        <MetadataList columns="single" label={{ position: 'start', width: 72 }}>
+          <MetadataListItem label={L.한도}>
+            <Text weight="semibold" hasTabularNumbers>
+              {num(m.limit)}
+            </Text>
+          </MetadataListItem>
+          <MetadataListItem label={L.변동}>
+            <Text weight="semibold" hasTabularNumbers>{`${m.changed} / ${L.전체} ${m.total}`}</Text>
+          </MetadataListItem>
+        </MetadataList>
         <Compare
           head={[L.현재, L.모의]}
           rows={[
@@ -119,4 +123,3 @@ export function Result() {
   )
 }
 
-export default [] satisfies Piece[]

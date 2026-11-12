@@ -31,6 +31,8 @@ const STATE: Record<string, BadgeVariant> = {
   [L.실패]: 'error',
   [L.누락]: 'error',
   [L.정산]: 'success',
+  [L.추인]: 'success',
+  [L.거부]: 'error',
 }
 export const badge = (state: string): BadgeVariant => STATE[state] ?? 'neutral'
 

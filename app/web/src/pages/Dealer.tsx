@@ -37,11 +37,8 @@ function IntakeRegion() {
   const d = useDetail()
   const rel = useData<{ id: string; can: boolean; near: unknown[] }>(d ? `/dealers/${encodeURIComponent(d.dealer.id)}/clarify` : null)
   if (!d || rel?.id !== d.dealer.id || !rel.can || !rel.near.length) return null
-  return (
-    <Region title={L.접수}>
-      <Intake />
-    </Region>
-  )
+  // Intake 자체가 제목 달린 영역(Region)이다
+  return <Intake />
 }
 
 /** 레일의 요약: 지금 유효한 등록값(이전 값이 아닌 것) */

@@ -4,8 +4,11 @@ import { NumberInput } from '@astryxdesign/core/NumberInput'
 import { useSetAtom } from 'jotai'
 import { useState } from 'react'
 import { L } from './labels'
-import { SlotView, usePieces } from './pieces'
+import { Reply } from './tickets/08-대사'
+import { Samples } from './tickets/19-서류'
+import { IntakeSamples } from './tickets/20-소명'
 import { api, targetAtom, useData } from './state'
+import { useAtomValue } from 'jotai'
 import { Confirm } from './ui/Confirm'
 import { Region } from './ui/Region'
 
@@ -30,7 +33,9 @@ const plus = (day: string, n: number) => new Date(Date.parse(`${day}T00:00:00Z`)
 function Demo() {
   const setTarget = useSetAtom(targetAtom)
   const today = useData<{ today: string }>('/state')?.today ?? START
-  const pieces = usePieces('demo')
+  const target = useAtomValue(targetAtom)
+  // 열어 둔 기록에 딸린 시연 조작: 지급 → 모의 회신(08), 소명 → 시연 서류(19), 대리점 → 접수 시연(20)
+  const Extra = target ? { [L.지급]: Reply, [L.소명]: Samples, [L.대리점]: IntakeSamples }[target.kind] : undefined
   const [days, setDays] = useState<number | null>(15)
   const ok = days !== null && Number.isInteger(days) && days >= 1 && days <= 365
   return (
@@ -41,7 +46,7 @@ function Demo() {
           <Confirm label={L.넘기기} title={`${L.넘기기} ${days ?? ''}${L.일}`} rows={[[L.날짜, `${today} → ${ok ? plus(today, days) : ''}`]]} isDisabled={!ok} onConfirm={() => api('/advance', { days }).catch(() => {})} />
         </HStack>
       </Region>
-      {pieces.length > 0 && <SlotView slot="demo" />}
+      {Extra && <Extra />}
       <Region title={L.초기화}>
         <HStack>
           <Confirm

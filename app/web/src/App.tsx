@@ -18,7 +18,6 @@ import { APP, L } from './labels'
 import { Clarify } from './pages/Clarify'
 import { Dealer } from './pages/Dealer'
 import { Dealers } from './pages/Dealers'
-import { LegacyRecord } from './pages/Legacy'
 import { Pay } from './pages/Pay'
 import { Ratify } from './pages/Ratify'
 import { Review } from './pages/Review'
@@ -51,7 +50,7 @@ function Shell() {
   const [demo, setDemo] = useState(false)
   const narrow = useMediaQuery('(max-width: 1366px)')
   const chat = useResizable({ defaultSize: 380, minSize: 320, maxSize: 560, autoSaveId: 'chat' })
-  const Open = target ? (RECORDS[target.kind] ?? LegacyRecord) : null
+  const Open = target ? RECORDS[target.kind] : undefined
   const List = LISTS[menu]
   // 기록은 대상마다 새로 그린다(탭·사유 입력이 다른 기록으로 넘어가지 않게)
   const page = Open && target ? <Open key={`${target.kind}/${target.id}`} /> : <List />

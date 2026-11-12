@@ -1,7 +1,6 @@
 // 12 가설: 정황 상세와 심사 상세의 "가설" — 정황이 사실이라고 놓았을 때의 일치, 그룹, 승인권자를 현재와 나란히 둔다(다른 줄만 굵다).
 // 값은 모두 코드가 03의 계산에 정황이 가리키는 선을 더해 다시 구한 것이고 출처는 가정이다. 합산과 저장된 승인권자에는 들어가지 않는다.
 import { L } from '../../labels'
-import type { Piece } from '../../pieces'
 import { useData } from '../../state'
 import { VStack } from '@astryxdesign/core/Layout'
 import { Heading } from '@astryxdesign/core/Text'
@@ -80,4 +79,3 @@ export function OfReview() {
   )
 }
 
-export default [] satisfies Piece[]

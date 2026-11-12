@@ -12,7 +12,8 @@
 | `ui/Mark` | 표시 `Token`(색·아이콘은 `ui/status.ts`) | 표시마다 같은 색 |
 | `ui/Compare` | 두 열 비교 `Table`(다른 줄만 굵게) | 당시/현재 · 현재/가설 · 현재/모의가 같은 꼴 |
 | `ui/Relation`, `16`의 경위 그림 | 관계 · 경위 그림(SVG) | astryx에 그림 부품이 없다 |
-| `ui/Table`, `Pill`, `Title`, `Figures`, `Line` | 옛 화면용 | 아직 옮기지 않은 화면(정황·소명·지급·추인·대리점·규정, `pages/Legacy`)만 쓴다. 옮기면 지운다 |
+| `ui/Record` | 기록 화면의 틀: `RecordPage`(머리 · 메타 한 줄 · 페이지 조치 · 탭 · 레일) · `Tiles` · `RailCard` · `Act`(확인 창 + 사유) | 모든 기록 화면이 같은 꼴이 되게. detail-page 템플릿을 한 번만 옮겨 둔 것 |
+| `ui/Line` | 결정 한 줄(Stack + Text) | 요약의 결정 · 보고의 결정이 같은 꼴 |
 
 ## 버튼 등급
 - **조치 묶음마다 주 버튼(primary)은 하나**: 흐름을 앞으로 보내는 조치(승인, 추인, 종결, 요청, 인정, 발송, 지급, 회신, 재상신, 변경, 접수). 목록은 `ui/grade.ts`, 버튼은 `<Button variant={grade(kind)} …>`.
@@ -56,7 +57,16 @@
 | 화면 | 출발 템플릿 | 파일 |
 |---|---|---|
 | 틀 | AppShell + SideNav(scaffold) | `App.tsx` |
+| 접속 | login-card | `Enter.tsx` |
 | 작업 | incident-console | `pages/Work.tsx` |
-| 심사 기록 | detail-page | `pages/Review.tsx` |
+| 대리점 · 규정 목록 | table-page(줄 전체가 눌리는 Table) | `pages/Dealers.tsx`, `pages/Rules.tsx` |
+| 기록(심사 · 정황 · 소명 · 지급 · 추인 · 대리점 · 규정) | detail-page(`ui/Record`) | `pages/Review.tsx`, `Signal.tsx`, `Clarify.tsx`, `Pay.tsx`, `Ratify.tsx`, `Dealer.tsx`, `Rule.tsx` |
 | 대화 | ai-chat · ai-chat-landing | `tickets/24-대화` |
-| 그 밖 | 옛 조각을 detail-page 모양에 임시로 | `pages/Legacy.tsx` |
+| 시연 서랍 | Drawer | `Demo.tsx`(열어 둔 기록에 따라 모의 회신 · 시연 서류 · 접수 시연) |
+
+## 반응 계약(astryx docs layout/responsive)
+| 폭 | 메뉴 | 본문 | 기록의 레일 | 대화 |
+|---|---|---|---|---|
+| > 1680 | 펼침 | 나머지 | 320, 옆 | 380 |
+| ≤ 1680 | 펼침 | 나머지(1440에서 약 800) | 본문 아래 카드 | 380 |
+| ≤ 1366 | 아이콘 줄(역할은 Avatar) | 나머지(1280에서 약 850) | 본문 아래 카드 | 380 |

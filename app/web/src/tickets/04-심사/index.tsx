@@ -8,7 +8,6 @@ import { Text } from '@astryxdesign/core/Text'
 import { Token } from '@astryxdesign/core/Token'
 import { useSetAtom } from 'jotai'
 import { L } from '../../labels'
-import type { Piece } from '../../pieces'
 import { menuAtom, targetAtom } from '../../state'
 import { Empty } from '../../ui/Empty'
 import { Line as Row } from '../../ui/Line'
@@ -16,7 +15,7 @@ import { Region } from '../../ui/Region'
 import { Relation } from '../../ui/Relation'
 import { Source } from '../../ui/Source'
 import { match } from '../../ui/status'
-import { num } from '../../ui/Table'
+import { num } from '../../ui/status'
 import { type Decision, type Review, useReview } from './review'
 
 type Pay = { key: string; id: string; name: string; match: string[]; amount: number | null; source?: string; file?: string | null; row?: number | null } & Record<string, unknown>
@@ -148,4 +147,3 @@ export const Line = ({ d }: { d: Decision }) => (
   <Row kind={d.kind} parts={[d.role, d.at ?? L.미상, d.reason?.class ?? `${L.사유} ${L.없음}${d.source === L.원본 ? `(${L.원본})` : ''}`]} memo={d.reason?.memo} />
 )
 
-export default [] satisfies Piece[]

@@ -13,7 +13,6 @@ import { atom, useAtomValue } from 'jotai'
 import { unwrap } from 'jotai/utils'
 import { useState } from 'react'
 import { L } from '../../labels'
-import type { Piece } from '../../pieces'
 import { api, changedAtom, roleAtom, store, targetAtom } from '../../state'
 import { Confirm } from '../../ui/Confirm'
 import { Empty } from '../../ui/Empty'
@@ -179,7 +178,7 @@ function Form({ d }: { d: Recon }) {
 }
 
 /** 시연 서랍(slot 'demo'): 은행 회신을 넣는다(모의 회신 — 실제 은행이 없다). 넣은 회신은 지급 화면에 출처 모의로 남는다 */
-function Reply() {
+export function Reply() {
   const d = useRecon()
   return d?.can ? (
     // 어느 지급의 회신인지 영역 제목 옆에(서랍은 화면과 떨어져 있다)
@@ -210,4 +209,3 @@ export function History() {
   )
 }
 
-export default [{ slot: 'demo', kind: L.지급, View: Reply }] satisfies Piece[]

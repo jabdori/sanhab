@@ -11,7 +11,6 @@ import { Text } from '@astryxdesign/core/Text'
 import { useSetAtom } from 'jotai'
 import { type ReactNode, useEffect, useState } from 'react'
 import { L } from '../../labels'
-import type { Piece } from '../../pieces'
 import { api, store } from '../../state'
 import { Empty } from '../../ui/Empty'
 import { Act } from '../../ui/Record'
@@ -192,4 +191,3 @@ export function AiReport() {
   )
 }
 
-export default [] satisfies Piece[]

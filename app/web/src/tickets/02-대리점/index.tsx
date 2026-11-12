@@ -6,7 +6,6 @@ import { Table, pixel, proportional } from '@astryxdesign/core/Table'
 import { Text } from '@astryxdesign/core/Text'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { L } from '../../labels'
-import type { Piece } from '../../pieces'
 import { targetAtom, useData } from '../../state'
 import { Mark } from '../../ui/Mark'
 import { Region } from '../../ui/Region'
@@ -138,11 +137,10 @@ export function Payouts() {
               ),
           },
           // 어느 쪽이든 출처 표지는 원본의 행을 연다
-          { key: 'source', header: L.출처, align: 'end', width: pixel(48), renderCell: (p) => src(p.state ? { ...p, source: p.state_source ?? p.source } : p) },
+          { key: 'source', header: L.출처, align: 'end', width: pixel(72), renderCell: (p) => src(p.state ? { ...p, source: p.state_source ?? p.source } : p) },
         ]}
       />
     </Region>
   )
 }
 
-export default [] satisfies Piece[]

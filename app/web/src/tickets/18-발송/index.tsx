@@ -12,7 +12,6 @@ import { Timestamp } from '@astryxdesign/core/Timestamp'
 import { atom, useAtom, useSetAtom } from 'jotai'
 import { useEffect } from 'react'
 import { L } from '../../labels'
-import type { Piece } from '../../pieces'
 import { targetAtom, useData } from '../../state'
 import { Empty } from '../../ui/Empty'
 import { Region } from '../../ui/Region'
@@ -137,4 +136,3 @@ export function Of() {
   )
 }
 
-export default [] satisfies Piece[]

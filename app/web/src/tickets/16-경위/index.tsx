@@ -1,18 +1,17 @@
-// 16 경위: 지급·심사·추인의 오른쪽 경위 칸에 사슬 순서의 목록(날짜, 종류, 대상)과 `그림` 버튼. 누르면 가운데가 경위 그림으로 바뀐다.
+// 16 경위: 지급·심사·추인 기록의 경위 탭 — 그림(Picture)과 시간 순 목록(Timeline).
 // 그림: 원인은 왼쪽, 결과는 오른쪽, 방향은 바뀌지 않는다. 지금 대상의 줄기(앞뒤로 이어진 칸과 선)가 진하다. 칸을 누르면 그 대상으로 간다. 결정의 칸에는 사람과 사유가 붙는다.
 import { Avatar } from '@astryxdesign/core/Avatar'
-import { Link } from '@astryxdesign/core/Link'
+import { ClickableCard } from '@astryxdesign/core/ClickableCard'
+import { HStack, StackItem, VStack } from '@astryxdesign/core/Layout'
 import { List as Rows, ListItem } from '@astryxdesign/core/List'
-import { Timestamp } from '@astryxdesign/core/Timestamp'
+import { ScrollableArea } from '@astryxdesign/core/ScrollableArea'
 import { Text } from '@astryxdesign/core/Text'
-import { ToggleButton } from '@astryxdesign/core/ToggleButton'
-import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { Timestamp } from '@astryxdesign/core/Timestamp'
+import { useAtomValue, useSetAtom } from 'jotai'
 import { L } from '../../labels'
-import type { Piece } from '../../pieces'
-import { targetAtom, trailOpenAtom, useData } from '../../state'
+import { targetAtom, useData } from '../../state'
 import { Empty } from '../../ui/Empty'
 import { Region } from '../../ui/Region'
-import { Table } from '../../ui/Table'
 
 type Node = {
   key: string
@@ -33,28 +32,6 @@ function useTrail() {
   const d = useData<Trail>(target && path ? `/trail/${path}/${encodeURIComponent(target.id)}` : null)
   // 대상이 바뀐 뒤에도 앞 대상의 값이 남아 있으므로 지금 대상의 것인지 본다
   return target && d && d.for[0] === path && d.for[1] === target.id ? d : undefined
-}
-
-function Go({ node }: { node: Node }) {
-  const setTarget = useSetAtom(targetAtom)
-  return (
-    <Link tooltip={node.name} onClick={() => setTarget(node.go)}>{node.name}</Link>
-  )
-}
-
-/** 오른쪽: 사슬의 순서(원인 → 결과, 서버가 준 그대로). 날짜가 없는 칸은 미상. 대상이 길면 줄임표(머물면 전체) */
-function List() {
-  const d = useTrail()
-  const [open, setOpen] = useAtom(trailOpenAtom)
-  if (!d) return <Empty />
-  return (
-    <div className="flex flex-col gap-2">
-      <div>
-        <ToggleButton label={L.그림} size="sm" isPressed={open} onPressedChange={setOpen} />
-      </div>
-      <Table head={[L.날짜, L.종류, L.대상]} clip={[2]} rows={d.nodes.map((n) => [n.at ?? L.미상, n.kind, <Go key={n.key} node={n} />])} current={d.nodes.findIndex((n) => n.key === d.now)} />
-    </div>
-  )
 }
 
 /** 시간 순 목록(incident-console의 Timeline 꼴, 기록 화면의 경위 탭): 사람(역할)의 Avatar · 종류 · 대상 / 사유 / 날짜. 누르면 그 대상으로 */
@@ -131,7 +108,7 @@ export function Picture() {
   const height = most * (H + GAP_Y) - GAP_Y
   return (
     <Region title={L.그림}>
-      <div className="overflow-x-auto">
+      <ScrollableArea axis="inline" label={L.그림}>
         <svg role="img" aria-label={L.경위} width={width} height={height}>
           <defs>
             <marker id="head" markerUnits="userSpaceOnUse" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" orient="auto">
@@ -158,40 +135,37 @@ export function Picture() {
           })}
           {d.nodes.map((n) => (
             <foreignObject key={n.key} x={pos[n.key].x} y={pos[n.key].y} width={W} height={H}>
-              <button
-                type="button"
-                aria-current={n.key === d.now || undefined}
-                onClick={() => setTarget(n.go)}
-                className={`flex h-full w-full cursor-pointer flex-col justify-center gap-0.5 overflow-hidden rounded-md border px-3 text-left hover:bg-muted ${n.key === d.now ? 'border-2 border-primary bg-muted' : on.has(n.key) ? 'border-secondary bg-surface' : 'border-border bg-surface opacity-60'}`}
-              >
-                <span className="flex items-baseline justify-between gap-2">
-                  <Text weight="semibold">{n.kind}</Text>
-                  {/* 아직 일어나지 않은 칸(결정 전의 심사, 표시 전의 지급)은 날짜를 비운다 */}
-                  {n.at && (
-                    <Text type="supporting" hasTabularNumbers>
-                      {n.at}
+              {/* 칸: 지금 대상은 muted 카드, 줄기 밖의 칸은 투명 카드(흐리게) */}
+              <ClickableCard label={n.name} onClick={() => setTarget(n.go)} variant={n.key === d.now ? 'muted' : on.has(n.key) ? 'default' : 'transparent'} padding={2} height="100%" aria-current={n.key === d.now || undefined}>
+                <VStack gap={0.5}>
+                  <HStack gap={2} vAlign="center">
+                    <StackItem size="fill">
+                      <Text weight="semibold" color={on.has(n.key) ? 'primary' : 'secondary'}>
+                        {n.kind}
+                      </Text>
+                    </StackItem>
+                    {/* 아직 일어나지 않은 칸(결정 전의 심사, 표시 전의 지급)은 날짜를 비운다 */}
+                    {n.at && (
+                      <Text type="supporting" hasTabularNumbers>
+                        {n.at}
+                      </Text>
+                    )}
+                  </HStack>
+                  <Text maxLines={2} color={on.has(n.key) ? 'primary' : 'secondary'}>
+                    {n.name}
+                  </Text>
+                  {n.who?.role && (
+                    <Text type="supporting" maxLines={1}>
+                      {[n.who.role, n.who.reason?.class, n.who.reason?.memo].filter(Boolean).join(' · ')}
                     </Text>
                   )}
-                </span>
-                <Text maxLines={2} display="block">
-                  {n.name}
-                </Text>
-                {n.who?.role && (
-                  <Text type="supporting" maxLines={1} display="block">
-                    {[n.who.role, n.who.reason?.class, n.who.reason?.memo].filter(Boolean).join(' · ')}
-                  </Text>
-                )}
-              </button>
+                </VStack>
+              </ClickableCard>
             </foreignObject>
           ))}
         </svg>
-      </div>
+      </ScrollableArea>
     </Region>
   )
 }
 
-const kinds = [L.지급, L.심사, L.추인]
-export default [
-  ...kinds.map((kind) => ({ slot: 'trail', kind, View: List }) as const),
-  ...kinds.map((kind) => ({ slot: 'map', kind, View: Picture }) as const),
-] satisfies Piece[]

@@ -22,7 +22,7 @@ import { Confirm } from '../ui/Confirm'
 import { grade } from '../ui/grade'
 import { Mark } from '../ui/Mark'
 import { badge, dot } from '../ui/status'
-import { num } from '../ui/Table'
+import { num } from '../ui/status'
 
 export type Task = { id: string; kind: string; view: string; target: string; name?: string; ym?: string; total?: number | null; marks: string[]; role: string; pick: boolean; state?: string; pay?: string | null }
 

@@ -2,7 +2,6 @@
 // 원본에는 승인한 날이 없다(이력에는 미상). 지급일은 승인한 날이 아니므로 이름표를 달아 따로 보인다.
 // 당시는 굳은 심사의 값 그대로이고 현재는 서버가 다시 계산해 준다. 과거의 심사는 대리점 상세의 지급 줄에서 연다(02의 조각).
 import { L } from '../../labels'
-import type { Piece } from '../../pieces'
 import { useData } from '../../state'
 import { Compare } from '../../ui/Compare'
 import { Region } from '../../ui/Region'
@@ -83,4 +82,3 @@ export function Then() {
   )
 }
 
-export default [] satisfies Piece[]

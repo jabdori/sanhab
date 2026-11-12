@@ -8,7 +8,6 @@ import { Table, pixel, proportional } from '@astryxdesign/core/Table'
 import { Text } from '@astryxdesign/core/Text'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { L } from '../../labels'
-import type { Piece } from '../../pieces'
 import { menuAtom, targetAtom, useData } from '../../state'
 import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
@@ -153,4 +152,3 @@ export function Uses() {
   )
 }
 
-export default [] satisfies Piece[]

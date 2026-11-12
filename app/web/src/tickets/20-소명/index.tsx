@@ -11,7 +11,6 @@ import { Token } from '@astryxdesign/core/Token'
 import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useState } from 'react'
 import { L } from '../../labels'
-import type { Piece } from '../../pieces'
 import { api, changedAtom, menuAtom, store, targetAtom, useData } from '../../state'
 import { Confirm } from '../../ui/Confirm'
 import { Empty } from '../../ui/Empty'
@@ -211,7 +210,3 @@ export function IntakeSamples() {
   )
 }
 
-export default [
-  { slot: 'action', kind: L.대리점, View: Intake },
-  { slot: 'demo', kind: L.대리점, View: IntakeSamples },
-] satisfies Piece[]

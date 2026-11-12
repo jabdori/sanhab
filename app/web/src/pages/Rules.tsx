@@ -5,7 +5,7 @@ import { HStack, Layout, LayoutContent, LayoutHeader, StackItem, VStack } from '
 import { Link } from '@astryxdesign/core/Link'
 import { PowerSearch, type PowerSearchFilter, usePowerSearchConfig } from '@astryxdesign/core/PowerSearch'
 import { Section } from '@astryxdesign/core/Section'
-import { Table, pixel, proportional } from '@astryxdesign/core/Table'
+import { Table, TableBody, TableCell, TableHeader, TableHeaderCell, TableRow } from '@astryxdesign/core/Table'
 import { Heading, Text } from '@astryxdesign/core/Text'
 import { useSetAtom } from 'jotai'
 import { useState } from 'react'
@@ -49,25 +49,39 @@ export function Rules() {
               {d && !visible.length ? (
                 <EmptyState title={L.없음} />
               ) : (
-                <Table<Line>
-                  data={visible}
-                  idKey="id"
-                  columns={[
-                    {
-                      key: 'title',
-                      header: L.조항,
-                      width: proportional(3, { minWidth: 200 }),
-                      renderCell: (r) => (
-                        <Link weight="semibold" onClick={() => setTarget({ kind: L.규정, id: r.id })}>
-                          {r.title}
-                        </Link>
-                      ),
-                    },
-                    { key: 'rules', header: L.규칙, align: 'end', width: pixel(88), renderCell: (r) => <Badge variant="neutral" label={String(r.rules)} /> },
-                    { key: 'place', header: L.위치, width: proportional(2, { minWidth: 160 }), renderCell: (r) => <Text color="secondary" maxLines={1}>{r.place}</Text> },
-                    { key: 'source', header: L.출처, align: 'end', width: pixel(64), renderCell: (r) => <Source kind={r.source} tip={r.title} place={`${r.first}–${r.last}${L.행}`} rows={[[L.위치, r.where], [L.해시, r.sha]]} /> },
-                  ]}
-                />
+                <Table density="compact" hasHover>
+                  <TableHeader>
+                    <TableRow isHeaderRow>
+                      <TableHeaderCell>{L.조항}</TableHeaderCell>
+                      <TableHeaderCell>{L.규칙}</TableHeaderCell>
+                      <TableHeaderCell>{L.위치}</TableHeaderCell>
+                      <TableHeaderCell>{L.출처}</TableHeaderCell>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {visible.map((r) => (
+                      // 줄 전체가 눌린다(대리점 목록과 같다). 줄 안의 링크·출처 표지를 누른 것은 줄이 다시 열지 않는다
+                      <TableRow key={r.id} className="cursor-pointer" onClick={(e) => !(e.target as Element).closest('button, a, input, label') && setTarget({ kind: L.규정, id: r.id })}>
+                        <TableCell>
+                          <Link weight="semibold" onClick={() => setTarget({ kind: L.규정, id: r.id })}>
+                            {r.title}
+                          </Link>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="neutral" label={String(r.rules)} />
+                        </TableCell>
+                        <TableCell>
+                          <Text color="secondary" maxLines={1}>
+                            {r.place}
+                          </Text>
+                        </TableCell>
+                        <TableCell>
+                          <Source kind={r.source} tip={r.title} place={`${r.first}–${r.last}${L.행}`} rows={[[L.위치, r.where], [L.해시, r.sha]]} />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               )}
             </StackItem>
           </VStack>

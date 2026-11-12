@@ -2,7 +2,6 @@
 import { atom, useAtomValue } from 'jotai'
 import { unwrap } from 'jotai/utils'
 import { L } from '../../labels'
-import type { Piece } from '../../pieces'
 import { api, changedAtom, roleAtom, targetAtom } from '../../state'
 import { Avatar } from '@astryxdesign/core/Avatar'
 import { List, ListItem } from '@astryxdesign/core/List'
@@ -51,4 +50,3 @@ export function History() {
   )
 }
 
-export default [] satisfies Piece[]

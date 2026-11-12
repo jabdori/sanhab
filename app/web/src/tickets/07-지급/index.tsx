@@ -5,7 +5,6 @@ import { Link } from '@astryxdesign/core/Link'
 import { Text } from '@astryxdesign/core/Text'
 import { useSetAtom } from 'jotai'
 import { L } from '../../labels'
-import type { Piece } from '../../pieces'
 import { api, changedAtom, store, targetAtom } from '../../state'
 import { Empty } from '../../ui/Empty'
 import { Act } from '../../ui/Record'
@@ -67,4 +66,3 @@ export function PayActions({ onBad }: { onBad: (word: string | null) => void }) 
   )
 }
 
-export default [] satisfies Piece[]

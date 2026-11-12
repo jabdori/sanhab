@@ -10,7 +10,6 @@ import { Text } from '@astryxdesign/core/Text'
 import { Timestamp } from '@astryxdesign/core/Timestamp'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { L } from '../../labels'
-import type { Piece } from '../../pieces'
 import { targetAtom, useData } from '../../state'
 import { Empty } from '../../ui/Empty'
 import { Mark } from '../../ui/Mark'
@@ -174,4 +173,3 @@ export function Flags() {
   )
 }
 
-export default [] satisfies Piece[]

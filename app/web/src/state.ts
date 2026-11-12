@@ -17,8 +17,6 @@ export const menuAtom = atom<Menu>(MENUS[0])
 export const targetAtom = atom<Target | null>(null)
 /** 작업 목록에서 기록을 열 때의 목록 순서. 기록 화면의 `n/전체 · 앞 / 뒤`가 이것을 따른다 */
 export const navAtom = atom<Target[]>([])
-/** 경위를 펼쳤는지(16, 옛 조각을 쓰는 화면). 펼치면 본문이 경위 그림으로 바뀌고, 대상이 바뀌면 접힌다(pages/Legacy) */
-export const trailOpenAtom = atom(false)
 /** 조치(POST)가 끝날 때마다 오른다. useData가 이것을 보고 다시 읽는다 */
 export const changedAtom = atom(0)
 

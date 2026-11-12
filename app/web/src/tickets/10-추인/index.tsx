@@ -15,7 +15,6 @@ import { atom, useAtomValue, useSetAtom } from 'jotai'
 import { unwrap } from 'jotai/utils'
 import { useEffect, useState } from 'react'
 import { L } from '../../labels'
-import type { Piece } from '../../pieces'
 import { api, changedAtom, roleAtom, store, targetAtom } from '../../state'
 import { Compare } from '../../ui/Compare'
 import { Empty } from '../../ui/Empty'
@@ -244,4 +243,3 @@ export function Way() {
   )
 }
 
-export default [] satisfies Piece[]
