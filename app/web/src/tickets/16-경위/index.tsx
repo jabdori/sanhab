@@ -40,7 +40,7 @@ export function Timeline() {
   const setTarget = useSetAtom(targetAtom)
   if (!d) return <Empty />
   return (
-    <Rows density="compact" hasDividers>
+    <Rows density="balanced" hasDividers>
       {d.nodes.map((n) => (
         <ListItem
           key={n.key}

@@ -133,7 +133,7 @@ export function Read() {
       <Table<Row>
           data={rows}
           idKey="item"
-          density="compact"
+          density="balanced"
           columns={[
             {
               key: 'item',
@@ -174,7 +174,7 @@ export function Tidy() {
         <Table<Tidy>
           data={d.tidy as Tidy[]}
           idKey="item"
-          density="compact"
+          density="balanced"
           columns={[
             { key: 'item', header: L.항목, width: proportional(2, { minWidth: 56 }), renderCell: (t) => <Text weight="semibold">{t.item}</Text> },
             { key: 'value', header: L.값, width: proportional(3, { minWidth: 88 }), renderCell: (t) => (t.value ? <Text hasTabularNumbers>{range(t.value)}</Text> : <Text color="secondary">{L.없음}</Text>) },
@@ -266,7 +266,7 @@ export function OfDealer() {
       <Table<C>
         data={list as C[]}
         idKey="id"
-        density="compact"
+        density="balanced"
         columns={[
           {
             key: 'name',

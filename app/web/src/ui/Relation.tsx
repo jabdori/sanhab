@@ -3,11 +3,11 @@ import { L } from '../labels'
 type Dot = { id: string; name: string }
 
 // 그림의 치수(theme.css의 간격 단위 4의 배수). 세 열: 대상 대리점 | 사람·주소·계좌 | 이웃 대리점
-const ROW = 36
-const BOX = 28
-const DEALER = 92
-const IDENT = 144
-const GAP = 24
+const ROW = 48
+const BOX = 36
+const DEALER = 128
+const IDENT = 208
+const GAP = 56
 const X = [0, DEALER + GAP, DEALER + GAP + IDENT + GAP]
 const WIDTH = X[2] + DEALER
 
@@ -36,10 +36,17 @@ export function Relation({ left, mid, right, lines, hints = [] }: { left: Dot[];
           const fromLeft = at(0, dealer)
           const from = fromLeft ?? at(2, dealer)
           if (to === null || from === null) return null
-          return fromLeft !== null ? (
-            <line key={i} x1={X[0] + DEALER} y1={from} x2={X[1]} y2={to} strokeDasharray={dash} className="stroke-disabled" />
-          ) : (
-            <line key={i} x1={X[1] + IDENT} y1={to} x2={X[2]} y2={from} strokeDasharray={dash} className="stroke-disabled" />
+          // 부드러운 곡선(astryx의 둥근 모서리와 같은 결)
+          const curve = (x1: number, y1: number, x2: number, y2: number) => `M${x1},${y1} C${(x1 + x2) / 2},${y1} ${(x1 + x2) / 2},${y2} ${x2},${y2}`
+          return (
+            <path
+              key={i}
+              d={fromLeft !== null ? curve(X[0] + DEALER, from, X[1], to) : curve(X[1] + IDENT, to, X[2], from)}
+              fill="none"
+              strokeWidth={1.5}
+              strokeDasharray={dash}
+              className="stroke-border"
+            />
           )
         })}
         {cols.map((col, c) =>
@@ -47,8 +54,22 @@ export function Relation({ left, mid, right, lines, hints = [] }: { left: Dot[];
             const width = c === 1 ? IDENT : DEALER
             return (
               <g key={`${c}${d.id}`}>
-                <rect x={X[c]} y={y(c, i) - BOX / 2} width={width} height={BOX} rx={c === 1 ? 0 : BOX / 2} className="fill-surface stroke-secondary" />
-                <text x={X[c] + width / 2} y={y(c, i)} textAnchor="middle" dominantBaseline="central" className="fill-primary tabular-nums">
+                {/* 대리점은 알약, 식별자는 둥근 사각. 대상 대리점(왼쪽)만 진하게, 나머지는 옅은 면 + 부드러운 테두리 */}
+                <rect
+                  x={X[c]}
+                  y={y(c, i) - BOX / 2}
+                  width={width}
+                  height={BOX}
+                  rx={c === 1 ? 8 : BOX / 2}
+                  className={c === 0 ? 'fill-primary' : c === 1 ? 'fill-muted stroke-border' : 'fill-surface stroke-border'}
+                />
+                <text
+                  x={X[c] + width / 2}
+                  y={y(c, i)}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  className={`${c === 0 ? 'fill-on-dark font-medium' : 'fill-primary'} tabular-nums`}
+                >
                   {d.name}
                 </text>
               </g>

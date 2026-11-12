@@ -140,13 +140,13 @@ function Panel() {
         {/* ChatLayout은 flex 1로 높이를 채운다: 세로 Stack(높이 100%) 안에 둔다 */}
         <VStack height="100%">
         <ChatLayout
-          density="compact"
+          density="balanced"
           composer={
             <ChatComposer
               value={text}
               onChange={setText}
               onSubmit={send}
-              density="compact"
+              density="balanced"
               placeholder={L.대화}
               input={<ChatComposerInput label={L.대화} placeholder={L.대화} maxRows={4} />}
               drawer={

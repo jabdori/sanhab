@@ -55,7 +55,7 @@ export function RegisteredRegion() {
       <Table<Registered>
         data={d.registered}
         idKey={(r) => `${r.item}/${r.value}/${r.since}`}
-        density="compact"
+        density="balanced"
         columns={[
           { key: 'item', header: L.식별자, width: pixel(72), renderCell: (r) => <Text weight="semibold">{r.item}</Text> },
           {
@@ -115,7 +115,7 @@ export function Payouts() {
       <Table<Payout>
         data={d.payouts}
         idKey={(p) => `${p.ym}/${p.amount}/${p.row ?? ''}`}
-        density="compact"
+        density="balanced"
         columns={[
           { key: 'ym', header: L.귀속월, width: pixel(96), renderCell: (p) => <Text hasTabularNumbers>{p.ym}</Text> },
           { key: 'amount', header: L.금액, align: 'end', width: pixel(96), renderCell: (p) => <Text weight="semibold" hasTabularNumbers>{num(p.amount)}</Text> },

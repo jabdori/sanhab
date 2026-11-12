@@ -117,7 +117,7 @@ export function Recon() {
       <Table<Row>
         data={data}
         idKey="key"
-        density="compact"
+        density="balanced"
         columns={[
           {
             key: 'item',

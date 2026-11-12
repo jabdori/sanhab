@@ -39,7 +39,7 @@ const Part = ({ name, children }: { name: string; children: ReactNode }) => (
 /** 줄마다 한 항목(긴 글이 칸을 넘지 않게 어디서든 줄을 바꾼다) */
 const Lines = ({ list }: { list: string[] }) =>
   list.length ? (
-    <List density="compact">
+    <List density="balanced">
       {list.map((t, i) => (
         <ListItem key={i} label={<Text className="break-keep wrap-anywhere">{t}</Text>} />
       ))}
@@ -101,7 +101,7 @@ function Body() {
   return (
     <VStack gap={3}>
       <Part name={L.사실}>
-        <List density="compact">
+        <List density="balanced">
           {r.facts.map((f, i) => (
             <ListItem
               key={i}

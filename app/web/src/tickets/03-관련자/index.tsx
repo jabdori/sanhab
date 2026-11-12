@@ -50,7 +50,7 @@ export function Links() {
           <Table<Near>
             data={d.near}
             idKey="id"
-            density="compact"
+            density="balanced"
             columns={[
               { key: 'name', header: L.대리점, width: proportional(2, { minWidth: 120 }), renderCell: (n) => <Dealer name={n.name} id={n.id} onOpen={() => setTarget({ kind: L.대리점, id: n.id })} /> },
               {

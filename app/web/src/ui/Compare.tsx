@@ -11,7 +11,7 @@ export function Compare({ head, rows }: { head: [string, string]; rows: [string,
     <Table<Row>
       data={data}
       idKey="name"
-      density="compact"
+      density="balanced"
       columns={[
         { key: 'name', header: '', width: proportional(1, { minWidth: 80 }), renderCell: (r) => <Text weight="semibold">{r.name}</Text> },
         { key: 'a', header: head[0], width: proportional(1, { minWidth: 80 }), renderCell: (r) => <Text weight={weight(r)} hasTabularNumbers>{r.a}</Text> },

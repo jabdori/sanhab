@@ -43,7 +43,7 @@ export function Evidence() {
         <Table<Row>
           data={rows}
           idKey="id"
-          density="compact"
+          density="balanced"
           columns={[
             {
               key: 'item',
@@ -153,7 +153,7 @@ export function Flags() {
   // ItemWithMetadata 꼴: 주의 점 · 정황 이름 / 종류 · 상태 Badge. 누르면 그 정황이 열린다. 기준이 가정인 종류(근접 D51, 지연 D30)는 그 가정의 표지
   return (
     <Region title={L.정황} aside={<Badge variant="neutral" label={String(list.length)} />}>
-      <List density="compact" hasDividers>
+      <List density="balanced" hasDividers>
         {list.map((s) => (
           <ListItem
             key={s.id}

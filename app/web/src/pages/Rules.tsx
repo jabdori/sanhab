@@ -52,7 +52,7 @@ export function Rules() {
               {d && !visible.length ? (
                 <EmptyState title={L.없음} />
               ) : (
-                <Table density="compact" hasHover>
+                <Table density="balanced" hasHover>
                   <TableHeader>
                     <TableRow isHeaderRow>
                       <TableHeaderCell>{L.조항}</TableHeaderCell>

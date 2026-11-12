@@ -37,7 +37,7 @@ export function Excluded() {
       <Table<E>
         data={v.excluded as E[]}
         idKey={(e) => `${e.item}/${e.value}`}
-        density="compact"
+        density="balanced"
         columns={[
           { key: 'item', header: L.종류, width: proportional(1, { minWidth: 64 }), renderCell: (e) => <Token size="sm" label={e.item} /> },
           { key: 'value', header: L.식별자, width: proportional(2, { minWidth: 96 }), renderCell: (e) => <Text weight="semibold">{e.value}</Text> },
@@ -63,7 +63,7 @@ export function Unknown() {
         <Table<U>
           data={data}
           idKey="item"
-          density="compact"
+          density="balanced"
           columns={[
             { key: 'item', header: L.항목, width: proportional(1, { minWidth: 64 }), renderCell: (u) => <Text weight="semibold">{u.item}</Text> },
             { key: 'word', header: L.확인, width: proportional(1, { minWidth: 72 }), renderCell: (u) => <State word={u.word} /> },

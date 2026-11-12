@@ -52,7 +52,7 @@ export function Dealers() {
               {list && !visible.length ? (
                 <EmptyState title={L.없음} />
               ) : (
-                <Table density="compact" hasHover>
+                <Table density="balanced" hasHover>
                   <TableHeader>
                     <TableRow isHeaderRow>
                       <TableHeaderCell>{L.대리점}</TableHeaderCell>

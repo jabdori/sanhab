@@ -69,14 +69,15 @@ function ReviewTiles() {
           aside: <Source kind={r.source} file={r.file ?? undefined} row={r.row ?? undefined} tip={L.합산} rows={[[L.합산, L['귀속월 지급의 합, 반려 제외']]]} />,
         },
         // 원본의 과거 승인에는 적용한 규칙의 기록이 없다(09)
-        { name: L.한도, value: r.limit === null ? L.미상 : num(r.limit), below: over && <Badge variant={fail} label={`+${num(r.total - r.limit!)}`} /> },
+        // 넘친 금액은 보조 글자로(합산 막대가 이미 빨갛다 — 같은 경고를 두 번 칠하지 않는다)
+        { name: L.한도, value: r.limit === null ? L.미상 : num(r.limit), below: over && <Text type="supporting" color="secondary" hasTabularNumbers>{`+${num(r.total - r.limit!)}`}</Text> },
         {
           name: L.승인권자,
           // 값은 실제로 결정하는 사람(서버 fn::holder). 합산으로 정한 승인권자와 다르면(정황의 가설로 올라감) 아래에 그 계산과 까닭
           value: (
             <HStack gap={2} vAlign="center">
-              <Icon icon={UserIcon} size="sm" color="secondary" />
-              <Text type="large" weight="semibold">
+              <Icon icon={UserIcon} size="md" color="secondary" />
+              <Text type="display-3">
                 {r.holder ?? r.approver}
               </Text>
             </HStack>
@@ -113,7 +114,7 @@ function SignalReport({ id, name }: { id: string; name: string }) {
   const setTarget = useSetAtom(targetAtom)
   const r = d?.report
   const lines = (list: string[]) => (
-    <List density="compact">
+    <List density="balanced">
       {list.map((t, i) => (
         <ListItem key={i} label={<Text>{t}</Text>} />
       ))}

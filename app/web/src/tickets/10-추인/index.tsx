@@ -143,7 +143,7 @@ export function Past() {
       <Table<Past>
         data={b.reviews as Past[]}
         idKey="id"
-        density="compact"
+        density="balanced"
         columns={[
           {
             key: 'name',

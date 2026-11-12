@@ -33,7 +33,7 @@ export function Members() {
       <Table<Pay>
         data={data}
         idKey="key"
-        density="compact"
+        density="balanced"
         columns={[
           {
             key: 'name',
@@ -112,7 +112,7 @@ export function Rules() {
       <Table<Rule>
         data={r.rules as Rule[]}
         idKey={(x) => `${x.clause}/${x.name}`}
-        density="compact"
+        density="balanced"
         columns={[
           {
             key: 'title',

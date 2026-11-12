@@ -94,7 +94,7 @@ export function Result() {
         <Table<Mock['rows'][number]>
           data={m.rows}
           idKey="id"
-          density="compact"
+          density="balanced"
           columns={[
             {
               key: 'name',

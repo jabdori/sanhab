@@ -71,7 +71,7 @@ export function Docs() {
         <Table<Row>
           data={data}
           idKey="kind"
-          density="compact"
+          density="balanced"
           columns={[
             { key: 'kind', header: L.일치, width: proportional(1, { minWidth: 80 }), renderCell: (r) => <Text weight="semibold">{r.kind}</Text> },
             { key: 'doc', header: L.서류, width: proportional(2, { minWidth: 120 }), renderCell: (r) => <Text>{r.doc}</Text> },
@@ -117,7 +117,7 @@ export function Of() {
       <Table<Row>
         data={list as Row[]}
         idKey="id"
-        density="compact"
+        density="balanced"
         columns={[
           {
             key: 'name',

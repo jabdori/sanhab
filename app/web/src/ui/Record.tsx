@@ -70,7 +70,8 @@ export type TileItem = { name: string; value: ReactNode; below?: ReactNode; asid
 export function Tiles({ items }: { items: TileItem[] }) {
   return (
     <Section variant="transparent" padding={6}>
-      <Grid columns={{ minWidth: 120, max: 5 }} gap={4}>
+      {/* 타일은 폭을 고르게 나눠 꽉 채운다(dashboard 템플릿) — 왼쪽에 몰려 오른쪽이 비지 않게 */}
+      <Grid columns={{ minWidth: 140, max: items.length, repeat: 'fit' }} gap={4}>
       {items.map((t) => (
         <Card key={t.name}>
           <VStack gap={2}>
@@ -84,7 +85,7 @@ export function Tiles({ items }: { items: TileItem[] }) {
               {t.aside}
             </HStack>
             {typeof t.value === 'string' || typeof t.value === 'number' ? (
-              <Text type="large" weight="semibold" hasTabularNumbers className="whitespace-nowrap">
+              <Text type="display-3" hasTabularNumbers className="whitespace-nowrap">
                 {t.value}
               </Text>
             ) : (

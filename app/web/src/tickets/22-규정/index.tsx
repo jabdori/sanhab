@@ -40,7 +40,7 @@ export function Original() {
   if (!c) return null
   return (
     <Region title={L.조항} aside={<Source kind={c.clause.source} tip={where(c.clause)} place={`${c.clause.first}–${c.clause.last}${L.행}`} rows={[[L.위치, where(c.clause)], [L.해시, c.clause.sha]]} />}>
-      <Markdown density="compact">{c.clause.text.replace(/^#+ .*\n/, '')}</Markdown>
+      <Markdown density="default">{c.clause.text.replace(/^#+ .*\n/, '')}</Markdown>
     </Region>
   )
 }
@@ -55,7 +55,7 @@ export function Versions() {
       <Table<Rule>
         data={rules}
         idKey="id"
-        density="compact"
+        density="balanced"
         columns={[
           { key: 'name', header: L.규칙, width: proportional(2, { minWidth: 96 }), renderCell: (r) => <Text weight="semibold">{`${r.name} v${r.ver}`}</Text> },
           { key: 'value', header: L.값, align: 'end', width: pixel(88), renderCell: (r) => <Text hasTabularNumbers>{r.name === L.합산 ? `${L.일치} ${r.value}` : num(r.value)}</Text> },
@@ -90,7 +90,7 @@ export function Assumes() {
       <Table<Assume>
         data={assumes}
         idKey="id"
-        density="compact"
+        density="balanced"
         columns={[
           { key: 'id', header: L.번호, width: pixel(72), renderCell: (a) => <Source kind={a.source} decision={a.id} line={a.row} tip={a.title} quiet place={a.id} /> },
           { key: 'title', header: L.가정, width: proportional(3, { minWidth: 160 }), renderCell: (a) => <Text weight="semibold">{a.title}</Text> },
@@ -143,7 +143,7 @@ export function Uses() {
       <Table<Use>
         data={USES}
         idKey="use"
-        density="compact"
+        density="balanced"
         columns={[
           { key: 'use', header: L.쓰임, width: proportional(1, { minWidth: 96 }), renderCell: (r) => <Text weight="semibold">{r.use}</Text> },
           { key: 'of', header: L.대상, width: proportional(1, { minWidth: 96 }), renderCell: (r) => (r.of ? <Text>{r.of}</Text> : none) },
