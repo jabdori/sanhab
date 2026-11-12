@@ -46,6 +46,7 @@ function Panel() {
   // 올릴 파일(26): 보내면 AI가 소명의 서류로 넘긴다
   const [file, setFile] = useState<File | null>(null)
   const pick = useRef<HTMLInputElement>(null)
+  const [tooBig, setTooBig] = useState(false)
   // 보낼 때의 문맥을 읽는 곳(전송기는 한 번만 만든다)
   const ctx = useRef<{ target: Target | null; attach: Target[] }>({ target: null, attach: [] })
   const now = follow ? target : null
@@ -71,7 +72,12 @@ function Panel() {
           return token ? { authorization: `Bearer ${token}` } : {}
         },
         // 대화가 길어지면 마지막 20개만 보낸다
-        prepareSendMessagesRequest: ({ messages }) => ({ body: { messages: messages.slice(-20), ...ctx.current } }),
+        // 파일은 가장 나중에 올린 말의 것만 싣는다(본문이 커지지 않게: 파일은 data URL이라 4/3배, 한도 8MB)
+        prepareSendMessagesRequest: ({ messages }) => {
+          const last = messages.map((m) => m.parts.some((p) => p.type === 'file')).lastIndexOf(true)
+          const sent = messages.slice(-20).map((m) => (m === messages[last] ? m : { ...m, parts: m.parts.filter((p) => p.type !== 'file') }))
+          return { body: { messages: sent, ...ctx.current } }
+        },
       }),
   )
   const { messages, sendMessage, status, error, clearError } = useChat<Talk>({
@@ -94,6 +100,7 @@ function Panel() {
     sendMessage({ text: text.trim(), files: file ? pick.current?.files ?? undefined : undefined })
     setText('')
     setFile(null)
+    setTooBig(false)
     if (pick.current) pick.current.value = ''
   }
   // 보고로 남기기의 대상은 정황이다(열어 둔 정황, 없으면 붙인 정황)
@@ -202,7 +209,15 @@ function Panel() {
             </button>
           </div>
         )}
-        <input ref={pick} type="file" hidden aria-label={L.서류} accept="image/png,image/jpeg,application/pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+        <input ref={pick} type="file" hidden aria-label={L.서류} accept="image/png,image/jpeg,application/pdf" onChange={(e) => {
+            // 19의 한도(2MB, 이미지·PDF)를 넘으면 붙이지 않는다
+            const f = e.target.files?.[0] ?? null
+            const ok = !f || (f.size <= 2 * 1024 * 1024 && ['image/png', 'image/jpeg', 'application/pdf'].includes(f.type))
+            setTooBig(!ok)
+            setFile(ok ? f : null)
+            if (!ok) e.target.value = ''
+          }} />
+        {tooBig && <Mark word={L.대상} />}
         <div className="flex gap-2">
           <button className={button} disabled={busy} onClick={() => pick.current?.click()}>
             {L.서류}
