@@ -4,16 +4,16 @@
 // 역할을 바꾸면 대화가 비워진다(임시). 누른 뒤 요청이 끝날 때까지 전송·보고는 다시 눌리지 않는다. AI가 멈춰 있어도 다른 화면은 그대로 된다.
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport, type UIMessage } from 'ai'
-import { useAtom, useAtomValue } from 'jotai'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useRef, useState } from 'react'
 import { L } from '../../labels'
 import type { Piece } from '../../pieces'
-import { api, chatOpenAtom, roleAtom, rolesAtom, store, targetAtom, type Target } from '../../state'
+import { api, chatOpenAtom, listOpenAtom, roleAtom, rolesAtom, store, targetAtom, type Target } from '../../state'
 import { Pill } from '../../ui/Pill'
 import { button, label } from '../../ui/styles'
 
 /** 답에 붙는 조회한 기록(서버가 `data-reads`로 보낸다) */
-type Talk = UIMessage<never, { reads: { ids: string[] } }>
+type Talk = UIMessage<never, { reads: { names: string[] } }>
 
 /** 칩에 보이는 이름. 아직 받지 못했거나 모르면 id */
 const key = (t: Target) => `${t.kind}/${t.id}`
@@ -30,6 +30,9 @@ const word = (e: Error) => {
     return e.message
   }
 }
+
+/** 실패의 표지: AI가 응답하지 않으면 `대기`(17의 보고와 같은 뜻), 그 밖의 낱말(대상 · 오류)은 그대로 */
+const Mark = ({ word }: { word: string }) => <Pill tone={word === L.대기 ? 'wait' : 'bad'}>{word}</Pill>
 
 function Panel() {
   const open = useAtomValue(chatOpenAtom)
@@ -125,7 +128,7 @@ function Panel() {
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3">
         {messages.map((m) => {
-          const ids = m.parts.flatMap((p) => (p.type === 'data-reads' ? p.data.ids : []))
+          const ids = m.parts.flatMap((p) => (p.type === 'data-reads' ? p.data.names : []))
           const body = m.parts.map((p) => (p.type === 'text' ? p.text : '')).join('')
           return (
             <div key={m.id} className={`flex flex-col gap-1 ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
@@ -149,8 +152,7 @@ function Panel() {
         {status === 'submitted' && <span className="text-text-mute">…</span>}
         {error && (
           <div className="flex flex-wrap items-center gap-2">
-            <Pill tone="bad">{L.오류}</Pill>
-            <span className="wrap-anywhere">{word(error)}</span>
+            <Mark word={word(error)} />
           </div>
         )}
         <div ref={end} />
@@ -159,8 +161,7 @@ function Panel() {
         {kept && (
           <div className="flex flex-wrap items-center gap-2">
             <span className={label}>{L.보고}</span>
-            {kept.state ? <Pill tone="wait">{kept.state}</Pill> : <Pill tone="bad">{L.오류}</Pill>}
-            {kept.error && <span className="wrap-anywhere">{kept.error}</span>}
+            {kept.state ? <Pill tone="wait">{kept.state}</Pill> : <Mark word={kept.error ?? L.오류} />}
           </div>
         )}
         <textarea
@@ -192,11 +193,16 @@ function Panel() {
 /** 접힌 손잡이(40)와 펼친 칸(380). 말은 접어도 남는다(칸을 숨길 뿐이다) */
 function Chat() {
   const [open, setOpen] = useAtom(chatOpenAtom)
+  const setListOpen = useSetAtom(listOpenAtom)
   const role = useAtomValue(roleAtom)
   return (
     <aside className={`flex shrink-0 flex-col border-l border-line bg-surface ${open ? 'w-chat-open' : 'w-chat'}`}>
       <div className={`flex items-center gap-2 pt-3 ${open ? 'border-b border-line px-3 pb-3' : 'justify-center'}`}>
-        <button className={`cursor-pointer ${label} hover:text-action`} aria-expanded={open} onClick={() => setOpen(!open)}>
+        <button className={`cursor-pointer ${label} hover:text-action`} aria-expanded={open} onClick={() => {
+            setOpen(!open)
+            // 둘 중 하나만 펼쳐진다: 대화를 펼치면 목록이 접힌다
+            if (!open) setListOpen(false)
+          }}>
           {L.대화}
         </button>
         {open && <span className={`rounded-pill border border-line px-2 ${label}`}>{L.임시}</span>}
