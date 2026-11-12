@@ -40,6 +40,7 @@ tickets! {
     t11_signal,
     t13_change,
     t15_reopen,
+    t14_redo,
     t17_report,
     t18_send,
     t19_docs,
