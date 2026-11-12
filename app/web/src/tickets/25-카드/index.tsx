@@ -25,6 +25,9 @@ export type CardData = {
   run: { path: string; body: Record<string, unknown> }
 }
 
+// 실행한 뒤의 결과 표지: 다른 화면의 상태 표지와 같은 색(tokens.md)
+const tones = { [L.승인]: 'good', [L.추인]: 'good', [L.인정]: 'good', [L.보류]: 'hold', [L.보완]: 'hold', [L.반려]: 'bad', [L.거부]: 'bad', [L.불인정]: 'bad', [L.요청]: 'wait', [L.기각]: 'wait' } as const
+
 /** 인정의 확인 창: 제외될 선과 기간(20의 결과 경로가 주는 값) */
 function Excluded({ id }: { id: string }) {
   const v = useData<{ span: [string, string] | null; lines: { item: string; value: string }[] }>(`/clarifies/${encodeURIComponent(id)}/verdict`)
@@ -74,7 +77,7 @@ export function Card({ card }: { card: CardData }) {
         </div>
       </dl>
       {done ? (
-        <Pill tone="good">{card.action}</Pill>
+        <Pill tone={tones[card.action as keyof typeof tones] ?? 'wait'}>{card.action}</Pill>
       ) : (
         <>
           <Reason groups={[{ of: card.action, classes: card.classes }]} value={draft} onChange={setDraft} />

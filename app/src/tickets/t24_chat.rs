@@ -135,7 +135,8 @@ fn cited(text: &str, out: &mut BTreeSet<String>) {
 /// UI 메시지 스트림의 이벤트(JSON)를 흘린다. 끝에는 조회한 기록 목록(`data-reads`)이 붙는다. 실패는 `error` 이벤트(낱말: 대기 — AI가 응답하지 않는다. 키가 없는 것도 같다)
 fn talk(model: String, key: Option<String>, ai: Db, me: Db, system: String, talk: Vec<(String, String)>) -> impl Stream<Item = J> {
     async_stream::stream! {
-        yield json!({ "type": "start", "messageId": "msg-1" });
+        // 답마다 다른 id: 같은 id면 화면(AI SDK)이 앞 답을 덮어쓴다
+        yield json!({ "type": "start", "messageId": format!("msg-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos())) });
         let seen = Arc::new(Mutex::new(BTreeSet::new()));
         // 조치 카드(25): AI가 도구로 낸 카드의 내용. 실행은 하지 않는다
         let cards = Arc::new(Mutex::new(Vec::<J>::new()));

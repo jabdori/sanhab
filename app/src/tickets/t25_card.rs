@@ -4,7 +4,7 @@
 //! 그 역할이 할 수 없는 조치는 카드를 내지 않는다: 그 사람의 세션으로 04·05·10의 `fn::refusal`, 11의 `fn::rulable`, 20의 `fn::decidable`을 묻는다.
 //! 카드가 다루는 조치: 심사의 승인 · 보류 · 반려, 추인의 추인 · 거부, 정황의 요청 · 기각, 소명의 인정 · 불인정 · 보완.
 use crate::check::Check;
-use crate::db::{Db, q1};
+use crate::db::{Db, q, q1};
 use anyhow::{Result, ensure};
 use aisdk::core::tools::ToolExecute;
 use aisdk::core::Tool;
@@ -186,6 +186,28 @@ pub async fn check(c: &Check) -> Result<()> {
         let d = c.get(exec, &format!("/api/ratifies/{b}")).await?;
         ensure!(code == 200 && d["ratify"]["marks"].as_array().is_some_and(|m| m.iter().any(|x| x == "추인")) && d["history"].as_array().is_some_and(|h| h.len() == 1 && h[0]["role"] == exec), "추인 뒤 {d}");
         ensure!(ask(exec, &format!("카드|추인|{b}|거부")).await?.1.contains("카드를 내지 않는다: 상태"), "추인한 묶음의 거부 카드");
+        // 인정: 서류가 접수된 실제 소명(20의 흐름: 정황 → 요청 → 발송 → 서류 → 판독·정리)에서 카드를 실행하면 결과가 남고 선이 제외된다
+        {
+            use super::t19_docs::{READ, SAMPLES, sweep_with};
+            *READ.lock().unwrap() = Some("fixture".into());
+            q(&c.db, "RETURN fn::signal('기타', 't25-a', 't25-a', [dealer:`D-024`, dealer:`D-011`], [], '계산');", json!({})).await?;
+            ensure!(c.post(audit, "/api/rule", json!({ "id": "기타-t25-a", "kind": "요청" })).await?.0 == 200, "요청");
+            let id = q1(&c.db, "RETURN (SELECT VALUE record::id(id) FROM clarify WHERE signal = signal:`기타-t25-a`)[0];", json!({})).await?.as_str().unwrap_or_default().to_string();
+            ensure!(c.post(support, "/api/send", json!({ "id": id })).await?.0 == 200, "발송");
+            let s = SAMPLES[0];
+            let res = http.post(format!("{}/api/clarifies/{id}/docs?name={}", c.base(), s.0)).bearer_auth(c.token(support)).header("content-type", "image/png").body(s.2.to_vec()).send().await?;
+            ensure!(res.status() == 200, "서류");
+            for _ in 0..2 {
+                q(&c.db, "UPDATE doc SET read_tried = NONE, tidy_tried = NONE;", json!({})).await?;
+                sweep_with(&c.db, None, None).await?;
+            }
+            *READ.lock().unwrap() = None;
+            ensure!(ask(support, &format!("카드|소명|{id}|인정|입증")).await?.0.is_empty(), "인정 카드는 내부 감시에게만");
+            let (cards, _) = ask(audit, &format!("카드|소명|{id}|인정|입증|호실이 다르다")).await?;
+            ensure!(cards.len() == 1 && cards[0]["action"] == "인정", "인정 카드 {cards:?}");
+            let (code, r) = run(audit, &cards[0], Some(json!({ "class": "입증", "memo": "호실이 다르다" }))).await?;
+            ensure!(code == 200 && q1(&c.db, "RETURN [type::record('clarify', $id).state, count(SELECT id FROM verdict WHERE clarify = type::record('clarify', $id) AND role = '내부 감시' AND kind = '인정')];", json!({ "id": id })).await? == json!(["인정", 1]), "인정 카드의 실행 {code} {r}");
+        }
         Ok(())
     }.await;
     *USE.lock().unwrap() = was;
