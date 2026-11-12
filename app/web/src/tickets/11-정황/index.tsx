@@ -34,6 +34,7 @@ function Head() {
     [L.계좌]: [L.일치, `${L.회수} · ${L.계좌}`],
     [L.동명]: [L.일치, L.대표자],
     [L.근접]: [L.근접, d.near.map(num).join(' – ')],
+    [L.지연]: [L.지연, `${d.delay}${L.일}`],
     [L.대사]: [L.비교, L.불일치],
   }
   const [k, v] = basis[s.kind] ?? [s.kind, L.없음]
@@ -75,7 +76,14 @@ function Evidence() {
         right={!nodes && amounts ? [2] : []}
         mark={rows.findIndex((e) => e.id === mark)}
         rows={rows.map((e) => [
-          e.item,
+          d.fresh.includes(e.id) ? (
+            <span className="flex items-center gap-1 whitespace-nowrap">
+              {e.item}
+              <Pill tone="again">{L.새}</Pill>
+            </span>
+          ) : (
+            e.item
+          ),
           e.at ?? e.ym ?? e.dealer?.name,
           e.node?.name ?? (e.amount == null ? e.value : num(e.amount)),
           <Source kind={e.source} file={e.file ?? undefined} row={e.row ?? undefined}>

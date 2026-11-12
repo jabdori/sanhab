@@ -32,6 +32,10 @@ export type Signal = {
   relation: { left: Dot[]; mid: Dot[]; right: Dot[]; lines: [string, string][]; hints: [string, string][] }
   /** 근접의 기준(가정): 금액의 범위 */
   near: [number, number]
+  /** 마지막 결정 뒤에 붙은 근거(재접수의 새 줄)의 기록 id */
+  fresh: string[]
+  /** 지연의 기준(가정): 일수 */
+  delay: number
   /** 정황을 담당하는 역할 */
   role: string
   /** 지금 역할이 할 수 있는 조치(요청 · 기각). reason은 사유가 필수인지 */
