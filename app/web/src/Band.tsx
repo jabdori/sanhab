@@ -1,6 +1,7 @@
 import { AlertDialog } from '@base-ui/react/alert-dialog'
 import { Select } from '@base-ui/react/select'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { useState } from 'react'
 import { APP, L } from './labels'
 import { api, roleAtom, rolesAtom, targetAtom, useData } from './state'
 import { button, floating, label } from './ui/styles'
@@ -47,6 +48,7 @@ export function Band() {
       <div className="flex items-center gap-2">
         <span className={label}>{L.날짜}</span>
         <span className="text-body tabular-nums">{state?.today}</span>
+        <Advance />
       </div>
       <div className="flex-1" />
       <AlertDialog.Root>
@@ -64,5 +66,58 @@ export function Band() {
         </AlertDialog.Portal>
       </AlertDialog.Root>
     </header>
+  )
+}
+
+/** 날짜 넘기기(모의): 날수를 받아 앞으로만 넘긴다. 확인을 거치고 끝날 때까지 다시 눌리지 않는다 */
+function Advance() {
+  const [open, setOpen] = useState(false)
+  const [days, setDays] = useState('15')
+  const [busy, setBusy] = useState(false)
+  const n = Number(days)
+  const ok = Number.isInteger(n) && n >= 1 && n <= 365
+  return (
+    <AlertDialog.Root open={open} onOpenChange={(o) => !busy && setOpen(o)}>
+      <AlertDialog.Trigger className={button}>{L.넘기기}</AlertDialog.Trigger>
+      <AlertDialog.Portal>
+        <AlertDialog.Popup className={`${floating} fixed top-1/2 left-1/2 flex w-list -translate-x-1/2 -translate-y-1/2 flex-col gap-4 p-6`}>
+          <AlertDialog.Title className="text-title">{L.날짜}</AlertDialog.Title>
+          <label className="flex items-center gap-2 text-body">
+            <input
+              type="number"
+              min={1}
+              max={365}
+              value={days}
+              disabled={busy}
+              aria-label={L.일}
+              onChange={(e) => setDays(e.target.value)}
+              className="h-head w-24 rounded-box border border-line bg-bg px-3 text-body tabular-nums"
+            />
+            <span>{L.일}</span>
+          </label>
+          <div className="flex justify-end gap-2">
+            <AlertDialog.Close disabled={busy} className={button}>
+              {L.취소}
+            </AlertDialog.Close>
+            <button
+              className={button}
+              disabled={!ok || busy}
+              onClick={() => {
+                setBusy(true)
+                api('/advance', { days: n }).then(
+                  () => {
+                    setBusy(false)
+                    setOpen(false)
+                  },
+                  () => setBusy(false),
+                )
+              }}
+            >
+              {L.넘기기}
+            </button>
+          </div>
+        </AlertDialog.Popup>
+      </AlertDialog.Portal>
+    </AlertDialog.Root>
   )
 }
