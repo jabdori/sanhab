@@ -216,6 +216,32 @@ async fn main_flow(c: &Check) -> Result<()> {
     let h = c.get(audit, "/api/signals/동명-박준호/hypo").await?;
     ensure!(h["approver"][0] == h["approver"][1] && h["group"][0] == h["group"][1], "동명의 가설 {h}");
 
+    // 시나리오 4 → 5(정황의 길): 동명 정황에 주소 근거가 붙었으므로 내부 감시가 요청하면 요청서의 서류 목록이 대표자 + 주소(임대차계약서·사업자등록증)다.
+    // 영업지원이 발송하고 호실이 빠진 임대차계약서(시연 3)가 접수되면 비교에 호실 누락, 인정하면 제외될 선은 한라인상사34의 주소 선 하나다
+    ensure!(c.post(audit, "/api/rule", json!({ "id": "동명-박준호", "kind": "요청" })).await?.0 == 200, "동명 정황의 요청");
+    let cid = c.get(audit, "/api/signals/동명-박준호/clarifies").await?[0]["id"].as_str().unwrap_or_default().to_string();
+    let d = c.get(support, &format!("/api/clarifies/{cid}")).await?;
+    ensure!(d["kinds"] == json!(["주소", "대표자"]) && d["docs"] == json!([["주소", "임대차계약서"], ["주소", "사업자등록증"], ["대표자", "생년월일을 확인할 수 있는 서류"]]), "요청서의 서류 {} {}", d["kinds"], d["docs"]);
+    ensure!(c.post(support, "/api/send", json!({ "id": cid })).await?.0 == 200, "발송");
+    let s3 = super::t19_docs::SAMPLES[2];
+    let res = reqwest::Client::new().post(format!("{}/api/clarifies/{cid}/docs?name={}", c.base(), s3.0)).bearer_auth(c.token(support)).header("content-type", "image/png").body(s3.2.to_vec()).send().await?;
+    ensure!(res.status() == 200, "서류 접수 {}", res.status());
+    *super::t19_docs::READ.lock().unwrap() = Some("fixture".into());
+    *super::t17_report::USE.lock().unwrap() = Some("fixture".into());
+    let filled = async {
+        for _ in 0..2 {
+            q(&c.db, "UPDATE doc SET read_tried = NONE, tidy_tried = NONE;", json!({})).await?;
+            super::t19_docs::sweep_with(&c.db, None, None).await?;
+        }
+        Ok::<_, anyhow::Error>(())
+    }.await;
+    *super::t19_docs::READ.lock().unwrap() = None;
+    *super::t17_report::USE.lock().unwrap() = None;
+    filled?;
+    let v = c.get(audit, &format!("/api/clarifies/{cid}/verdict")).await?;
+    let items: Vec<&J> = v["lines"].as_array().into_iter().flatten().map(|l| &l["item"]).collect();
+    ensure!(c.get(audit, &format!("/api/clarifies/{cid}")).await?["clarify"]["state"] == "접수" && v["unknown"] == json!([["호실", "누락"]]) && items == [&json!("주소")], "접수한 서류의 비교 {v}");
+
     // 20 소명: 한라인상사34가 금강상사41과의 주소 일치를 소명하고(서류 접수) 내부 감시가 인정하면, 그 주소 선이 빠져 다시 관련자가 아니게 된다.
     // 2·3월의 재검토가 풀리고 6월 심사는 두 곳으로 갈라져 각각 영업지원의 것이 된다
     let res = reqwest::Client::new().post(format!("{}/api/dealers/D-034/clarify?other=D-041&kind=주소&name={}", c.base(), super::t19_docs::SAMPLES[0].0))
