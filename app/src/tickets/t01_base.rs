@@ -21,9 +21,12 @@ async fn state(Extension(me): Extension<Me>) -> R {
     Ok(Json(json!({ "role": me.role, "today": today })))
 }
 
+/// 시스템의 첫날(기준일). 초기화하면 날짜가 여기로 돌아오고, 가정·합성은 이날부터 적용된다(22의 `since`)
+pub const START: &str = "2026-07-01";
+
 pub async fn seed(db: &Db) -> Result<()> {
-    q(db, "CREATE meta:v SET today = d'2026-07-01T00:00:00Z';
-        FOR $r IN $roles { CREATE type::record('staff', $r[0]) SET role = $r[1], pass = crypto::argon2::generate($pass); };",
+    q(db, &format!("CREATE meta:v SET today = d'{START}T00:00:00Z';
+        FOR $r IN $roles {{ CREATE type::record('staff', $r[0]) SET role = $r[1], pass = crypto::argon2::generate($pass); }};"),
         json!({ "roles": ROLES, "pass": demo_pass() })).await?;
     Ok(())
 }

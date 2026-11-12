@@ -4,6 +4,7 @@
 색·글자 크기·간격·모서리·그림자는 모두 astryx의 토큰이다. 이 문서는 그 위에서 **우리가 정하는 것만** 적는다. 부품의 props는 `npx astryx component <Name>`, 토큰은 `npx astryx docs tokens`(app/web에서 `node node_modules/@astryxdesign/cli/clients/cli/bin/astryx.mjs --dense …`).
 
 ## 어디에 있나
+- `app/web/src/theme.ts`: 앱의 테마 `sanhab` — neutral을 `extends`로 이어받고 부품의 모양만 바꾼다(`defineTheme`의 `components`). 지금은 secondary 버튼과 토글 버튼을 흰 바탕 + 테두리로. 부품의 모양을 바꿀 일이 생기면 여기에 더한다(CSS로 덮지 않는다).
 - `app/web/src/theme.css`: CSS 층 순서, astryx·테마·Tailwind 다리, Pretendard, 자리의 폭, 빈 영역 접기, 근거 강조. **새 값은 여기에만** 둔다.
 - 부품 안에서는 astryx 부품의 props(`variant`, `type`, `level` …)와 Tailwind 다리의 이름만 쓴다. 쓸 수 있는 이름: 색 `text-primary|secondary|disabled`, `bg-surface|body|muted|card`, `border-border`, 상태 `text-success|warning|error`, 간격 `p-*`·`gap-*`(4의 배수: 1=4px … 8=32px), 글자 `text-sm|base|lg`, `font-medium|semibold`, 모서리 `rounded-sm|md|lg|full`.
 - `#색`, 숫자가 든 직접 값(`w-[360px]`), `style=`은 `npm run lint`가 막는다. Tailwind의 기본 팔레트(`bg-red-500`)는 들이지 않아 아예 없다.
@@ -49,7 +50,8 @@
 
 - 부품은 `ui/Pill`(`<Pill tone="good">`). 색은 이 다섯뿐이고 항상 글자가 함께 있다.
 - 덧표시(재검토, 정황, 추인, 거부, 종결, 정산)는 색 없는 아이콘 + 글자(`ui/Mark`). 출처 표지는 테두리 없는 회색 Token(`ui/Source`). 셋은 모양이 다르다.
-- 누를 수 있는 것: 주 버튼은 테마의 강조색(검정), 이동(대상 열기)은 `Link`(밑줄). 따로 색을 정하지 않는다.
+- 누를 수 있는 것: 주 버튼은 테마의 강조색(검정 채움), secondary는 흰 바탕 + 테두리, 이동(대상 열기)은 `Link`(밑줄). 따로 색을 정하지 않는다.
+- 누를 수 없는 버튼(isDisabled)은 반투명 0.35(theme.css). 회색 칸 위에서도 누를 수 있는 것과 한눈에 갈린다.
 - 근거 강조: 노란 바탕(`--color-background-yellow`)이 1.2초 동안 사라진다(theme.css `.mark`). 어두운 화면은 만들지 않는다.
 
 ## 간격

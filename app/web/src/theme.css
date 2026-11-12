@@ -1,4 +1,4 @@
-/* 화면의 바탕: astryx(테마 neutral) 위에 Tailwind 4의 유틸리티를 얹는다(docs/design/tokens.md).
+/* 화면의 바탕: astryx(테마는 src/theme.ts — neutral을 이어받은 sanhab, 실행 때 CSS를 넣는다) 위에 Tailwind 4의 유틸리티를 얹는다(docs/design/tokens.md).
    색·글자 크기·간격·모서리·그림자는 astryx의 토큰이고, Tailwind의 이름은 astryx가 낸 다리(tailwind-theme.css)로만 쓴다.
    Tailwind의 기본 팔레트(tailwindcss/theme.css)는 들이지 않는다 — bg-red-500 같은 이름은 아예 만들어지지 않는다.
    층의 순서는 맨 처음에 한 번 정한다: 리셋 < Tailwind 기본 < astryx < 유틸리티(className이 부품의 기본값을 이긴다). */
@@ -7,7 +7,6 @@
 @import 'tailwindcss/preflight.css' layer(base);
 @import '@astryxdesign/core/reset.css';
 @import '@astryxdesign/core/astryx.css';
-@import '@astryxdesign/theme-neutral/theme.css';
 @import '@astryxdesign/core/tailwind-theme.css';
 @import 'tailwindcss/utilities.css' layer(utilities);
 
@@ -92,6 +91,12 @@ body {
 /* 표(ui/Table)는 영역의 양옆까지 줄을 긋되(astryx의 bleed) 위아래로는 넘치지 않는다 — 영역 제목을 덮지 않게 */
 .astryx-table-scroll-wrapper {
   margin-block: 0;
+}
+
+/* 비활성 버튼: astryx의 반투명(0.5)보다 더 옅게 — 누를 수 없는 것이 한눈에 갈린다.
+   테마의 components에는 비활성 상태 키가 없어 astryx가 권하는 속성 선택자(styling-advanced)로 둔다 */
+.astryx-button[aria-disabled='true'] {
+  opacity: 0.35;
 }
 
 /* 근거 연결이 가리킨 줄(ui/Table의 mark): 잠깐 노랗게 */

@@ -31,7 +31,7 @@ const decide = (ids: string[], kind: string, reason?: object | null) =>
   api('/decide', { ids, kind, reason: reason ?? undefined }).catch(() => store.set(changedAtom, (n) => n + 1))
 
 const tones = { [L.대기]: 'wait', [L.승인]: 'good', [L.보류]: 'hold', [L.반려]: 'bad' } as const
-const marks = (list: string[]) => list.map((m) => <Mark key={m}>{m}</Mark>)
+const marks = (list: string[], short?: boolean) => list.map((m) => <Mark key={m} short={short}>{m}</Mark>)
 
 function Tasks() {
   const d = useData<{ mine: Task[]; going: Task[] }>('/tasks')
@@ -45,6 +45,8 @@ function Tasks() {
   // 고른 줄 가운데 아직 고를 수 있는 것만 센다(승인되면 목록에서 빠진다)
   const chosen = picked.filter((id) => d.mine.some((t) => t.pick && t.target === id))
   const open = (t: Task) => setTarget({ kind: t.view, id: t.target })
+  // 상세가 열려 목록이 좁으면(360) 표시는 첫 열에 아이콘만 둔다(고르기 칸이 있는 줄은 표시가 없다 — 정황이 없어야 고를 수 있다). 넓으면 표시 열에 낱말까지
+  const narrow = !!target
   return (
     <div className="flex flex-col gap-3">
       <TabList value={tab} onChange={(v) => setTab(v as 'mine' | 'going')} hasDivider>
@@ -53,15 +55,17 @@ function Tasks() {
         ))}
       </TabList>
       <Table
-        head={['', L.종류, L.대상, L.귀속월, L.금액, L.표시, ...(tab === 'going' ? [L.담당] : [])]}
+        head={['', L.종류, L.대상, L.귀속월, L.금액, ...(narrow ? [] : [L.표시]), ...(tab === 'going' ? [L.담당] : [])]}
         right={[4]}
         current={list.findIndex((t) => t.view === target?.kind && t.target === target?.id)}
         onRow={(y) => open(list[y])}
         rows={list.map((t) => [
-          t.pick && (
+          t.pick ? (
             <CheckboxInput label={L.선택} isLabelHidden size="sm" value={chosen.includes(t.target)}
               onChange={(on) => setPicked(on ? [...chosen, t.target] : chosen.filter((id) => id !== t.target))}
             />
+          ) : (
+            narrow && <span className="flex gap-1">{marks(t.marks, true)}</span>
           ),
           <Text color="secondary">{t.kind}</Text>,
           <Link color="primary" weight="medium" onClick={() => open(t)}>
@@ -69,7 +73,7 @@ function Tasks() {
           </Link>,
           t.ym,
           t.total == null ? null : num(t.total),
-          <span className="flex gap-2">{marks(t.marks)}</span>,
+          ...(narrow ? [] : [<span className="flex gap-2">{marks(t.marks)}</span>]),
           ...(tab === 'going' ? [t.role] : []),
         ])}
       />
@@ -109,14 +113,16 @@ function Head() {
           [L.승인권자, r.approver],
         ]}
       >
-        <Source kind={r.source} file={r.file ?? undefined} row={r.row ?? undefined} tip={`${L.합산} · ${L.승인권자}`}>
-          <dl className="grid grid-cols-2 gap-x-3 gap-y-1">
-            <dt className="text-secondary">{L.합산}</dt>
-            <dd>{L['귀속월 지급의 합, 반려 제외']}</dd>
-            <dt className="text-secondary">{L.승인권자}</dt>
-            <dd>{L['한도 이하 영업지원, 초과 영업임원']}</dd>
-          </dl>
-        </Source>
+        <Source
+          kind={r.source}
+          file={r.file ?? undefined}
+          row={r.row ?? undefined}
+          tip={`${L.합산} · ${L.승인권자}`}
+          rows={[
+            [L.합산, L['귀속월 지급의 합, 반려 제외']],
+            [L.승인권자, L['한도 이하 영업지원, 초과 영업임원']],
+          ]}
+        />
       </Figures>
     </>
   )
@@ -156,14 +162,15 @@ function Links() {
       title={L.관계}
       aside={
         r.relation.right.length > 0 && (
-          <Source kind={L.계산} side="right" tip={`${L.관련자} · ${L.그룹}`}>
-            <dl className="grid grid-cols-2 gap-x-3 gap-y-1">
-              <dt className="text-secondary">{L.관련자}</dt>
-              <dd>{L['식별자 일치 2 이상']}</dd>
-              <dt className="text-secondary">{L.그룹}</dt>
-              <dd>{L['관련자의 전이']}</dd>
-            </dl>
-          </Source>
+          <Source
+            kind={L.계산}
+            side="right"
+            tip={`${L.관련자} · ${L.그룹}`}
+            rows={[
+              [L.관련자, L['식별자 일치 2 이상']],
+              [L.그룹, L['관련자의 전이']],
+            ]}
+          />
         )
       }
     >
@@ -191,11 +198,7 @@ function Rules() {
             {x.title}
           </Link>,
           `${x.name} v${x.ver}`,
-          <Source kind={x.source} tip={x.title}>
-            <p className="break-all text-secondary">
-              {x.file} {x.first}–{x.last}
-              {L.행}
-            </p>
+          <Source kind={x.source} tip={x.title} rows={[[L.위치, `${x.file} ${x.first}–${x.last}${L.행}`]]}>
             <p className="whitespace-pre-wrap">{x.text}</p>
           </Source>,
         ])}

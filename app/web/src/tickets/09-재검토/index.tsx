@@ -8,7 +8,6 @@ import { Compare } from '../../ui/Compare'
 import { Region } from '../../ui/Region'
 import { Figures } from '../../ui/Figures'
 import { Source } from '../../ui/Source'
-import { label } from '../../ui/styles'
 import { num } from '../../ui/Table'
 import { useReview } from '../04-심사/review'
 
@@ -53,18 +52,17 @@ function Then() {
       <Region
         title={L.재검토}
         aside={
-        <Source kind={d.source} side="right" tip={`${L.당시} · ${L.현재}`}>
-          <dl className="grid grid-cols-2 gap-x-2 gap-y-1">
-            <dt className={label}>{L.현재}</dt>
-            <dd>{L['귀속월의 식별자, 규칙 버전']}</dd>
-            <dt className={label}>{L.구성}</dt>
-            <dd>{d.now.members.map((m) => m.name).join(' · ')}</dd>
-            <dt className={label}>{L.한도}</dt>
-            <dd className="tabular-nums">{[num(d.now.limit), rule && `${rule.name} v${rule.ver}`].filter(Boolean).join(' · ')}</dd>
-            <dt className={label}>{L.재검토}</dt>
-            <dd>{L['당시 영업지원, 현재 영업임원']}</dd>
-          </dl>
-        </Source>
+        <Source
+            kind={d.source}
+            side="right"
+            tip={`${L.당시} · ${L.현재}`}
+            rows={[
+              [L.현재, L['귀속월의 식별자, 규칙 버전']],
+              [L.구성, d.now.members.map((m) => m.name).join(' · ')],
+              [L.한도, [num(d.now.limit), rule && `${rule.name} v${rule.ver}`].filter(Boolean).join(' · ')],
+              [L.재검토, L['당시 영업지원, 현재 영업임원']],
+            ]}
+          />
         }
       >
       <Compare

@@ -16,7 +16,8 @@ export const sent = (d: Draft) => (filled(d) ? { class: d.class, ...(d.memo.trim
 /** 사유: 분류(astryx Selector)와 메모(TextInput). `groups`는 조치마다의 분류 목록이고, 조치가 하나면 조치 이름(묶음의 제목)을 적지 않는다. 지우기(×)가 `없음`이다 */
 export function Reason({ groups, value, onChange }: { groups: { of: string; classes: string[] }[]; value: Draft; onChange: (d: Draft) => void }) {
   const many = groups.length > 1
-  const option = (g: { of: string }, c: string) => ({ value: `${g.of}/${c}`, label: many ? `${g.of} · ${c}` : c })
+  // 목록에서는 조치가 묶음의 제목이라 분류만, 고른 값은 `보류 · 소명`처럼 조치까지
+  const option = (g: { of: string }, c: string) => ({ value: `${g.of}/${c}`, label: c })
   return (
     <div className="flex flex-col gap-2">
       <Selector
@@ -27,6 +28,7 @@ export function Reason({ groups, value, onChange }: { groups: { of: string; clas
         hasClear
         value={value.class ? `${value.of}/${value.class}` : null}
         options={(many ? groups.map((g) => ({ type: 'section', title: g.of, options: g.classes.map((c) => option(g, c)) })) : (groups[0]?.classes ?? []).map((c) => option(groups[0], c))) as SelectorOptionType[]}
+        renderValue={(o) => (many ? o.value.replace('/', ' · ') : o.label)}
         onChange={(k: string | null) => {
           const [of = '', c = ''] = k?.split('/') ?? []
           onChange({ ...value, of, class: c })

@@ -79,7 +79,7 @@ fn marked(mark: &str, source: &str) -> Vec<J> {
     for (i, line) in SPEC.1.lines().enumerate() {
         let one = |id: &str, title: &str, text: &str| {
             let used = USED.iter().find(|u| u.0 == id).map_or(&[][..], |u| u.1);
-            json!({ "id": id, "title": title, "text": text, "body": body(id), "file": SPEC.0, "row": i + 1, "used": used, "source": source })
+            json!({ "id": id, "title": title, "text": text, "body": body(id), "file": SPEC.0, "row": i + 1, "used": used, "source": source, "since": super::t01_base::START })
         };
         if let Some(h) = line.strip_prefix("### ").and_then(|h| h.split_once(". ")) {
             head = h;
@@ -105,7 +105,7 @@ pub fn routes() -> Router<std::sync::Arc<Db>> {
     Router::new().route("/rules", get(rules))
 }
 
-/// 규정: 조항(`clauses`), 규칙 버전(`rules`: 시행 기간 `since`·`until`, 이전 버전 `prev`), 가정(`assumes`: `used`는 쓰인 곳 — `id`가 있으면 그 기록으로 갈 수 있다, `body`는 그 결정의 본문),
+/// 규정: 조항(`clauses`), 규칙 버전(`rules`: 시행 기간 `since`·`until`, 이전 버전 `prev`), 가정(`assumes`: `used`는 쓰인 곳 — `id`가 있으면 그 기록으로 갈 수 있다, `body`는 그 결정의 본문, `since`는 적용 시점 — 기준일부터),
 /// 합성(`synths`: 스펙이 시연으로 넣는다고 적은 값. 모양은 가정과 같다). 화면의 출처 표지가 설명 칸을 여기서 채운다
 async fn rules(Extension(me): Extension<Me>) -> R {
     let day = |f: &str| format!("IF {f} THEN time::format({f}, '%Y-%m-%d') END AS {f}");

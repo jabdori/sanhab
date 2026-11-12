@@ -7,7 +7,6 @@ import { Text } from '@astryxdesign/core/Text'
 import { Compare } from '../../ui/Compare'
 import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
-import { label } from '../../ui/styles'
 import { useReview } from '../04-심사/review'
 import { useSignal } from '../11-정황/signal'
 
@@ -27,12 +26,7 @@ const kinds = (v: string[]) => (v.length ? v.join(' · ') : L.없음)
 /** 가설 영역의 출처 표지(가정). 설명 칸은 더하는 일치의 이름표와 값 */
 function Tag({ adds }: { adds: string[] }) {
   return (
-    <Source kind={L.가정} tip={`${L.일치} ${kinds(adds)}`}>
-      <dl className="grid grid-cols-2 gap-x-2 gap-y-1">
-        <dt className={label}>{L.일치}</dt>
-        <dd>{kinds(adds)}</dd>
-      </dl>
-    </Source>
+    <Source kind={L.가정} tip={`${L.일치} ${kinds(adds)}`} rows={[[L.일치, kinds(adds)]]} />
   )
 }
 
