@@ -2,8 +2,7 @@ import { Table as Grid, TableBody, TableCell, TableHeader, TableHeaderCell, Tabl
 import type { ReactNode } from 'react'
 import { Empty } from './Empty'
 
-/** 금액의 표기: 천 단위 쉼표 */
-export const num = (n: number) => n.toLocaleString('ko-KR')
+export { num } from './status'
 
 /**
  * 표(astryx Table, 촘촘한 밀도). 칸은 줄을 바꾸지 않고, 자리가 좁으면 이 표만 가로로 민다. 첫 열은 사람이 읽는 이름.

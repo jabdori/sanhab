@@ -11,15 +11,27 @@ import { HStack, StackItem } from '@astryxdesign/core/Layout'
 import { Timestamp } from '@astryxdesign/core/Timestamp'
 import { BeakerIcon, BookOpenIcon, CalendarIcon, BuildingStorefrontIcon, InboxStackIcon } from '@heroicons/react/24/outline'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { DemoDrawer } from './Demo'
 import { Enter } from './Enter'
 import { APP, L } from './labels'
-import { LegacyList, LegacyRecord } from './pages/Legacy'
+import { Clarify } from './pages/Clarify'
+import { Dealer } from './pages/Dealer'
+import { Dealers } from './pages/Dealers'
+import { LegacyRecord } from './pages/Legacy'
+import { Pay } from './pages/Pay'
+import { Ratify } from './pages/Ratify'
 import { Review } from './pages/Review'
+import { Rule } from './pages/Rule'
+import { Rules } from './pages/Rules'
+import { Signal } from './pages/Signal'
 import { Work } from './pages/Work'
-import { MENUS, menuAtom, roleAtom, rolesAtom, targetAtom, useData } from './state'
+import { MENUS, type Menu, menuAtom, roleAtom, rolesAtom, targetAtom, useData } from './state'
 import { Chat } from './tickets/24-대화'
+
+/** 기록의 종류 → 화면. 메뉴 → 목록 화면 */
+const RECORDS: Record<string, () => ReactNode> = { [L.심사]: Review, [L.정황]: Signal, [L.소명]: Clarify, [L.지급]: Pay, [L.추인]: Ratify, [L.대리점]: Dealer, [L.규정]: Rule }
+const LISTS: Record<Menu, () => ReactNode> = { [L.작업]: Work, [L.대리점]: Dealers, [L.규정]: Rules }
 
 const ICONS = { [L.작업]: InboxStackIcon, [L.대리점]: BuildingStorefrontIcon, [L.규정]: BookOpenIcon }
 
@@ -39,7 +51,10 @@ function Shell() {
   const [demo, setDemo] = useState(false)
   const narrow = useMediaQuery('(max-width: 1366px)')
   const chat = useResizable({ defaultSize: 380, minSize: 320, maxSize: 560, autoSaveId: 'chat' })
-  const page = target?.kind === L.심사 ? <Review /> : target ? <LegacyRecord /> : menu === L.작업 ? <Work /> : <LegacyList />
+  const Open = target ? (RECORDS[target.kind] ?? LegacyRecord) : null
+  const List = LISTS[menu]
+  // 기록은 대상마다 새로 그린다(탭·사유 입력이 다른 기록으로 넘어가지 않게)
+  const page = Open && target ? <Open key={`${target.kind}/${target.id}`} /> : <List />
   return (
     <AppShell
       // 1280처럼 좁으면 메뉴가 아이콘 줄로 접힌 채 시작한다(폭이 경계를 넘으면 다시 정한다). 접기 단추로 언제든 펼친다

@@ -51,6 +51,9 @@ const words = [
   '앞', '뒤',
   '해제',
   '사유 필수',
+  // A: 정황·보고·소명·발송·서류
+  // B: 지급·대사·재심사·추인·재검토
+  // C: 대리점·관련자·변경·규정·모의·접속
 ] as const
 
 export const L = Object.fromEntries(words.map((w) => [w, w])) as { [K in (typeof words)[number]]: K }

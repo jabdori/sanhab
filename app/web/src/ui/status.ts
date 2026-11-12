@@ -43,3 +43,6 @@ export const dot = (marks: string[], state?: string | null): 'warning' | 'error'
 /** 식별자의 종류(일치) → Token 색 */
 const MATCH: Record<string, 'blue' | 'teal' | 'purple'> = { [L.대표자]: 'blue', [L.주소]: 'teal', [L.계좌]: 'purple' }
 export const match = (kind: string) => MATCH[kind] ?? 'default'
+
+/** 금액의 표기: 천 단위 쉼표("원"은 붙이지 않는다) */
+export const num = (n: number) => n.toLocaleString('ko-KR')
