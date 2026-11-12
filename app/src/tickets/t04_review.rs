@@ -150,6 +150,8 @@ pub fn routes() -> Router<std::sync::Arc<Db>> {
 async fn tasks(Extension(me): Extension<Me>) -> R {
     let r = q1(&me.db, "
         SELECT record::id(id) AS id, kind, view, record::id(target) AS target, target.name AS name, target.ym AS ym, target.total AS total, target.marks ?? [] AS marks, role, state,
+            -- 지급 작업이면 그 지급의 상태(대기·재심사·이체·완료 — 지급 상세의 제목과 같은 값. 작업의 상태와 다르다)
+            IF record::tb(target) = 'payout' THEN target.state END AS pay,
             IF kind = '심사' THEN state = '대기' AND target.status = '대기' AND target.approver = '영업지원' AND '정황' NOTINSIDE target.marks AND fn::can('승인', target) AND !fn::must('승인', target) ELSE false END AS pick
         FROM task WHERE state INSIDE ['대기', '진행'] AND (role = $auth.role OR also CONTAINS $auth.role);", json!({})).await?;
     let mut rows: Vec<J> = r.as_array().cloned().unwrap_or_default();

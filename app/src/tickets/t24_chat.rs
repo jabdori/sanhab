@@ -104,7 +104,7 @@ fn parse(b: &J, asking: bool) -> Result<Ask, ApiError> {
 /// 모델에게 알리는 문맥: 역할, 지금 열어 둔 대상(끄면 없다), 붙인 기록
 fn context(role: &str, a: &Ask, names: &HashMap<String, String>) -> String {
     let one = |r: &Rec| format!("{} {} (테이블 {}, id {})", r.kind, names.get(&format!("{}/{}", r.kind, r.id)).filter(|n| !n.is_empty()).unwrap_or(&r.id), table_of(&r.kind).unwrap_or_default(), r.id);
-    let mut s = format!("{SYSTEM}\n사용자의 역할은 {role}이다.");
+    let mut s = format!("{SYSTEM}\n{}\n사용자의 역할은 {role}이다.", super::t17_report::SOURCE);
     match &a.target { Some(t) => s += &format!("\n사용자가 지금 열어 둔 대상: {}. 묻는 말에 대상이 따로 없으면 이것을 가리킨다.", one(t)), None => s += "\n사용자가 열어 둔 대상은 없다." }
     if !a.attach.is_empty() { s += &format!("\n사용자가 붙인 기록: {}.", a.attach.iter().map(one).collect::<Vec<_>>().join(", ")); }
     if !a.files.is_empty() { s += &format!("\n사용자가 올린 파일: {}.", a.files.iter().map(|f| f.name.as_str()).collect::<Vec<_>>().join(", ")); }

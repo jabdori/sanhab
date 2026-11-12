@@ -91,6 +91,14 @@ body {
   text-decoration-line: underline;
 }
 
+/* 시연 서랍(Band.tsx): 띠(AppShell 머리, 높이 49) 아래에서 열린다 — 역할·날짜·시연 단추를 덮지 않게.
+   astryx 서랍의 위치(StyleX)보다 우선하도록 클래스를 두 번 쓴다 */
+.demo-drawer.demo-drawer {
+  inset-block-start: 49px;
+  block-size: calc(100dvh - 49px);
+  max-block-size: calc(100dvh - 49px);
+}
+
 /* 근거 연결이 가리킨 줄(ui/Table의 mark): 잠깐 노랗게 */
 @keyframes mark {
   from { background: var(--color-background-yellow); }

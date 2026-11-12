@@ -25,7 +25,7 @@ import { Table, num } from '../../ui/Table'
 import { Title } from '../../ui/Title'
 import { type Decision, bundled, reasonAtom, useReview } from './review'
 
-type Task = { id: string; kind: string; view: string; target: string; name?: string; ym?: string; total?: number | null; marks: string[]; role: string; pick: boolean; state?: string }
+type Task = { id: string; kind: string; view: string; target: string; name?: string; ym?: string; total?: number | null; marks: string[]; role: string; pick: boolean; state?: string; pay?: string | null }
 
 /** 결정을 보낸다. 거절되어도 화면을 다시 읽어 지금 할 수 있는 조치를 보인다 */
 const decide = (ids: string[], kind: string, reason?: object | null) =>
@@ -88,7 +88,7 @@ function Tasks() {
     },
     ...(list.some((t) => t.ym) ? [{ head: L.귀속월, cell: (t: Task) => t.ym }] : []),
     ...(list.some((t) => t.total != null) ? [{ head: L.금액, right: true, cell: (t: Task) => (t.total == null ? null : num(t.total)) }] : []),
-    ...(!narrow && list.some((t) => t.kind === L.지급) ? [{ head: L.상태, cell: (t: Task) => t.kind === L.지급 && t.state && <Pill tone={payTones[t.state as keyof typeof payTones] ?? 'wait'}>{t.state}</Pill> }] : []),
+    ...(!narrow && list.some((t) => t.kind === L.지급) ? [{ head: L.상태, cell: (t: Task) => t.kind === L.지급 && t.pay && <Pill tone={payTones[t.pay as keyof typeof payTones] ?? 'wait'}>{t.pay}</Pill> }] : []),
     ...(!narrow && list.some((t) => t.marks.length) ? [{ head: L.표시, cell: (t: Task) => <span className="flex gap-2">{marks(t.marks)}</span> }] : []),
     ...(tab === 'going' ? [{ head: L.담당, cell: (t: Task) => t.role }] : []),
   ]

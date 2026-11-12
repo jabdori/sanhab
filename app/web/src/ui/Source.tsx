@@ -36,8 +36,6 @@ const readSpecs = () =>
     },
   ))
 
-/** 서버의 출처 → 화면의 표지. 서버의 '시연'은 모의로 보인다 — 부르는 쪽은 시연 서랍에서 만든 값(모의 회신, 시연 서류)일 때만 넘긴다. 제품 안의 조치(변경·결정)로 생긴 값은 표지를 그리지 않는다. 시연으로 넣은 값(D58의 호실)은 kind={L.합성} */
-const shown = (kind: string) => (kind === L.시연 ? L.모의 : kind)
 const base = (file: string) => file.split('/').at(-1)
 
 /**
@@ -55,7 +53,10 @@ export function Source({ kind, file, row, place, quiet, side, of, decision, line
   const [open, setOpen] = useState(false)
   const [origin, setOrigin] = useState<Row>()
   const [spec, setSpec] = useState<Spec | null>()
-  const name = shown(kind)
+  // 서버의 출처 `시연`은 사람이 제품에서 한 조치(변경·결정·요청 …)로 생긴 값이다 — 제품의 동작이라 표지가 없다(누가 언제는 이력에).
+  // `모의`는 시연 서랍에서 만든 값(모의 회신, 시연 서류, 넘긴 날짜)에만, 부르는 쪽이 kind={L.모의}로 준다. 이 판정은 여기 한 곳이다
+  if (kind === L.시연) return null
+  const name = kind
   const id = decision ?? (of ? DECISION[of] : undefined)
   const isOrigin = name === L.원본
   if (isOrigin && !(file && row) && !children && !rows) return null
@@ -176,7 +177,10 @@ function Origin({ file, row, o }: { file: string; row: number; o: Row }) {
         </MetadataListItem>
       ))}
       <MetadataListItem label={L.해시}>
-        <span className="break-all text-secondary">{o.sha}</span>
+        {/* 64자 해시는 앞부분만(머물면 전체) — 설명 칸이 가로로 밀리지 않게 */}
+        <span className="text-secondary tabular-nums" title={o.sha}>
+          {o.sha.slice(0, 16)}…
+        </span>
       </MetadataListItem>
     </MetadataList>
   )
