@@ -39,7 +39,8 @@ async fn root_token() -> Result<String> {
 }
 
 /// 루트 토큰을 주기적으로 새로 받는다(서버가 오래 떠 있어도 끊기지 않게)
-pub async fn refresh_root(db: Db) {
+/// clone()은 새 세션이라 같은 클라이언트(Arc)를 받아야 그 세션의 토큰이 바뀐다
+pub async fn refresh_root(db: std::sync::Arc<Db>) {
     loop {
         tokio::time::sleep(std::time::Duration::from_secs(50 * 60)).await;
         if let Ok(t) = root_token().await {

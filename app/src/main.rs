@@ -172,9 +172,8 @@ async fn seed_all(db: &Db, name: &str, ver: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn app(db: Db) -> Router {
-    // 같은 루트 클라이언트를 요청마다 복제(clone)하면 SDK가 복제마다 새 세션을 만들어 쿼리 하나에 몇 초씩 걸렸다 — Arc로 나눠 쓴다
-    let db = std::sync::Arc::new(db);
+/// 같은 루트 클라이언트를 요청마다 복제(clone)하면 SDK가 복제마다 새 세션을 만들어 쿼리 하나에 몇 초씩 걸렸다 — Arc로 나눠 쓴다
+pub fn app(db: std::sync::Arc<Db>) -> Router {
     let api = tickets::routes()
         .route("/reset", post(reset))
         .fallback(|| async { err(StatusCode::NOT_FOUND, "없음") })
@@ -246,7 +245,11 @@ async fn main() -> anyhow::Result<std::process::ExitCode> {
             });
         }
         // 일꾼은 따로 연결한다: 같은 클라이언트를 쓰면 일꾼의 요청 뒤에 화면의 요청이 줄을 서서 작은 파드에서 몇 초씩 밀렸다
-        tokio::spawn(tickets::ai_worker(connect_retry().await?));
+        let worker = std::sync::Arc::new(connect_retry().await?);
+        tokio::spawn(db::refresh_root(worker.clone()));
+        tokio::spawn(tickets::ai_worker(worker));
+        let db = std::sync::Arc::new(db);
+        tokio::spawn(db::refresh_root(db.clone()));
         let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
         println!("listening :{port}");
         axum::serve(listener, app(db)).with_graceful_shutdown(async { tokio::signal::ctrl_c().await.ok(); }).await?;

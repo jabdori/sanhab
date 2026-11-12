@@ -16,7 +16,7 @@ impl Check {
     pub async fn start(db: Db) -> Result<Self> {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
         let base = format!("http://{}", listener.local_addr()?);
-        let app = crate::app(db.clone());
+        let app = crate::app(std::sync::Arc::new(db.clone()));
         tokio::spawn(async move { axum::serve(listener, app).await });
         Ok(Self { db, base, http: reqwest::Client::new(), tokens: HashMap::new() })
     }
