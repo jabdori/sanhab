@@ -61,7 +61,7 @@ async fn ai_session(db: &Db) -> Result<Db> {
     as_user(db, &t).await
 }
 
-pub fn routes() -> Router<Db> {
+pub fn routes() -> Router<std::sync::Arc<Db>> {
     Router::new().route("/signals/{id}/report", get(detail)).route("/investigate", post(investigate)).route("/adopt", post(adopt))
 }
 
@@ -365,7 +365,7 @@ async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
 }
 
 /// 조사: 내부 감시가 요청하면 AI가 정황을 조사한다(D23). 같은 입력의 보고가 이미 올라와 있으면 그것을 쓴다. 끝나야(AI가 응답하거나 대기로 남아야) 돌아온다. `{ id }` → `{ state }`
-async fn investigate(Extension(me): Extension<Me>, State(db): State<Db>, Body(b): Body) -> R {
+async fn investigate(Extension(me): Extension<Me>, State(db): State<std::sync::Arc<Db>>, Body(b): Body) -> R {
     let Some(id) = b["id"].as_str().filter(|i| !i.is_empty()) else { return Err(refuse("대상")) };
     if basis(&db, id).await.map_err(|_| refuse("대상"))?.is_none() {
         return Err(refuse("대상"));

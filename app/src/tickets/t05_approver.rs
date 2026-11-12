@@ -10,7 +10,7 @@ use serde_json::{Value as J, json};
 pub const SCHEMA: &str = include_str!("../../db/05-승인권자.surql");
 
 /// 05가 더하는 경로는 없다. 사유의 필수 여부와 분류는 심사 상세(04)의 `actions`에 실려 간다
-pub fn routes() -> Router<Db> {
+pub fn routes() -> Router<std::sync::Arc<Db>> {
     Router::new()
 }
 

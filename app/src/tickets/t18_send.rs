@@ -34,7 +34,7 @@ const CUT: usize = 2000;
 /// AI 호출의 수(자동 검사가 "같은 소명에는 다시 부르지 않는다"를 셀 때 쓴다)
 static CALLS: AtomicUsize = AtomicUsize::new(0);
 
-pub fn routes() -> Router<Db> {
+pub fn routes() -> Router<std::sync::Arc<Db>> {
     Router::new().route("/clarifies/{id}", get(detail)).route("/signals/{id}/clarifies", get(of_signal)).route("/send", post(send))
 }
 
@@ -154,7 +154,7 @@ async fn sweep_with(db: &Db, key: Option<&str>) -> Result<()> {
 
 /// 소명 상세. 가운데: 소명(`clarify`: 이름, 상태, 대리점, 정황), 일치 종류(`kinds`)와 서류 목록(`docs`: `[종류, 서류]`. 발송했으면 그때의 것), 발송한 날(`sent`)과 기한(`due`), 발송한 요청서의 글(`body`).
 /// 오른쪽: 요청서 초안(`draft`: 값 자리를 채운 글과 모델. 없으면 AI가 아직 쓰지 못했다), 지금 역할이 발송할 수 있는지(`can`), 담당하는 역할(`role`), 이력(`history`: 요청, 발송). 없는 소명은 404
-async fn detail(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
+async fn detail(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
     let Some((c, ks, docs)) = row(&db, &id).await.map_err(|_| err(StatusCode::NOT_FOUND, "없음"))? else { return Err(err(StatusCode::NOT_FOUND, "없음")) };
     let r = q1(&me.db, "
         LET $c = type::record('clarify', $id);
@@ -183,7 +183,7 @@ async fn of_signal(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
 
 /// 발송으로 표시: `{ id, body? }`. 쓰기 전에 거절의 낱말을 정해 돌려주고(`refuse`: 대상 → 권한 → 상태), 역할의 세션으로 `dispatch`를 만든다. 서류 목록은 코드가 정한다(보낸 값은 받지 않는다).
 /// 서류 목록이 비고(일치 종류가 없는 정황) 글도 없으면 보낼 것이 없어 대상이다. DB의 권한 규칙은 마지막 방어선이다
-async fn send(State(db): State<Db>, Extension(me): Extension<Me>, Body(b): Body) -> R {
+async fn send(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<Me>, Body(b): Body) -> R {
     let bad = || refuse("대상");
     let id = b["id"].as_str().filter(|i| !i.is_empty()).ok_or_else(bad)?;
     let text = match &b["body"] {

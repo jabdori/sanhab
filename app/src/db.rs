@@ -16,8 +16,10 @@ pub fn dbname() -> String { env("SURREAL_DB", "w07") }
 
 /// root 세션: 서버 내부 전용(스키마·시드·조회). 사용자 권한이 필요한 쓰기는 `as_user`로.
 pub async fn connect() -> Result<Db> {
+    // 루트도 토큰으로 인증한다. 패스워드로 로그인한 클라이언트를 복제해 쓰면(axum의 State가 요청마다 복제한다) 요청마다 5초씩 밀렸다.
+    // ponytail: 루트 토큰은 유효 시간이 있다 — `refresh_root`가 50분마다 새 토큰으로 바꾼다
     let db = Surreal::new::<Http>(env("SURREAL_ADDR", "localhost:18000")).await?;
-    db.signin(Root { username: env("SURREAL_USER", "root"), password: env("SURREAL_PASS", "root") }).await?;
+    db.authenticate(root_token().await?).await?;
     let (ns, name) = (ns(), dbname());
     // 식별자는 바인딩 불가 → 형식 검증 후 삽입
     if !ns.chars().chain(name.chars()).all(|c| c.is_ascii_alphanumeric() || c == '_') {
@@ -28,6 +30,22 @@ pub async fn connect() -> Result<Db> {
     db.query(format!("DEFINE DATABASE IF NOT EXISTS {name};")).await?.check()?;
     db.use_db(&name).await?;
     Ok(db)
+}
+
+async fn root_token() -> Result<String> {
+    let t = Surreal::new::<Http>(env("SURREAL_ADDR", "localhost:18000")).await?;
+    let j = t.signin(Root { username: env("SURREAL_USER", "root"), password: env("SURREAL_PASS", "root") }).await?;
+    Ok(j.access.into_insecure_token())
+}
+
+/// 루트 토큰을 주기적으로 새로 받는다(서버가 오래 떠 있어도 끊기지 않게)
+pub async fn refresh_root(db: Db) {
+    loop {
+        tokio::time::sleep(std::time::Duration::from_secs(50 * 60)).await;
+        if let Ok(t) = root_token().await {
+            db.authenticate(t).await.ok();
+        }
+    }
 }
 
 /// 레코드 사용자 로그인. clone()은 새 세션이므로 root 세션은 그대로 남는다.

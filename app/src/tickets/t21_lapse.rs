@@ -13,12 +13,12 @@ pub const SCHEMA: &str = include_str!("../../db/21-미응답.surql");
 /// 한 번에 넘길 수 있는 날수의 끝(가정)
 const MAX: i64 = 365;
 
-pub fn routes() -> Router<Db> {
+pub fn routes() -> Router<std::sync::Arc<Db>> {
     Router::new().route("/advance", post(advance))
 }
 
 /// `{ days }` → `{ today, lapsed[소명 id] }`. 1 이상 `MAX` 이하의 정수가 아니면 400 `대상`
-async fn advance(State(db): State<Db>, Body(b): Body) -> R {
+async fn advance(State(db): State<std::sync::Arc<Db>>, Body(b): Body) -> R {
     let days = b["days"].as_i64().filter(|d| (1..=MAX).contains(d)).ok_or_else(|| refuse("대상"))?;
     let r = q1(&db, "fn::advance($days); LET $lapsed = fn::lapse(); RETURN { today: time::format(fn::today(), '%Y-%m-%d'), lapsed: $lapsed };", json!({ "days": days })).await?;
     Ok(Json(r))

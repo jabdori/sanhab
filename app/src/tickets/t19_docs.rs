@@ -58,7 +58,7 @@ fn sha(b: &[u8]) -> String {
     Sha256::digest(b).iter().map(|x| format!("{x:02x}")).collect()
 }
 
-pub fn routes() -> Router<Db> {
+pub fn routes() -> Router<std::sync::Arc<Db>> {
     Router::new()
         .route("/clarifies/{id}/docs", get(list).post(upload).layer(DefaultBodyLimit::max(MAX + 4096)))
         .route("/docs/{id}/file", get(file))
@@ -252,7 +252,7 @@ fn rows(ws: &[J], tidy: &[J], reg: &HashMap<&str, J>) -> Vec<J> {
 
 /// 소명의 서류 화면: 지금 역할이 올릴 수 있는지(`can`), 받는 종류와 크기, 서류마다 판독 낱말·정리·값 표·누락과 불일치의 수.
 /// 등록 값: 임차인은 소명한 대리점의 이름, 주소는 상대 대리점(정황의 두 번째 대리점)의 지금 주소(원본의 선), 호실은 상대 대리점의 호실(시연, `ROOMS`). 기간은 등록 값이 없다
-async fn list(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
+async fn list(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
     let c = q1(&db, "
         LET $c = type::record('clarify', $id);
         LET $o = $c.signal.dealers[1];

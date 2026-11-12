@@ -58,7 +58,7 @@ pub async fn bundle(db: &Db, now: &BTreeMap<String, Now>) -> Result<()> {
     Ok(())
 }
 
-pub fn routes() -> Router<Db> {
+pub fn routes() -> Router<std::sync::Arc<Db>> {
     Router::new().route("/ratifies/{id}", get(detail)).route("/reviews/{id}/ratify", get(of_review))
 }
 
