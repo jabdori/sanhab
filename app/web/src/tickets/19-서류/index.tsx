@@ -19,7 +19,7 @@ import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
 import { Table } from '../../ui/Table'
 import { pill } from '../18-발송'
-import { bin, type Doc, pick, pickAtom, seeAtom, tickAtom, useDoc, useDocs } from './docs'
+import { bin, type Doc, pick, pickAtom, range, seeAtom, tickAtom, useDoc, useDocs } from './docs'
 
 const tones = { [L.일치]: 'good', [L.불일치]: 'bad', [L.누락]: 'bad' } as const
 
@@ -110,31 +110,32 @@ function Center() {
         <div className="min-w-0">
           <Original d={d} />
         </div>
-        <div className="col-span-2 flex min-w-0 flex-col gap-3">
-          <Table
-            head={[L.항목, L.판독, L.등록, L.비교, L.출처]}
-            mark={picked ? d.rows.findIndex((r) => r.item === picked) : undefined}
-            rows={d.rows.map((r) => [
-              <Link color="primary" weight="medium" onClick={() => pick(r.item)}>
-                {r.item}
-              </Link>,
-              r.read ?? <Empty />,
-              r.reg?.value ?? <Empty />,
-              r.result ? <Pill tone={tones[r.result as keyof typeof tones] ?? 'wait'}>{r.result}</Pill> : <Empty />,
-              <RegSource r={r} />,
-            ])}
-          />
-          {d.rows.length > 0 && (
+        {/* 판독 전에는 값이 없다: 표도 숫자 줄도 그리지 않는다 */}
+        {d.rows.length > 0 && (
+          <div className="col-span-2 flex min-w-0 flex-col gap-3">
+            <Table
+              head={[L.항목, L.판독, L.등록, L.비교, L.출처]}
+              mark={picked ? d.rows.findIndex((r) => r.item === picked) : undefined}
+              rows={d.rows.map((r) => [
+                <Link color="primary" weight="medium" onClick={() => pick(r.item)}>
+                  {r.item}
+                </Link>,
+                r.read ? range(r.read) : <Empty />,
+                r.reg?.value ? range(r.reg.value) : <Empty />,
+                r.result ? <Pill tone={tones[r.result as keyof typeof tones] ?? 'wait'}>{r.result}</Pill> : <Empty />,
+                <RegSource r={r} />,
+              ])}
+            />
             <Figures
-              items={[
-                [L.누락, d.counts[L.누락] ?? 0],
-                [L.불일치, d.counts[L.불일치] ?? 0],
-              ]}
-            >
-              <Source kind={L.계산} tip={`${L.누락} · ${L.불일치}`} rows={[[L.누락, d.counts[L.누락] ?? 0], [L.불일치, d.counts[L.불일치] ?? 0]]} />
-            </Figures>
-          )}
-        </div>
+                items={[
+                  [L.누락, d.counts[L.누락] ?? 0],
+                  [L.불일치, d.counts[L.불일치] ?? 0],
+                ]}
+              >
+                <Source kind={L.계산} tip={`${L.누락} · ${L.불일치}`} rows={[[L.누락, d.counts[L.누락] ?? 0], [L.불일치, d.counts[L.불일치] ?? 0]]} />
+              </Figures>
+          </div>
+        )}
       </div>
     </Region>
   )
@@ -158,7 +159,7 @@ function Tidy() {
           head={[L.항목, L.값, '']}
           rows={d.tidy.map((t) => [
             <Text weight="medium">{t.item}</Text>,
-            t.value ?? <Empty />,
+            t.value ? range(t.value) : <Empty />,
             t.words.length > 0 && (
               <Link aria-label={t.item} onClick={() => pick(t.item)}>
                 ↗

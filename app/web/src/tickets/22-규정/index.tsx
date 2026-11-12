@@ -8,7 +8,6 @@ import { useEffect } from 'react'
 import { L } from '../../labels'
 import type { Piece } from '../../pieces'
 import { menuAtom, targetAtom, useData } from '../../state'
-import { Figures } from '../../ui/Figures'
 import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
 import { Table, num } from '../../ui/Table'
@@ -75,12 +74,12 @@ function Rules() {
       </Region>
       <Region title={L.규칙}>
         <Table
-          head={[L.규칙, '', L.시행, L.이전, L.출처]}
+          head={[L.규칙, L.값, L.시행, L.이전, L.출처]}
           right={[1]}
           rows={rules.map((r) => [
             <Text weight="medium">{`${r.name} v${r.ver}`}</Text>,
             r.name === L.합산 ? `${L.일치} ${r.value}` : num(r.value),
-            `${r.since ?? L.미상} – ${r.until ?? ''}`.trim(),
+            r.since || r.until ? `${r.since ?? ''} ~ ${r.until ?? ''}`.trim() : none,
             r.prev ? `${r.prev.name} v${r.prev.ver}` : none,
             <Source kind={r.source} tip={c.title} place={`${c.first}–${c.last}${L.행}`} rows={[[L.위치, where(c)]]}>
               {c.text}
@@ -125,14 +124,15 @@ function Rules() {
         />
       </Region>
       <Region title={L.AI}>
-        <Figures
-          items={[
+        <Table
+          head={[L.쓰임, L.대상]}
+          rows={[
             [L.조사, L.정황],
             [L.요청서, L.소명],
             [L.정리, L.서류],
             [L.설명, L.사건],
-            [L.결정, L.없음],
-          ]}
+            [L.결정, none],
+          ].map(([k, v]) => [<Text weight="medium">{k as string}</Text>, v])}
         />
       </Region>
     </>

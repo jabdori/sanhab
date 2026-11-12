@@ -5,7 +5,7 @@ import { CheckboxInput } from '@astryxdesign/core/CheckboxInput'
 import { Link } from '@astryxdesign/core/Link'
 import { Tab, TabList } from '@astryxdesign/core/TabList'
 import { Text } from '@astryxdesign/core/Text'
-import { useAtom, useSetAtom } from 'jotai'
+import { atom, useAtom, useSetAtom } from 'jotai'
 import { type ReactNode, useEffect, useState } from 'react'
 import { L } from '../../labels'
 import type { Piece } from '../../pieces'
@@ -25,43 +25,60 @@ import { Table, num } from '../../ui/Table'
 import { Title } from '../../ui/Title'
 import { type Decision, bundled, reasonAtom, useReview } from './review'
 
-type Task = { id: string; kind: string; view: string; target: string; name?: string; ym?: string; total?: number | null; marks: string[]; role: string; pick: boolean }
+type Task = { id: string; kind: string; view: string; target: string; name?: string; ym?: string; total?: number | null; marks: string[]; role: string; pick: boolean; state?: string }
 
 /** 결정을 보낸다. 거절되어도 화면을 다시 읽어 지금 할 수 있는 조치를 보인다 */
 const decide = (ids: string[], kind: string, reason?: object | null) =>
   api('/decide', { ids, kind, reason: reason ?? undefined }).catch(() => store.set(changedAtom, (n) => n + 1))
 
 const tones = { [L.대기]: 'wait', [L.승인]: 'good', [L.보류]: 'hold', [L.반려]: 'bad' } as const
+/** 지급 작업의 상태(07)와 그 색. 작업 목록의 상태 열에만 쓴다 */
+const payTones = { [L.대기]: 'wait', [L.재심사]: 'again', [L.이체]: 'wait', [L.완료]: 'good' } as const
+
+/** 목록의 정렬: 종류(한 건씩 정하는 작업이 위, 묶어서 승인하는 심사가 맨 아래 — 개수가 많은 심사가 발송·소명 같은 할 일을 덮지 않게. 종류끼리는 copy.md "작업의 종류" 순서) → 귀속월 오름차순 → 대상 */
+const KINDS: string[] = [L.추인, L.종결, L.정황, L.발송, L.소명, L.미응답, L.지급, L.대사, L.재상신, L.심사]
+const rank = (t: Task) => (KINDS.includes(t.kind) ? KINDS.indexOf(t.kind) : KINDS.length)
+const order = (a: Task, b: Task) => rank(a) - rank(b) || (a.ym ?? '9').localeCompare(b.ym ?? '9') || (a.name ?? '').localeCompare(b.name ?? '', 'ko')
+
+/** 담당·진행 탭. 대상을 열면 목록의 자리가 바뀌어 다시 그려지므로 탭은 밖에 둔다 */
+const tabAtom = atom<'mine' | 'going'>('mine')
+
 const marks = (list: string[], short?: boolean) => list.map((m) => <Mark key={m} short={short}>{m}</Mark>)
 
 function Tasks() {
   const d = useData<{ mine: Task[]; going: Task[] }>('/tasks')
   const [target, setTarget] = useAtom(targetAtom)
-  const [tab, setTab] = useState<'mine' | 'going'>('mine')
+  const [tab, setTab] = useAtom(tabAtom)
   const [picked, setPicked] = useState<string[]>([])
   // 결정을 보낸 때의 목록. 새 목록을 받을 때까지는 다시 누를 수 없다
   const [sent, setSent] = useState<unknown>(null)
   if (!d) return null
-  const list = d[tab]
+  const list = [...d[tab]].sort(order)
   // 고른 줄 가운데 아직 고를 수 있는 것만 센다(승인되면 목록에서 빠진다)
   const chosen = picked.filter((id) => d.mine.some((t) => t.pick && t.target === id))
   const open = (t: Task) => setTarget({ kind: t.view, id: t.target })
   // 상세가 열려 목록이 좁으면(360) 표시는 첫 열에 아이콘만 둔다(고르기 칸이 있는 줄은 표시가 없다 — 정황이 없어야 고를 수 있다). 넓으면 표시 열에 낱말까지
   const narrow = !!target
-  // 열은 값이 있는 줄이 하나라도 있을 때만 둔다(정황·추인은 귀속월·금액이 없다 — 빈 열이 자리를 차지하지 않게)
+  // 첫 열은 종류이고 그 앞에 고정 폭의 고르기 칸(좁으면 표시 아이콘)이 있다. 열이 가장 왼쪽에서 시작하므로 종류 글자의 자리가 모든 역할·탭에서 같다.
+  // 나머지 열은 값이 있는 줄이 하나라도 있을 때만 둔다
   const cols: { head: string; right?: boolean; cell: (t: Task) => ReactNode }[] = [
     {
-      head: '',
-      cell: (t) =>
-        t.pick ? (
-          <CheckboxInput label={L.선택} isLabelHidden size="sm" value={chosen.includes(t.target)}
-            onChange={(on) => setPicked(on ? [...chosen, t.target] : chosen.filter((id) => id !== t.target))}
-          />
-        ) : (
-          narrow && <span className="flex gap-1">{marks(t.marks, true)}</span>
-        ),
+      head: L.종류,
+      cell: (t) => (
+        <span className="flex items-center gap-2">
+          <span className="flex w-8 items-center gap-1">
+            {t.pick ? (
+              <CheckboxInput label={L.선택} isLabelHidden size="sm" value={chosen.includes(t.target)}
+                onChange={(on) => setPicked(on ? [...chosen, t.target] : chosen.filter((id) => id !== t.target))}
+              />
+            ) : (
+              narrow && marks(t.marks, true)
+            )}
+          </span>
+          <Text color="secondary">{t.kind}</Text>
+        </span>
+      ),
     },
-    { head: L.종류, cell: (t) => <Text color="secondary">{t.kind}</Text> },
     {
       head: L.대상,
       cell: (t) => (
@@ -72,7 +89,8 @@ function Tasks() {
     },
     ...(list.some((t) => t.ym) ? [{ head: L.귀속월, cell: (t: Task) => t.ym }] : []),
     ...(list.some((t) => t.total != null) ? [{ head: L.금액, right: true, cell: (t: Task) => (t.total == null ? null : num(t.total)) }] : []),
-    ...(narrow ? [] : [{ head: L.표시, cell: (t: Task) => <span className="flex gap-2">{marks(t.marks)}</span> }]),
+    ...(!narrow && list.some((t) => t.kind === L.지급) ? [{ head: L.상태, cell: (t: Task) => t.kind === L.지급 && t.state && <Pill tone={payTones[t.state as keyof typeof payTones] ?? 'wait'}>{t.state}</Pill> }] : []),
+    ...(!narrow && list.some((t) => t.marks.length) ? [{ head: L.표시, cell: (t: Task) => <span className="flex gap-2">{marks(t.marks)}</span> }] : []),
     ...(tab === 'going' ? [{ head: L.담당, cell: (t: Task) => t.role }] : []),
   ]
   return (
