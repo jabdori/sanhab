@@ -43,4 +43,5 @@ tickets! {
     t19_docs,
     t12_hypo,
     t22_rules,
+    t23_mock,
 }
