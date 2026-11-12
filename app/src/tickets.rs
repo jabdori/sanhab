@@ -21,6 +21,11 @@ macro_rules! tickets {
                 $m::check(c).await.context(stringify!($m))?;
                 println!("{} OK", stringify!($m));
             })*
+            if only.is_none() {
+                c.reset().await?;
+                c.latency().await?;
+                println!("latency OK");
+            }
             Ok(())
         }
     };

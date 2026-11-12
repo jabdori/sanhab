@@ -122,7 +122,7 @@ function Center() {
         </Source>
         {all.docs.length > 1 &&
           all.docs.map((x, i) => (
-            <button key={x.id} aria-pressed={i === at} onClick={() => setSee(i)} className={`${button} aria-pressed:bg-surface`}>
+            <button key={x.id} aria-pressed={i === at} onClick={() => setSee(i)} className={`${button} aria-pressed:bg-line`}>
               {i + 1}
             </button>
           ))}
@@ -243,7 +243,7 @@ function Upload() {
         <div className="flex flex-wrap items-center gap-2">
           <span className={label}>{L.시연}</span>
           {samples.map((s) => (
-            <button key={s.id} aria-label={s.name} onClick={() => choose(s.id, s.name)} aria-pressed={file?.name === s.name} className={`${button} aria-pressed:bg-surface`}>
+            <button key={s.id} aria-label={s.name} onClick={() => choose(s.id, s.name)} aria-pressed={file?.name === s.name} className={`${button} aria-pressed:bg-line`}>
               {s.id} {s.dealer}
             </button>
           ))}

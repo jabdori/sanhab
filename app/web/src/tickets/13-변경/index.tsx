@@ -18,6 +18,9 @@ const row = 'flex items-center gap-2'
 const name = `w-12 shrink-0 ${label}`
 const field = 'h-head min-w-0 flex-1 rounded-box border border-line bg-bg px-2 text-body tabular-nums outline-none focus:border-text-sub'
 
+/** 달력에 있는 YYYY-MM-DD인가(2026-02-30은 아니다) */
+const isDay = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s) && !!new Date(`${s}T00:00:00Z`).toJSON()?.startsWith(s)
+
 function Form({ id }: { id: string }) {
   const d = useData<{ dealer: { id: string; name: string } }>(`/dealers/${id}`)
   const today = useData<{ today: string }>('/state')?.today
@@ -29,7 +32,7 @@ function Form({ id }: { id: string }) {
   const [bad, setBad] = useState<string | null>(null)
   useEffect(() => setBad(null), [id])
   if (d?.dealer.id !== id) return null
-  const ok = value.trim() !== '' && /^\d{4}-\d{2}-\d{2}$/.test(since)
+  const ok = value.trim() !== '' && isDay(since)
   return (
     <div className="flex flex-col gap-2">
       <div className={row}>
@@ -51,7 +54,7 @@ function Form({ id }: { id: string }) {
       </label>
       <label className={row}>
         <span className={name}>{L.변경일}</span>
-        <input type="date" className={field} max={today} value={since} onChange={(e) => setSince(e.target.value)} />
+        <input type="text" inputMode="numeric" placeholder="YYYY-MM-DD" maxLength={10} className={`${field} tabular-nums`} value={since} onChange={(e) => setSince(e.target.value)} />
       </label>
       <div className="flex flex-wrap items-center gap-2">
         <AlertDialog.Root>

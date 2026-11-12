@@ -190,7 +190,7 @@ function Intake() {
       .catch((e: Error) => setBad(e.message))
       .finally(() => setBusy(false))
   }
-  const pressed = `${button} aria-pressed:bg-surface`
+  const pressed = `${button} aria-pressed:bg-line`
   return (
     <section className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
