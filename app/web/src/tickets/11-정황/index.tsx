@@ -11,8 +11,10 @@ import { Figures } from '../../ui/Figures'
 import { Mark } from '../../ui/Mark'
 import { Pill } from '../../ui/Pill'
 import { Reason, blank, ready, sent as filled } from '../../ui/Reason'
+import { Link } from '@astryxdesign/core/Link'
+import { Region } from '../../ui/Region'
 import { Relation } from '../../ui/Relation'
-import { Source } from '../../ui/Source'
+import { DECISION, Source } from '../../ui/Source'
 import { button, label } from '../../ui/styles'
 import { Table, num } from '../../ui/Table'
 import { Title } from '../../ui/Title'
@@ -210,22 +212,24 @@ function History() {
 function Flags() {
   const r = useReview()?.review
   const on = r?.marks.includes(L.정황)
-  const list = useData<{ id: string; name: string; state: string }[]>(r && on ? `/reviews/${r.id}/signals` : null)
+  const list = useData<{ id: string; kind: string; name: string; state: string }[]>(r && on ? `/reviews/${r.id}/signals` : null)
   const setTarget = useSetAtom(targetAtom)
   if (!on || !list) return null
   return (
-    <section className="mb-4 flex flex-col gap-2">
-      <h2 className={label}>{L.정황}</h2>
+    <Region title={L.정황}>
       <Table
-        head={[L.정황, L.상태]}
+        head={[L.정황, L.상태, L.출처]}
+        onRow={(y) => setTarget({ kind: L.정황, id: list[y].id })}
         rows={list.map((s) => [
-          <button className="cursor-pointer text-left text-action hover:text-action-hover" onClick={() => setTarget({ kind: L.정황, id: s.id })}>
+          <Link color="primary" weight="medium" onClick={() => setTarget({ kind: L.정황, id: s.id })}>
             {s.name}
-          </button>,
+          </Link>,
           pill(s.state),
+          // 기준이 가정인 종류(근접 D51, 지연 D30)는 그 가정의 표지
+          DECISION[s.kind] && <Source kind={L.가정} of={s.kind} />,
         ])}
       />
-    </section>
+    </Region>
   )
 }
 

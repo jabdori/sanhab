@@ -19,7 +19,7 @@ import { tickAtom, useReport } from './report'
 // 상태의 색(tokens.md): 대기·검토는 대기, 채택은 좋음, 오류·불채택은 아님
 const tones = { [L.대기]: 'wait', [L.검토]: 'wait', [L.채택]: 'good', [L.오류]: 'bad', [L.불채택]: 'bad' } as const
 /** AI가 쓴 글: 줄을 어디서든 바꾼다(긴 글이 칸을 넘지 않게) */
-const text = 'break-keep wrap-anywhere text-body'
+const text = 'break-keep wrap-anywhere text-base'
 
 /** 근거 연결: 누르면 가운데 근거 표의 그 줄이 1.2초 동안 강조된다 */
 function show(ref: string) {

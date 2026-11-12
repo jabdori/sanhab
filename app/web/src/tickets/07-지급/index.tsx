@@ -34,7 +34,7 @@ function Counts() {
       <ToggleGroup value={shown} onValueChange={setShown} className="flex items-center gap-4">
         <span className={label}>{L.지급}</span>
         {(Object.keys(tones) as State[]).map((s) => (
-          <Toggle key={s} value={s} className="flex h-head cursor-pointer items-baseline gap-1 text-body text-action outline-none hover:text-action-hover data-pressed:text-text">
+          <Toggle key={s} value={s} className="flex h-head cursor-pointer items-baseline gap-1 text-base text-action outline-none hover:text-action-hover data-pressed:text-text">
             {s}
             <span className="text-figure tabular-nums">{d.counts[s]}</span>
           </Toggle>
@@ -97,7 +97,7 @@ function Head() {
           ],
           [
             L.심사,
-            <button className="cursor-pointer text-body text-action hover:text-action-hover" onClick={() => setTarget({ kind: L.심사, id: pay.review.id })}>
+            <button className="cursor-pointer text-base text-action hover:text-action-hover" onClick={() => setTarget({ kind: L.심사, id: pay.review.id })}>
               {pay.review.name}
             </button>,
           ],
@@ -108,7 +108,7 @@ function Head() {
 }
 
 /** 지급 표시 한 줄: 지급 · 사람 · 날짜 */
-const Line = ({ h }: { h: { role: string; at: string } }) => <p className="text-body tabular-nums">{[L.지급, h.role, h.at].join(' · ')}</p>
+const Line = ({ h }: { h: { role: string; at: string } }) => <p className="text-base tabular-nums">{[L.지급, h.role, h.at].join(' · ')}</p>
 
 /** 조치: 지급으로 표시할 수 있으면 버튼(되돌릴 수 없으므로 확인 창을 거친다). 아니면 남긴 지급 표시, 대기인데 담당이 아닌 역할에게는 누구 차례인지, 재심사이면 없음.
  *  거절되어도 화면을 다시 읽어 지금 할 수 있는 조치를 보인다 */

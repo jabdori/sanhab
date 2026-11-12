@@ -4,8 +4,11 @@ import type { ComponentType } from 'react'
 import { type Menu, menuAtom, targetAtom } from './state'
 import { Empty } from './ui/Empty'
 
-/** 자리: 목록 / 가운데(사실) / 오른쪽의 조치·사유·보고·경위·이력 / 대화 / 그림(경위를 펼치면 가운데의 fact 대신 보인다) */
-export type Slot = 'list' | 'fact' | 'action' | 'reason' | 'report' | 'trail' | 'history' | 'chat' | 'map'
+/**
+ * 자리: 목록 / 머리(가운데 위에 고정되는 제목·숫자 줄) / 가운데(사실) / 오른쪽의 조치·사유·보고·경위·이력 / 대화 / 그림(경위를 펼치면 가운데의 fact 대신 보인다)
+ * / 시연(띠의 `시연` 서랍. 날짜 넘기기·초기화처럼 제품이 아닌 시연 조작만. kind가 있으면 그 대상을 열었을 때만 보인다)
+ */
+export type Slot = 'list' | 'head' | 'fact' | 'action' | 'reason' | 'report' | 'trail' | 'history' | 'chat' | 'map' | 'demo'
 export type Piece = {
   slot: Slot
   /** list 조각: 어느 메뉴의 목록인지 */
@@ -24,7 +27,11 @@ pieces.sort((a, b) => a.order - b.order)
 export function usePieces(slot: Slot) {
   const menu = useAtomValue(menuAtom)
   const target = useAtomValue(targetAtom)
-  return pieces.filter((p) => p.slot === slot && (slot === 'list' ? p.menu === menu : slot === 'chat' || (target && (!p.kind || p.kind === target.kind))))
+  return pieces.filter(
+    (p) =>
+      p.slot === slot &&
+      (slot === 'list' ? p.menu === menu : slot === 'chat' || (slot === 'demo' && !p.kind) || (target && (!p.kind || p.kind === target.kind))),
+  )
 }
 
 /** 자리 하나. 끼울 조각이 없으면 `없음` */

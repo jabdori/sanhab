@@ -7,6 +7,8 @@ import { useEffect, useState } from 'react'
 import { L } from '../../labels'
 import type { Piece } from '../../pieces'
 import { api, changedAtom, roleAtom, store, targetAtom } from '../../state'
+import { Link } from '@astryxdesign/core/Link'
+import { Text } from '@astryxdesign/core/Text'
 import { Compare } from '../../ui/Compare'
 import { Empty } from '../../ui/Empty'
 import { Figures } from '../../ui/Figures'
@@ -197,10 +199,10 @@ function Way() {
   if (!b) return null
   return (
     <div className="flex items-baseline gap-2">
-      <span className={label}>{L.추인}</span>
-      <button className="cursor-pointer text-action hover:text-action-hover" onClick={() => store.set(targetAtom, { kind: L.추인, id: b.id })}>
+      <Text type="supporting">{L.추인}</Text>
+      <Link onClick={() => store.set(targetAtom, { kind: L.추인, id: b.id })}>
         {b.name} · {b.ym}
-      </button>
+      </Link>
     </div>
   )
 }

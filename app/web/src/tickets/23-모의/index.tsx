@@ -58,7 +58,7 @@ function Action() {
         <span className={`w-8 shrink-0 ${label}`}>{L.한도}</span>
         <Input
           inputMode="numeric"
-          className="h-head min-w-0 flex-1 rounded-box border border-line bg-bg px-2 text-right text-body tabular-nums outline-none focus:border-text-sub"
+          className="h-head min-w-0 flex-1 rounded-box border border-line bg-bg px-2 text-right text-base tabular-nums outline-none focus:border-text-sub"
           value={text}
           onValueChange={setText}
         />

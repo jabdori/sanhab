@@ -61,7 +61,7 @@ function Unknown() {
           {v.unknown.map(([item, word]) => (
             <div key={item + word} className="flex items-baseline gap-2">
               <dt className={`shrink-0 ${label}`}>{item}</dt>
-              <dd className="text-body">{word}</dd>
+              <dd className="text-base">{word}</dd>
             </div>
           ))}
         </dl>
@@ -109,10 +109,10 @@ function Action() {
                   <span>{c.clarify.dealer.name}</span>
                 </AlertDialog.Title>
                 <p className={label}>{L.제외}</p>
-                {v.lines.length ? <Table head={[L.종류, L.식별자]} rows={v.lines.map((l) => [l.item, l.value])} /> : <p className="text-body">{L['제외 없음']}</p>}
+                {v.lines.length ? <Table head={[L.종류, L.식별자]} rows={v.lines.map((l) => [l.item, l.value])} /> : <p className="text-base">{L['제외 없음']}</p>}
                 <dl className="flex items-baseline gap-2">
                   <dt className={label}>{L.기간}</dt>
-                  <dd className="text-body tabular-nums">{span(v.span?.[0], v.span?.[1]) ?? L.미상}</dd>
+                  <dd className="text-base tabular-nums">{span(v.span?.[0], v.span?.[1]) ?? L.미상}</dd>
                 </dl>
                 <div className="flex justify-end gap-2">
                   <AlertDialog.Close className={button}>{L.취소}</AlertDialog.Close>
@@ -234,7 +234,7 @@ function Intake() {
             ))}
           </>
         )}
-        {file && <span className="text-body wrap-anywhere">{file.name}</span>}
+        {file && <span className="text-base wrap-anywhere">{file.name}</span>}
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <AlertDialog.Root>
@@ -248,7 +248,7 @@ function Intake() {
                 <span>{kind}</span>
               </AlertDialog.Title>
               <Table head={[L.대리점, L.일치]} rows={[[other?.name ?? '', kind ?? '']]} />
-              <p className="text-body wrap-anywhere">{file?.name}</p>
+              <p className="text-base wrap-anywhere">{file?.name}</p>
               <div className="flex justify-end gap-2">
                 <AlertDialog.Close className={button}>{L.취소}</AlertDialog.Close>
                 <AlertDialog.Close className={button} onClick={go}>

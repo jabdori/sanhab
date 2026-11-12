@@ -16,7 +16,7 @@ import { button, floating, label } from '../../ui/styles'
 const ITEMS = [L.대표자, L.주소, L.계좌] as const
 const row = 'flex items-center gap-2'
 const name = `w-12 shrink-0 ${label}`
-const field = 'h-head min-w-0 flex-1 rounded-box border border-line bg-bg px-2 text-body tabular-nums outline-none focus:border-text-sub'
+const field = 'h-head min-w-0 flex-1 rounded-box border border-line bg-bg px-2 text-base tabular-nums outline-none focus:border-text-sub'
 
 /** 달력에 있는 YYYY-MM-DD인가(2026-02-30은 아니다) */
 const isDay = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s) && !!new Date(`${s}T00:00:00Z`).toJSON()?.startsWith(s)
@@ -39,7 +39,7 @@ function Form({ id }: { id: string }) {
         <span className={name}>{L.항목}</span>
         <RadioGroup aria-label={L.항목} value={item} onValueChange={(v) => setItem(v as string)} className="flex gap-4">
           {ITEMS.map((v) => (
-            <label key={v} className="flex cursor-pointer items-center gap-1 text-body">
+            <label key={v} className="flex cursor-pointer items-center gap-1 text-base">
               <Radio.Root value={v} className="flex size-4 items-center justify-center rounded-pill border border-text-sub bg-bg data-checked:border-action">
                 <Radio.Indicator className="size-2 rounded-pill bg-action data-unchecked:hidden" />
               </Radio.Root>
@@ -68,7 +68,7 @@ function Form({ id }: { id: string }) {
                 <span>{d.dealer.name}</span>
                 <span>{item}</span>
               </AlertDialog.Title>
-              <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-body">
+              <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-base">
                 <dt className={label}>{L.값}</dt>
                 <dd className="break-keep">{value.trim()}</dd>
                 <dt className={label}>{L.변경일}</dt>
@@ -126,7 +126,7 @@ function History() {
   if (!target || !h) return null
   if (!h.length) return <Empty />
   return h.map((x, i) => (
-    <div key={i} className="text-body break-keep">
+    <div key={i} className="text-base break-keep">
       <p className="tabular-nums">{[x.kind, x.role, x.at].join(' · ')}</p>
       <p className="text-text-sub wrap-anywhere tabular-nums">
         {x.item} {x.value} · {L.변경일} {x.since}

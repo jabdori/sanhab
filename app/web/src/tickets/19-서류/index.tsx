@@ -1,7 +1,7 @@
 // 19 서류: 소명 상세의 가운데(왼쪽 원본, 오른쪽 값 표 — 항목, 판독, 등록, 비교), 오른쪽 보고의 정리(AI), 영업지원의 조치(서류 접수).
 // 가운데에는 AI의 글이 없다: 판독은 글자 인식이 읽은 그대로, 등록은 원본(호실은 시연), 비교는 코드다. 값의 줄과 원본의 위치(판독의 위치 상자)가 서로 강조된다.
 // 판독이나 정리가 아직 없으면(멈춰 있으면) 원본만 보이고 값은 없음이다. 그동안 몇 초마다 다시 읽는다.
-import { useAtomValue, useSetAtom } from 'jotai'
+import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useState } from 'react'
 import { L } from '../../labels'
 import type { Piece } from '../../pieces'
@@ -77,7 +77,8 @@ const Registered = ({ r }: { r: Doc['rows'][number] }) =>
   r.reg ? (
     <span className="flex items-baseline gap-2">
       {r.reg.value}
-      <Source kind={r.reg.source} file={r.reg.file} row={r.reg.row}>
+      {/* 시연으로 넣은 등록 호실(D58)은 합성: 설명은 스펙의 D58에서 온다 */}
+      <Source kind={r.reg.source === L.시연 ? L.합성 : r.reg.source} of={r.reg.source === L.시연 ? L.호실 : undefined} file={r.reg.file} row={r.reg.row}>
         <dl className="grid grid-cols-2 gap-x-2 gap-y-1">
           <dt className={label}>{r.item}</dt>
           <dd>{r.reg.value}</dd>
@@ -111,7 +112,7 @@ function Center() {
     <section className="mb-4 flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
         <h2 className={label}>{L.서류}</h2>
-        <span className="text-body wrap-anywhere">{d.name}</span>
+        <span className="text-base wrap-anywhere">{d.name}</span>
         <Source kind={d.source}>
           <dl className="grid grid-cols-2 gap-x-2 gap-y-1 tabular-nums">
             <dt className={label}>{L.접수}</dt>
@@ -190,7 +191,7 @@ function Tidy() {
           {d.tidy.map((t) => (
             <div key={t.item} className="flex items-baseline gap-2">
               <dt className={`shrink-0 ${label}`}>{t.item}</dt>
-              <dd className="text-body wrap-anywhere">{t.value ?? <Empty />}</dd>
+              <dd className="text-base wrap-anywhere">{t.value ?? <Empty />}</dd>
               <dd className="shrink-0">
                 {t.words.length > 0 && (
                   <button aria-label={t.item} onClick={() => pick(t.item)} className="cursor-pointer text-action hover:text-action-hover">
@@ -209,22 +210,44 @@ function Tidy() {
 }
 
 /** 조치(영업지원, 올릴 수 있을 때): 파일(이미지·PDF)이나 시연 서류를 골라 접수. 누른 뒤 요청이 끝날 때까지 다시 눌리지 않고, 서버가 거절하면 그 낱말을 보인다 */
+/** 접수할 파일. 조치 칸(Upload)의 파일 고르기와 시연 서랍의 시연 서류(Samples)가 함께 채운다 */
+const fileAtom = atom<File | null>(null)
+
+/** 시연 서랍(slot 'demo'): 시연 서류를 골라 조치 칸의 접수할 파일로 둔다. 제품의 조작이 아니므로 소명 화면에는 없다 */
+function Samples() {
+  const d = useDocs()
+  const samples = useData<{ id: string; name: string; dealer: string; source: string }[]>(d?.can ? '/samples' : null)
+  const [file, setFile] = useAtom(fileAtom)
+  if (!d?.can || !samples?.length) return null
+  const choose = (id: string, name: string) =>
+    bin(`/samples/${id}`)
+      .then((r) => r.blob())
+      .then((b) => setFile(new File([b], name, { type: b.type })), () => {})
+  return (
+    <section className="flex flex-col gap-2">
+      <span className={label}>{L.서류}</span>
+      <div className="flex flex-wrap items-center gap-2">
+        {samples.map((s) => (
+          <button key={s.id} aria-label={s.name} onClick={() => choose(s.id, s.name)} aria-pressed={file?.name === s.name} className={`${button} aria-pressed:bg-line`}>
+            {s.id} {s.dealer}
+          </button>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 function Upload() {
   const d = useDocs()
   const target = useAtomValue(targetAtom)
-  const samples = useData<{ id: string; name: string; dealer: string; source: string }[]>(d?.can ? '/samples' : null)
-  const [file, setFile] = useState<File | null>(null)
+  const [file, setFile] = useAtom(fileAtom)
   const [busy, setBusy] = useState(false)
   const [bad, setBad] = useState<string | null>(null)
   useEffect(() => {
     setFile(null)
     setBad(null)
-  }, [target?.id])
+  }, [target?.id, setFile])
   if (!d?.can || !target) return null
-  const choose = (id: string, name: string) =>
-    bin(`/samples/${id}`)
-      .then((r) => r.blob())
-      .then((b) => setFile(new File([b], name, { type: b.type })), () => {})
   const go = () => {
     if (!file) return
     setBusy(true)
@@ -239,17 +262,7 @@ function Upload() {
         {L.서류}
         <input type="file" accept={d.kinds.join(',')} onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="sr-only" />
       </label>
-      {!!samples?.length && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className={label}>{L.시연}</span>
-          {samples.map((s) => (
-            <button key={s.id} aria-label={s.name} onClick={() => choose(s.id, s.name)} aria-pressed={file?.name === s.name} className={`${button} aria-pressed:bg-line`}>
-              {s.id} {s.dealer}
-            </button>
-          ))}
-        </div>
-      )}
-      {file && <span className="text-body wrap-anywhere">{file.name}</span>}
+      {file && <span className="text-base wrap-anywhere">{file.name}</span>}
       <div className="flex flex-wrap items-center gap-2">
         <button className={button} disabled={!file || busy} onClick={go}>
           {L.접수}
@@ -293,5 +306,6 @@ export default [
   { slot: 'fact', kind: L.소명, View: Center },
   { slot: 'report', kind: L.소명, View: Tidy },
   { slot: 'action', kind: L.소명, View: Upload },
+  { slot: 'demo', kind: L.소명, View: Samples },
   { slot: 'fact', kind: L.대리점, order: 450, View: OfDealer },
 ] satisfies Piece[]

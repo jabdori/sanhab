@@ -1,21 +1,25 @@
 // 04 심사: 메뉴 "작업"의 목록(담당·진행, 여러 개를 골라 승인)과 심사 상세(가운데: 제목·숫자 줄, 구성, 관계, 규정 / 오른쪽: 조치. 이력은 06이 결정과 재상신을 함께 보인다).
-// 가운데의 조각은 order -40(제목·숫자 줄) · -30(구성) · -20(관계) · -10(규정)이다. 뒤 티켓이 kind: L.심사로 끼우는 조각은 order를 적지 않으면 규정 아래에 놓이고, 사이에 끼우려면 그 사이의 값을 적는다.
-import { AlertDialog } from '@base-ui/react/alert-dialog'
-import { Checkbox } from '@base-ui/react/checkbox'
-import { Tabs } from '@base-ui/react/tabs'
+// 제목·숫자 줄은 머리(slot 'head', 가운데 위에 고정)이고, 가운데의 조각은 order -30(구성) · -20(관계) · -10(규정)이다. 뒤 티켓이 kind: L.심사로 끼우는 조각은 order를 적지 않으면 규정 아래에 놓이고, 사이에 끼우려면 그 사이의 값을 적는다.
+import { Button } from '@astryxdesign/core/Button'
+import { CheckboxInput } from '@astryxdesign/core/CheckboxInput'
+import { Link } from '@astryxdesign/core/Link'
+import { Tab, TabList } from '@astryxdesign/core/TabList'
+import { Text } from '@astryxdesign/core/Text'
 import { useAtom, useSetAtom } from 'jotai'
 import { useEffect, useState } from 'react'
 import { L } from '../../labels'
 import type { Piece } from '../../pieces'
 import { api, changedAtom, menuAtom, store, targetAtom, useData } from '../../state'
+import { Confirm } from '../../ui/Confirm'
 import { Empty } from '../../ui/Empty'
 import { Figures } from '../../ui/Figures'
+import { grade } from '../../ui/grade'
 import { Mark } from '../../ui/Mark'
 import { Pill } from '../../ui/Pill'
 import { blank, ready, sent as filled } from '../../ui/Reason'
+import { Region } from '../../ui/Region'
 import { Relation } from '../../ui/Relation'
 import { Source } from '../../ui/Source'
-import { button, floating, label } from '../../ui/styles'
 import { Table, num } from '../../ui/Table'
 import { Title } from '../../ui/Title'
 import { type Decision, bundled, reasonAtom, useReview } from './review'
@@ -40,37 +44,29 @@ function Tasks() {
   const list = d[tab]
   // 고른 줄 가운데 아직 고를 수 있는 것만 센다(승인되면 목록에서 빠진다)
   const chosen = picked.filter((id) => d.mine.some((t) => t.pick && t.target === id))
+  const open = (t: Task) => setTarget({ kind: t.view, id: t.target })
   return (
-    <div className="flex flex-col gap-2">
-      <Tabs.Root value={tab} onValueChange={setTab}>
-        <Tabs.List className="flex gap-4 border-b border-line">
-          {([['mine', L.담당], ['going', L.진행]] as const).map(([value, name]) => (
-            <Tabs.Tab key={value} value={value} className="flex h-head cursor-pointer items-center gap-1 text-body text-action outline-none hover:text-action-hover data-active:text-figure data-active:text-text">
-              {name}
-              <span className="tabular-nums">{d[value].length}</span>
-            </Tabs.Tab>
-          ))}
-        </Tabs.List>
-      </Tabs.Root>
+    <div className="flex flex-col gap-3">
+      <TabList value={tab} onChange={(v) => setTab(v as 'mine' | 'going')} hasDivider>
+        {([['mine', L.담당], ['going', L.진행]] as const).map(([value, name]) => (
+          <Tab key={value} value={value} label={name} endContent={<Text color="secondary" hasTabularNumbers>{d[value].length}</Text>} />
+        ))}
+      </TabList>
       <Table
         head={['', L.종류, L.대상, L.귀속월, L.금액, L.표시, ...(tab === 'going' ? [L.담당] : [])]}
         right={[4]}
         current={list.findIndex((t) => t.view === target?.kind && t.target === target?.id)}
+        onRow={(y) => open(list[y])}
         rows={list.map((t) => [
           t.pick && (
-            <Checkbox.Root
-              aria-label={L.선택}
-              className="flex size-4 cursor-pointer items-center justify-center rounded-box border border-text-sub bg-bg text-label text-bg data-checked:border-action data-checked:bg-action"
-              checked={chosen.includes(t.target)}
-              onCheckedChange={(on) => setPicked(on ? [...chosen, t.target] : chosen.filter((id) => id !== t.target))}
-            >
-              <Checkbox.Indicator>✓</Checkbox.Indicator>
-            </Checkbox.Root>
+            <CheckboxInput label={L.선택} isLabelHidden size="sm" value={chosen.includes(t.target)}
+              onChange={(on) => setPicked(on ? [...chosen, t.target] : chosen.filter((id) => id !== t.target))}
+            />
           ),
-          t.kind,
-          <button className="cursor-pointer text-left text-action hover:text-action-hover" onClick={() => setTarget({ kind: t.view, id: t.target })}>
+          <Text color="secondary">{t.kind}</Text>,
+          <Link color="primary" weight="medium" onClick={() => open(t)}>
             {t.name}
-          </button>,
+          </Link>,
           t.ym,
           t.total == null ? null : num(t.total),
           <span className="flex gap-2">{marks(t.marks)}</span>,
@@ -78,44 +74,30 @@ function Tasks() {
         ])}
       />
       {tab === 'mine' && chosen.length > 0 && (
-        <div className="sticky -bottom-4 flex items-center gap-2 border-t border-line bg-bg py-2">
-          <span className={label}>{L.선택}</span>
-          <span className="text-figure tabular-nums">{chosen.length}</span>
-          <AlertDialog.Root>
-            <AlertDialog.Trigger className={button} disabled={sent === d}>
-              {L.승인}
-            </AlertDialog.Trigger>
-            <AlertDialog.Portal>
-              <AlertDialog.Popup className={`${floating} fixed top-1/2 left-1/2 flex w-list -translate-x-1/2 -translate-y-1/2 flex-col gap-4 p-6`}>
-                <AlertDialog.Title className="flex items-baseline gap-2 text-title">
-                  {L.승인}
-                  <span className="tabular-nums">{chosen.length}</span>
-                </AlertDialog.Title>
-                <div className="flex justify-end gap-2">
-                  <AlertDialog.Close className={button}>{L.취소}</AlertDialog.Close>
-                  <AlertDialog.Close className={button} onClick={() => {
-                      setSent(d)
-                      decide(chosen, L.승인).then(() => setPicked([]))
-                    }}>
-                    {L.승인}
-                  </AlertDialog.Close>
-                </div>
-              </AlertDialog.Popup>
-            </AlertDialog.Portal>
-          </AlertDialog.Root>
+        <div className="sticky bottom-0 flex items-center gap-3 border-t border-border bg-surface py-3">
+          <Text type="supporting">{L.선택}</Text>
+          <Text weight="semibold" hasTabularNumbers>
+            {chosen.length}
+          </Text>
+          <Confirm label={L.승인} variant={grade(L.승인)} title={`${L.승인} ${chosen.length}`} isDisabled={sent === d}
+            onConfirm={() => {
+              setSent(d)
+              return decide(chosen, L.승인).then(() => setPicked([]))
+            }}
+          />
         </div>
       )}
     </div>
   )
 }
 
-/** 제목 줄과 숫자 줄 */
+/** 머리(가운데 위에 고정): 제목 줄과 숫자 줄. 숫자 줄이 판단의 재료 전부다(합산, 한도, 승인권자) */
 function Head() {
   const r = useReview()?.review
   if (!r) return null
   return (
-    <div className="mb-4 flex flex-col gap-2">
-      <Title name={r.name} sub={`· ${r.ym}`}>
+    <>
+      <Title name={r.name} sub={r.ym}>
         <Pill tone={tones[r.status as keyof typeof tones] ?? 'wait'}>{r.status}</Pill>
         {marks(r.marks)}
       </Title>
@@ -127,16 +109,16 @@ function Head() {
           [L.승인권자, r.approver],
         ]}
       >
-        <Source kind={r.source} file={r.file ?? undefined} row={r.row ?? undefined}>
-          <dl className="grid grid-cols-2 gap-x-2 gap-y-1">
-            <dt className={label}>{L.합산}</dt>
+        <Source kind={r.source} file={r.file ?? undefined} row={r.row ?? undefined} tip={`${L.합산} · ${L.승인권자}`}>
+          <dl className="grid grid-cols-2 gap-x-3 gap-y-1">
+            <dt className="text-secondary">{L.합산}</dt>
             <dd>{L['귀속월 지급의 합, 반려 제외']}</dd>
-            <dt className={label}>{L.승인권자}</dt>
+            <dt className="text-secondary">{L.승인권자}</dt>
             <dd>{L['한도 이하 영업지원, 초과 영업임원']}</dd>
           </dl>
         </Source>
       </Figures>
-    </div>
+    </>
   )
 }
 
@@ -144,47 +126,49 @@ function Members() {
   const r = useReview()
   if (!r) return null
   return (
-    <section className="mb-4 flex flex-col gap-2">
-      <h2 className={label}>{L.구성}</h2>
+    <Region title={L.구성}>
       <Table
         head={[L.대리점, L.금액, L.일치, L.출처]}
         right={[1]}
         rows={r.members.flatMap((m) =>
           // 지급마다 한 줄(금액의 합이 합산과 같다). 지급이 없는 구성원도 한 줄
           (m.pays.length ? m.pays : [null]).map((p) => [
-            <span className="flex items-center gap-2">
-              {m.name}
-              <span className="text-text-sub">{m.id}</span>
+            <span className="flex items-baseline gap-2">
+              <Text weight="medium">{m.name}</Text>
+              <Text type="supporting">{m.id}</Text>
             </span>,
-            p ? num(p.amount) : <Empty />,
-            m.match.length ? m.match.join(' · ') : <span className="text-text-mute">{L.없음}</span>,
+            p ? num(p.amount) : '',
+            m.match.length ? m.match.join(' · ') : <Text color="secondary">{L.없음}</Text>,
             p && <Source kind={p.source} file={p.file ?? undefined} row={p.row ?? undefined} />,
           ]),
         )}
       />
-    </section>
+    </Region>
   )
 }
 
-/** 관계 그림. 같은 내용은 구성 표의 "일치" 열에 글자로 있다 */
+/** 관계 그림. 같은 내용은 구성 표의 "일치" 열에 글자로 있다. 이웃이 없으면(단독) 접힌 `관계 없음` */
 function Links() {
   const r = useReview()
   if (!r) return null
   return (
-    <section className="mb-4 flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <h2 className={label}>{L.관계}</h2>
-        <Source kind={L.계산} side="right">
-          <dl className="grid grid-cols-2 gap-x-2 gap-y-1">
-            <dt className={label}>{L.관련자}</dt>
-            <dd>{L['식별자 일치 2 이상']}</dd>
-            <dt className={label}>{L.그룹}</dt>
-            <dd>{L['관련자의 전이']}</dd>
-          </dl>
-        </Source>
-      </div>
+    <Region
+      title={L.관계}
+      aside={
+        r.relation.right.length > 0 && (
+          <Source kind={L.계산} side="right" tip={`${L.관련자} · ${L.그룹}`}>
+            <dl className="grid grid-cols-2 gap-x-3 gap-y-1">
+              <dt className="text-secondary">{L.관련자}</dt>
+              <dd>{L['식별자 일치 2 이상']}</dd>
+              <dt className="text-secondary">{L.그룹}</dt>
+              <dd>{L['관련자의 전이']}</dd>
+            </dl>
+          </Source>
+        )
+      }
+    >
       {r.relation.right.length ? <Relation {...r.relation} /> : <Empty />}
-    </section>
+    </Region>
   )
 }
 
@@ -195,43 +179,43 @@ function Rules() {
   const setTarget = useSetAtom(targetAtom)
   if (!r) return null
   return (
-    <section className="mb-4 flex flex-col gap-2">
-      <h2 className={label}>{L.규정}</h2>
+    <Region title={L.규정}>
       <Table
         head={[L.조항, L.규칙, L.출처]}
         rows={r.rules.map((x) => [
-          <button className="cursor-pointer text-action hover:text-action-hover" onClick={() => {
+          <Link onClick={() => {
               setMenu(L.규정)
               setTarget({ kind: L.규정, id: x.clause })
-            }}>
+            }}
+          >
             {x.title}
-          </button>,
+          </Link>,
           `${x.name} v${x.ver}`,
-          <Source kind={x.source}>
-            <div className="flex justify-between gap-2">
-              <span className="break-all">{x.file}</span>
-              <span className="shrink-0 tabular-nums">
-                {x.first}–{x.last}
-                {L.행}
-              </span>
-            </div>
-            <p className="border-t border-line pt-2 whitespace-pre-wrap">{x.text}</p>
+          <Source kind={x.source} tip={x.title}>
+            <p className="break-all text-secondary">
+              {x.file} {x.first}–{x.last}
+              {L.행}
+            </p>
+            <p className="whitespace-pre-wrap">{x.text}</p>
           </Source>,
         ])}
       />
-    </section>
+    </Region>
   )
 }
 
-/** 결정 한 줄: 결정 · 사람 · 날짜 · 사유의 분류. 메모는 그 아래에 따로 */
+/** 결정 한 줄: 결정(굵게) · 사람 · 날짜 · 사유의 분류. 메모는 그 아래에 따로. 앱에서 사람이 내린 결정은 제품의 동작이므로 출처 표지를 달지 않는다 */
 export const Line = ({ d }: { d: Decision }) => (
-  <div className="text-body break-keep">
-    <p className="tabular-nums">{[d.kind, d.role, d.at ?? L.미상, d.reason?.class ?? `${L.사유} ${L.없음}${d.source === L.원본 ? `(${L.원본})` : ''}`].join(' · ')}</p>
-    {d.reason?.memo && <p className="text-text-sub wrap-anywhere">{d.reason.memo}</p>}
+  <div className="flex flex-col gap-0.5 break-keep">
+    <div className="flex flex-wrap items-center gap-x-2 tabular-nums">
+      <Text weight="semibold">{d.kind}</Text>
+      <Text color="secondary">{[d.role, d.at ?? L.미상, d.reason?.class ?? `${L.사유} ${L.없음}${d.source === L.원본 ? `(${L.원본})` : ''}`].join(' · ')}</Text>
+    </div>
+    {d.reason?.memo && <p className="wrap-anywhere text-secondary">{d.reason.memo}</p>}
   </div>
 )
 
-/** 조치: 지금 역할이 할 수 있는 것만 버튼으로. 없으면, 끝난 심사(승인·반려)는 내려진 결정, 아직 승인권자의 차례인 심사(대기·보류. 재상신으로 돌아온 것 포함)는 승인권자.
+/** 조치: 지금 역할이 할 수 있는 것만 버튼으로(등급은 ui/grade — 승인이 주 버튼). 없으면, 끝난 심사(승인·반려)는 내려진 결정, 아직 승인권자의 차례인 심사(대기·보류. 재상신으로 돌아온 것 포함)는 승인권자.
  * 버튼은 사유가 그 조치의 규칙에 맞을 때만 눌린다(필수이면 그 조치의 분류, 기타이면 메모까지). 서버가 거절하면 그 낱말을 보인다 */
 function Action() {
   const r = useReview()
@@ -241,7 +225,9 @@ function Action() {
   // 서버가 거절한 까닭의 낱말(권한·사유·상태·대상). 다음 조치를 누르거나 다른 대상을 열면 사라진다
   const [bad, setBad] = useState<string | null>(null)
   const id = r?.review.id
-  useEffect(() => setBad(null), [id])
+  useEffect(() => {
+    setBad(null)
+  }, [id])
   if (!r) return null
   // 묶음에 내리는 조치(추인·거부·종결·이견)는 한 건 화면에서 누르지 않는다. 묶음으로 가는 길은 10이 낸다
   const acts = r.actions.filter((a) => !bundled.includes(a.kind))
@@ -251,14 +237,14 @@ function Action() {
       <Line d={last} />
     ) : (
       <div className="flex items-baseline gap-2">
-        <span className={label}>{r.review.holder === r.review.approver ? L.승인권자 : L.담당}</span>
-        <span className="text-figure">{r.review.holder}</span>
+        <Text type="supporting">{r.review.holder === r.review.approver ? L.승인권자 : L.담당}</Text>
+        <Text weight="semibold">{r.review.holder}</Text>
       </div>
     )
   return (
     <div className="flex flex-wrap items-center gap-2">
       {acts.map((a) => (
-        <button key={a.kind} className={button} disabled={sent === r || !ready(a.kind, a.reason, reason)}
+        <Button key={a.kind} label={a.kind} variant={grade(a.kind)} isDisabled={sent === r || !ready(a.kind, a.reason, reason)}
           onClick={() => {
             setSent(r)
             setBad(null)
@@ -270,9 +256,7 @@ function Action() {
               },
             )
           }}
-        >
-          {a.kind}
-        </button>
+        />
       ))}
       {bad && <Pill tone="bad">{bad}</Pill>}
     </div>
@@ -281,7 +265,7 @@ function Action() {
 
 export default [
   { slot: 'list', menu: L.작업, View: Tasks },
-  { slot: 'fact', kind: L.심사, order: -40, View: Head },
+  { slot: 'head', kind: L.심사, View: Head },
   { slot: 'fact', kind: L.심사, order: -30, View: Members },
   { slot: 'fact', kind: L.심사, order: -20, View: Links },
   { slot: 'fact', kind: L.심사, order: -10, View: Rules },

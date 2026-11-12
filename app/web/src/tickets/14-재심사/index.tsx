@@ -26,12 +26,12 @@ function Why() {
   if (r?.redo.payout !== p.pay.id) return <Empty />
   const { cause, was, back } = r.redo
   const open = (x: { id: string; name: string }) => (
-    <button className="cursor-pointer text-left text-body text-action hover:text-action-hover" onClick={() => setTarget({ kind: L.심사, id: x.id })}>
+    <button className="cursor-pointer text-left text-base text-action hover:text-action-hover" onClick={() => setTarget({ kind: L.심사, id: x.id })}>
       {x.name}
     </button>
   )
   return (
-    <div className="flex flex-col gap-2 text-body break-keep">
+    <div className="flex flex-col gap-2 text-base break-keep">
       {cause && (
         <div>
           <p className="tabular-nums">{[L.변경, cause.role, cause.at].join(' · ')}</p>

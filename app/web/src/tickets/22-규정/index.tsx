@@ -83,7 +83,7 @@ function Rules() {
             {L.행}
           </span>
         </div>
-        <p className="text-body break-keep whitespace-pre-wrap">{c.text}</p>
+        <p className="text-base break-keep whitespace-pre-wrap">{c.text}</p>
       </section>
       <section className="mb-4 flex flex-col gap-2">
         <h2 className={label}>{L.규칙}</h2>

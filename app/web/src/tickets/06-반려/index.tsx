@@ -6,10 +6,12 @@ import { useEffect, useState } from 'react'
 import { L } from '../../labels'
 import type { Piece } from '../../pieces'
 import { api, changedAtom, roleAtom, store, targetAtom } from '../../state'
+import { Button } from '@astryxdesign/core/Button'
+import { Text } from '@astryxdesign/core/Text'
 import { Empty } from '../../ui/Empty'
+import { grade } from '../../ui/grade'
 import { Pill } from '../../ui/Pill'
 import { type Draft, Reason, blank, ready, sent as filled } from '../../ui/Reason'
-import { button, label } from '../../ui/styles'
 import { Line } from '../04-심사'
 import { type Decision, useReview } from '../04-심사/review'
 
@@ -51,7 +53,7 @@ function Action() {
   return (
     <div className="mt-2 flex flex-wrap items-center gap-2">
       {s.can && (
-        <button className={button} disabled={sent === s || !ready(L.재상신, true, draft)}
+        <Button label={L.재상신} variant={grade(L.재상신)} isDisabled={sent === s || !ready(L.재상신, true, draft)}
           onClick={() => {
             setSent(s)
             setBad(null)
@@ -63,9 +65,7 @@ function Action() {
               },
             )
           }}
-        >
-          {L.재상신}
-        </button>
+        />
       )}
       {bad && <Pill tone="bad">{bad}</Pill>}
     </div>
@@ -87,8 +87,8 @@ function History() {
   // 그룹이 바뀌어 옮겨 온 옛 심사의 줄(13, D56)은 그 심사의 이름을 위에 단다
   return s.lines.length
     ? s.lines.map((d, i) => (
-        <div key={i}>
-          {d.was && <p className={label}>{d.was}</p>}
+        <div key={i} className="flex flex-col gap-0.5">
+          {d.was && <Text type="supporting">{d.was}</Text>}
           <Line d={d} />
         </div>
       ))

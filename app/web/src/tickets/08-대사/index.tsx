@@ -123,12 +123,12 @@ function Fact() {
 
 /** 이력 한 줄: 지급 · 사람 · 날짜 / 회신 · 결과 · 사람 · 날짜 */
 const Line = ({ r }: { r: { kind?: string; result?: string | null; role: string; at: string } }) => (
-  <p className="text-body tabular-nums">{[r.kind ?? L.회신, r.result, r.role, r.at].filter(Boolean).join(' · ')}</p>
+  <p className="text-base tabular-nums">{[r.kind ?? L.회신, r.result, r.role, r.at].filter(Boolean).join(' · ')}</p>
 )
 
 const row = 'flex items-center gap-2'
 const name = `w-8 shrink-0 ${label}`
-const field = 'h-head min-w-0 flex-1 rounded-box border border-line bg-bg px-2 text-body tabular-nums outline-none focus:border-text-sub'
+const field = 'h-head min-w-0 flex-1 rounded-box border border-line bg-bg px-2 text-base tabular-nums outline-none focus:border-text-sub'
 
 /** 은행 회신 입력: 금액, 계좌, 결과. 승인된 값이 미리 들어 있고 고쳐서 보낸다(모의 처리). 고칠 수 없는 조치라 확인 창을 거치고, 보낸 뒤 새 값을 받을 때까지는 다시 눌리지 않는다 */
 function Form({ d }: { d: Recon }) {
@@ -153,7 +153,7 @@ function Form({ d }: { d: Recon }) {
         <span className={name}>{L.결과}</span>
         <RadioGroup aria-label={L.결과} value={result} onValueChange={(v) => setResult(v as string)} className="flex gap-4">
           {[L.성공, L.실패].map((v) => (
-            <label key={v} className="flex cursor-pointer items-center gap-1 text-body">
+            <label key={v} className="flex cursor-pointer items-center gap-1 text-base">
               <Radio.Root value={v} className="flex size-4 items-center justify-center rounded-pill border border-text-sub bg-bg data-checked:border-action">
                 <Radio.Indicator className="size-2 rounded-pill bg-action data-unchecked:hidden" />
               </Radio.Root>
@@ -193,11 +193,11 @@ function Form({ d }: { d: Recon }) {
   )
 }
 
-/** 조치: 회신을 넣을 수 있으면 입력, 넣은 뒤에는 남긴 회신 한 줄(실패한 회신이면 그 위에 07의 지급 버튼이 다시 보인다), 지급은 끝났는데 담당이 아닌 역할에게는 누구 차례인지. 지급 전에는 07의 조치만 보인다 */
+/** 조치: 남긴 회신 한 줄(실패한 회신이면 그 위에 07의 지급 버튼이 다시 보인다), 회신을 기다리는 동안은 누구 차례인지. 지급 전에는 07의 조치만 보인다.
+ * 회신의 입력은 모의 회신이라 시연 서랍에 있다(Reply) */
 function Action() {
   const d = useRecon()
   if (!d) return null
-  if (d.can) return <Form key={d.id} d={d} />
   if (d.reply) return <Line r={d.reply} />
   if (d.state !== L.이체) return null
   return (
@@ -206,6 +206,12 @@ function Action() {
       <span className="text-figure">{d.role}</span>
     </div>
   )
+}
+
+/** 시연 서랍(slot 'demo'): 은행 회신을 넣는다(모의 회신 — 실제 은행이 없다). 넣은 회신은 지급 화면에 출처 모의로 남는다 */
+function Reply() {
+  const d = useRecon()
+  return d?.can ? <Form key={d.id} d={d} /> : null
 }
 
 function History() {
@@ -217,5 +223,6 @@ function History() {
 export default [
   { slot: 'fact', kind: L.지급, View: Fact },
   { slot: 'action', kind: L.지급, View: Action },
+  { slot: 'demo', kind: L.지급, View: Reply },
   { slot: 'history', kind: L.지급, View: History },
 ] satisfies Piece[]

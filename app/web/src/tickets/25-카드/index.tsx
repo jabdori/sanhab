@@ -35,10 +35,10 @@ function Excluded({ id }: { id: string }) {
   return (
     <>
       <p className={label}>{L.제외}</p>
-      {v.lines.length ? <Table head={[L.종류, L.식별자]} rows={v.lines.map((l) => [l.item, l.value])} /> : <p className="text-body">{L['제외 없음']}</p>}
+      {v.lines.length ? <Table head={[L.종류, L.식별자]} rows={v.lines.map((l) => [l.item, l.value])} /> : <p className="text-base">{L['제외 없음']}</p>}
       <dl className="flex items-baseline gap-2">
         <dt className={label}>{L.기간}</dt>
-        <dd className="text-body tabular-nums">{v.span ? `${v.span[0]} ~ ${v.span[1]}` : L.미상}</dd>
+        <dd className="text-base tabular-nums">{v.span ? `${v.span[0]} ~ ${v.span[1]}` : L.미상}</dd>
       </dl>
     </>
   )
@@ -67,13 +67,13 @@ export function Card({ card }: { card: CardData }) {
       <dl className="flex flex-col gap-1">
         <div className="flex items-baseline gap-2">
           <dt className={label}>{L.대상}</dt>
-          <dd className="text-body wrap-anywhere">
+          <dd className="text-base wrap-anywhere">
             {card.kind} {card.name}
           </dd>
         </div>
         <div className="flex items-baseline gap-2">
           <dt className={label}>{L.조치}</dt>
-          <dd className="text-body">{card.action}</dd>
+          <dd className="text-base">{card.action}</dd>
         </div>
       </dl>
       {done ? (

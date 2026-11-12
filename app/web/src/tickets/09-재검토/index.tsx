@@ -5,6 +5,7 @@ import { L } from '../../labels'
 import type { Piece } from '../../pieces'
 import { useData } from '../../state'
 import { Compare } from '../../ui/Compare'
+import { Region } from '../../ui/Region'
 import { Figures } from '../../ui/Figures'
 import { Source } from '../../ui/Source'
 import { label } from '../../ui/styles'
@@ -33,7 +34,7 @@ function Then() {
   if (!r || d?.id !== r.id) return null
   const rule = d.now.rules.find((x) => x.name === L.한도)
   const paid = d.paid.length > 0 && (
-    <div className="mb-4">
+    <div>
       <Figures
         items={d.paid.map((p) => [
           L.지급일,
@@ -49,10 +50,10 @@ function Then() {
   return (
     <>
       {paid}
-      <section className="mb-4 flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <h2 className={label}>{L.재검토}</h2>
-        <Source kind={d.source} side="right">
+      <Region
+        title={L.재검토}
+        aside={
+        <Source kind={d.source} side="right" tip={`${L.당시} · ${L.현재}`}>
           <dl className="grid grid-cols-2 gap-x-2 gap-y-1">
             <dt className={label}>{L.현재}</dt>
             <dd>{L['귀속월의 식별자, 규칙 버전']}</dd>
@@ -64,7 +65,8 @@ function Then() {
             <dd>{L['당시 영업지원, 현재 영업임원']}</dd>
           </dl>
         </Source>
-      </div>
+        }
+      >
       <Compare
         head={[L.당시, L.현재]}
         rows={[
@@ -75,7 +77,7 @@ function Then() {
           d.late ? [L.인지일, L.미인지, d.known ?? L.미상] : [L.인지일, d.known ?? L.미상],
         ]}
       />
-      </section>
+      </Region>
     </>
   )
 }

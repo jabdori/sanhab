@@ -155,7 +155,7 @@ function Panel() {
             <div key={m.id} className={`flex flex-col gap-1 ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
               {m.role === 'assistant' && (body || ids.length > 0 || cards.length > 0) && <span className={label}>{L.AI}</span>}
               {m.parts.map((p) => (p.type === 'file' ? <span key={p.url.slice(-40) + p.filename} className={`${chip} cursor-default`}>{p.filename}</span> : null))}
-              {body && <p className={`${bubble} ${m.role === 'user' ? 'bg-surface' : 'bg-bg'} max-w-full text-body`}>{body}</p>}
+              {body && <p className={`${bubble} ${m.role === 'user' ? 'bg-surface' : 'bg-bg'} max-w-full text-base`}>{body}</p>}
               {cards.map((c) => (
                 <Card key={`${c.kind}/${c.id}/${c.action}`} card={c} />
               ))}
@@ -192,7 +192,7 @@ function Panel() {
         <textarea
           aria-label={L.대화}
           rows={3}
-          className="w-full resize-none rounded-box border border-line bg-bg p-2 text-body outline-none focus:border-action"
+          className="w-full resize-none rounded-box border border-line bg-bg p-2 text-base outline-none focus:border-action"
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {

@@ -1,6 +1,7 @@
 // 16 경위: 지급·심사·추인의 오른쪽 경위 칸에 시간순 목록(날짜, 종류, 대상)과 `그림` 버튼. 누르면 가운데가 경위 그림으로 바뀐다.
 // 그림: 원인은 왼쪽, 결과는 오른쪽, 방향은 바뀌지 않는다. 지금 대상의 줄기(앞뒤로 이어진 칸과 선)가 진하다. 칸을 누르면 그 대상으로 간다. 결정의 칸에는 사람과 사유가 붙는다.
-import { Toggle } from '@base-ui/react/toggle'
+import { Link } from '@astryxdesign/core/Link'
+import { ToggleButton } from '@astryxdesign/core/ToggleButton'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { L } from '../../labels'
 import type { Piece } from '../../pieces'
@@ -33,9 +34,7 @@ function useTrail() {
 function Go({ node }: { node: Node }) {
   const setTarget = useSetAtom(targetAtom)
   return (
-    <button className="cursor-pointer text-left text-action hover:text-action-hover" onClick={() => setTarget(node.go)}>
-      {node.name}
-    </button>
+    <Link onClick={() => setTarget(node.go)}>{node.name}</Link>
   )
 }
 
@@ -49,9 +48,9 @@ function List() {
     .sort((a, b) => (a.n.at ?? '').localeCompare(b.n.at ?? '') || a.i - b.i)
   return (
     <div className="flex flex-col gap-2">
-      <Toggle pressed={open} onPressedChange={setOpen} className={`${button} self-start aria-pressed:bg-line`}>
-        {L.그림}
-      </Toggle>
+      <div>
+        <ToggleButton label={L.그림} size="sm" isPressed={open} onPressedChange={setOpen} />
+      </div>
       <Table head={[L.날짜, L.종류, L.대상]} rows={rows.map(({ n }) => [n.at ?? L.미상, n.kind, <Go key={n.key} node={n} />])} current={rows.findIndex(({ n }) => n.key === d.now)} />
     </div>
   )
@@ -136,7 +135,7 @@ function Picture() {
             >
               <span className={label}>{n.kind}</span>
               <span className={`${label} whitespace-nowrap tabular-nums`}>{n.at ?? L.미상}</span>
-              <span className="line-clamp-2 text-body break-keep" title={n.name}>
+              <span className="line-clamp-2 text-base break-keep" title={n.name}>
                 {n.name}
               </span>
               {n.who?.role && (

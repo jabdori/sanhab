@@ -3,7 +3,9 @@
 import { L } from '../../labels'
 import type { Piece } from '../../pieces'
 import { useData } from '../../state'
+import { Text } from '@astryxdesign/core/Text'
 import { Compare } from '../../ui/Compare'
+import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
 import { label } from '../../ui/styles'
 import { useReview } from '../04-심사/review'
@@ -22,18 +24,15 @@ type Hypo = {
 
 const kinds = (v: string[]) => (v.length ? v.join(' · ') : L.없음)
 
-/** 머리: 가설 이름표와 출처 표지(가정). 말풍선은 더하는 일치의 이름표와 값 */
-function Head({ adds }: { adds: string[] }) {
+/** 가설 영역의 출처 표지(가정). 설명 칸은 더하는 일치의 이름표와 값 */
+function Tag({ adds }: { adds: string[] }) {
   return (
-    <div className="flex items-center gap-2">
-      <h2 className={label}>{L.가설}</h2>
-      <Source kind={L.가정}>
-        <dl className="grid grid-cols-2 gap-x-2 gap-y-1">
-          <dt className={label}>{L.일치}</dt>
-          <dd>{kinds(adds)}</dd>
-        </dl>
-      </Source>
-    </div>
+    <Source kind={L.가정} tip={`${L.일치} ${kinds(adds)}`}>
+      <dl className="grid grid-cols-2 gap-x-2 gap-y-1">
+        <dt className={label}>{L.일치}</dt>
+        <dd>{kinds(adds)}</dd>
+      </dl>
+    </Source>
   )
 }
 
@@ -57,16 +56,14 @@ function OfSignal() {
   // 읽는 동안에는 같은 자리에 그룹·승인권자 줄을 먼저 둔다(뒤의 줄이 밀리지 않게)
   if (!h || h.id !== id)
     return (
-      <section className="mb-4 flex flex-col gap-2">
-        <Head adds={[]} />
+      <Region title={L.가설} aside={<Tag adds={[]} />}>
         <Compare head={[L.현재, L.가설]} rows={[[L.그룹, '', ''], [L.승인권자, '', '']]} />
-      </section>
+      </Region>
     )
   return (
-    <section className="mb-4 flex flex-col gap-2">
-      <Head adds={h.adds} />
+    <Region title={L.가설} aside={<Tag adds={h.adds} />}>
       <Rows h={h} />
-    </section>
+    </Region>
   )
 }
 
@@ -76,15 +73,14 @@ function OfReview() {
   const list = useData<Hypo[]>(id ? `/reviews/${id}/hypo` : null)
   if (!list?.length) return null
   return (
-    <section className="mb-4 flex flex-col gap-3">
-      <Head adds={[...new Set(list.flatMap((h) => h.adds))]} />
+    <Region title={L.가설} aside={<Tag adds={[...new Set(list.flatMap((h) => h.adds))]} />}>
       {list.map((h) => (
         <div key={h.id} className="flex flex-col gap-1">
-          <span className="text-figure">{h.name}</span>
+          <Text weight="semibold">{h.name}</Text>
           <Rows h={h} />
         </div>
       ))}
-    </section>
+    </Region>
   )
 }
 
