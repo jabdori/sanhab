@@ -12,11 +12,11 @@ import { UserCircleIcon } from '@heroicons/react/24/outline'
 import { L } from '../../labels'
 import { targetAtom, useData } from '../../state'
 import { Empty } from '../../ui/Empty'
-import { Mark } from '../../ui/Mark'
+import { Mark, State } from '../../ui/Mark'
 import { Region } from '../../ui/Region'
 import { Relation } from '../../ui/Relation'
 import { DECISION, Source } from '../../ui/Source'
-import { badge, caution, num, signalDot } from '../../ui/status'
+import { caution, num, signalDot } from '../../ui/status'
 import { useReview } from '../04-심사/review'
 import { useReport } from '../17-보고/report'
 import { type Evidence as Ev, markAtom, useSignal } from './signal'
@@ -162,7 +162,7 @@ export function Flags() {
             endContent={
               <HStack gap={2} vAlign="center">
                 {DECISION[s.kind] && <Source kind={L.가정} of={s.kind} />}
-                <Badge variant={badge(s.state)} label={s.state} />
+                <State word={s.state} />
               </HStack>
             }
             onClick={() => setTarget({ kind: L.정황, id: s.id })}

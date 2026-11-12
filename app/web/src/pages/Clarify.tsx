@@ -1,20 +1,17 @@
-// 소명 기록: 머리(← 작업 · n/전체 / 소명 이름 / 메타 한 줄 / 페이지 조치 / 탭) → 본문(요청서 · 서류 · 원본 · 판독 · 접수 · 제외) → 오른쪽 레일(요약 · AI 정리 · 미확인).
+// 소명 기록: 머리(← 작업 · n/전체 / 소명 이름 / 칩: 상태 · 대리점 · 정황 / 페이지 조치 / 탭) → 본문(숫자 타일 · 요청서 · 서류 · 원본 · 판독 · 접수 · 제외). AI 보고는 오른쪽 AI 구역.
 // 페이지 조치: 영업지원은 발송(요청서를 고쳐), 내부 감시는 서류가 접수된 뒤 인정 · 불인정 · 보완. 모두 누르면 확인 창.
-import { Badge } from '@astryxdesign/core/Badge'
-import { Icon } from '@astryxdesign/core/Icon'
 import { HStack } from '@astryxdesign/core/Layout'
 import { Link } from '@astryxdesign/core/Link'
 import { Text } from '@astryxdesign/core/Text'
-import { Token } from '@astryxdesign/core/Token'
-import { BuildingStorefrontIcon, CalendarIcon, ClockIcon } from '@heroicons/react/24/outline'
+import { BuildingStorefrontIcon } from '@heroicons/react/24/outline'
 import { useAtomValue } from 'jotai'
 import { useState } from 'react'
+import { State } from '../ui/Mark'
 import { L } from '../labels'
 import { api, changedAtom, store, targetAtom } from '../state'
 import { Region } from '../ui/Region'
 import { Act, Meta, RecordPage, Tiles } from '../ui/Record'
 import { Source } from '../ui/Source'
-import { badge } from '../ui/status'
 import { Docs, ClarifyHistory, Letter, letterAtom } from '../tickets/18-발송'
 import { type Clarify as Data, useClarify } from '../tickets/18-발송/clarify'
 import { OriginalDoc, Read, Upload } from '../tickets/19-서류'
@@ -50,31 +47,9 @@ export function Clarify() {
     <RecordPage
       title={c.name}
       meta={[
-        <Badge variant={badge(c.state)} label={c.state} />,
+        <State word={c.state} />,
         <Meta icon={BuildingStorefrontIcon}>{c.dealer.name}</Meta>,
         ...(c.signal ? [<Link onClick={() => store.set(targetAtom, { kind: L.정황, id: c.signal!.id })}>{c.signal.name}</Link>] : []),
-        ...(d.kinds.length
-          ? [
-              <HStack gap={1} vAlign="center">
-                {d.kinds.map((k) => (
-                  <Token key={k} size="sm" label={k} />
-                ))}
-                {/* 일치는 계산(정황의 근거에서 고른 종류) */}
-                <Source kind={c.source} tip={`${L.정황} · ${L.일치}`} rows={[...(c.signal ? ([[L.정황, c.signal.name]] as [string, string][]) : []), [L.일치, d.kinds.join(' · ')]]} />
-              </HStack>,
-            ]
-          : []),
-        ...(d.sent ? [<Meta icon={CalendarIcon}>{`${L.발송} ${d.sent}`}</Meta>] : []),
-        ...(d.due
-          ? [
-              // 기한의 길이는 가정(D32). 발송 전에는 기한이 없으니 표지도 없다
-              <HStack gap={1} vAlign="center">
-                <Icon icon={ClockIcon} size="sm" color="secondary" />
-                <Text>{`${L.기한} ${d.due}`}</Text>
-                <Source kind={L.가정} of={L.기한} rows={[[L.발송, d.sent ?? L.없음], [L.기한, d.due]]} />
-              </HStack>,
-            ]
-          : []),
       ]}
       actions={
         <HStack gap={2}>
@@ -89,11 +64,13 @@ export function Clarify() {
           label: L.내용,
           body: (
             <>
-              {/* 숫자 타일: 요청한 서류 · 접수한 서류, 판독했으면 누락 · 불일치(계산) */}
+              {/* 숫자 타일: 요청한 서류 · 접수한 서류 · 기한, 판독했으면 누락 · 불일치(계산). 머리의 칩은 상태 · 대리점 · 정황만 */}
               <Tiles
                 items={[
                   { name: L.서류, value: d.docs.length },
                   { name: L.접수, value: docs?.docs.length ?? 0 },
+                  // 기한(발송일 아래). 기한의 길이는 가정(D32). 발송 전에는 기한이 없으니 타일도 없다
+                  ...(d.due ? [{ name: L.기한, value: d.due, below: d.sent && <Text type="supporting" color="secondary">{`${L.발송} ${d.sent}`}</Text>, aside: <Source kind={L.가정} of={L.기한} rows={[[L.발송, d.sent ?? L.없음], [L.기한, d.due]]} /> }] : []),
                   ...(read
                     ? [
                         { name: L.누락, value: docs?.docs.at(-1)?.counts[L.누락] ?? 0, aside: <Source kind={L.계산} tip={L.누락} rows={[[L.누락, docs?.docs.at(-1)?.counts[L.누락] ?? 0]]} /> },

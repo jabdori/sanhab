@@ -9,6 +9,10 @@ const SUCCESS = [L.승인, L.완료, L.해소, L.채택, L.인정, L.성공, L.�
 const WARNING = [L.보류, L.보완, L.미응답, L.재심사]
 const ERROR = [L.반려, L.불채택, L.오류, L.불인정, L.불일치, L.실패, L.누락, L.거부]
 
+/** 기본 상태: 표지를 달지 않는다(astryx Badge — "Skip the badge for the default state; only highlight exceptions"). 일이 늘 처음 놓이는 대기, 비교가 맞은 일치 */
+export const DEFAULT: string[] = [L.대기, L.일치]
+export const plain = (state?: string | null) => !state || DEFAULT.includes(state)
+
 /** 상태(심사 · 지급 · 정황 · 소명 · 보고 · 대사의 비교) → Badge 변형 */
 export const badge = (state: string): Tone =>
   (SUCCESS as string[]).includes(state) ? 'success' : (WARNING as string[]).includes(state) ? 'warning' : (ERROR as string[]).includes(state) ? 'error' : 'neutral'

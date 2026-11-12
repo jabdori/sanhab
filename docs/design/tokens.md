@@ -23,6 +23,7 @@
 | 규칙 버전 | 글자 | 색 없음 |
 | 주 버튼 | `Button variant="primary"` | 테마의 검정, 조치 묶음마다 하나 |
 
+- **기본 상태는 표지 없이**(astryx Badge: "Skip the badge for the default state; only highlight exceptions"): 대기 · 일치는 Badge를 그리지 않는다(`ui/status.ts`의 `DEFAULT`, 그리는 곳은 `ui/Mark`의 `State` 하나). 상태 칸이 모두 기본 상태면 칸째 두지 않는다.
 - 낱말 → 색의 대응은 `ui/status.ts` 한 곳에만 둔다. 다른 파일은 색 이름(`color="red"`, `variant="warning"` …)을 쓰지 않는다(`npm run lint`가 막는다).
 - 나머지 글자는 검정(primary)과 보조(secondary) 둘뿐이다.
 

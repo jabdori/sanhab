@@ -2,6 +2,7 @@
 // 본문에는 AI의 글이 없다: 판독은 글자 인식이 읽은 그대로, 등록은 원본(호실은 시연), 비교는 코드다. 값의 줄과 원본의 위치(판독의 위치 상자)가 서로 강조된다.
 // 판독이나 정리가 아직 없으면(멈춰 있으면) 원본만 보이고 값은 없음이다. 그동안 몇 초마다 다시 읽는다.
 import { Badge } from '@astryxdesign/core/Badge'
+import { Spinner } from '@astryxdesign/core/Spinner'
 import { Button } from '@astryxdesign/core/Button'
 import { FileInput } from '@astryxdesign/core/FileInput'
 import { HStack, VStack } from '@astryxdesign/core/Layout'
@@ -11,12 +12,13 @@ import { Text } from '@astryxdesign/core/Text'
 import { ToggleButton } from '@astryxdesign/core/ToggleButton'
 import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useState } from 'react'
+import { State } from '../../ui/Mark'
 import { L } from '../../labels'
 import { menuAtom, targetAtom, useData } from '../../state'
 import { Empty } from '../../ui/Empty'
 import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
-import { badge, fail } from '../../ui/status'
+import { fail, plain } from '../../ui/status'
 import { bin, type Doc, pick, pickAtom, range, seeAtom, tickAtom, useDoc, useDocs } from './docs'
 
 type Row = Doc['rows'][number] & Record<string, unknown>
@@ -146,7 +148,8 @@ export function Read() {
             },
             { key: 'read', header: L.판독, width: proportional(3, { minWidth: 96 }), renderCell: (r) => (r.read ? <Text hasTabularNumbers>{range(r.read)}</Text> : <Text color="secondary">{L.없음}</Text>) },
             { key: 'reg', header: L.등록, width: proportional(3, { minWidth: 96 }), renderCell: (r) => (r.reg?.value ? <Text hasTabularNumbers>{range(r.reg.value)}</Text> : <Text color="secondary">{L.없음}</Text>) },
-            { key: 'result', header: L.비교, width: pixel(80), renderCell: (r) => r.result && <Badge variant={badge(r.result)} label={r.result} /> },
+            // 비교가 모두 기본 상태(일치)면 칸째 두지 않는다
+            ...(rows.some((r) => !plain(r.result)) ? [{ key: 'result', header: L.비교, width: pixel(80), renderCell: (r: Row) => <State word={r.result} /> }] : []),
             { key: 'source', header: L.출처, align: 'end', width: pixel(88), renderCell: (r) => <RegSource r={r} /> },
           ]}
         />
@@ -163,7 +166,7 @@ export function Tidy() {
     <VStack gap={2}>
       <HStack gap={2} vAlign="center">
         <Source kind={L.AI} rows={[[L.모델, d.tidy_model ?? L.없음]]} />
-        {!d.tidy && <Badge variant={badge(L.대기)} label={L.대기} />}
+        {!d.tidy && <Spinner size="sm" aria-label={L.대기} />}
       </HStack>
       {d.tidy && (
         <Table<Tidy>
@@ -279,7 +282,7 @@ export function OfDealer() {
               </Link>
             ),
           },
-          { key: 'state', header: L.상태, align: 'end', width: proportional(1, { minWidth: 72 }), renderCell: (c) => <HStack hAlign="end"><Badge variant={badge(c.state)} label={c.state} /></HStack> },
+          { key: 'state', header: L.상태, align: 'end', width: proportional(1, { minWidth: 72 }), renderCell: (c) => <HStack hAlign="end"><State word={c.state} /></HStack> },
         ]}
       />
     </Region>

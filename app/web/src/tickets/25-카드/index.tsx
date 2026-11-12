@@ -9,11 +9,12 @@ import { Card as Box } from '@astryxdesign/core/Card'
 import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
 import { Text } from '@astryxdesign/core/Text'
 import { useState } from 'react'
+import { State } from '../../ui/Mark'
 import { L } from '../../labels'
 import { api, useData } from '../../state'
 import { Confirm } from '../../ui/Confirm'
 import { Reason, ready, sent, type Draft } from '../../ui/Reason'
-import { badge, fail } from '../../ui/status'
+import { fail } from '../../ui/status'
 
 /** 서버가 `data-card`로 보내는 카드: 대상(종류, 이름), 조치, 사유가 필수인지와 고를 수 있는 분류, 옮겨 적은 사유, 실행이 부를 경로 */
 export type CardData = {
@@ -84,7 +85,7 @@ export function Card({ card }: { card: CardData }) {
           </MetadataList>
           {done ? (
             <HStack>
-              <Badge variant={badge(card.action)} label={card.action} />
+              <State word={card.action} />
             </HStack>
           ) : (
             <>

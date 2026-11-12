@@ -18,6 +18,7 @@ for (const f of readdirSync('src', { recursive: true })) {
     if (/[가-힣]/.test(rest)) bad.push(`src/${f}:${i + 1} 낱말은 labels.ts에 두고 L.낱말로 쓴다`)
     if (/#[0-9a-fA-F]{3,8}\b|[a-z]-\[[^\]]*[0-9#]|style=\{/.test(rest)) bad.push(`src/${f}:${i + 1} 색·크기는 theme.css의 이름만 쓴다`)
     if (f !== 'ui/status.ts' && COLOR.test(rest)) bad.push(`src/${f}:${i + 1} 색 이름은 ui/status.ts에서만 쓴다(tokens.md 색 표)`)
+    if (!['ui/status.ts', 'ui/Mark.tsx'].includes(f) && /\bbadge\(/.test(rest)) bad.push(`src/${f}:${i + 1} 상태 표지는 ui/Mark의 State로(기본 상태는 그리지 않는다, tokens.md)`)
     if (!CARD_OK.includes(f) && /<(Card|ClickableCard)\b/.test(rest)) bad.push(`src/${f}:${i + 1} Card는 숫자 타일 · 접속 · 조치 카드에만(tokens.md 면, Card soup 금지)`)
   })
 }

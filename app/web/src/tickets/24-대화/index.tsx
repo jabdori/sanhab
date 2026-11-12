@@ -20,8 +20,9 @@ import { DefaultChatTransport, type UIMessage } from 'ai'
 import { useAtomValue } from 'jotai'
 import { useEffect, useRef, useState } from 'react'
 import { ASK, L } from '../../labels'
+import { State } from '../../ui/Mark'
 import { api, changedAtom, roleAtom, rolesAtom, store, targetAtom, type Target } from '../../state'
-import { badge, fail } from '../../ui/status'
+import { fail } from '../../ui/status'
 import { Card as ActionCard, type CardData } from '../25-카드'
 
 /** 답에 붙는 조회한 기록(서버가 `data-reads`로 보낸다). go는 이름과 같은 순서의 여는 길(열 화면이 없는 기록은 null) */
@@ -240,7 +241,7 @@ function Panel() {
                   {kept && (
                     <>
                       <Text type="supporting">{L.보고}</Text>
-                      {kept.state ? <Badge variant={badge(kept.state)} label={kept.state} /> : <Mark word={kept.error ?? L.오류} />}
+                      {kept.state ? <State word={kept.state} /> : <Mark word={kept.error ?? L.오류} />}
                     </>
                   )}
                 </HStack>

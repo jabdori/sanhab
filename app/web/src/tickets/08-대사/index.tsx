@@ -1,6 +1,5 @@
 // 08 대사: 지급 기록의 "대사" 영역(승인 / 회신 / 비교, 지급 시도마다 줄)과 이력(지급 표시와 회신을 일어난 순서대로). 은행 회신 입력은 시연 서랍(slot 'demo').
 // 회신은 사람이 넣은 것(출처 시연), 비교는 코드가 맞춰 본 것(출처 계산)이다.
-import { Badge } from '@astryxdesign/core/Badge'
 import { HStack } from '@astryxdesign/core/Layout'
 import { List, ListItem } from '@astryxdesign/core/List'
 import { RadioList, RadioListItem } from '@astryxdesign/core/RadioList'
@@ -12,6 +11,7 @@ import { unwrap } from 'jotai/utils'
 import { useState } from 'react'
 import { Icon } from '@astryxdesign/core/Icon'
 import { UserCircleIcon } from '@heroicons/react/24/outline'
+import { State } from '../../ui/Mark'
 import { L } from '../../labels'
 import { api, changedAtom, roleAtom, store, targetAtom } from '../../state'
 import { Confirm } from '../../ui/Confirm'
@@ -19,7 +19,7 @@ import { Empty } from '../../ui/Empty'
 import { grade } from '../../ui/grade'
 import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
-import { badge, num } from '../../ui/status'
+import { num, plain } from '../../ui/status'
 
 type Recon = {
   id: string
@@ -58,7 +58,7 @@ export function useRecon() {
   return d && target?.kind === L.지급 && d.id === target.id ? d : null
 }
 
-const verdict = (v: string) => <Badge variant={badge(v)} label={v} />
+const verdict = (v: string) => <State word={v} />
 const none = <Text color="secondary">{L.없음}</Text>
 
 type Row = { key: string; item: string; n: number | null; want: string | null; got: string | null; cmp: string | null } & Record<string, unknown>
@@ -131,7 +131,8 @@ export function Recon() {
           },
           { key: 'want', header: L.승인, align: 'end', width: proportional(2, { minWidth: 80 }), renderCell: (r) => cell(r.want) },
           { key: 'got', header: L.회신, align: 'end', width: proportional(2, { minWidth: 80 }), renderCell: (r) => cell(r.got) },
-          { key: 'cmp', header: L.비교, align: 'end', width: pixel(72), renderCell: (r) => (r.cmp ? verdict(r.cmp) : none) },
+          // 비교가 모두 일치(기본 상태)이거나 회신 전이면 칸째 두지 않는다
+          ...(data.some((r) => !plain(r.cmp)) ? [{ key: 'cmp', header: L.비교, align: 'end' as const, width: pixel(72), renderCell: (r: Row) => verdict(r.cmp!) }] : []),
         ]}
       />
     </Region>

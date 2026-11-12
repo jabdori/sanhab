@@ -16,11 +16,11 @@ import { useState } from 'react'
 import { L } from '../labels'
 import { api, changedAtom, store, targetAtom, useData } from '../state'
 import { Empty } from '../ui/Empty'
-import { Mark } from '../ui/Mark'
+import { Mark, State } from '../ui/Mark'
 import { Act, Meta, RecordPage, Tiles, byGrade } from '../ui/Record'
 import { Region } from '../ui/Region'
 import { Source } from '../ui/Source'
-import { badge, caution, fail, meter, num } from '../ui/status'
+import { caution, fail, meter, num } from '../ui/status'
 import { Links, Members, Rules } from '../tickets/04-심사'
 import { bundled, useReview } from '../tickets/04-심사/review'
 import { History, useResubmit } from '../tickets/06-반려'
@@ -144,7 +144,7 @@ function SignalReport({ id, name }: { id: string; name: string }) {
             {name}
           </Link>
         </StackItem>
-        <Badge variant={badge(r?.state ?? L.대기)} label={r?.state ?? L.대기} />
+        <State word={r?.state ?? L.대기} />
         <Source kind={L.AI} tip={r?.model ?? undefined} rows={[[L.모델, r?.model ?? L.없음], [L.날짜, r?.at ?? L.없음], [L.조회, String(r?.reads ?? L.없음)]]} />
       </HStack>
       {r && r.facts.length > 0 && (
@@ -191,7 +191,7 @@ export function Review() {
     <RecordPage
       title={`${v.name} · ${v.ym}`}
       meta={[
-        <Badge variant={badge(v.status)} label={v.status} />,
+        <State word={v.status} />,
         <Meta icon={UserIcon}>{v.holder ?? v.approver}</Meta>,
         <Meta icon={BuildingStorefrontIcon}>{`${r.members.length}${L.곳}`}</Meta>,
         ...v.marks.map((m) => <Mark>{m}</Mark>),

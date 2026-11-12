@@ -10,6 +10,7 @@ import { ToggleButton } from '@astryxdesign/core/ToggleButton'
 import { Token } from '@astryxdesign/core/Token'
 import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useState } from 'react'
+import { State } from '../../ui/Mark'
 import { L } from '../../labels'
 import { useDetail } from '../02-대리점'
 import { api, changedAtom, menuAtom, store, targetAtom, useData } from '../../state'
@@ -18,7 +19,7 @@ import { Empty } from '../../ui/Empty'
 import { Act, byGrade } from '../../ui/Record'
 import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
-import { badge, fail } from '../../ui/status'
+import { fail } from '../../ui/status'
 import { useClarify } from '../18-발송/clarify'
 import { bin, useDocs } from '../19-서류/docs'
 import { type Verdict, useVerdict } from './verdict'
@@ -65,7 +66,7 @@ export function Unknown() {
           density="compact"
           columns={[
             { key: 'item', header: L.항목, width: proportional(1, { minWidth: 64 }), renderCell: (u) => <Text weight="semibold">{u.item}</Text> },
-            { key: 'word', header: L.확인, width: proportional(1, { minWidth: 72 }), renderCell: (u) => <Badge variant={badge(u.word)} label={u.word} /> },
+            { key: 'word', header: L.확인, width: proportional(1, { minWidth: 72 }), renderCell: (u) => <State word={u.word} /> },
           ]}
         />
       ) : (

@@ -1,15 +1,15 @@
 // 정황 기록: 머리(← 작업 · n/전체 / 정황 이름 / 메타 한 줄 / 페이지 조치 / 탭) → 본문(근거 · 관계 · 가설 · 소명 영역) → 오른쪽 레일(AI 보고 · 요약).
 // 요청 · 기각은 내부 감시의 페이지 조치(누르면 확인 창에서 사유). AI 보고는 이 정황을 판단하는 가장 큰 재료라 레일에서 처음부터 펼쳐 둔다.
-import { Badge } from '@astryxdesign/core/Badge'
 import { HStack } from '@astryxdesign/core/Layout'
 import { BuildingStorefrontIcon, FlagIcon } from '@heroicons/react/24/outline'
 import { useState } from 'react'
+import { State } from '../ui/Mark'
 import { L } from '../labels'
 import { api, changedAtom, store } from '../state'
 import { Act, Meta, RecordPage, Tiles, byGrade } from '../ui/Record'
 import { Region } from '../ui/Region'
 import { DECISION, Source } from '../ui/Source'
-import { badge, num } from '../ui/status'
+import { num } from '../ui/status'
 import { Evidence, History, Links } from '../tickets/11-정황'
 import { type Signal as Data, useSignal } from '../tickets/11-정황/signal'
 import { OfSignal } from '../tickets/12-가설'
@@ -65,7 +65,7 @@ export function Signal() {
     <RecordPage
       title={s.name}
       meta={[
-        <Badge variant={badge(s.state)} label={s.state} />,
+        <State word={s.state} />,
         <Meta icon={FlagIcon}>{s.kind}</Meta>,
         <Meta icon={BuildingStorefrontIcon}>{dealers}</Meta>,
       ]}

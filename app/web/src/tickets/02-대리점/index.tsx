@@ -7,10 +7,10 @@ import { Text } from '@astryxdesign/core/Text'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { L } from '../../labels'
 import { targetAtom, useData } from '../../state'
-import { Mark } from '../../ui/Mark'
+import { Mark, State } from '../../ui/Mark'
 import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
-import { badge, num } from '../../ui/status'
+import { num } from '../../ui/status'
 
 type From = { source: string; file?: string; row?: number }
 export type Row = { id: string; name: string; rep: string[]; address: string[]; account: string[] } & Record<string, unknown>
@@ -91,7 +91,7 @@ export function RegisteredRegion() {
           {
             key: 'via',
             header: L.경로,
-            width: pixel(88),
+            width: pixel(120),
             renderCell: (r) => (
               <HStack gap={2} vAlign="center">
                 <Text>{r.via}</Text>
@@ -117,9 +117,9 @@ export function Payouts() {
         idKey={(p) => `${p.ym}/${p.amount}/${p.row ?? ''}`}
         density="compact"
         columns={[
-          { key: 'ym', header: L.귀속월, width: pixel(80), renderCell: (p) => <Text hasTabularNumbers>{p.ym}</Text> },
+          { key: 'ym', header: L.귀속월, width: pixel(96), renderCell: (p) => <Text hasTabularNumbers>{p.ym}</Text> },
           { key: 'amount', header: L.금액, align: 'end', width: pixel(96), renderCell: (p) => <Text weight="semibold" hasTabularNumbers>{num(p.amount)}</Text> },
-          { key: 'status', header: L.상태, width: pixel(72), renderCell: (p) => <Badge variant={badge(p.state ?? p.status)} label={p.state ?? p.status} /> },
+          { key: 'status', header: L.상태, width: pixel(72), renderCell: (p) => <State word={p.state ?? p.status} /> },
           {
             key: 'review',
             header: L.심사,

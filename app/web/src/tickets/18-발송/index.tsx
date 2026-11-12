@@ -1,6 +1,6 @@
 // 18 발송: 소명 기록(pages/Clarify)의 본문 영역 — 요청서, 서류 목록 — 과 이력, 정황 기록의 "소명" 줄(Of).
 // 값은 모두 코드가 정한 것이다(AI가 쓴 요청서 초안은 요청서 영역의 글 칸에 들어간다). 발송 조치는 페이지 조치(pages/Clarify)이고, 쓰고 있는 글은 letterAtom이 둘을 잇는다.
-import { Badge } from '@astryxdesign/core/Badge'
+import { Spinner } from '@astryxdesign/core/Spinner'
 import { HStack } from '@astryxdesign/core/Layout'
 import { Link } from '@astryxdesign/core/Link'
 import { List, ListItem } from '@astryxdesign/core/List'
@@ -11,12 +11,12 @@ import { atom, useAtom, useSetAtom } from 'jotai'
 import { useEffect } from 'react'
 import { Icon } from '@astryxdesign/core/Icon'
 import { UserCircleIcon } from '@heroicons/react/24/outline'
+import { State } from '../../ui/Mark'
 import { L } from '../../labels'
 import { targetAtom, useData } from '../../state'
 import { Empty } from '../../ui/Empty'
 import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
-import { badge } from '../../ui/status'
 import { useSignal } from '../11-정황/signal'
 import { tickAtom, useClarify } from './clarify'
 
@@ -46,7 +46,7 @@ export function Letter() {
       aside={
         <>
           {d.can && <Source kind={L.AI} rows={[[L.모델, d.draft?.model ?? L.없음]]} />}
-          {waiting && <Badge variant={badge(L.대기)} label={L.대기} />}
+          {waiting && <Spinner size="sm" aria-label={L.대기} />}
         </>
       }
     >
@@ -129,7 +129,7 @@ export function Of() {
               </Link>
             ),
           },
-          { key: 'state', header: L.상태, align: 'end', width: proportional(1, { minWidth: 72 }), renderCell: (c) => <HStack hAlign="end"><Badge variant={badge(c.state)} label={c.state} /></HStack> },
+          { key: 'state', header: L.상태, align: 'end', width: proportional(1, { minWidth: 72 }), renderCell: (c) => <HStack hAlign="end"><State word={c.state} /></HStack> },
         ]}
       />
     </Region>

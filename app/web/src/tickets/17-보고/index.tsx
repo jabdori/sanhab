@@ -10,12 +10,13 @@ import { List, ListItem } from '@astryxdesign/core/List'
 import { Text } from '@astryxdesign/core/Text'
 import { useSetAtom } from 'jotai'
 import { type ReactNode, useEffect, useState } from 'react'
+import { State } from '../../ui/Mark'
 import { L } from '../../labels'
 import { api, store } from '../../state'
 import { Empty } from '../../ui/Empty'
 import { Act } from '../../ui/Record'
 import { Source } from '../../ui/Source'
-import { badge, fail } from '../../ui/status'
+import { fail } from '../../ui/status'
 import { Line } from '../04-심사'
 import { markAtom, useSignal } from '../11-정황/signal'
 import { tickAtom, useReport } from './report'
@@ -70,7 +71,7 @@ function Head() {
     <HStack gap={2} vAlign="center" wrap="wrap">
       <Source kind={L.AI} tip={r?.model ?? undefined} rows={[[L.모델, r?.model ?? L.없음], [L.날짜, r?.at ?? L.없음], [L.조회, String(r?.reads ?? L.없음)]]} />
       <StackItem size="fill">
-        <Badge variant={badge(r?.state ?? L.대기)} label={r?.state ?? L.대기} />
+        <State word={r?.state ?? L.대기} />
       </StackItem>
       {d.run && (
         <Button
