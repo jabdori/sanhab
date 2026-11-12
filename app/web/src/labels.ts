@@ -50,6 +50,7 @@ const words = [
   '검색',
   '앞', '뒤',
   '해제',
+  '사유 필수',
 ] as const
 
 export const L = Object.fromEntries(words.map((w) => [w, w])) as { [K in (typeof words)[number]]: K }

@@ -224,9 +224,12 @@ function Tiles() {
 /** 정황이 걸린 심사: 사유가 필수인 조치를 경고 띠로 */
 function Notice() {
   const r = useReview()
-  if (!r?.review.marks.includes(L.정황)) return null
-  const must = r.actions.filter((a) => a.reason && !bundled.includes(a.kind)).map((a) => a.kind)
-  return <Banner status="warning" title={L.정황} description={must.length ? `${L.사유} · ${must.join(' · ')}` : undefined} collapsible={false} />
+  const on = !!r?.review.marks.includes(L.정황)
+  const list = useData<unknown[]>(on ? `/reviews/${r!.review.id}/signals` : null)
+  if (!r || !on) return null
+  // 제목: 걸린 정황의 수. 설명: 이 역할의 조치에 사유가 필수이면 `사유 필수`
+  const must = r.actions.some((a) => a.reason && !bundled.includes(a.kind))
+  return <Banner status="warning" title={list ? `${L.정황} ${list.length}` : L.정황} description={must ? L['사유 필수'] : undefined} collapsible={false} />
 }
 
 /** 경위 탭: 그림과 같은 칸들의 시간 순 목록(incident-console의 Timeline 꼴) */

@@ -5,7 +5,6 @@
 import { useChat } from '@ai-sdk/react'
 import { Button } from '@astryxdesign/core/Button'
 import { Link } from '@astryxdesign/core/Link'
-import { Avatar } from '@astryxdesign/core/Avatar'
 import { Badge } from '@astryxdesign/core/Badge'
 import { ClickableCard } from '@astryxdesign/core/ClickableCard'
 import { EmptyState } from '@astryxdesign/core/EmptyState'
@@ -206,7 +205,7 @@ function Panel() {
                 <ChatMessage
                   key={m.id}
                   sender={ai ? 'assistant' : 'user'}
-                  avatar={ai ? <Avatar name={L.AI} size="sm" /> : null}
+                  avatar={ai ? <Icon icon={SparklesIcon} size="md" color="accent" /> : null}
                   metadata={
                     ids.length > 0 && (
                       <VStack gap={1}>
