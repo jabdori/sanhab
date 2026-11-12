@@ -74,7 +74,7 @@ function Shell() {
         )}
         {!wide && (
           <>
-            <main className="min-w-0 flex-1 overflow-auto p-4">
+            <main className="min-w-0 flex-1 overflow-auto px-3 py-4">
               <SlotView slot={trailOpen ? 'map' : 'fact'} />
             </main>
             <aside className="w-right shrink-0 overflow-auto border-l border-line bg-surface">

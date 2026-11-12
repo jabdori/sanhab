@@ -66,13 +66,9 @@ function Registered() {
           head={[L.식별자, '', L.출처, L.변경일, L.인지일, L.경로]}
           rows={d.registered.map((r) => [
             r.item,
-            <span className="flex items-center gap-2">
+            <span className="flex flex-col">
+              <span className="flex items-center gap-2">
               {r.value}
-              {r.until && (
-                <span className={`${label} tabular-nums`}>
-                  {L.이전} ~{r.last}
-                </span>
-              )}
               {r.same && (
                 <span className={label}>
                   {L.동일인} {r.same}
@@ -88,6 +84,12 @@ function Registered() {
                     </dl>
                   </Source>
                 </>
+              )}
+              </span>
+              {r.until && (
+                <span className={`${label} tabular-nums`}>
+                  {L.이전} ~{r.last}
+                </span>
               )}
             </span>,
             src(r),
