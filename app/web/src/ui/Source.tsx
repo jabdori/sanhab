@@ -45,14 +45,15 @@ const base = (file: string) => file.split('/').at(-1)
  * - 원본: 표지가 없다. `file`·`row`가 있으면 조용한 행 번호(`7행`)만 남아 누르면 원본 파일의 그 행이 열린다. children만 있으면 조용한 `원본`이 그 내용을 연다
  * - 가정·합성: `of`(값의 낱말)로 결정 번호를 찾아 그 결정의 제목·본문·스펙의 줄·쓰임을 보인다. children은 그 아래에 붙는다
  * - 그 밖: `rows`(이름표와 값의 줄 — 계산이면 `[[L.합산, L['귀속월 지급의 합, 반려 제외']]]`)가 설명이다. 줄로 쓸 수 없는 글(조항의 원문)만 children에
+ * - `decision`은 결정 번호를 바로 준다(규정 화면의 가정 목록 — 모든 가정의 줄이 같은 설명 칸을 연다)
  * `tip`은 한 줄 설명의 뒷말(없으면 `of`). `side`는 설명 칸이 열리는 쪽
  */
-export function Source({ kind, file, row, side, of, tip, rows, children }: { kind: string; file?: string; row?: number; side?: 'right' | 'top'; of?: string; tip?: string; rows?: [string, ReactNode][]; children?: ReactNode }) {
+export function Source({ kind, file, row, side, of, decision, tip, rows, children }: { kind: string; file?: string; row?: number; side?: 'right' | 'top'; of?: string; decision?: string; tip?: string; rows?: [string, ReactNode][]; children?: ReactNode }) {
   const [open, setOpen] = useState(false)
   const [origin, setOrigin] = useState<Row>()
   const [spec, setSpec] = useState<Spec | null>()
   const name = shown(kind)
-  const id = of ? DECISION[of] : undefined
+  const id = decision ?? (of ? DECISION[of] : undefined)
   const isOrigin = name === L.원본
   if (isOrigin && !(file && row) && !children && !rows) return null
   const line = isOrigin && file && row ? `${L.원본} · ${base(file)} ${row}${L.행}` : [[name, id].filter(Boolean).join(' '), tip ?? of].filter(Boolean).join(' · ')

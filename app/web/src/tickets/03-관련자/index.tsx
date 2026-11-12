@@ -4,18 +4,21 @@ import { L } from '../../labels'
 import type { Piece } from '../../pieces'
 import { targetAtom, useData } from '../../state'
 import { Empty } from '../../ui/Empty'
+import { Figures } from '../../ui/Figures'
+import { Region } from '../../ui/Region'
 import { Relation } from '../../ui/Relation'
 import { Source } from '../../ui/Source'
-import { label } from '../../ui/styles'
 import { Table } from '../../ui/Table'
+import { Dealer } from '../02-대리점'
+import { Text } from '@astryxdesign/core/Text'
 
-type Dealer = { id: string; name: string }
+type Dlr = { id: string; name: string }
 type Related = {
   id: string
   idents: { id: string; item: string; value: string }[]
-  near: (Dealer & { match: string[]; related: boolean })[]
+  near: (Dlr & { match: string[]; related: boolean })[]
   lines: [string, string][]
-  group: Dealer[]
+  group: Dlr[]
   source: string
 }
 
@@ -24,20 +27,17 @@ function Fact() {
   const d = useData<Related>(target && `/dealers/${target.id}/related`)
   if (!d || d.id !== target?.id) return null
   const me = d.group.find((g) => g.id === d.id)
+  const none = d.near.length === 0 || !me
   return (
-    <section className="mb-4 flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <h2 className={label}>{L.관계}</h2>
-        <Source kind={d.source} side="right">
-          <dl className="grid grid-cols-2 gap-x-2 gap-y-1">
-            <dt className={label}>{L.관련자}</dt>
-            <dd>{L['식별자 일치 2 이상']}</dd>
-            <dt className={label}>{L.그룹}</dt>
-            <dd>{L['관련자의 전이']}</dd>
-          </dl>
-        </Source>
-      </div>
-      {d.near.length === 0 || !me ? (
+    <Region
+      title={L.관계}
+      aside={
+        !none && (
+          <Source kind={d.source} side="right" tip={`${L.관련자} · ${L.그룹}`} rows={[[L.관련자, L['식별자 일치 2 이상']], [L.그룹, L['관련자의 전이']]]} />
+        )
+      }
+    >
+      {none ? (
         <Empty />
       ) : (
         <>
@@ -45,23 +45,15 @@ function Fact() {
           <Table
             head={[L.대리점, L.일치, L.관련자]}
             rows={d.near.map((n) => [
-              <span className="flex items-center gap-2">
-                <button className="cursor-pointer text-action hover:text-action-hover" onClick={() => setTarget({ kind: L.대리점, id: n.id })}>
-                  {n.name}
-                </button>
-                <span className="text-text-sub">{n.id}</span>
-              </span>,
+              <Dealer name={n.name} id={n.id} onOpen={() => setTarget({ kind: L.대리점, id: n.id })} />,
               n.match.join(' · '),
-              n.related ? L.관련자 : <span className="text-text-mute">{L.없음}</span>,
+              n.related ? L.관련자 : <Text color="secondary">{L.없음}</Text>,
             ])}
           />
-          <div className="flex items-baseline gap-2">
-            <span className={label}>{L.그룹}</span>
-            {d.group.length > 1 ? <span>{d.group.map((g) => g.name).join(' · ')}</span> : <Empty />}
-          </div>
+          {d.group.length > 1 && <Figures items={[[L.그룹, d.group.map((g) => g.name).join(' · ')]]} />}
         </>
       )}
-    </section>
+    </Region>
   )
 }
 

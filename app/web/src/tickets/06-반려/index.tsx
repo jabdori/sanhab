@@ -51,7 +51,7 @@ function Action() {
   }, [id, role, setDraft])
   if (!s || (!s.can && !bad)) return null
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       {s.can && (
         <Button label={L.재상신} variant={grade(L.재상신)} isDisabled={sent === s || !ready(L.재상신, true, draft)}
           onClick={() => {
