@@ -9,6 +9,7 @@ import { EmptyState } from '@astryxdesign/core/EmptyState'
 import { HStack, Layout, LayoutContent, LayoutHeader, StackItem, VStack } from '@astryxdesign/core/Layout'
 import { List, ListItem } from '@astryxdesign/core/List'
 import { PowerSearch, type PowerSearchFilter, usePowerSearchConfig } from '@astryxdesign/core/PowerSearch'
+import { Section } from '@astryxdesign/core/Section'
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl'
 import { TableSelectionToolbar } from '@astryxdesign/core/Table'
 import { Heading, Text } from '@astryxdesign/core/Text'
@@ -95,7 +96,8 @@ export function Work() {
       content={
         <LayoutContent padding={0}>
           <VStack gap={0} height="100%">
-            <VStack gap={3} className="p-3">
+            <Section variant="transparent" padding={3}>
+              <VStack gap={3}>
               <Grid columns={{ minWidth: 140 }} gap={3}>
                 {tiles.map(([name, value, tone]) => (
                   <Card key={name} padding={3}>
@@ -114,7 +116,8 @@ export function Work() {
                 ))}
               </Grid>
               <PowerSearch config={config} filters={filters} onChange={(f) => setFilters([...f])} label={L.검색} placeholder={L.검색} resultCount={String(visible.length)} />
-            </VStack>
+              </VStack>
+            </Section>
             {chosen.length > 0 && (
               <TableSelectionToolbar
                 label={L.선택}
@@ -138,7 +141,8 @@ export function Work() {
                     const box = g.kinds.includes(L.심사) && pickable.length > 0
                     return (
                       <VStack gap={0} key={g.kinds.join()}>
-                        <HStack gap={2} vAlign="center" className="bg-muted px-3 py-2">
+                        <Section variant="muted" paddingBlock={2} paddingInline={3}>
+                          <HStack gap={2} vAlign="center">
                           {box && (
                             <CheckboxInput label={L.전체} isLabelHidden size="sm" value={pickable.every((t) => picked.has(t.target))} onChange={(on) => toggle(pickable.map((t) => t.target), on)} />
                           )}
@@ -147,6 +151,7 @@ export function Work() {
                           </Text>
                           <Badge variant="neutral" label={String(g.items.length)} />
                         </HStack>
+                        </Section>
                         <List density="compact" hasDividers>
                           {g.items.map((t) => (
                             <ListItem

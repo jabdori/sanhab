@@ -195,7 +195,7 @@ function Tiles() {
     </Text>
   )
   return (
-    <Grid columns={{ minWidth: 140 }} gap={4}>
+    <Grid columns={3} gap={4}>
       {tile(
         L.합산,
         big(num(r.total)),
@@ -233,9 +233,7 @@ function Notice() {
 function Trail() {
   return (
     <>
-      <Region title={L.그림}>
-        <Picture />
-      </Region>
+      <Picture />
       <Region title={L.경위}>
         <Timeline />
       </Region>

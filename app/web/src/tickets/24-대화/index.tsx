@@ -16,6 +16,7 @@ import { Icon } from '@astryxdesign/core/Icon'
 import { Heading } from '@astryxdesign/core/Text'
 import { DocumentArrowUpIcon, PaperClipIcon, SparklesIcon } from '@heroicons/react/24/outline'
 import { Text } from '@astryxdesign/core/Text'
+import { Section } from '@astryxdesign/core/Section'
 import { Token } from '@astryxdesign/core/Token'
 import { DefaultChatTransport, type UIMessage } from 'ai'
 import { useAtomValue } from 'jotai'
@@ -174,7 +175,8 @@ function Panel() {
           }
           emptyState={
             // ai-chat-landing 꼴: 비었을 때 제목과 질문 제안. 제안을 누르면 그 말을 보낸다
-            <VStack gap={4} className="p-4">
+            <Section variant="transparent" padding={4}>
+            <VStack gap={4}>
               <EmptyState title={L.대화} icon={<Icon icon={SparklesIcon} size="lg" color="accent" />} isCompact />
               <Grid columns={1} gap={2}>
                 {Object.entries(ASK).map(([name, prompt]) => (
@@ -189,6 +191,7 @@ function Panel() {
                 ))}
               </Grid>
             </VStack>
+            </Section>
           }
         >
           {messages.length > 0 || error ? (

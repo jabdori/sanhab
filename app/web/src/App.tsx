@@ -1,14 +1,16 @@
 import { AppShell } from '@astryxdesign/core/AppShell'
+import { Avatar } from '@astryxdesign/core/Avatar'
 import { Button } from '@astryxdesign/core/Button'
 import { Layout, LayoutContent, LayoutPanel } from '@astryxdesign/core/Layout'
 import { ResizeHandle, useResizable } from '@astryxdesign/core/Resizable'
 import { Selector } from '@astryxdesign/core/Selector'
 import { SideNav, SideNavHeading, SideNavItem } from '@astryxdesign/core/SideNav'
+import { useMediaQuery } from '@astryxdesign/core/hooks'
 import { Icon } from '@astryxdesign/core/Icon'
 import { HStack, StackItem } from '@astryxdesign/core/Layout'
 import { Timestamp } from '@astryxdesign/core/Timestamp'
 import { BeakerIcon, BookOpenIcon, CalendarIcon, BuildingStorefrontIcon, InboxStackIcon } from '@heroicons/react/24/outline'
-import { useAtom, useAtomValue } from 'jotai'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useState } from 'react'
 import { DemoDrawer } from './Demo'
 import { Enter } from './Enter'
@@ -32,50 +34,16 @@ export function App() {
  * 본문은 메뉴와 연 기록으로 정해진다: 작업 목록 · 심사 기록 · 아직 옮기지 않은 화면(pages/Legacy)
  */
 function Shell() {
-  const roles = useAtomValue(rolesAtom)
-  const [role, setRole] = useAtom(roleAtom)
-  const [menu, setMenu] = useAtom(menuAtom)
-  const [target, setTarget] = useAtom(targetAtom)
-  const today = useData<{ today: string }>('/state')?.today
+  const menu = useAtomValue(menuAtom)
+  const target = useAtomValue(targetAtom)
   const [demo, setDemo] = useState(false)
+  const narrow = useMediaQuery('(max-width: 1366px)')
   const chat = useResizable({ defaultSize: 380, minSize: 320, maxSize: 560, autoSaveId: 'chat' })
   const page = target?.kind === L.심사 ? <Review /> : target ? <LegacyRecord /> : menu === L.작업 ? <Work /> : <LegacyList />
   return (
     <AppShell
-      sideNav={
-        <SideNav
-          className="w-menu"
-          header={<SideNavHeading heading={APP} />}
-          topContent={
-            <Selector label={L.역할} isLabelHidden size="sm" width="100%" value={role ?? undefined} options={roles.map((r) => r.role)}
-              onChange={(v: string) => {
-                setRole(v)
-                setTarget(null)
-              }}
-            />
-          }
-          footer={
-            <HStack gap={2} vAlign="center">
-              <StackItem size="fill">
-                <HStack gap={2} vAlign="center">
-                  <Icon icon={CalendarIcon} size="sm" color="secondary" />
-                  {today && <Timestamp value={today} format="date" type="supporting" color="primary" weight="medium" />}
-                </HStack>
-              </StackItem>
-              <Button label={L.시연} size="sm" variant="secondary" icon={<Icon icon={BeakerIcon} size="sm" />} onClick={() => setDemo(true)} />
-            </HStack>
-          }
-        >
-          {MENUS.map((m) => (
-            <SideNavItem key={m} label={m} icon={ICONS[m]} isSelected={m === menu}
-              onClick={() => {
-                setMenu(m)
-                setTarget(null)
-              }}
-            />
-          ))}
-        </SideNav>
-      }
+      // 1280처럼 좁으면 메뉴가 아이콘 줄로 접힌 채 시작한다(폭이 경계를 넘으면 다시 정한다). 접기 단추로 언제든 펼친다
+      sideNav={<Nav key={narrow ? 'rail' : 'full'} folded={narrow} onDemo={() => setDemo(true)} />}
     >
       <Layout
         height="fill"
@@ -91,5 +59,57 @@ function Shell() {
       />
       <DemoDrawer isOpen={demo} onOpenChange={setDemo} />
     </AppShell>
+  )
+}
+
+/** 메뉴(SideNav): 머리에 앱 이름, 그 아래 역할, 바닥에 날짜와 시연. 접히면 역할은 Avatar, 메뉴와 시연은 아이콘만 */
+function Nav({ folded: start, onDemo }: { folded: boolean; onDemo: () => void }) {
+  const roles = useAtomValue(rolesAtom)
+  const [role, setRole] = useAtom(roleAtom)
+  const [menu, setMenu] = useAtom(menuAtom)
+  const setTarget = useSetAtom(targetAtom)
+  const today = useData<{ today: string }>('/state')?.today
+  const [folded, setFolded] = useState(start)
+  return (
+    <SideNav
+      collapsible={{ isCollapsed: folded, onCollapsedChange: setFolded }}
+      header={<SideNavHeading heading={APP} />}
+      topContent={
+        // 접히면 지금 역할을 Avatar로(머물면 이름, 누르면 메뉴가 펼쳐져 역할을 바꿀 수 있다)
+        folded ? (
+          <Avatar name={role ?? ''} size="sm" tooltip={role ?? undefined} onClick={() => setFolded(false)} />
+        ) : (
+          <Selector label={L.역할} isLabelHidden size="sm" width="100%" value={role ?? undefined} options={roles.map((r) => r.role)}
+            onChange={(v: string) => {
+              setRole(v)
+              setTarget(null)
+            }}
+          />
+        )
+      }
+      footer={
+        !folded && (
+          <HStack gap={2} vAlign="center">
+            <StackItem size="fill">
+              <HStack gap={2} vAlign="center">
+                <Icon icon={CalendarIcon} size="sm" color="secondary" />
+                {today && <Timestamp value={today} format="date" type="supporting" color="primary" weight="medium" />}
+              </HStack>
+            </StackItem>
+            <Button label={L.시연} size="sm" variant="secondary" icon={<Icon icon={BeakerIcon} size="sm" />} onClick={onDemo} />
+          </HStack>
+        )
+      }
+      footerIcons={folded && <Button label={L.시연} variant="ghost" isIconOnly icon={<Icon icon={BeakerIcon} size="sm" />} onClick={onDemo} />}
+    >
+      {MENUS.map((m) => (
+        <SideNavItem key={m} label={m} icon={ICONS[m]} isSelected={m === menu}
+          onClick={() => {
+            setMenu(m)
+            setTarget(null)
+          }}
+        />
+      ))}
+    </SideNav>
   )
 }

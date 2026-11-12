@@ -112,7 +112,7 @@ function depths(d: Trail) {
 export function Picture() {
   const d = useTrail()
   const setTarget = useSetAtom(targetAtom)
-  if (!d) return <Empty />
+  if (!d) return null
   const col = depths(d)
   const on = trunk(d)
   const count: Record<number, number> = {}
