@@ -81,7 +81,10 @@ async fn gate(State(db): State<Db>, mut req: Request, next: Next) -> Result<Resp
 async fn sign_all(db: &Db, pass: &str) -> anyhow::Result<J> {
     let mut roles = vec![];
     for (user, role) in tickets::ROLES {
-        roles.push(json!({ "role": role, "token": db::signin(db, user, pass).await? }));
+        let t0 = std::time::Instant::now();
+        let t = tokio::time::timeout(std::time::Duration::from_secs(30), db::signin(db, user, pass)).await.map_err(|_| anyhow::anyhow!("{user} 로그인 30초 초과"))??;
+        println!("signin {user} {:.1}s", t0.elapsed().as_secs_f32());
+        roles.push(json!({ "role": role, "token": t }));
     }
     Ok(json!({ "roles": roles }))
 }
@@ -226,7 +229,17 @@ async fn main() -> anyhow::Result<std::process::ExitCode> {
     } else {
         println!("boot seeded: {}", boot(&db, false).await?);
         // 첫 접속이 기다리지 않게 토큰을 미리 받아 둔다
-        { let d = db.clone(); tokio::spawn(async move { let _ = tokens(&d, true).await; }); }
+        {
+            let d = db.clone();
+            tokio::spawn(async move {
+                let t0 = std::time::Instant::now();
+                match tokio::time::timeout(std::time::Duration::from_secs(90), tokens(&d, true)).await {
+                    Ok(Ok(_)) => println!("tokens ready {:.1}s", t0.elapsed().as_secs_f32()),
+                    Ok(Err(e)) => println!("tokens failed {:.1}s: {e:#}", t0.elapsed().as_secs_f32()),
+                    Err(_) => println!("tokens timeout 90s"),
+                }
+            });
+        }
         tokio::spawn(tickets::ai_worker(db.clone()));
         let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
         println!("listening :{port}");
