@@ -3,7 +3,7 @@
 //!   지급: 앞선 승인(14 `redo.was`) → 변경(`redo.cause`, 13의 `incident`) → 재심사 지급 → 다시 승인한 심사(`redo.back` 또는 합쳐진 새 심사)
 //!   추인: 변경(그 구성원의 승인 뒤에 들어온 가장 늦은 변경. 14와 같은 규칙) → 재검토인 과거의 승인(10 `ratify.reviews`) → 추인 작업 → 결정(추인·거부·종결·이견)
 //!   심사: 그 심사가 든 지급의 경위, 없으면 그 심사가 든 추인의 경위. 둘 다 아니면 없음(404)
-//! 응답: `{ now(지금 대상의 칸), nodes[{ key, kind, name, at(null이면 미상), who{ role, reason }|null, go{ kind, id } }](원인 쪽부터 사슬의 순서), edges[[원인, 결과]] }`.
+//! 응답: `{ for([종류, id] — 화면이 지금 대상의 것인지 본다), now(지금 대상의 칸), nodes[{ key, kind, name, at(null이면 미상), who{ role, reason }|null, go{ kind, id } }](원인 쪽부터 사슬의 순서), edges[[원인, 결과]] }`.
 use crate::check::Check;
 use crate::db::{Db, q1};
 use crate::{R, err};
@@ -46,7 +46,7 @@ async fn pay(db: &Db, id: &str) -> Result<Option<(Vec<J>, Vec<J>, String)>> {
         LET $p = (SELECT * FROM payout WHERE id = type::record('payout', $id))[0];
         LET $r = (SELECT * FROM redo WHERE payout = $p.id ORDER BY stamp DESC LIMIT 1)[0];
         LET $was = $r.was ?? $p.review;
-        LET $new = IF $r != NONE THEN $r.back ?? (SELECT VALUE id FROM review WHERE payouts CONTAINS $p.id AND id != $was ORDER BY id DESC LIMIT 1)[0] END;
+        LET $new = IF $r != NONE THEN $r.back ?? (SELECT VALUE id FROM review WHERE payouts CONTAINS $p.id AND id != $was AND fixed = NONE ORDER BY id DESC LIMIT 1)[0] END;
         LET $c = $r.cause;
         RETURN IF $p = NONE OR $was = NONE THEN NONE ELSE {{
             pay: {{ id: record::id($p.id), name: $p.name, ym: $p.ym, at: IF $r != NONE THEN time::format($r.at, '%Y-%m-%d') END, redo: $r != NONE }},
@@ -122,6 +122,7 @@ async fn ratify(db: &Db, id: &str) -> Result<Option<(Vec<J>, Vec<J>, String)>> {
 
 async fn trail(Extension(me): Extension<crate::Me>, Path((kind, id)): Path<(String, String)>) -> R {
     let db = &me.db;
+    let path = kind.clone();
     let (mut found, mut now) = match kind.as_str() {
         "pay" => (pay(db, &id).await?, None),
         "ratify" => (ratify(db, &id).await?, None),
@@ -132,8 +133,10 @@ async fn trail(Extension(me): Extension<crate::Me>, Path((kind, id)): Path<(Stri
                 RETURN IF $v = NONE THEN NONE ELSE {
                     pay: (SELECT VALUE record::id(payout) FROM redo WHERE was = $v.id OR back = $v.id OR payout INSIDE $v.payouts ORDER BY stamp DESC LIMIT 1)[0],
                     ratify: (SELECT VALUE record::id(id) FROM ratify WHERE reviews CONTAINS $v.id LIMIT 1)[0],
+                    paid: (SELECT VALUE record::id(id) FROM payout WHERE review = $v.id LIMIT 1)[0],
                 } END;", json!({ "id": id })).await?;
-            let f = if let Some(p) = r["pay"].as_str() { pay(db, p).await? } else if let Some(b) = r["ratify"].as_str() { ratify(db, b).await? } else { None };
+            // 재심사 기록이 없는 보통의 승인 심사는 그 심사가 승인한 지급의 경위(승인 → 지급)로 연다. 추인 묶음에 든 과거의 승인은 추인이 먼저다
+            let f = if let Some(p) = r["pay"].as_str() { pay(db, p).await? } else if let Some(b) = r["ratify"].as_str() { ratify(db, b).await? } else if let Some(p) = r["paid"].as_str() { pay(db, p).await? } else { None };
             (f, Some(format!("r:{id}")))
         }
         _ => (None, None),
@@ -143,7 +146,7 @@ async fn trail(Extension(me): Extension<crate::Me>, Path((kind, id)): Path<(Stri
         return Err(err(StatusCode::NOT_FOUND, "없음"));
     };
     let now = now.take().filter(|k| nodes.iter().any(|n| n["key"] == *k)).unwrap_or(key);
-    Ok(Json(json!({ "now": now, "nodes": nodes, "edges": edges })))
+    Ok(Json(json!({ "for": [path, id], "now": now, "nodes": nodes, "edges": edges })))
 }
 
 pub async fn seed(_: &Db) -> Result<()> {
@@ -165,6 +168,8 @@ pub async fn check(c: &mut Check) -> Result<()> {
     ensure!(mine.len() == 5, "추인 작업 {}건", mine.len());
     let old = s(&mine.iter().find(|t| s(&t["target"]).starts_with("2026-01")).cloned().unwrap_or_default()["target"]);
     let t = c.get(exec, &format!("/api/trail/ratify/{old}")).await?;
+    // 화면(16-경위/index.tsx의 Trail)이 읽는 칸 전체: for, now, nodes[key kind name at who go{kind id}], edges[[a, b]]
+    ensure!(t["for"] == json!(["ratify", old]) && t["now"].is_string() && rows(&t["nodes"]).iter().all(|n| ["key", "kind", "name", "at", "who", "go"].iter().all(|k| n.get(*k).is_some()) && n["go"]["kind"].is_string() && n["go"]["id"].is_string()) && rows(&t["edges"]).iter().all(|e| e[0].is_string() && e[1].is_string()), "응답의 꼴 {t}");
     ensure!(kinds(&t) == ["재검토", "재검토", "재검토", "작업"] && t["now"] == format!("b:{old}").as_str() && rows(&t["nodes"]).iter().all(|n| n["at"].is_null()), "원본의 추인 경위 {t}");
     ensure!(edges(&t).len() == 3 && edges(&t).iter().all(|(_, to)| *to == format!("b:{old}")), "원본의 선");
     // 없는 대상, 거슬러 오를 것이 없는 대상, 모르는 종류는 없음
@@ -178,6 +183,9 @@ pub async fn check(c: &mut Check) -> Result<()> {
     let pay = s(&pays.iter().find(|p| p["name"] == "한라인상사34").cloned().unwrap_or_default()["id"]);
     let t = c.get(acct, &format!("/api/trail/pay/{pay}")).await?;
     ensure!(kinds(&t) == ["승인", "지급"] && edges(&t).len() == 1 && s(&node(&t, "승인")["who"]["role"]) == support, "승인 뒤의 지급 경위 {t}");
+    // 승인한 보통의 심사(재심사 기록 없음)도 그 지급의 경위로 열리고, 지금 칸은 그 승인이다
+    let u = c.get(exec, &format!("/api/trail/review/{r34}")).await?;
+    ensure!(u["nodes"] == t["nodes"] && u["now"] == format!("r:{r34}").as_str(), "보통 승인 심사의 경위 {u}");
 
     // 1~3: 주소 변경(변경일 2월 1일, 인지일 7월 1일). 지급의 경위는 승인 → 변경 → 재심사 → 새 심사
     ensure!(c.post(support, "/api/change", json!({ "id": "D-034", "item": "주소", "value": "고양시 중앙로 128", "since": "2026-02-01" })).await?.0 == 200, "변경");

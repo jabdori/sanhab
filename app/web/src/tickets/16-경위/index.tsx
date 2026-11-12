@@ -49,7 +49,7 @@ function List() {
     .sort((a, b) => (a.n.at ?? '').localeCompare(b.n.at ?? '') || a.i - b.i)
   return (
     <div className="flex flex-col gap-2">
-      <Toggle pressed={open} onPressedChange={setOpen} className={`${button} self-start data-pressed:text-text`}>
+      <Toggle pressed={open} onPressedChange={setOpen} className={`${button} self-start aria-pressed:bg-surface`}>
         {L.그림}
       </Toggle>
       <Table head={[L.날짜, L.종류, L.대상]} rows={rows.map(({ n }) => [n.at ?? L.미상, n.kind, <Go key={n.key} node={n} />])} current={rows.findIndex(({ n }) => n.key === d.now)} />
@@ -58,9 +58,10 @@ function List() {
 }
 
 // 그림의 치수(theme.css의 간격 단위 4의 배수)
-const W = 172
-const H = 88
-const GAP_X = 40
+// 가운데 폭에 맞춰 줄어들도록 칸을 좁게 잡고, 그래도 넘으면 그림 전체가 비율대로 줄어든다
+const W = 104
+const H = 128
+const GAP_X = 20
 const GAP_Y = 12
 
 /** 지금 대상의 줄기: 지금 칸에서 원인 쪽과 결과 쪽으로 이어진 칸 전부 */
@@ -101,7 +102,7 @@ function Picture() {
   const height = (Math.max(...Object.values(rows)) + 1) * (H + GAP_Y) - GAP_Y
   return (
     <div className="overflow-x-auto">
-      <svg role="img" aria-label={L.경위} width={width} height={height} className="text-label">
+      <svg role="img" aria-label={L.경위} viewBox={`0 0 ${width} ${height}`} width={width} height={height} className="h-auto max-w-full text-label">
         <defs>
           <marker id="head" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" orient="auto">
             <path d="M0 0L8 4L0 8z" className="fill-text-mute" />
@@ -131,21 +132,21 @@ function Picture() {
               type="button"
               aria-current={n.key === d.now || undefined}
               onClick={() => setTarget(n.go)}
-              className={`flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-box border bg-bg px-2 py-1 text-left hover:bg-surface ${on.has(n.key) ? 'border-2 border-text' : 'border-line'}`}
+              className={`flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-box border px-2 py-1 text-left hover:bg-surface ${n.key === d.now ? 'border-2 border-text bg-surface' : on.has(n.key) ? 'border-text-sub bg-bg' : 'border-line bg-bg opacity-60'}`}
             >
               <span className={`${label} tabular-nums`}>
                 {n.kind} {n.at ?? L.미상}
               </span>
-              <span className="truncate text-body" title={n.name}>
+              <span className="line-clamp-2 text-body break-keep" title={n.name}>
                 {n.name}
               </span>
               {n.who?.role && (
-                <span className={`${label} truncate`}>
+                <span className={`${label} line-clamp-2`}>
                   {[n.who.role, n.who.reason?.class].filter(Boolean).join(' · ')}
                 </span>
               )}
               {n.who?.reason?.memo && (
-                <span className={`${label} truncate`} title={n.who.reason.memo}>
+                <span className={`${label} line-clamp-2`} title={n.who.reason.memo}>
                   {n.who.reason.memo}
                 </span>
               )}
