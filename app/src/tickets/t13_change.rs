@@ -69,7 +69,8 @@ async fn change(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<M
 pub async fn regroup(db: &Db) -> Result<()> {
     let plan = compute(db, &[]).await?;
     let open = q1(db, "SELECT record::id(id) AS id, name, members.map(|$d| record::id($d)) AS members, payouts.map(|$p| record::id($p)) AS payouts FROM review
-        WHERE fixed = NONE AND (count(SELECT id FROM decision WHERE review = $parent.id AND was = NONE) > 0 OR count(SELECT id FROM resubmit WHERE review = $parent.id AND was = NONE) > 0);", json!({})).await?;
+        WHERE fixed = NONE AND (count(SELECT id FROM decision WHERE (review = $parent.id AND was = NONE) OR moved = $parent.id) > 0
+            OR count(SELECT id FROM resubmit WHERE (review = $parent.id AND was = NONE) OR moved = $parent.id) > 0);", json!({})).await?;
     let mut moves = vec![];
     for r in open.as_array().into_iter().flatten() {
         let mine = |p: &&J| p["payouts"].as_array().is_some_and(|ps| ps.iter().any(|x| r["payouts"].as_array().is_some_and(|o| o.contains(x))));
@@ -82,6 +83,9 @@ pub async fn regroup(db: &Db) -> Result<()> {
     q(db, "FOR $m IN $moves {
             LET $o = type::record('review', $m.old);
             LET $n = type::record('review', $m.new);
+            -- 한 번 옮겨진 기록은 처음의 이름(was)을 두고 가리키는 새 심사(moved)만 바꾼다(연속 변경, 소명 인정으로 id가 다시 바뀌어도 이력에 남는다)
+            UPDATE decision SET moved = $n WHERE moved = $o;
+            UPDATE resubmit SET moved = $n WHERE moved = $o;
             UPDATE decision SET was = $m.name, moved = $n WHERE review = $o AND was = NONE;
             UPDATE resubmit SET was = $m.name, moved = $n WHERE review = $o AND was = NONE;
             -- 재상신 작업은 닫고 새 심사를 가리키게 둔다(06의 t06_gone이 지우지 않게)
@@ -340,6 +344,22 @@ async fn merged(c: &mut Check) -> Result<()> {
         // 영업임원은 처음부터 판단한다: 승인할 수 있다(정황이 걸려 사유 필수)
         ensure!(c.post(exec, "/api/decide", json!({ "ids": [id], "kind": "승인", "reason": { "class": "정상" } })).await?.0 == 200, "{case}: 영업임원의 승인");
     }
+
+    // 연속 변경 본보기: 금강상사41 쪽 보류 → 주소 변경으로 한라인상사34 외 1에 합침 → 대성상사1이 6월부터 같은 대표자·주소를 쓰면
+    // 심사의 id가 2026-06-D-001로 바뀐다. 옛 보류는 처음의 이름(금강상사41) 그대로 새 심사의 이력에 남는다
+    c.reset().await?;
+    let why = json!({ "class": "정황", "memo": "연속 변경 본보기" });
+    ensure!(c.post(support, "/api/decide", json!({ "ids": ["2026-06-D-041"], "kind": "보류", "reason": why })).await?.0 == 200, "본보기: 보류");
+    ensure!(c.post(support, "/api/change", change).await?.0 == 200, "본보기: 첫 변경");
+    for (item, value) in [("대표자", "박준호"), ("주소", "고양시 중앙로 128")] {
+        ensure!(c.post(support, "/api/change", json!({ "id": "D-001", "item": item, "value": value, "since": "2026-06-01" })).await?.0 == 200, "본보기: 대성상사1의 {item}");
+    }
+    let id = "2026-06-D-001";
+    let r = c.get(exec, &format!("/api/reviews/{id}")).await?;
+    ensure!(r["review"]["status"] == "대기" && r["review"]["approver"] == exec && r["members"].as_array().map_or(0, Vec::len) == 3, "본보기: 새 심사 {}", r["review"]);
+    ensure!(c.call(Some(c.token(exec)), "GET", "/api/reviews/2026-06-D-034", None).await?.0 == 404, "본보기: 앞의 합친 심사");
+    let l = c.get(exec, &format!("/api/reviews/{id}/resubmit")).await?["lines"].clone();
+    ensure!(l.as_array().is_some_and(|a| a.len() == 1) && l[0]["kind"] == "보류" && l[0]["was"] == "금강상사41" && l[0]["reason"] == why, "본보기: 이력 {l}");
     Ok(())
 }
 
