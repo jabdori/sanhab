@@ -45,4 +45,5 @@ tickets! {
     t21_lapse,
     t12_hypo,
     t22_rules,
+    t24_chat,
 }

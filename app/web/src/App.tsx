@@ -4,7 +4,7 @@ import { Band } from './Band'
 import { Enter } from './Enter'
 import { L } from './labels'
 import { type Slot, SlotView, usePieces } from './pieces'
-import { listOpenAtom, MENUS, menuAtom, roleAtom, rolesAtom, targetAtom } from './state'
+import { chatOpenAtom, listOpenAtom, MENUS, menuAtom, roleAtom, rolesAtom, targetAtom } from './state'
 import { label } from './ui/styles'
 
 /** 오른쪽(판단)의 칸. 순서 고정 */
@@ -31,8 +31,10 @@ function Shell() {
   const wide = usePieces('list').length > 0 && !target
   // 소명을 열면 목록이 접힌다(서류에 폭을 준다, ux-plan). 접힌 자리의 손잡이를 누르면 펼쳐지고, 다른 대상을 열면 다시 접힌다
   const [listOpen, setListOpen] = useAtom(listOpenAtom)
-  useEffect(() => setListOpen(false), [target, setListOpen])
-  const folded = target?.kind === L.소명 && !listOpen
+  const chatOpen = useAtomValue(chatOpenAtom)
+  useEffect(() => setListOpen(false), [target, chatOpen, setListOpen])
+  // 대화를 펼쳐도 목록이 나머지를 다 쓰고 있을 때(대상이 없을 때)는 접을 것이 없다
+  const folded = (target?.kind === L.소명 || (chatOpen && !wide)) && !listOpen
   return (
     <div className="flex h-screen min-w-page flex-col text-body">
       <Band />
