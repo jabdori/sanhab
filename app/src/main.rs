@@ -81,9 +81,7 @@ async fn gate(State(db): State<Db>, mut req: Request, next: Next) -> Result<Resp
 async fn sign_all(db: &Db, pass: &str) -> anyhow::Result<J> {
     let mut roles = vec![];
     for (user, role) in tickets::ROLES {
-        let t0 = std::time::Instant::now();
         let t = tokio::time::timeout(std::time::Duration::from_secs(30), db::signin(db, user, pass)).await.map_err(|_| anyhow::anyhow!("{user} 로그인 30초 초과"))??;
-        println!("signin {user} {:.1}s", t0.elapsed().as_secs_f32());
         roles.push(json!({ "role": role, "token": t }));
     }
     Ok(json!({ "roles": roles }))
@@ -102,6 +100,10 @@ async fn tokens(db: &Db, fresh: bool) -> anyhow::Result<J> {
         }
     }
     let t = sign_all(db, &demo_pass()).await?;
+    // 받은 토큰의 세션도 미리 인증해 둔다(첫 화면이 기다리지 않게)
+    for r in t["roles"].as_array().into_iter().flatten() {
+        db::as_user(db, r["token"].as_str().unwrap_or("")).await?;
+    }
     *TOKENS.lock().unwrap() = Some((t.clone(), std::time::Instant::now()));
     Ok(t)
 }
@@ -164,6 +166,7 @@ async fn seed_all(db: &Db, name: &str, ver: &str) -> anyhow::Result<()> {
         q(db, s, json!({})).await?;
     }
     tickets::seed(db).await?;
+    db::forget_sessions();
     *TOKENS.lock().unwrap() = None; // 다시 적재하면 접속 역할이 새로 만들어져 받아 둔 토큰이 무효가 된다
     q(db, "UPDATE meta:v SET schema = $ver;", json!({ "ver": ver })).await?;
     Ok(())
@@ -233,10 +236,10 @@ async fn main() -> anyhow::Result<std::process::ExitCode> {
             let d = db.clone();
             tokio::spawn(async move {
                 let t0 = std::time::Instant::now();
-                match tokio::time::timeout(std::time::Duration::from_secs(90), tokens(&d, true)).await {
+                match tokio::time::timeout(std::time::Duration::from_secs(600), tokens(&d, true)).await {
                     Ok(Ok(_)) => println!("tokens ready {:.1}s", t0.elapsed().as_secs_f32()),
                     Ok(Err(e)) => println!("tokens failed {:.1}s: {e:#}", t0.elapsed().as_secs_f32()),
-                    Err(_) => println!("tokens timeout 90s"),
+                    Err(_) => println!("tokens timeout 600s"),
                 }
             });
         }
