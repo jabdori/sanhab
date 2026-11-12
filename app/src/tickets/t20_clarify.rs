@@ -191,6 +191,17 @@ pub async fn check(c: &Check) -> Result<()> {
     let pending = open("d", "D-024", "D-011").await?;
     ensure!(verdict(audit, &pending, "인정", json!({ "class": "입증" })).await? == "상태" && state(&pending).await? == "요청", "서류가 접수되기 전의 결과");
     ensure!(q1(&c.db, "RETURN count(SELECT id FROM verdict);", json!({})).await? == 0 && state(&x).await? == "접수" && shape().await? == before, "거절된 결과가 남음");
+    // 동시에 둘이 정하면 하나만 되고 진 쪽은 상태다(소명 하나에 결과는 한 번)
+    let race = open("e", "D-024", "D-011").await?;
+    ensure!(up(&race, png2).await? == 200, "접수 e");
+    let (r1, r2) = tokio::join!(c.post(audit, "/api/verdict", json!({ "id": race, "kind": "불인정", "reason": { "class": "일치" } })), c.post(audit, "/api/verdict", json!({ "id": race, "kind": "인정", "reason": { "class": "입증" } })));
+    let mut got = [r1?, r2?];
+    got.sort_by_key(|g| g.0);
+    ensure!(got[0].0 == 200 && got[1] == (400, json!({ "error": "상태" })) && q1(&c.db, "RETURN count(SELECT id FROM verdict);", json!({})).await? == 1, "동시에 정한 결과 {got:?}");
+    // 되돌린다(아래의 확인은 이 소명이 없던 때의 값이다)
+    q(&c.db, "DELETE verdict; UPDATE rep, addr, acct SET excluded = false, ex_from = NONE, ex_to = NONE, excused = NONE WHERE excused != NONE; UPDATE clarify SET state = '접수';", json!({})).await?;
+    super::t04_review::recalc(&c.db).await?;
+    super::t09_again::remark(&c.db).await?;
     // DB를 직접 써도: 다른 역할은 결과를 만들지 못하고 선을 고치지 못한다
     for role in [support, exec, acct] {
         let s = as_user(&c.db, c.token(role)).await?;
