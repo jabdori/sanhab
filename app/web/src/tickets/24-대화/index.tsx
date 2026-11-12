@@ -15,6 +15,8 @@ import { button, label } from '../../ui/styles'
 /** 답에 붙는 조회한 기록(서버가 `data-reads`로 보낸다) */
 type Talk = UIMessage<never, { reads: { ids: string[] } }>
 
+/** 칩에 보이는 이름. 아직 받지 못했거나 모르면 id */
+const key = (t: Target) => `${t.kind}/${t.id}`
 const same = (a: Target, b: Target) => a.kind === b.kind && a.id === b.id
 const chip = 'max-w-full cursor-pointer rounded-pill border border-line px-2 text-label wrap-anywhere hover:text-action-hover'
 /** 임시를 드러내는 점선 테두리(보고의 실선 칸과 구분) */
@@ -40,6 +42,18 @@ function Panel() {
   // 보낼 때의 문맥을 읽는 곳(전송기는 한 번만 만든다)
   const ctx = useRef<{ target: Target | null; attach: Target[] }>({ target: null, attach: [] })
   const now = follow ? target : null
+  // 칩의 이름(제목 줄과 같은 이름)은 서버에서 한 번에 받아 둔다
+  const [named, setNamed] = useState<Record<string, string | null>>({})
+  const want = [target, ...pinned].filter((t): t is Target => !!t && !(key(t) in named))
+  const wantKey = want.map(key).join('|')
+  useEffect(() => {
+    if (!want.length) return
+    api<{ names: (string | null)[] }>(`/chat/names?items=${encodeURIComponent(JSON.stringify(want))}`).then(
+      (r) => setNamed((n) => ({ ...n, ...Object.fromEntries(want.map((t, i) => [key(t), r.names[i] ?? null])) })),
+      () => {},
+    )
+  }, [wantKey])
+  const shown = (t: Target) => `${t.kind} ${named[key(t)] ?? t.id}`
   ctx.current = { target: now, attach: pinned }
   const [transport] = useState(
     () =>
@@ -89,17 +103,17 @@ function Panel() {
           <span className={label}>{L.문맥}</span>
           {now && (
             <button className={chip} aria-pressed={follow} onClick={() => setFollow(false)}>
-              {now.kind} {now.id}
+              {shown(now)}
             </button>
           )}
           {pinned.map((t) => (
             <button key={`${t.kind}/${t.id}`} className={chip} onClick={() => setPinned(pinned.filter((p) => !same(p, t)))}>
-              {t.kind} {t.id} ×
+              {shown(t)} ×
             </button>
           ))}
           {!follow && target && (
             <button className={`${chip} text-text-mute line-through`} aria-pressed={false} onClick={() => setFollow(true)}>
-              {target.kind} {target.id}
+              {shown(target)}
             </button>
           )}
         </div>

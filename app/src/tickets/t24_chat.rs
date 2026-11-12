@@ -13,15 +13,15 @@ use aisdk::core::language_model::LanguageModelResponseContentType;
 use aisdk::core::{AssistantMessage, LanguageModelRequest, LanguageModelStreamChunkType, Message, SystemMessage, UserMessage};
 use aisdk::providers::openai::OpenAI;
 use anyhow::{Result, ensure};
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
-use axum::routing::post;
+use axum::routing::{get, post};
 use axum::{Extension, Json, Router};
 use futures::{Stream, StreamExt};
 use serde_json::{Value as J, json};
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::convert::Infallible;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -199,7 +199,19 @@ async fn canned(model: &str, ai: &Db, system: &str, talk: &[(String, String)], s
 }
 
 pub fn routes() -> Router<Arc<Db>> {
-    Router::new().route("/chat", post(chat)).route("/chat/report", post(keep))
+    Router::new().route("/chat", post(chat)).route("/chat/report", post(keep)).route("/chat/names", get(names))
+}
+
+/// 문맥 칩의 이름: `?items=[{ kind, id }]` → `{ names: [이름|null] }`. 화면이 제목 줄에 보이는 이름과 같다(정황 · 대리점 · 소명은 name, 심사는 `이름 · 귀속월`, 지급은 `대리점 · 귀속월`, 조항은 title).
+/// 모르는 종류나 없는 기록은 null(화면은 id를 보인다). 읽기 한 번이다
+async fn names(State(db): State<Arc<Db>>, Query(q): Query<HashMap<String, String>>) -> R {
+    let items: Vec<J> = serde_json::from_str::<Vec<J>>(q.get("items").map_or("[]", String::as_str)).map_err(|_| refuse("대상"))?;
+    if items.len() > ATTACH + 1 { return Err(refuse("대상")); }
+    let items: Vec<J> = items.iter().map(|i| rec(i).map(|r| json!({ "tb": table_of(&r.kind).unwrap_or("meta"), "id": r.id }))).collect::<Option<_>>().ok_or_else(|| refuse("대상"))?;
+    let names = q1(&db, "RETURN $items.map(|$i| (SELECT VALUE IF $i.tb = 'review' THEN name + ' · ' + ym
+            ELSE IF $i.tb = 'payout' THEN (->payout_of->dealer)[0].name + ' · ' + ym
+            ELSE IF $i.tb = 'clause' THEN title ELSE name END FROM type::record($i.tb, $i.id))[0]);", json!({ "items": items })).await?;
+    Ok(Json(json!({ "names": names })))
 }
 
 /// 답을 조각으로 흘린다. 프록시가 모아 두지 않게 하는 머리글을 둔다(AXHub는 웹소켓이 없어 이 응답 본문이 길이다)
@@ -316,6 +328,11 @@ pub async fn check(c: &Check) -> Result<()> {
         let (ev, _) = (talk("gpt-검사".into(), None, ai.clone(), SYSTEM.into(), vec![("user".into(), "안녕".into())]).collect::<Vec<_>>().await, ());
         ensure!(ev.iter().any(|e| e["type"] == "error" && e["errorText"] == "키") && said(&ev).is_empty(), "키 없음 {ev:?}");
 
+        // 문맥 칩의 이름: 화면의 제목 줄과 같은 이름
+        let it = urlenc(&json!([{ "kind": "정황", "id": "계좌-D-024" }, { "kind": "대리점", "id": "D-011" }, { "kind": "심사", "id": "2026-06-D-001" }, { "kind": "모름", "id": "x" }, { "kind": "정황", "id": "없음" }]).to_string());
+        let n = c.get(audit, &format!("/api/chat/names?items={it}")).await?;
+        ensure!(n["names"][0] == "계좌 · 성일상사24" && n["names"][1] == "금강상사11" && n["names"][2].is_string() && n["names"][3].is_null() && n["names"][4].is_null(), "이름 {n}");
+
         // 보고로 남기기: 대상이 정황이 아니거나 AI의 답이 없는 대화는 400 `대상`
         set("fixture");
         let bank = "계좌-D-024";
@@ -348,6 +365,7 @@ pub async fn check(c: &Check) -> Result<()> {
     *USE.lock().unwrap() = was;
     res
 }
+fn urlenc(s: &str) -> String { s.bytes().map(|b| if b.is_ascii_alphanumeric() { (b as char).to_string() } else { format!("%{b:02X}") }).collect() }
 fn r_id(d: &J) -> J { d["report"]["id"].clone() }
 
 #[cfg(test)]
