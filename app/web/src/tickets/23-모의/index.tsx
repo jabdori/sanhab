@@ -80,7 +80,7 @@ function Result() {
   const setTarget = useSetAtom(targetAtom)
   const box = useRef<HTMLElement>(null)
   // 가정 목록 아래에 놓이므로 결과가 새로 오면 화면에 보이게 한다
-  useEffect(() => box.current?.scrollIntoView({ block: 'start' }), [r])
+  useEffect(() => { box.current?.scrollIntoView({ block: 'start' }) }, [r]) // 값을 돌려주지 않는다: 어떤 브라우저는 scrollIntoView가 Promise를 돌려주고 React가 그것을 정리 함수로 불러 화면이 비었다
   if (!r || !info || r.role !== role) return null
   const m = r.mock
   return (
