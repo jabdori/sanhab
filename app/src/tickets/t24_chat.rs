@@ -4,7 +4,7 @@
 //! AI는 17의 읽기 전용 계정(`ai_session`)의 `read_db`만 쓴다. 답 아래의 조회한 기록 목록은 AI가 쓰지 않고, 도구가 돌려준 결과에서 코드가 찾아 붙인다(`data-reads`).
 //! 자동 검사는 OpenAI를 부르지 않는다: 모델 이름이 `fixture`로 시작하면 고정한 답을 쓰고(`fixture-down` 응답 없음, `fixture-slow` 느리게 흐름), 키는 인자로 받는다.
 use super::t25_card::{card_tool, make as make_card};
-use super::t26_chatdoc::{Up, doc_tool, files_of, hand};
+use super::t26_chatdoc::{Up, distinct, doc_tool, files_of, hand};
 use super::t17_report::{USE, ai_session, ask, basis, model, read_db, read_tool, settle, verify};
 use crate::check::Check;
 use crate::db::{Db, q1};
@@ -98,7 +98,7 @@ fn parse(b: &J, asking: bool) -> Result<Ask, ApiError> {
         Some(a) if a.len() <= ATTACH => a.iter().map(|r| rec(r).ok_or_else(bad)).collect::<Result<_, _>>()?,
         Some(_) => return Err(bad()),
     };
-    Ok(Ask { talk, target, attach, files })
+    Ok(Ask { talk, target, attach, files: distinct(files) })
 }
 
 /// 모델에게 알리는 문맥: 역할, 지금 열어 둔 대상(끄면 없다), 붙인 기록

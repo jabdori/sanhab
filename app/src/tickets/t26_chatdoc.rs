@@ -22,6 +22,21 @@ pub async fn seed(_db: &Db) -> Result<()> { Ok(()) }
 pub(super) struct Up { pub name: String, pub mime: String, pub bytes: Vec<u8> }
 
 /// 메시지의 파일 파트(`{ type: 'file', mediaType, filename, url: 'data:<종류>;base64,…' }`)에서 파일을 꺼낸다. 읽을 수 없는 것은 건너뛴다(종류와 크기는 접수가 따진다)
+/// 같은 파일(내용이 같은 것)은 하나로, 이름이 같은 다른 파일은 두 번째부터 이름에 순번을 붙인다(`1.png`, `1-2.png`)
+pub(super) fn distinct(files: Vec<Up>) -> Vec<Up> {
+    let mut out: Vec<Up> = vec![];
+    for mut f in files {
+        if out.iter().any(|o| o.bytes == f.bytes) { continue; }
+        let n = out.iter().filter(|o| o.name == f.name || o.name.starts_with(&format!("{}-", f.name.rsplit_once('.').map_or(f.name.as_str(), |x| x.0)))).count();
+        if n > 0 {
+            let (stem, ext) = f.name.rsplit_once('.').map_or((f.name.as_str(), String::new()), |(a, b)| (a, format!(".{b}")));
+            f.name = format!("{stem}-{}{ext}", n + 1);
+        }
+        out.push(f);
+    }
+    out
+}
+
 pub(super) fn files_of(parts: &[J]) -> Vec<Up> {
     parts.iter().filter(|p| p["type"] == "file").filter_map(|p| {
         let b64 = p["url"].as_str()?.strip_prefix("data:")?.split_once(";base64,")?.1;
@@ -38,11 +53,17 @@ pub(super) async fn hand(me: &Db, files: &[Up], clarify: &str, file: &str) -> (S
     let Some(up) = (if file.is_empty() && files.len() == 1 { files.first() } else { files.iter().find(|f| f.name == file) }) else {
         return no(&if files.is_empty() { "넘길 파일이 없다: 대화에 올라온 파일이 없다".to_string() } else { format!("어느 파일인지 묻는다: {}", files.iter().map(|f| f.name.as_str()).collect::<Vec<_>>().join(", ")) });
     };
+    // 후보는 이름으로만 보인다(id는 화면에 나가지 않게): 사용자에게는 이름을, 도구에는 번호를 준다
+    let open = q1(me, "RETURN (SELECT name, record::id(id) AS id FROM clarify WHERE fn::uploadable(id) ORDER BY id);", json!({})).await.unwrap_or_default();
+    let open = open.as_array().cloned().unwrap_or_default();
     if clarify.is_empty() {
-        let open = q1(me, "RETURN (SELECT VALUE string::concat(name, ' (', record::id(id), ')') FROM clarify WHERE fn::uploadable(id));", json!({})).await.unwrap_or_default();
-        let open: Vec<&str> = open.as_array().map(|a| a.iter().filter_map(J::as_str).collect()).unwrap_or_default();
-        return no(&if open.is_empty() { "넘길 수 있는 소명이 없다: 요청 상태이고 발송한 소명이 없다. 파일을 넘기지 않았다".to_string() } else { format!("어느 소명인지 묻는다. 서류를 받을 수 있는 소명: {}", open.join(", ")) });
+        return no(&if open.is_empty() { "넘길 수 있는 소명이 없다: 요청 상태이고 발송한 소명이 없다. 파일을 넘기지 않았다".to_string() } else {
+            format!("어느 소명인지 묻는다. 서류를 받을 수 있는 소명(사용자에게는 이름만 말하고, 고르면 번호로 부른다): {}", open.iter().enumerate().map(|(i, o)| format!("{} {}", i + 1, o["name"].as_str().unwrap_or_default())).collect::<Vec<_>>().join(", "))
+        });
     }
+    // 번호이면 후보의 id로 바꾼다
+    let picked = clarify.parse::<usize>().ok().and_then(|n| open.get(n.checked_sub(1)?)).and_then(|o| o["id"].as_str());
+    let clarify = picked.unwrap_or(clarify);
     // 같은 소명에 같은 파일은 다시 넘기지 않는다(대화는 파일을 매번 다시 보낸다)
     let dup = q1(me, "RETURN count(SELECT id FROM doc WHERE clarify = type::record('clarify', $id) AND sha = $sha);", json!({ "id": clarify, "sha": sha(&up.bytes) })).await.ok().and_then(|n| n.as_u64()).unwrap_or(0);
     if dup > 0 { return no("이미 넘긴 파일이다"); }
@@ -63,7 +84,7 @@ pub(super) async fn hand(me: &Db, files: &[Up], clarify: &str, file: &str) -> (S
 #[allow(dead_code)] // 입력의 꼴은 모델에게 보이는 스키마로만 쓰인다
 // 칸은 모두 필수다(OpenAI의 strict 도구 규칙) — 정해지지 않았으면 빈 글
 struct DocInput {
-    /// 서류를 받을 소명의 id. 사용자가 말했거나 열어 둔 대상이 소명일 때만 쓴다. 정해지지 않았으면 빈 글(추측하지 않는다)
+    /// 서류를 받을 소명의 id 또는 후보 목록의 번호. 사용자가 말했거나 열어 둔 대상이 소명일 때만 쓴다. 정해지지 않았으면 빈 글(추측하지 않는다)
     clarify: String,
     /// 넘길 파일의 이름. 올라온 파일이 하나뿐이면 빈 글
     file: String,
@@ -129,7 +150,7 @@ pub async fn check(c: &Check) -> Result<()> {
         let (a, b) = (&ids[0], &ids[1]);
         // 어느 소명인지 정해지지 않으면 묻고, 아무것도 넘기지 않는다
         let (text, done) = say(support, "서류||", true).await?;
-        ensure!(done.is_empty() && text.contains("어느 소명") && text.contains(a.as_str()) && text.contains(b.as_str()) && count(a).await? == 0 && count(b).await? == 0, "어느 소명 {text}");
+        ensure!(done.is_empty() && text.contains("어느 소명") && text.contains("1 ") && text.contains("2 ") && !text.contains(a.as_str()) && !text.contains(b.as_str()) && count(a).await? == 0 && count(b).await? == 0, "어느 소명 {text}");
         // 파일이 없으면 넘길 것이 없다
         let (text, done) = say(support, &format!("서류|{a}|"), false).await?;
         ensure!(done.is_empty() && text.contains("넘길 파일이 없다") && count(a).await? == 0, "파일 없음 {text}");
@@ -155,7 +176,10 @@ pub async fn check(c: &Check) -> Result<()> {
         let (text, done) = say(support, &format!("서류|{a}|"), true).await?;
         ensure!(done.is_empty() && count(a).await? == 1, "접수 뒤 {text}");
         let (text, done) = say(support, "서류||", true).await?;
-        ensure!(done.is_empty() && text.contains("어느 소명") && text.contains(b.as_str()) && !text.contains(a.as_str()), "후보는 요청 상태만 {text}");
+        ensure!(done.is_empty() && text.contains("어느 소명") && text.contains("1 ") && !text.contains("2 ") && !text.contains(b.as_str()), "후보는 요청 상태만, id 없이 {text}");
+        // 번호로 고르면 그 소명에 넘어간다
+        let (text, done) = say(support, "서류|1|", true).await?;
+        ensure!(text.contains("넘겼다") && done.len() == 1 && done[0]["id"] == b.as_str() && count(b).await? == 1, "번호로 고름 {text}");
         // 넘겨진 파일도 판독 · 정리 · 비교를 똑같이 거친다
         *READ.lock().unwrap() = Some("fixture".into());
         for _ in 0..2 {
@@ -170,4 +194,15 @@ pub async fn check(c: &Check) -> Result<()> {
     }.await;
     *USE.lock().unwrap() = was;
     res
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn up(n: &str, b: u8) -> Up { Up { name: n.into(), mime: "image/png".into(), bytes: vec![b] } }
+    #[test]
+    fn same_bytes_once_same_name_numbered() {
+        let l = distinct(vec![up("1.png", 1), up("1.png", 1), up("1.png", 2), up("1.png", 3), up("a", 4), up("a", 5)]);
+        assert_eq!(l.iter().map(|f| f.name.as_str()).collect::<Vec<_>>(), ["1.png", "1-2.png", "1-3.png", "a", "a-2"]);
+    }
 }
