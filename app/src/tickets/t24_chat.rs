@@ -28,7 +28,7 @@ use std::time::Duration;
 
 pub const SCHEMA: &str = include_str!("../../db/24-대화.surql");
 
-/// 한 번에 받는 대화의 길이(말의 수, 말 하나의 글자 수), 붙일 수 있는 기록의 수, 답을 기다리는 시간(초)
+/// 한 번에 쓰는 대화의 길이(마지막 말의 수, 말 하나의 글자 수), 붙일 수 있는 기록의 수, 답을 기다리는 시간(초)
 const TURNS: usize = 20;
 const CHARS: usize = 4000;
 const ATTACH: usize = 5;
@@ -41,13 +41,13 @@ const TABLES: [&str; 22] = [
     "doc", "verdict", "report", "rule", "clause", "task", "decision", "ratify", "dispatch", "adoption", "act",
 ];
 const LISTED: usize = 30;
-/// 기록(`$r`)의 사람이 읽는 이름. 화면의 제목 줄과 같다. 이름이 없는 기록(작업 · 결정 …)은 NONE
-const NAME: &str = "(SELECT VALUE IF record::tb(id) = 'review' THEN name + ' · ' + ym
+/// 기록(`$r`)의 사람이 읽는 이름. 화면의 제목 줄과 같다. 기록이 없으면 NONE, 이름이 없는 기록(작업 · 결정 …)은 빈 글
+const NAME: &str = "(SELECT VALUE (IF record::tb(id) IN ['review', 'ratify'] THEN name + ' · ' + ym
     ELSE IF record::tb(id) = 'payout' THEN (->payout_of->dealer)[0].name + ' · ' + ym
     ELSE IF record::tb(id) = 'deposit' THEN (->deposit_of->dealer)[0].name
     ELSE IF record::tb(id) = 'rule' THEN name + ' v' + <string> ver
     ELSE IF record::tb(id) = 'clause' THEN title
-    ELSE IF record::tb(id) IN ['address', 'account'] THEN value ELSE name END FROM $r)[0]";
+    ELSE IF record::tb(id) IN ['address', 'account'] THEN value ELSE name END) ?? '' FROM $r)[0]";
 
 pub const SYSTEM: &str = "너는 판매장려금 심사 화면의 대화 도우미다. 사용자가 묻는 것을 DB를 읽어 설명한다.
 DB는 read_db 도구로만 읽는다(SurrealQL의 SELECT와 RETURN만. 쓰기는 되지 않는다). 테이블: dealer(name) · person · address · account · rep/addr/acct(대리점 → 사람/주소/계좌 선) · deposit(회수) · payout(지급: ym, amount, status) · review(심사) · signal(정황) · clarify(소명) · rule(규칙) · clause(조항) · recon(대사) · task(작업). 칸을 모르면 SELECT * FROM 테이블 LIMIT 2로 먼저 본다. id에 -가 있으면 `D-024`처럼 백틱으로 감싼다.
@@ -70,7 +70,7 @@ fn rec(v: &J) -> Option<Rec> {
 }
 /// 화면의 대상 종류가 가리키는 테이블
 fn table_of(kind: &str) -> Option<&'static str> {
-    Some(match kind { "심사" => "review", "정황" => "signal", "소명" => "clarify", "대리점" => "dealer", "지급" => "payout", "규정" => "clause", _ => return None })
+    Some(match kind { "심사" => "review", "정황" => "signal", "소명" => "clarify", "대리점" => "dealer", "지급" => "payout", "규정" => "clause", "추인" => "ratify", _ => return None })
 }
 
 /// 요청의 본문: (대화, 문맥, 붙인 기록). 틀리면 400 `대상`
@@ -78,9 +78,10 @@ struct Ask { talk: Vec<(String, String)>, target: Option<Rec>, attach: Vec<Rec> 
 /// `asking`이면 마지막이 사람의 말이어야 한다(답을 청하는 요청). 보고로 남길 때는 AI의 답으로 끝난다
 fn parse(b: &J, asking: bool) -> Result<Ask, ApiError> {
     let bad = || refuse("대상");
-    let list = b["messages"].as_array().filter(|m| !m.is_empty() && m.len() <= TURNS).ok_or_else(bad)?;
+    let list = b["messages"].as_array().filter(|m| !m.is_empty()).ok_or_else(bad)?;
     let mut talk = vec![];
-    for m in list {
+    // 대화가 길어지면 마지막 TURNS개만 쓴다(거절하지 않는다)
+    for m in &list[list.len().saturating_sub(TURNS)..] {
         let role = m["role"].as_str().filter(|r| ["user", "assistant"].contains(r)).ok_or_else(bad)?;
         let text: String = m["parts"].as_array().ok_or_else(bad)?.iter().filter(|p| p["type"] == "text").filter_map(|p| p["text"].as_str()).collect();
         if text.chars().count() > CHARS { return Err(bad()); }
@@ -98,7 +99,7 @@ fn parse(b: &J, asking: bool) -> Result<Ask, ApiError> {
 
 /// 모델에게 알리는 문맥: 역할, 지금 열어 둔 대상(끄면 없다), 붙인 기록
 fn context(role: &str, a: &Ask, names: &HashMap<String, String>) -> String {
-    let one = |r: &Rec| format!("{} {} (테이블 {}, id {})", r.kind, names.get(&format!("{}/{}", r.kind, r.id)).unwrap_or(&r.id), table_of(&r.kind).unwrap_or_default(), r.id);
+    let one = |r: &Rec| format!("{} {} (테이블 {}, id {})", r.kind, names.get(&format!("{}/{}", r.kind, r.id)).filter(|n| !n.is_empty()).unwrap_or(&r.id), table_of(&r.kind).unwrap_or_default(), r.id);
     let mut s = format!("{SYSTEM}\n사용자의 역할은 {role}이다.");
     match &a.target { Some(t) => s += &format!("\n사용자가 지금 열어 둔 대상: {}. 묻는 말에 대상이 따로 없으면 이것을 가리킨다.", one(t)), None => s += "\n사용자가 열어 둔 대상은 없다." }
     if !a.attach.is_empty() { s += &format!("\n사용자가 붙인 기록: {}.", a.attach.iter().map(one).collect::<Vec<_>>().join(", ")); }
@@ -220,7 +221,7 @@ async fn names(State(db): State<Arc<Db>>, Query(q): Query<HashMap<String, String
     let recs: Vec<Rec> = items.iter().map(rec).collect::<Option<_>>().filter(|r: &Vec<Rec>| r.len() <= ATTACH + 1).ok_or_else(|| refuse("대상"))?;
     Ok(Json(json!({ "names": names_of(&db, &recs).await.map_err(|_| refuse("대상"))? })))
 }
-/// 화면의 기록들의 이름(모르는 종류나 없는 기록은 None)
+/// 화면의 기록들의 이름(모르는 종류나 없는 기록은 None, 기록은 있고 이름이 없으면 빈 글)
 async fn names_of(db: &Db, recs: &[Rec]) -> Result<Vec<Option<String>>> {
     let items: Vec<J> = recs.iter().map(|r| json!({ "tb": table_of(&r.kind).unwrap_or("meta"), "id": r.id })).collect();
     let v = q1(db, &format!("RETURN $items.map(|$i| type::record($i.tb, $i.id)).map(|$r| {NAME});"), json!({ "items": items })).await?;
@@ -231,7 +232,7 @@ async fn reads_names(db: &Db, ids: &[String]) -> Vec<String> {
     let v = q1(db, &format!("RETURN $ids.map(|$s| type::record($s)).map(|$r| {NAME});"), json!({ "ids": ids })).await.unwrap_or_default();
     let mut out: Vec<String> = vec![];
     for n in v.as_array().into_iter().flatten().filter_map(|n| n.as_str()) {
-        if !out.iter().any(|o| o == n) { out.push(n.into()); }
+        if !n.is_empty() && !out.iter().any(|o| o == n) { out.push(n.into()); }
     }
     out
 }
@@ -261,7 +262,8 @@ async fn keep(State(db): State<Arc<Db>>, Body(b): Body) -> R {
     let a = parse(&b, false).and_then(|a| if a.talk.iter().any(|(r, _)| r == "assistant") { Ok(a) } else { Err(refuse("대상")) })?;
     let signal = a.target.iter().chain(&a.attach).find(|r| r.kind == "정황").ok_or_else(|| refuse("대상"))?;
     let Some(base) = basis(&db, &signal.id).await.map_err(|_| refuse("대상"))? else { return Err(refuse("대상")) };
-    let (input, model, ai) = (sha(&base.to_string()), model(), ai_session(&db).await.map_err(|_| err(StatusCode::SERVICE_UNAVAILABLE, "대기"))?);
+    let basis_hash = sha(&base.to_string());
+    let (model, ai) = ( model(), ai_session(&db).await.map_err(|_| err(StatusCode::SERVICE_UNAVAILABLE, "대기"))?);
     let mut given = base;
     given["conversation"] = json!(a.talk.iter().map(|(r, t)| json!({ "role": r, "text": t })).collect::<Vec<_>>());
     given["note"] = json!("conversation은 사람과 AI가 나눈 대화다. 그 내용 가운데 기록으로 확인되는 것만 사실로 쓴다");
@@ -269,6 +271,8 @@ async fn keep(State(db): State<Arc<Db>>, Body(b): Body) -> R {
     let key = std::env::var("OPENAI_API_KEY").ok();
     let (raw, reads) = ask(&model, key.as_deref(), &ai, &given, today.as_str().unwrap_or_default()).await.map_err(|_| err(StatusCode::SERVICE_UNAVAILABLE, "대기"))?;
     let made = verify(&db, &raw).await.map_err(|w| refuse_with(w))?;
+    // 대화로 남긴 보고의 입력은 `chat:정황 입력의 해시:대화의 해시`다. 조사 보고와 나란히 남고 17의 다시 부르기 판단(같은 입력)에 걸리지 않으며, 17은 앞 해시로 근거가 달라졌는지만 본다
+    let input = format!("chat:{basis_hash}:{}", sha(&json!(a.talk).to_string()));
     let rid = q1(&ai, "RETURN (CREATE report SET target = type::record('signal', $id), input = $input, model = $model)[0].id;", json!({ "id": signal.id, "input": input, "model": model })).await?;
     let rid = rid.as_str().unwrap_or_default();
     let state = settle(&ai, rid, &model, reads, Ok(made)).await?;
@@ -361,6 +365,15 @@ pub async fn check(c: &Check) -> Result<()> {
         let (ev, _) = (talk("gpt-검사".into(), None, ai.clone(), SYSTEM.into(), vec![("user".into(), "안녕".into())]).collect::<Vec<_>>().await, ());
         ensure!(ev.iter().any(|e| e["type"] == "error" && e["errorText"] == "대기") && said(&ev).is_empty(), "키 없음 {ev:?}");
 
+        set("fixture");
+        // 대화가 길어져도(말 25개) 마지막 20개만 쓰고 거절하지 않는다
+        let long: Vec<J> = (0..25).map(|i| if i % 2 == 0 { say("묻는다") } else { bot("답한다") }).collect();
+        ensure!(stream(audit, json!({ "messages": long })).await?.0 == 200, "긴 대화");
+        ensure!(c.post(support, "/api/chat/report", json!({ "messages": long.iter().take(24).collect::<Vec<_>>(), "target": { "kind": "정황", "id": "계좌-D-024" } })).await?.0 == 200, "긴 대화의 보고");
+        // 추인(묶음)도 문맥이 된다: 이름은 `이름 · 귀속월`, 이름이 없는 기록은 거절하지 않는다
+        q1(&c.db, "CREATE ratify:t24 SET ym = '2026-01', name = '금강상사11 외 2', members = [], reviews = [], total = 0, limit = 0, approver = '영업임원', source = '시연';", json!({})).await?;
+        let (code, _, body) = stream(audit, json!({ "messages": [say("안녕")], "target": { "kind": "추인", "id": "t24" } })).await?;
+        ensure!(code == 200 && said(&events(&body).0).contains("추인 금강상사11 외 2 · 2026-01"), "추인 문맥 {body}");
         // 문맥 칩의 이름: 화면의 제목 줄과 같은 이름
         let it = urlenc(&json!([{ "kind": "정황", "id": "계좌-D-024" }, { "kind": "대리점", "id": "D-011" }, { "kind": "심사", "id": "2026-06-D-001" }, { "kind": "모름", "id": "x" }, { "kind": "정황", "id": "없음" }]).to_string());
         let n = c.get(audit, &format!("/api/chat/names?items={it}")).await?;
@@ -371,19 +384,27 @@ pub async fn check(c: &Check) -> Result<()> {
         let bank = "계좌-D-024";
         let keep = async |role: &str, body: J| { let (code, r) = c.post(role, "/api/chat/report", body).await?; Ok::<_, anyhow::Error>((code, r)) };
         let talked = json!([say("이 정황을 알려 줘"), bot("계좌가 같다")]);
+        let before_keep = counts().await?;
         for body in [json!({ "messages": talked }), json!({ "messages": talked, "target": { "kind": "대리점", "id": "D-011" } }), json!({ "messages": [say("a")], "target": { "kind": "정황", "id": bank } }), json!({ "messages": talked, "target": { "kind": "정황", "id": "없음" } })] {
             let (code, r) = keep(support, body.clone()).await?;
             ensure!(word(code, &r)? == "대상", "보고의 대상 {body} → {code} {r}");
         }
-        ensure!(counts().await? == before, "거절한 보고가 남았다");
+        ensure!(counts().await? == before_keep, "거절한 보고가 남았다");
         // 검증을 통과하면 보고(검토)로 저장되고 17의 보고 칸에 올라온다. 근거 기록을 가리킨 사실이 있고 내부 감시가 채택할 수 있다
         let (code, r) = keep(support, json!({ "messages": talked, "target": { "kind": "정황", "id": bank } })).await?;
+        let nrep = || q1(&c.db, "RETURN count(SELECT id FROM report WHERE target = signal:`계좌-D-024`);", json!({}));
         ensure!(code == 200 && r["state"] == "검토" && r["id"].is_string(), "보고 {code} {r}");
         let d = c.get(audit, &format!("/api/signals/{bank}/report")).await?;
         ensure!(d["report"]["id"] == r["id"] && d["report"]["state"] == "검토" && d["report"]["model"] == "fixture" && d["report"]["stale"] == false && d["report"]["facts"].as_array().is_some_and(|f| !f.is_empty())
             && d["actions"].as_array().is_some_and(|a| a.len() == 2), "저장된 보고 {d}");
+        // 조사 보고와 나란히 남는다: 조사는 따로 한 번 돌고, 그 뒤 조사를 눌러도 AI를 다시 부르지 않으며 보고는 근거가 달라진 것으로 보이지 않는다
+        let n0 = nrep().await?;
+        let (code, r) = c.post(audit, "/api/investigate", json!({ "id": bank })).await?;
+        ensure!(code == 200 && r["state"] == "검토" && nrep().await? == json!(n0.as_i64().unwrap_or(0) + 1), "조사 보고 {code} {r} {n0}");
+        ensure!(c.post(audit, "/api/investigate", json!({ "id": bank })).await?.1["state"] == "검토" && nrep().await? == json!(n0.as_i64().unwrap_or(0) + 1), "조사 반복");
         // 붙인 정황으로도 남길 수 있다. 검증을 어기면(없는 기록 · 문장 틀의 숫자) 400과 낱말이고 아무것도 저장하지 않는다
         let n = q1(&c.db, "RETURN count(SELECT id FROM report);", json!({})).await?;
+        let last = c.get(audit, &format!("/api/signals/{bank}/report")).await?["report"]["id"].clone();
         for (m, w) in [("fixture-gap", "기록"), ("fixture-digit", "값")] {
             set(m);
             let (code, r) = keep(audit, json!({ "messages": talked, "target": { "kind": "대리점", "id": "D-011" }, "attach": [{ "kind": "정황", "id": bank }] })).await?;
@@ -392,14 +413,13 @@ pub async fn check(c: &Check) -> Result<()> {
         set("fixture-down");
         let (code, r) = keep(audit, json!({ "messages": talked, "target": { "kind": "정황", "id": bank } })).await?;
         ensure!(code == 503 && r == json!({ "error": "대기" }), "AI 멈춤의 보고 {code} {r}");
-        ensure!(q1(&c.db, "RETURN count(SELECT id FROM report);", json!({})).await? == n && c.get(audit, &format!("/api/signals/{bank}/report")).await?["report"]["id"] == r_id(&d), "실패한 보고가 남았다");
+        ensure!(q1(&c.db, "RETURN count(SELECT id FROM report);", json!({})).await? == n && c.get(audit, &format!("/api/signals/{bank}/report")).await?["report"]["id"] == last, "실패한 보고가 남았다");
         Ok(())
     }.await;
     *USE.lock().unwrap() = was;
     res
 }
 fn urlenc(s: &str) -> String { s.bytes().map(|b| if b.is_ascii_alphanumeric() { (b as char).to_string() } else { format!("%{b:02X}") }).collect() }
-fn r_id(d: &J) -> J { d["report"]["id"].clone() }
 
 #[cfg(test)]
 mod tests {

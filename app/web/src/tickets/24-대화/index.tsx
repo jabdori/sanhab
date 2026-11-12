@@ -56,7 +56,7 @@ function Panel() {
       () => {},
     )
   }, [wantKey])
-  const shown = (t: Target) => `${t.kind} ${named[key(t)] ?? t.id}`
+  const shown = (t: Target) => `${t.kind} ${named[key(t)] ?? t.id}`.trim()
   ctx.current = { target: now, attach: pinned }
   const [transport] = useState(
     () =>
@@ -66,7 +66,8 @@ function Panel() {
           const token = store.get(rolesAtom).find((r) => r.role === store.get(roleAtom))?.token
           return token ? { authorization: `Bearer ${token}` } : {}
         },
-        body: () => ctx.current,
+        // 대화가 길어지면 마지막 20개만 보낸다
+        prepareSendMessagesRequest: ({ messages }) => ({ body: { messages: messages.slice(-20), ...ctx.current } }),
       }),
   )
   const { messages, sendMessage, status, error, clearError } = useChat<Talk>({ transport })
@@ -90,7 +91,7 @@ function Panel() {
     setKeeping(true)
     setKept(null)
     try {
-      const body = { messages: messages.map(({ role, parts }) => ({ role, parts: parts.filter((p) => p.type === 'text') })), ...ctx.current }
+      const body = { messages: messages.slice(-20).map(({ role, parts }) => ({ role, parts: parts.filter((p) => p.type === 'text') })), ...ctx.current }
       setKept({ state: (await api<{ state: string }>('/chat/report', body)).state })
     } catch (e) {
       setKept({ error: word(e as Error) })

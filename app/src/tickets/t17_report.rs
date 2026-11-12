@@ -351,7 +351,9 @@ async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
     r["report"] = if report.is_null() { report } else {
         let mut x = report;
         let state = x["state"].as_str().unwrap_or_default().to_string();
-        let stale = x["input"] != sha(&b.to_string());
+        // 대화로 남긴 보고(24)의 입력은 `chat:정황 입력의 해시:대화의 해시`라서 앞 해시만 본다
+        let want = sha(&b.to_string());
+        let stale = x["input"] != want.as_str() && !x["input"].as_str().is_some_and(|i| i.starts_with(&format!("chat:{want}:")));
         run = audit && (stale || ["대기", "오류"].contains(&state.as_str()));
         x.as_object_mut().map(|o| o.remove("input"));
         if ["대기", "오류"].contains(&state.as_str()) {
