@@ -86,7 +86,7 @@ export function Source({ kind, file, row, side, of, tip, children }: { kind: str
     <Token label={name} size="sm" onClick={() => {}} />
   )
   return (
-    <Popover content={content} label={line} isOpen={open} onOpenChange={toggle} width={360} placement={side === 'right' ? 'end' : side === 'top' ? 'above' : 'below'} closeButtonLabel={L.취소}>
+    <Popover content={content} label={line} isOpen={open} onOpenChange={toggle} width={360} placement={side === 'right' ? 'end' : side === 'top' ? 'above' : 'below'}>
       <Tooltip content={line} hasHoverIndication={false}>
         {trigger}
       </Tooltip>

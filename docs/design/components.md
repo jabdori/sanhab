@@ -94,3 +94,13 @@
 - 이력 한 줄(`04`의 `Line`): 결정(굵게) · 사람 · 날짜 · 사유의 분류(보조 색). 메모는 그 아래 줄. 원본의 과거 결정은 `사유 없음(원본)`.
 - 보고: 사실 / 추정 / 미확인 / 의견·반론. 머리에 `AI` 표지와 상태 표지. "사실"의 끝에 근거 연결(`↗`, 누르면 가운데의 그 줄이 강조). "미확인"은 접지 않는다. "의견"은 접힘. 확신을 숫자로 적지 않는다.
 - 대화: 머리에 `대화`와 `임시`. AI의 답 아래에 조회한 기록. 조치 카드는 대상·조치·사유를 보이고 `실행`(primary)으로 실행. 권한 없는 조치는 그리지 않는다.
+
+## 화면 하나를 옮기는 절차
+1. 심사 화면(`tickets/04-심사/index.tsx`)과 이 문서를 연다. 옮길 티켓의 `index.tsx`에서 `ui/styles`·`@base-ui`·옛 이름(`text-text-sub`, `text-figure`, `h-head` …)을 찾는다.
+2. 제목 줄과 숫자 줄을 한 조각으로 모아 `slot: 'head'`로 옮긴다(`Title` + `Pill`·`Mark` + `Figures` + 출처 표지).
+3. 가운데의 덩어리마다 `<Region title={L.…} aside={출처 표지}>`로 감싼다. `<h2 className={label}>`, `mb-4`, `section` 껍데기를 지운다.
+4. 표는 `ui/Table`: 이름 열은 `Text weight="medium"`(또는 다른 대상으로 가면 `Link`), 목록이면 `onRow`, 출처는 마지막 열의 `Source`.
+5. 버튼은 `Button variant={grade(kind)}`, 확인이 필요하면 `Confirm`. 다른 입력은 astryx(Selector, TextInput, NumberInput, RadioList, CheckboxInput, ToggleButton, Collapsible)로 바꾸고 Base UI를 지운다.
+6. 출처: 원본은 `file`·`row`만(표지 없이 행 번호), 계산은 `tip`과 이름표·값의 설명, 가정·합성은 `of={L.낱말}`(없으면 `DECISION`에 한 줄). 시연 조작의 단추가 있으면 `slot: 'demo'` 조각으로 뺀다.
+7. 내용이 없으면 `<Empty />`(영역이 한 줄로 접힌다). 영어 기본 문구가 보이지 않게 props에 낱말을 준다.
+8. `npm run build` → 1440·1280에서 심사 화면 그림과 나란히 찍어 `review.md`의 시각 항목으로 견준다.
