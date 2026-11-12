@@ -60,8 +60,14 @@ export function Band() {
  * 시연 서랍의 몸통: 제품이 아닌 시연 조작(날짜 넘기기, 초기화)과 티켓이 끼우는 시연 조각(slot 'demo' — 시연 서류, 모의 회신 …).
  * 이 조작으로 생긴 값은 제품 화면에 출처 표지 `모의`로만 남는다
  */
+/** 시스템의 첫날(서버 t01의 START). 초기화하면 날짜가 여기로 돌아간다 */
+const START = '2026-07-01'
+/** YYYY-MM-DD에 날수를 더한다(UTC로 계산해 시간대에 흔들리지 않게) */
+const plus = (day: string, n: number) => new Date(Date.parse(`${day}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10)
+
 function Demo() {
   const setTarget = useSetAtom(targetAtom)
+  const today = useData<{ today: string }>('/state')?.today ?? START
   const pieces = usePieces('demo')
   const [days, setDays] = useState<number | null>(15)
   const ok = days !== null && Number.isInteger(days) && days >= 1 && days <= 365
@@ -70,13 +76,13 @@ function Demo() {
       <Region title={L.날짜}>
         <div className="flex items-end gap-2">
           <NumberInput label={L.일} isLabelHidden value={days} onChange={setDays} min={1} max={365} isIntegerOnly units={L.일} width={120} />
-          <Confirm label={L.넘기기} title={`${L.넘기기} ${days ?? ''}${L.일}`} isDisabled={!ok} onConfirm={() => api('/advance', { days }).catch(() => {})} />
+          <Confirm label={L.넘기기} title={`${L.넘기기} ${days ?? ''}${L.일}`} rows={[[L.날짜, `${today} → ${ok ? plus(today, days) : ''}`]]} isDisabled={!ok} onConfirm={() => api('/advance', { days }).catch(() => {})} />
         </div>
       </Region>
       {pieces.length > 0 && <SlotView slot="demo" />}
       <Region title={L.초기화}>
         <div>
-          <Confirm label={L.초기화} variant="destructive" onConfirm={() => api('/reset', {}).then(() => setTarget(null), () => {})} />
+          <Confirm label={L.초기화} variant="destructive" rows={[[L.날짜, `${today} → ${START}`]]} onConfirm={() => api('/reset', {}).then(() => setTarget(null), () => {})} />
         </div>
       </Region>
     </div>

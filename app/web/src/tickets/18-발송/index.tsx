@@ -13,12 +13,14 @@ import { Confirm } from '../../ui/Confirm'
 import { Empty } from '../../ui/Empty'
 import { Figures } from '../../ui/Figures'
 import { grade } from '../../ui/grade'
+import { Line as Row } from '../../ui/Line'
 import { Pill } from '../../ui/Pill'
 import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
 import { Table } from '../../ui/Table'
 import { Title } from '../../ui/Title'
 import { Line } from '../04-심사'
+import type { Decision } from '../04-심사/review'
 import { useSignal } from '../11-정황/signal'
 import { tickAtom, useClarify } from './clarify'
 
@@ -40,19 +42,33 @@ function Head() {
       <Figures
         items={[
           [L.대리점, c.dealer.name],
-          [L.일치, d.kinds.length ? kinds : <Empty />],
+          [
+            L.일치,
+            d.kinds.length ? (
+              // 일치는 계산(정황의 근거에서 고른 종류). 표지는 그 값 옆에
+              <span className="flex items-center gap-3">
+                {kinds}
+                <Source kind={c.source} tip={`${L.정황} · ${L.일치}`} rows={[...(c.signal ? ([[L.정황, c.signal.name]] as [string, string][]) : []), [L.일치, kinds]]} />
+              </span>
+            ) : (
+              <Empty />
+            ),
+          ],
           [L.발송, none(d.sent)],
           [
             L.기한,
-            <span className="flex items-baseline gap-2">
-              {none(d.due)}
-              <Source kind={L.가정} of={L.기한} rows={[[L.발송, none(d.sent)], [L.기한, none(d.due)]]} />
-            </span>,
+            // 기한의 길이는 가정(D32). 발송 전에는 기한이 없으니 표지도 없다
+            d.due ? (
+              <span className="flex items-center gap-3">
+                {d.due}
+                <Source kind={L.가정} of={L.기한} rows={[[L.발송, none(d.sent)], [L.기한, d.due]]} />
+              </span>
+            ) : (
+              <Empty />
+            ),
           ],
         ]}
-      >
-        <Source kind={c.source} tip={`${L.정황} · ${L.일치}`} rows={[...(c.signal ? ([[L.정황, c.signal.name]] as [string, string][]) : []), [L.일치, kinds]]} />
-      </Figures>
+      />
     </>
   )
 }
@@ -69,11 +85,7 @@ function Docs() {
 }
 
 /** 발송 한 줄: 발송 · 사람 · 날짜 */
-const Sent = ({ h }: { h: { kind?: string; role: string; at: string | null } }) => (
-  <Text weight="semibold" hasTabularNumbers>
-    {[h.kind ?? L.발송, h.role, h.at ?? L.미상].join(' · ')}
-  </Text>
-)
+const Sent = ({ h }: { h: { kind?: string; role: string; at: string | null } }) => <Row kind={h.kind ?? L.발송} parts={[h.role, h.at ?? L.미상]} />
 
 /** 조치: 영업지원은 요청서(AI의 초안을 고친 글)를 쓰고 발송한다(주 버튼). 발송은 되돌릴 수 없으므로 확인 창을 거치고, 누른 뒤 새 값을 받을 때까지 다시 눌리지 않는다.
  * AI가 아직 초안을 쓰지 못했으면 대기 표지가 보이고(몇 초마다 다시 읽는다) 글 없이 목록만으로도 발송할 수 있다. 서버가 거절하면 그 낱말을 보인다.
@@ -98,6 +110,9 @@ function Action() {
   }, [waiting, bump])
   if (!d) return null
   if (!d.can) {
+    // 소명의 결과(인정·불인정·보완)가 내려졌으면 조치 칸은 그 결정이다(발송한 요청서는 이력에 남는다)
+    const last = d.history.at(-1)
+    if (last && ![L.요청, L.발송, L.접수].includes(last.kind as never)) return <Line d={last as Decision} />
     const h = d.history.filter((x) => x.kind === L.발송).at(-1)
     if (!h)
       return (
@@ -138,9 +153,14 @@ function Action() {
       </div>
       <TextArea label={L.요청서} isLabelHidden rows={6} width="100%" value={value} onChange={setTyped} />
       <div className="flex flex-wrap items-center gap-2">
-        <Confirm label={L.발송} variant={grade(L.발송)} title={`${L.발송} ${d.clarify.dealer.name}`} isDisabled={sent === d || nothing} onConfirm={go}>
-          <Table head={[L.일치, L.서류]} rows={d.docs.map(([kind, doc]) => [kind, doc])} />
-        </Confirm>
+        <Confirm
+          label={L.발송}
+          variant={grade(L.발송)}
+          title={`${L.발송} ${d.clarify.dealer.name}`}
+          rows={d.docs.map(([kind, doc]): [string, string] => [kind, doc])}
+          isDisabled={sent === d || nothing}
+          onConfirm={go}
+        />
         {bad && <Pill tone="bad">{bad}</Pill>}
       </div>
     </div>

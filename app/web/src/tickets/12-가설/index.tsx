@@ -26,7 +26,7 @@ const kinds = (v: string[]) => (v.length ? v.join(' · ') : L.없음)
 /** 가설 영역의 출처 표지(가정). 설명 칸은 더하는 일치의 이름표와 값 */
 function Tag({ adds }: { adds: string[] }) {
   return (
-    <Source kind={L.가정} tip={`${L.일치} ${kinds(adds)}`} rows={[[L.일치, kinds(adds)]]} />
+    <Source kind={L.가정} of={L.가설} tip={`${L.가설} · ${L.일치} ${kinds(adds)}`} rows={[[L.일치, kinds(adds)]]} />
   )
 }
 

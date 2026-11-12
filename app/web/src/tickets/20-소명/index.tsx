@@ -13,7 +13,6 @@ import type { Piece } from '../../pieces'
 import { api, changedAtom, menuAtom, roleAtom, store, targetAtom, useData } from '../../state'
 import { Confirm } from '../../ui/Confirm'
 import { Empty } from '../../ui/Empty'
-import { Figures } from '../../ui/Figures'
 import { grade } from '../../ui/grade'
 import { Pill } from '../../ui/Pill'
 import { Reason, blank, ready, sent as filled } from '../../ui/Reason'
@@ -80,13 +79,18 @@ function Action() {
     <div className="flex flex-wrap items-center gap-2">
       {v.actions.map((a) =>
         a.kind === L.인정 ? (
-          <Confirm key={a.kind} label={a.kind} variant={grade(a.kind)} title={`${a.kind} ${c.clarify.dealer.name}`} isDisabled={off(a.kind)} onConfirm={() => go(a.kind)}>
-            <div className="flex flex-col gap-3">
-              <Text weight="medium">{L.제외}</Text>
-              {v.lines.length ? <Table head={[L.종류, L.식별자]} rows={v.lines.map((l) => [l.item, l.value])} /> : <Text>{L['제외 없음']}</Text>}
-              <Figures items={[[L.기간, span(v.span?.[0], v.span?.[1]) ?? L.미상]]} />
-            </div>
-          </Confirm>
+          <Confirm
+            key={a.kind}
+            label={a.kind}
+            variant={grade(a.kind)}
+            title={`${a.kind} ${c.clarify.dealer.name}`}
+            rows={[
+              [L.제외, v.lines.length ? v.lines.map((l) => `${l.item} ${l.value}`).join(' · ') : L['제외 없음']],
+              [L.기간, span(v.span?.[0], v.span?.[1]) ?? L.미상],
+            ]}
+            isDisabled={off(a.kind)}
+            onConfirm={() => go(a.kind)}
+          />
         ) : (
           <Button key={a.kind} label={a.kind} variant={grade(a.kind)} isDisabled={off(a.kind)} onClick={() => void go(a.kind)} />
         ),
@@ -171,12 +175,18 @@ function Intake() {
       )}
       <FileInput label={L.서류} isLabelHidden placeholder={L.서류} width="100%" accept="image/png,image/jpeg,application/pdf" value={file} onChange={(f) => setFile(f as File | null)} />
       <div className="flex flex-wrap items-center gap-2">
-        <Confirm label={L.접수} variant={grade(L.접수)} title={`${L.접수} ${kind ?? ''}`} isDisabled={busy || !other || !kind || !file} onConfirm={go}>
-          <div className="flex flex-col gap-3">
-            <Table head={[L.대리점, L.일치]} rows={[[other?.name ?? '', kind ?? '']]} />
-            <Text className="wrap-anywhere">{file?.name}</Text>
-          </div>
-        </Confirm>
+        <Confirm
+          label={L.접수}
+          variant={grade(L.접수)}
+          title={`${L.접수} ${kind ?? ''}`}
+          rows={[
+            [L.대리점, other?.name ?? ''],
+            [L.일치, kind ?? ''],
+            [L.서류, <span className="wrap-anywhere">{file?.name}</span>],
+          ]}
+          isDisabled={busy || !other || !kind || !file}
+          onConfirm={go}
+        />
         {bad && <Pill tone="bad">{bad}</Pill>}
       </div>
     </div>
@@ -196,14 +206,14 @@ function IntakeSamples() {
       .then((r) => r.blob())
       .then((b) => setFile(new File([b], name, { type: b.type })), () => {})
   return (
-    <div className="flex flex-col gap-2">
-      <Text type="supporting">{L.서류}</Text>
-      <div className="flex flex-wrap items-center gap-2">
+    // 시연 서랍의 다른 칸(날짜·초기화)과 같은 영역 제목. 단추는 서류 이름 · 그 서류를 낸 대리점
+    <Region title={L.서류}>
+      <div className="flex flex-col items-start gap-2">
         {samples.map((s) => (
-          <ToggleButton key={s.id} label={`${s.id} ${s.dealer}`} size="sm" isPressed={file?.name === s.name} onPressedChange={() => choose(s.id, s.name)} />
+          <ToggleButton key={s.id} label={`${s.name.replace(/\.\w+$/, '')} · ${s.dealer}`} size="sm" isPressed={file?.name === s.name} onPressedChange={() => choose(s.id, s.name)} />
         ))}
       </div>
-    </div>
+    </Region>
   )
 }
 

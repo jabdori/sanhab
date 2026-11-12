@@ -145,7 +145,7 @@ function Panel() {
               <ChatMessage
                 key={m.id}
                 sender={ai ? 'assistant' : 'user'}
-                name={ai && (body || ids.length > 0 || cards.length > 0) ? L.AI : null}
+                name={ai && (body || ids.length > 0 || cards.length > 0) ? <Token label={L.AI} size="sm" /> : null}
                 metadata={
                   ids.length > 0 && (
                     <div className="flex flex-col gap-1">

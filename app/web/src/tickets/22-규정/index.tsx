@@ -82,8 +82,8 @@ function Rules() {
             r.name === L.합산 ? `${L.일치} ${r.value}` : num(r.value),
             `${r.since ?? L.미상} – ${r.until ?? ''}`.trim(),
             r.prev ? `${r.prev.name} v${r.prev.ver}` : none,
-            <Source kind={r.source} tip={c.title} rows={[[L.위치, where(c)]]}>
-              <p className="whitespace-pre-wrap">{c.text}</p>
+            <Source kind={r.source} tip={c.title} place={`${c.first}–${c.last}${L.행}`} rows={[[L.위치, where(c)]]}>
+              {c.text}
             </Source>,
           ])}
         />
@@ -96,11 +96,11 @@ function Rules() {
           </Text>
         }
       >
-        {/* 줄의 출처 표지는 다른 화면의 가정과 같은 설명 칸(결정 번호·내용·적용 시점·위치·이유·쓰임) */}
+        {/* 표 전체가 가정이라 줄마다 표지를 달지 않는다. 번호를 누르면 다른 화면의 가정과 같은 설명 칸(번호·내용·적용 시점·위치·이유·쓰임) */}
         <Table
-          head={[L.번호, L.가정, L.쓰임, L.출처]}
+          head={[L.번호, L.가정, L.쓰임]}
           rows={d.assumes.map((a) => [
-            a.id,
+            <Source kind={a.source} decision={a.id} line={a.row} tip={a.title} quiet place={a.id} />,
             <Text weight="medium">{a.title}</Text>,
             a.used.length ? (
               <span className="flex gap-2">
@@ -121,7 +121,6 @@ function Rules() {
             ) : (
               none
             ),
-            <Source kind={a.source} decision={a.id} tip={a.title} />,
           ])}
         />
       </Region>

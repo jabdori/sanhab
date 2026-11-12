@@ -12,6 +12,7 @@ import { Confirm } from '../../ui/Confirm'
 import { Empty } from '../../ui/Empty'
 import { Figures } from '../../ui/Figures'
 import { grade } from '../../ui/grade'
+import { Line as Row } from '../../ui/Line'
 import { Pill } from '../../ui/Pill'
 import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
@@ -95,7 +96,7 @@ function Head() {
               <Empty />
             ),
           ],
-          [L.심사, <Link onClick={() => setTarget({ kind: L.심사, id: pay.review.id })}>{pay.review.name}</Link>],
+          [L.심사, <Link type="inherit" onClick={() => setTarget({ kind: L.심사, id: pay.review.id })}>{pay.review.name}</Link>],
         ]}
       />
     </>
@@ -103,12 +104,7 @@ function Head() {
 }
 
 /** 지급 표시 한 줄: 지급(굵게) · 사람 · 날짜 */
-const Line = ({ h }: { h: { role: string; at: string } }) => (
-  <div className="flex flex-wrap items-center gap-x-2 tabular-nums">
-    <Text weight="semibold">{L.지급}</Text>
-    <Text color="secondary">{[h.role, h.at].join(' · ')}</Text>
-  </div>
-)
+const Line = ({ h }: { h: { role: string; at: string } }) => <Row kind={L.지급} parts={[h.role, h.at]} />
 
 /** 조치: 지급으로 표시할 수 있으면 버튼(주 버튼, 되돌릴 수 없으므로 확인 창을 거친다). 아니면 남긴 지급 표시, 대기인데 담당이 아닌 역할에게는 누구 차례인지, 재심사이면 없음.
  *  거절되어도 화면을 다시 읽어 지금 할 수 있는 조치를 보인다 */
@@ -131,7 +127,12 @@ function Action() {
       <Confirm
         label={L.지급}
         variant={grade(L.지급)}
-        title={`${L.지급} ${p.pay.name} ${num(p.pay.amount)}`}
+        title={`${L.지급} ${p.pay.name}`}
+        rows={[
+          [L.금액, num(p.pay.amount)],
+          [L.계좌, p.accounts.map((a) => a.value).join(' · ') || L.없음],
+          [L.귀속월, p.pay.ym],
+        ]}
         onConfirm={() => api('/pay', { id: p.pay.id }).catch(() => store.set(changedAtom, (n) => n + 1))}
       />
     </div>

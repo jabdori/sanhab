@@ -19,6 +19,7 @@ export const DECISION: Record<string, string> = {
   [L.근접]: 'D51',
   [L.서류]: 'D17',
   [L.호실]: 'D58',
+  [L.가설]: 'D8',
 }
 
 type Row = { sha: string; cells: [string, string][] }
@@ -35,7 +36,7 @@ const readSpecs = () =>
     },
   ))
 
-/** 서버의 출처 → 화면의 표지. 서버의 '시연'(사람의 시연 조작·모의 회신으로 생긴 값)은 모의로 보인다. 시연으로 넣은 값(D58의 호실)은 부르는 쪽이 kind={L.합성}을 준다 */
+/** 서버의 출처 → 화면의 표지. 서버의 '시연'은 모의로 보인다 — 부르는 쪽은 시연 서랍에서 만든 값(모의 회신, 시연 서류)일 때만 넘긴다. 제품 안의 조치(변경·결정)로 생긴 값은 표지를 그리지 않는다. 시연으로 넣은 값(D58의 호실)은 kind={L.합성} */
 const shown = (kind: string) => (kind === L.시연 ? L.모의 : kind)
 const base = (file: string) => file.split('/').at(-1)
 
@@ -45,10 +46,12 @@ const base = (file: string) => file.split('/').at(-1)
  * - 원본: 표지가 없다. `file`·`row`가 있으면 조용한 행 번호(`7행`)만 남아 누르면 원본 파일의 그 행이 열린다. children만 있으면 조용한 `원본`이 그 내용을 연다
  * - 가정·합성: `of`(값의 낱말)로 결정 번호를 찾아 그 결정의 제목·본문·스펙의 줄·쓰임을 보인다. children은 그 아래에 붙는다
  * - 그 밖: `rows`(이름표와 값의 줄 — 계산이면 `[[L.합산, L['귀속월 지급의 합, 반려 제외']]]`)가 설명이다. 줄로 쓸 수 없는 글(조항의 원문)만 children에
- * - `decision`은 결정 번호를 바로 준다(규정 화면의 가정 목록 — 모든 가정의 줄이 같은 설명 칸을 연다)
+ * - `decision`은 결정 번호를 바로 준다(규정 화면의 가정 목록). 한 결정에 가정 줄이 여럿이면(D46의 표) `line`(스펙의 행)으로 그 줄을 고른다
+ * - `quiet`이면 표지 대신 조용한 글자(`place`)가 설명 칸을 연다 — 표 전체가 같은 출처라 줄마다 표지를 다는 것이 군더더기일 때(규정의 가정 목록: 번호가 연다)
+ * 원본의 조용한 글자는 언제나 행 번호다: csv는 `row`(`7행`), 문서의 여러 행은 `place`(`41–45행`)를 준다. 표의 출처 열이나 숫자 줄 값 옆에 둔다(값의 칸 안에 섞지 않는다).
  * `tip`은 한 줄 설명의 뒷말(없으면 `of`). `side`는 설명 칸이 열리는 쪽
  */
-export function Source({ kind, file, row, side, of, decision, tip, rows, children }: { kind: string; file?: string; row?: number; side?: 'right' | 'top'; of?: string; decision?: string; tip?: string; rows?: [string, ReactNode][]; children?: ReactNode }) {
+export function Source({ kind, file, row, place, quiet, side, of, decision, line: at, tip, rows, children }: { kind: string; file?: string; row?: number; place?: string; quiet?: boolean; side?: 'right' | 'top'; of?: string; decision?: string; line?: number; tip?: string; rows?: [string, ReactNode][]; children?: ReactNode }) {
   const [open, setOpen] = useState(false)
   const [origin, setOrigin] = useState<Row>()
   const [spec, setSpec] = useState<Spec | null>()
@@ -67,7 +70,7 @@ export function Source({ kind, file, row, side, of, decision, tip, rows, childre
       }, () => {})
     if (id && spec === undefined)
       return void readSpecs().then((list) => {
-        setSpec(list.find((s) => s.id === id) ?? null)
+        setSpec(list.find((s) => s.id === id && (!at || s.row === at)) ?? null)
         setOpen(true)
       }, () => {})
     setOpen(true)
@@ -86,12 +89,13 @@ export function Source({ kind, file, row, side, of, decision, tip, rows, childre
           ))}
         </MetadataList>
       )}
-      {children && <div className="flex flex-col gap-2 text-sm">{children}</div>}
+      {/* 글(조항의 원문 등 마크다운)은 그려서 보인다(## · ** 원문이 그대로 나오지 않게) */}
+      {typeof children === 'string' ? <Markdown density="compact">{children}</Markdown> : children && <div className="flex flex-col gap-2 text-sm">{children}</div>}
     </div>
   )
-  const trigger = isOrigin ? (
-    <button type="button" className="shrink-0 cursor-pointer rounded-sm px-0.5 text-sm whitespace-nowrap text-secondary tabular-nums hover:text-primary hover:underline">
-      {file && row ? `${row}${L.행}` : L.원본}
+  const trigger = isOrigin || quiet ? (
+    <button type="button" className="shrink-0 cursor-pointer rounded-sm px-0.5 text-sm font-normal whitespace-nowrap text-secondary tabular-nums hover:text-primary hover:underline">
+      {file && row ? `${row}${L.행}` : (place ?? L.원본)}
     </button>
   ) : (
     // Token은 onClick이 있으면 안에 단추를 둔다(설명 칸이 그 단추에 붙는다)
@@ -99,7 +103,7 @@ export function Source({ kind, file, row, side, of, decision, tip, rows, childre
   )
   return (
     <Popover content={content} label={line} isOpen={open} onOpenChange={toggle} width={400} placement={side === 'right' ? 'end' : side === 'top' ? 'above' : 'below'}>
-      <Tooltip content={line} hasHoverIndication={false}>
+      <Tooltip content={line} placement="below" hasHoverIndication={false}>
         {trigger}
       </Tooltip>
     </Popover>
@@ -117,7 +121,18 @@ function Decision({ s }: { s: Spec }) {
   return (
     <MetadataList label={{ width: 72 }}>
       <MetadataListItem label={L.번호}>{s.id}</MetadataListItem>
-      <MetadataListItem label={L.내용}>{s.text.replace(/^-\s*/, '')}</MetadataListItem>
+      <MetadataListItem label={L.내용}>
+        {/* 스펙의 표 한 줄(D46의 "숫자가 기대는 가정")은 칸마다 한 줄로 푼다 */}
+        {s.text.includes(' | ') ? (
+          <ul className="flex flex-col gap-1">
+            {s.text.split(' | ').map((c, i) => (
+              <li key={i}>{c.trim()}</li>
+            ))}
+          </ul>
+        ) : (
+          s.text.replace(/^-\s*/, '')
+        )}
+      </MetadataListItem>
       <MetadataListItem label={L['적용 시점']}>
         <span className="tabular-nums">{s.since} ~</span>
       </MetadataListItem>

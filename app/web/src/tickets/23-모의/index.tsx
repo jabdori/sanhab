@@ -82,7 +82,7 @@ function Result() {
   const m = r.mock
   return (
     <div ref={box}>
-      <Region title={L.모의} aside={<Source kind={L.가정} rows={[[L.한도, num(m.limit)]]} />}>
+      <Region title={L.모의} aside={<Source kind={L.계산} tip={`${L.한도} ${num(m.limit)}`} rows={[[L.한도, num(m.limit)]]} />}>
         <Figures
           items={[
             [L.한도, num(m.limit)],

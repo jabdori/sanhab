@@ -14,6 +14,7 @@ import { Confirm } from '../../ui/Confirm'
 import { Empty } from '../../ui/Empty'
 import { Figures } from '../../ui/Figures'
 import { grade } from '../../ui/grade'
+import { Line as Row } from '../../ui/Line'
 import { Mark } from '../../ui/Mark'
 import { Pill } from '../../ui/Pill'
 import { blank, ready, sent as filled } from '../../ui/Reason'
@@ -88,13 +89,14 @@ function Tasks() {
         onRow={(y) => open(list[y])}
         rows={list.map((t) => cols.map((c) => c.cell(t)))}
       />
+      {/* 일괄 승인 띠: 목록 칸의 맨 아래에 붙고, 칸의 여백(24)까지 덮어 아래 줄이 비치지 않는다 */}
       {tab === 'mine' && chosen.length > 0 && (
-        <div className="sticky bottom-0 flex items-center gap-3 border-t border-border bg-surface py-3">
+        <div className="sticky -bottom-6 z-10 -mx-6 -mb-6 flex items-center gap-3 border-t border-border bg-surface px-6 py-3">
           <Text type="supporting">{L.선택}</Text>
           <Text weight="semibold" hasTabularNumbers>
             {chosen.length}
           </Text>
-          <Confirm label={L.승인} variant={grade(L.승인)} title={`${L.승인} ${chosen.length}`} isDisabled={sent === d}
+          <Confirm label={L.승인} variant={grade(L.승인)} title={`${L.승인} ${chosen.length}`} rows={[[L.대상, d.mine.filter((t) => chosen.includes(t.target)).map((t) => t.name).join(' · ')]]} isDisabled={sent === d}
             onConfirm={() => {
               setSent(d)
               return decide(chosen, L.승인).then(() => setPicked([]))
@@ -209,8 +211,8 @@ function Rules() {
             {x.title}
           </Link>,
           `${x.name} v${x.ver}`,
-          <Source kind={x.source} tip={x.title} rows={[[L.위치, `${x.file} ${x.first}–${x.last}${L.행}`]]}>
-            <p className="whitespace-pre-wrap">{x.text}</p>
+          <Source kind={x.source} tip={x.title} place={`${x.first}–${x.last}${L.행}`} rows={[[L.위치, `${x.file} ${x.first}–${x.last}${L.행}`]]}>
+            {x.text}
           </Source>,
         ])}
       />
@@ -220,13 +222,7 @@ function Rules() {
 
 /** 결정 한 줄: 결정(굵게) · 사람 · 날짜 · 사유의 분류. 메모는 그 아래에 따로. 앱에서 사람이 내린 결정은 제품의 동작이므로 출처 표지를 달지 않는다 */
 export const Line = ({ d }: { d: Decision }) => (
-  <div className="flex flex-col gap-0.5 break-keep">
-    <div className="flex flex-wrap items-center gap-x-2 tabular-nums">
-      <Text weight="semibold">{d.kind}</Text>
-      <Text color="secondary">{[d.role, d.at ?? L.미상, d.reason?.class ?? `${L.사유} ${L.없음}${d.source === L.원본 ? `(${L.원본})` : ''}`].join(' · ')}</Text>
-    </div>
-    {d.reason?.memo && <p className="wrap-anywhere text-secondary">{d.reason.memo}</p>}
-  </div>
+  <Row kind={d.kind} parts={[d.role, d.at ?? L.미상, d.reason?.class ?? `${L.사유} ${L.없음}${d.source === L.원본 ? `(${L.원본})` : ''}`]} memo={d.reason?.memo} />
 )
 
 /** 조치: 지금 역할이 할 수 있는 것만 버튼으로(등급은 ui/grade — 승인이 주 버튼). 없으면, 끝난 심사(승인·반려)는 내려진 결정, 아직 승인권자의 차례인 심사(대기·보류. 재상신으로 돌아온 것 포함)는 승인권자.

@@ -12,6 +12,7 @@ import { api, changedAtom, roleAtom, store, targetAtom } from '../../state'
 import { Confirm } from '../../ui/Confirm'
 import { Empty } from '../../ui/Empty'
 import { grade } from '../../ui/grade'
+import { Line as Row } from '../../ui/Line'
 import { Pill } from '../../ui/Pill'
 import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
@@ -89,7 +90,23 @@ function Fact() {
           [
             <Text color="secondary">{L.출처}</Text>,
             null,
-            last ? <Source kind={last.source} side="top" tip={L.회신} rows={[[L.역할, last.role], [L.날짜, last.at]]} /> : none,
+            last ? (
+              // 모의 회신(시연 서랍에서 넣은 가상의 은행 회신, A05 §6): 종류 · 대상 · 넣은 값 · 누가 언제 · 이유
+              <Source
+                kind={last.source}
+                side="top"
+                tip={L.회신}
+                rows={[
+                  [L.종류, L.회신],
+                  [L.대상, d.name],
+                  [L.값, [num(last.amount), last.account, last.result].join(' · ')],
+                  [L['적용 시점'], [last.role, last.at].join(' · ')],
+                  [L.이유, L.시연],
+                ]}
+              />
+            ) : (
+              none
+            ),
             <Source
               kind={L.계산}
               side="top"
@@ -108,12 +125,7 @@ function Fact() {
 }
 
 /** 이력 한 줄: 지급 · 사람 · 날짜 / 회신 · 결과 · 사람 · 날짜. 앞의 낱말이 굵다 */
-const Line = ({ r }: { r: { kind?: string; result?: string | null; role: string; at: string } }) => (
-  <div className="flex flex-wrap items-center gap-x-2 tabular-nums">
-    <Text weight="semibold">{r.kind ?? L.회신}</Text>
-    <Text color="secondary">{[r.result, r.role, r.at].filter(Boolean).join(' · ')}</Text>
-  </div>
-)
+const Line = ({ r }: { r: { kind?: string; result?: string | null; role: string; at: string } }) => <Row kind={r.kind ?? L.회신} parts={[r.result, r.role, r.at]} />
 
 /** 은행 회신 입력: 금액, 계좌, 결과. 승인된 값이 미리 들어 있고 고쳐서 보낸다(모의 처리). 고칠 수 없는 조치라 확인 창을 거치고, 보낸 뒤 새 값을 받을 때까지는 다시 눌리지 않는다 */
 function Form({ d }: { d: Recon }) {
@@ -137,7 +149,12 @@ function Form({ d }: { d: Recon }) {
         <Confirm
           label={L.회신}
           variant={grade(L.회신)}
-          title={[L.회신, d.name, ok && num(won), result].filter(Boolean).join(' ')}
+          title={`${L.회신} ${d.name}`}
+          rows={[
+            [L.금액, ok ? num(won) : ''],
+            [L.계좌, account.trim()],
+            [L.결과, result],
+          ]}
           isDisabled={!ok || sent === d}
           onConfirm={() => {
             setSent(d)
@@ -168,7 +185,8 @@ function Action() {
 function Reply() {
   const d = useRecon()
   return d?.can ? (
-    <Region title={L.회신}>
+    // 어느 지급의 회신인지 영역 제목 옆에(서랍은 화면과 떨어져 있다)
+    <Region title={L.회신} aside={<Text color="secondary">{d.name}</Text>}>
       <Form key={d.id} d={d} />
     </Region>
   ) : null

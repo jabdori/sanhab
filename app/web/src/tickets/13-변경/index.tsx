@@ -1,6 +1,5 @@
 // 13 변경: 대리점 상세의 오른쪽 조치에 식별자 변경 입력(항목, 값, 변경일). 변경을 넣을 수 있는 역할(영업지원, 서버의 `can`)에게만 있고 다른 역할에게는 없음.
 // 인지일(시스템의 오늘)·경로(신고)·출처(시연)는 서버가 찍는다. 되돌리기 어려운 조치라 확인 창을 거치고, 보낸 뒤 새 값을 받을 때까지는 다시 눌리지 않는다.
-import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
 import { RadioList, RadioListItem } from '@astryxdesign/core/RadioList'
 import { Text } from '@astryxdesign/core/Text'
 import { TextInput } from '@astryxdesign/core/TextInput'
@@ -44,6 +43,12 @@ function Form({ id }: { id: string }) {
       <div className="flex flex-wrap items-center gap-2">
         <Confirm label={L.변경} variant={grade(L.변경)} isDisabled={!ok || sent === d}
           title={`${L.변경} ${d.dealer.name} ${item}`}
+          rows={[
+            [L.값, value.trim()],
+            [L.변경일, since],
+            [L.인지일, today],
+            [L.경로, L.신고],
+          ]}
           onConfirm={() => {
             setSent(d)
             setBad(null)
@@ -58,14 +63,7 @@ function Form({ id }: { id: string }) {
               },
             )
           }}
-        >
-          <MetadataList label={{ width: 72 }}>
-            <MetadataListItem label={L.값}>{value.trim()}</MetadataListItem>
-            <MetadataListItem label={L.변경일}>{since}</MetadataListItem>
-            <MetadataListItem label={L.인지일}>{today}</MetadataListItem>
-            <MetadataListItem label={L.경로}>{L.신고}</MetadataListItem>
-          </MetadataList>
-        </Confirm>
+        />
         {bad && <Pill tone="bad">{bad}</Pill>}
       </div>
     </div>

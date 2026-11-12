@@ -45,7 +45,8 @@ function Shell() {
     setTrailOpen(false)
   }, [target, setListOpen, setTrailOpen])
   // 대화를 펼쳐도 목록이 나머지를 다 쓰고 있을 때(대상이 없을 때)는 접을 것이 없다
-  const folded = (target?.kind === L.소명 || (chatOpen && !wide)) && !listOpen
+  // 경위 그림을 펼쳐도 목록이 접힌다(그림에 폭을 준다)
+  const folded = (target?.kind === L.소명 || trailOpen || (chatOpen && !wide)) && !listOpen
   const list = (
     <div className="flex flex-col gap-4">
       <SlotView slot="list" />
@@ -95,7 +96,7 @@ function Shell() {
             <LayoutContent padding={0}>
               <Layout
                 header={
-                  head.length > 0 && !trailOpen ? (
+                  head.length > 0 ? (
                     <LayoutHeader hasDivider padding={6}>
                       <div className="flex flex-col gap-4">
                         <SlotView slot="head" />

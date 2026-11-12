@@ -33,42 +33,6 @@
   --spacing-page: 1280px;
 }
 
-/* 옛 이름(astryx 이전의 tokens.md): 아직 옮기지 않은 티켓 화면이 깨지지 않게 astryx 토큰에 잇기만 한다.
-   새로 쓰는 코드는 이 이름을 쓰지 않는다. 화면을 astryx 부품으로 옮기면 그 화면의 옛 이름이 사라지고, 다 옮기면 이 덩어리를 지운다 */
-@theme inline {
-  --color-bg: var(--color-background-surface);
-  --color-line: var(--color-border);
-  --color-text: var(--color-text-primary);
-  --color-text-sub: var(--color-text-secondary);
-  --color-text-mute: var(--color-text-disabled);
-  --color-action: var(--color-text-info);
-  --color-action-hover: var(--color-text-primary);
-  --color-mark: var(--color-background-yellow);
-  --color-wait-bg: var(--color-background-gray);
-  --color-wait: var(--color-text-gray);
-  --color-good-bg: var(--color-background-green);
-  --color-good: var(--color-text-green);
-  --color-hold-bg: var(--color-background-yellow);
-  --color-hold: var(--color-text-yellow);
-  --color-bad-bg: var(--color-background-red);
-  --color-bad: var(--color-text-red);
-  --color-again-bg: var(--color-background-purple);
-  --color-again: var(--color-text-purple);
-  --text-title: var(--text-heading-3-size);
-  --text-title--font-weight: var(--font-weight-semibold);
-  --text-figure: var(--text-body-size);
-  --text-figure--font-weight: var(--font-weight-semibold);
-  --text-table: var(--text-body-size);
-  --text-label: var(--text-supporting-size);
-  --text-label--font-weight: var(--font-weight-medium);
-  --spacing-band: 44px;
-  --spacing-row: 36px;
-  --spacing-head: 32px;
-  --radius-box: var(--radius-inner);
-  --radius-pill: var(--radius-full);
-  --shadow-float: var(--shadow-med);
-}
-
 body {
   background: var(--color-background-body);
   color: var(--color-text-primary);

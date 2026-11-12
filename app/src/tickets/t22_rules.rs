@@ -98,6 +98,8 @@ fn marked(mark: &str, source: &str) -> Vec<J> {
     }
     let rows: Vec<J> = rows.into_iter().filter(|(why, _)| !why.contains("가정 아님") && !out.iter().any(|a| a["id"] == *why)).map(|r| r.1).collect();
     out.extend(rows);
+    // 스펙의 행 순서(D46의 표 줄이 D47 앞에 온다)
+    out.sort_by_key(|a| a["row"].as_u64());
     out
 }
 

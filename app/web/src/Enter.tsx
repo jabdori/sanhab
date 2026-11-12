@@ -17,7 +17,7 @@ export function Enter() {
   const [bad, setBad] = useState(false)
   return (
     <main className="flex h-screen items-center justify-center bg-body">
-      <Card width="var(--spacing-list)">
+      <Card width="var(--spacing-list)" padding={6}>
         <div className="flex flex-col gap-4">
           <Heading level={1}>{APP}</Heading>
           {roles.length === 0 ? (

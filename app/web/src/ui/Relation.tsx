@@ -27,8 +27,9 @@ export function Relation({ left, mid, right, lines, hints = [] }: { left: Dot[];
     return i < 0 ? null : y(col, i)
   }
   return (
-    <div className="overflow-x-auto">
-      <svg role="img" aria-label={L.관계} width={WIDTH} height={height} className="text-label">
+    // 자리가 좁으면(1280, 대화를 펼침) 그림 전체가 비율대로 줄어든다
+    <div>
+      <svg role="img" aria-label={L.관계} viewBox={`0 0 ${WIDTH} ${height}`} width={WIDTH} height={height} className="h-auto max-w-full text-sm">
         {[...lines, ...hints].map(([dealer, ident], i) => {
           const dash = i >= lines.length ? '4 4' : undefined
           const to = at(1, ident)
@@ -36,9 +37,9 @@ export function Relation({ left, mid, right, lines, hints = [] }: { left: Dot[];
           const from = fromLeft ?? at(2, dealer)
           if (to === null || from === null) return null
           return fromLeft !== null ? (
-            <line key={i} x1={X[0] + DEALER} y1={from} x2={X[1]} y2={to} strokeDasharray={dash} className="stroke-text-mute" />
+            <line key={i} x1={X[0] + DEALER} y1={from} x2={X[1]} y2={to} strokeDasharray={dash} className="stroke-disabled" />
           ) : (
-            <line key={i} x1={X[1] + IDENT} y1={to} x2={X[2]} y2={from} strokeDasharray={dash} className="stroke-text-mute" />
+            <line key={i} x1={X[1] + IDENT} y1={to} x2={X[2]} y2={from} strokeDasharray={dash} className="stroke-disabled" />
           )
         })}
         {cols.map((col, c) =>
@@ -46,8 +47,8 @@ export function Relation({ left, mid, right, lines, hints = [] }: { left: Dot[];
             const width = c === 1 ? IDENT : DEALER
             return (
               <g key={`${c}${d.id}`}>
-                <rect x={X[c]} y={y(c, i) - BOX / 2} width={width} height={BOX} rx={c === 1 ? 0 : BOX / 2} className="fill-bg stroke-text-sub" />
-                <text x={X[c] + width / 2} y={y(c, i)} textAnchor="middle" dominantBaseline="central" className="fill-text tabular-nums">
+                <rect x={X[c]} y={y(c, i) - BOX / 2} width={width} height={BOX} rx={c === 1 ? 0 : BOX / 2} className="fill-surface stroke-secondary" />
+                <text x={X[c] + width / 2} y={y(c, i)} textAnchor="middle" dominantBaseline="central" className="fill-primary tabular-nums">
                   {d.name}
                 </text>
               </g>

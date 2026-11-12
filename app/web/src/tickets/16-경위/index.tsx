@@ -1,4 +1,4 @@
-// 16 경위: 지급·심사·추인의 오른쪽 경위 칸에 시간순 목록(날짜, 종류, 대상)과 `그림` 버튼. 누르면 가운데가 경위 그림으로 바뀐다.
+// 16 경위: 지급·심사·추인의 오른쪽 경위 칸에 사슬 순서의 목록(날짜, 종류, 대상)과 `그림` 버튼. 누르면 가운데가 경위 그림으로 바뀐다.
 // 그림: 원인은 왼쪽, 결과는 오른쪽, 방향은 바뀌지 않는다. 지금 대상의 줄기(앞뒤로 이어진 칸과 선)가 진하다. 칸을 누르면 그 대상으로 간다. 결정의 칸에는 사람과 사유가 붙는다.
 import { Link } from '@astryxdesign/core/Link'
 import { Text } from '@astryxdesign/core/Text'
@@ -8,6 +8,7 @@ import { L } from '../../labels'
 import type { Piece } from '../../pieces'
 import { targetAtom, trailOpenAtom, useData } from '../../state'
 import { Empty } from '../../ui/Empty'
+import { Region } from '../../ui/Region'
 import { Table } from '../../ui/Table'
 
 type Node = {
@@ -38,30 +39,26 @@ function Go({ node }: { node: Node }) {
   )
 }
 
-/** 오른쪽: 시간순 목록. 날짜가 없는 칸(미상)이 먼저, 같은 날은 사슬의 순서 그대로 */
+/** 오른쪽: 사슬의 순서(원인 → 결과, 서버가 준 그대로). 날짜가 없는 칸은 미상. 대상이 길면 줄임표(머물면 전체) */
 function List() {
   const d = useTrail()
   const [open, setOpen] = useAtom(trailOpenAtom)
   if (!d) return <Empty />
-  const rows = d.nodes
-    .map((n, i) => ({ n, i }))
-    .sort((a, b) => (a.n.at ?? '').localeCompare(b.n.at ?? '') || a.i - b.i)
   return (
     <div className="flex flex-col gap-2">
       <div>
         <ToggleButton label={L.그림} size="sm" isPressed={open} onPressedChange={setOpen} />
       </div>
-      <Table head={[L.날짜, L.종류, L.대상]} rows={rows.map(({ n }) => [n.at ?? L.미상, n.kind, <Go key={n.key} node={n} />])} current={rows.findIndex(({ n }) => n.key === d.now)} />
+      <Table head={[L.날짜, L.종류, L.대상]} clip={[2]} rows={d.nodes.map((n) => [n.at ?? L.미상, n.kind, <Go key={n.key} node={n} />])} current={d.nodes.findIndex((n) => n.key === d.now)} />
     </div>
   )
 }
 
-// 그림의 치수(theme.css의 간격 단위 4의 배수)
-// 가운데 폭에 맞춰 줄어들도록 칸을 좁게 잡고, 그래도 넘으면 그림 전체가 비율대로 줄어든다
-const W = 104
-const H = 128
-const GAP_X = 20
-const GAP_Y = 12
+// 그림의 치수(간격 단위 4의 배수). 칸은 종류·날짜 / 대상(두 줄까지) / 사람·사유에 맞춘 높이. 1280에서 네 칸이 목록을 접은 가운데에 들어간다. 넘치면 그림이 가로로 밀린다(글자를 줄이지 않는다)
+const W = 144
+const H = 96
+const GAP_X = 32
+const GAP_Y = 16
 
 /** 지금 대상의 줄기: 지금 칸에서 원인 쪽과 결과 쪽으로 이어진 칸 전부 */
 function trunk(d: Trail) {
@@ -84,79 +81,83 @@ function depths(d: Trail) {
   return at
 }
 
+/** 가운데(경위를 펼쳤을 때): 원인 → 결과의 그림. 머리(제목·숫자 줄)는 위에 그대로 남고 몸통만 바뀐다.
+ * 열마다 칸을 세로 가운데로 모으고, 선은 칸의 오른쪽 가운데에서 꺾여 다음 칸의 왼쪽 가운데로 들어간다(겹치지 않게 꺾는 자리는 열 사이 가운데) */
 function Picture() {
   const d = useTrail()
   const setTarget = useSetAtom(targetAtom)
   if (!d) return <Empty />
   const col = depths(d)
   const on = trunk(d)
-  const rows: Record<number, number> = {}
+  const count: Record<number, number> = {}
+  d.nodes.forEach((n) => (count[col[n.key]] = (count[col[n.key]] ?? 0) + 1))
+  const most = Math.max(...Object.values(count))
+  const seen: Record<number, number> = {}
   const pos = Object.fromEntries(
     d.nodes.map((n) => {
-      const r = (rows[col[n.key]] = (rows[col[n.key]] ?? -1) + 1)
-      return [n.key, { x: col[n.key] * (W + GAP_X), y: r * (H + GAP_Y) }]
+      const c = col[n.key]
+      const r = (seen[c] = (seen[c] ?? -1) + 1)
+      const top = ((most - count[c]) * (H + GAP_Y)) / 2
+      return [n.key, { x: c * (W + GAP_X), y: top + r * (H + GAP_Y) }]
     }),
   )
   const width = (Math.max(...Object.values(col)) + 1) * (W + GAP_X) - GAP_X
-  const height = (Math.max(...Object.values(rows)) + 1) * (H + GAP_Y) - GAP_Y
+  const height = most * (H + GAP_Y) - GAP_Y
   return (
-    <div className="overflow-x-auto">
-      <svg role="img" aria-label={L.경위} viewBox={`0 0 ${width} ${height}`} width={width} height={height} className="h-auto max-w-full">
-        <defs>
-          <marker id="head" markerUnits="userSpaceOnUse" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" orient="auto">
-            <path d="M0 0L8 4L0 8z" className="fill-disabled" />
-          </marker>
-          <marker id="head-on" markerUnits="userSpaceOnUse" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" orient="auto">
-            <path d="M0 0L8 4L0 8z" className="fill-primary" />
-          </marker>
-        </defs>
-        {d.edges.map(([a, b]) => {
-          const strong = on.has(a) && on.has(b)
-          return (
-            <line
-              key={`${a}${b}`}
-              x1={pos[a].x + W}
-              y1={pos[a].y + H / 2}
-              x2={pos[b].x}
-              y2={pos[b].y + H / 2}
-              markerEnd={`url(#${strong ? 'head-on' : 'head'})`}
-              className={strong ? 'stroke-primary' : 'stroke-disabled'}
-              strokeWidth={strong ? 2 : 1}
-            />
-          )
-        })}
-        {d.nodes.map((n) => (
-          <foreignObject key={n.key} x={pos[n.key].x} y={pos[n.key].y} width={W} height={H}>
-            <button
-              type="button"
-              aria-current={n.key === d.now || undefined}
-              onClick={() => setTarget(n.go)}
-              className={`flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-md border px-2 py-1 text-left hover:bg-muted ${n.key === d.now ? 'border-2 border-primary bg-muted' : on.has(n.key) ? 'border-secondary bg-surface' : 'border-border bg-surface opacity-60'}`}
-            >
-              <Text type="supporting">{n.kind}</Text>
-              <span className="whitespace-nowrap">
-                <Text type="supporting" hasTabularNumbers>
-                  {n.at ?? L.미상}
+    <Region title={L.그림}>
+      <div className="overflow-x-auto">
+        <svg role="img" aria-label={L.경위} width={width} height={height}>
+          <defs>
+            <marker id="head" markerUnits="userSpaceOnUse" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" orient="auto">
+              <path d="M0 0L8 4L0 8z" className="fill-disabled" />
+            </marker>
+            <marker id="head-on" markerUnits="userSpaceOnUse" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" orient="auto">
+              <path d="M0 0L8 4L0 8z" className="fill-primary" />
+            </marker>
+          </defs>
+          {d.edges.map(([a, b]) => {
+            const strong = on.has(a) && on.has(b)
+            const [x1, y1, x2, y2] = [pos[a].x + W, pos[a].y + H / 2, pos[b].x, pos[b].y + H / 2]
+            const mid = x1 + GAP_X / 2
+            return (
+              <path
+                key={`${a}${b}`}
+                d={`M${x1} ${y1}H${mid}V${y2}H${x2}`}
+                fill="none"
+                markerEnd={`url(#${strong ? 'head-on' : 'head'})`}
+                className={strong ? 'stroke-primary' : 'stroke-disabled'}
+                strokeWidth={strong ? 2 : 1}
+              />
+            )
+          })}
+          {d.nodes.map((n) => (
+            <foreignObject key={n.key} x={pos[n.key].x} y={pos[n.key].y} width={W} height={H}>
+              <button
+                type="button"
+                aria-current={n.key === d.now || undefined}
+                onClick={() => setTarget(n.go)}
+                className={`flex h-full w-full cursor-pointer flex-col justify-center gap-0.5 overflow-hidden rounded-md border px-3 text-left hover:bg-muted ${n.key === d.now ? 'border-2 border-primary bg-muted' : on.has(n.key) ? 'border-secondary bg-surface' : 'border-border bg-surface opacity-60'}`}
+              >
+                <span className="flex items-baseline justify-between gap-2">
+                  <Text weight="semibold">{n.kind}</Text>
+                  <Text type="supporting" hasTabularNumbers>
+                    {n.at ?? L.미상}
+                  </Text>
+                </span>
+                <Text maxLines={2} display="block">
+                  {n.name}
                 </Text>
-              </span>
-              <span className="line-clamp-2 break-keep" title={n.name}>
-                <Text weight="medium">{n.name}</Text>
-              </span>
-              {n.who?.role && (
-                <span className="line-clamp-2">
-                  <Text type="supporting">{[n.who.role, n.who.reason?.class].filter(Boolean).join(' · ')}</Text>
-                </span>
-              )}
-              {n.who?.reason?.memo && (
-                <span className="line-clamp-2" title={n.who.reason.memo}>
-                  <Text type="supporting">{n.who.reason.memo}</Text>
-                </span>
-              )}
-            </button>
-          </foreignObject>
-        ))}
-      </svg>
-    </div>
+                {n.who?.role && (
+                  <Text type="supporting" maxLines={1} display="block">
+                    {[n.who.role, n.who.reason?.class, n.who.reason?.memo].filter(Boolean).join(' · ')}
+                  </Text>
+                )}
+              </button>
+            </foreignObject>
+          ))}
+        </svg>
+      </div>
+    </Region>
   )
 }
 

@@ -149,7 +149,7 @@ function Body() {
   )
 }
 
-/** 채택 · 불채택: 같은 무게의 버튼. 사유는 사유 칸에서 고르고, 불채택은 분류가 필수다. 누른 뒤 요청이 끝날 때까지 다시 눌리지 않는다.
+/** 채택 · 불채택: 같은 무게의 버튼(둘 다 늘 눌린다). 사유는 사유 칸에서 고르고, 불채택은 분류가 필수다 — 없이 누르면 `사유`가 보인다. 누른 뒤 요청이 끝날 때까지 다시 눌리지 않는다.
  * 결정이 남으면 결정 한 줄과, AI의 의견과 정황의 조치(그때까지 내린 것)를 이름표와 값으로 보인다 */
 function Decide() {
   const d = useReport()
@@ -169,8 +169,10 @@ function Decide() {
               key={a.kind}
               label={a.kind}
               variant={grade(a.kind)}
-              isDisabled={busy || !ready(a.kind, a.reason, reason)}
+              isDisabled={busy}
               onClick={() => {
+                // 채택·불채택은 같은 무게로 늘 누를 수 있다. 사유가 규칙에 맞지 않으면(불채택은 분류 필수) 보내지 않고 거절의 낱말 `사유`를 보인다
+                if (!ready(a.kind, a.reason, reason)) return setBad(L.사유)
                 setBusy(true)
                 setBad(null)
                 api('/adopt', { id, kind: a.kind, reason: filled(reason) ?? undefined })

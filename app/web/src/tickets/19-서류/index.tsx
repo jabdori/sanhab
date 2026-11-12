@@ -78,17 +78,9 @@ function Original({ d }: { d: Doc }) {
   )
 }
 
-/** 등록 값과 출처 표지(원본이면 그 행 번호만, 시연이면 합성 D58) */
-const Registered = ({ r }: { r: Doc['rows'][number] }) =>
-  r.reg ? (
-    <span className="flex items-baseline gap-2">
-      {r.reg.value}
-      {/* 시연으로 넣은 등록 호실(D58)은 합성: 설명은 스펙의 D58에서 온다 */}
-      {r.reg.source === L.시연 ? <Source kind={L.합성} of={L.호실} rows={[[L.원본, L.미상]]} /> : <Source kind={r.reg.source} file={r.reg.file} row={r.reg.row} />}
-    </span>
-  ) : (
-    <Empty />
-  )
+/** 등록 값의 출처 표지(출처 열): 원본이면 그 행 번호만, 시연으로 넣은 등록 호실(D58)이면 합성 — 설명은 스펙의 D58에서 온다 */
+const RegSource = ({ r }: { r: Doc['rows'][number] }) =>
+  r.reg && (r.reg.source === L.시연 ? <Source kind={L.합성} of={L.호실} /> : <Source kind={r.reg.source} file={r.reg.file} row={r.reg.row} />)
 
 /** 가운데: 서류 이름과 출처(판독의 모델·날짜), 서류가 여럿이면 번호, 왼쪽 원본 / 오른쪽 값 표(누락·불일치가 위)와 누락·불일치의 수 */
 function Center() {
@@ -120,15 +112,16 @@ function Center() {
         </div>
         <div className="col-span-2 flex min-w-0 flex-col gap-3">
           <Table
-            head={[L.항목, L.판독, L.등록, L.비교]}
+            head={[L.항목, L.판독, L.등록, L.비교, L.출처]}
             mark={picked ? d.rows.findIndex((r) => r.item === picked) : undefined}
             rows={d.rows.map((r) => [
               <Link color="primary" weight="medium" onClick={() => pick(r.item)}>
                 {r.item}
               </Link>,
               r.read ?? <Empty />,
-              <Registered r={r} />,
+              r.reg?.value ?? <Empty />,
               r.result ? <Pill tone={tones[r.result as keyof typeof tones] ?? 'wait'}>{r.result}</Pill> : <Empty />,
+              <RegSource r={r} />,
             ])}
           />
           {d.rows.length > 0 && (
@@ -194,14 +187,14 @@ function Samples() {
       .then((r) => r.blob())
       .then((b) => setFile(new File([b], name, { type: b.type })), () => {})
   return (
-    <div className="flex flex-col gap-2">
-      <Text type="supporting">{L.서류}</Text>
-      <div className="flex flex-wrap items-center gap-2">
+    // 시연 서랍의 다른 칸(날짜·초기화)과 같은 영역 제목. 단추는 서류 이름 · 그 서류를 낸 대리점
+    <Region title={L.서류}>
+      <div className="flex flex-col items-start gap-2">
         {samples.map((s) => (
-          <ToggleButton key={s.id} label={`${s.id} ${s.dealer}`} size="sm" isPressed={file?.name === s.name} onPressedChange={() => choose(s.id, s.name)} />
+          <ToggleButton key={s.id} label={`${s.name.replace(/\.\w+$/, '')} · ${s.dealer}`} size="sm" isPressed={file?.name === s.name} onPressedChange={() => choose(s.id, s.name)} />
         ))}
       </div>
-    </div>
+    </Region>
   )
 }
 

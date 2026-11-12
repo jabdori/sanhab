@@ -22,7 +22,8 @@ type Detail = {
   payouts: ({ ym: string; amount: number; status: string; state?: string; state_source?: string; review?: { id: string; name: string; marks: string[] } | null } & From)[]
 }
 
-const src = (f: From) => <Source kind={f.source} file={f.file} row={f.row} />
+// 앱에서 사람이 넣은 변경(출처 시연)은 제품의 동작이라 표지가 없다 — 누가 언제는 이력에 있다(모의는 시연 서랍에서 만든 값에만)
+const src = (f: From) => (f.source === L.시연 ? null : <Source kind={f.source} file={f.file} row={f.row} />)
 
 /** 이름(누르면 열린다) + 식별자(보조). 대리점을 가리키는 곳마다 같은 모양 */
 export const Dealer = ({ name, id, onOpen }: { name: string; id: string; onOpen: () => void }) => (
