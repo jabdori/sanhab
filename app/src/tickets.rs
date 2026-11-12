@@ -49,5 +49,6 @@ tickets! {
     t12_hypo,
     t22_rules,
     t24_chat,
+    t25_card,
     t23_mock,
 }

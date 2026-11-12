@@ -10,10 +10,11 @@ import { L } from '../../labels'
 import type { Piece } from '../../pieces'
 import { api, chatOpenAtom, listOpenAtom, roleAtom, rolesAtom, store, targetAtom, type Target } from '../../state'
 import { Pill } from '../../ui/Pill'
+import { Card, type CardData } from '../25-카드'
 import { button, label } from '../../ui/styles'
 
 /** 답에 붙는 조회한 기록(서버가 `data-reads`로 보낸다) */
-type Talk = UIMessage<never, { reads: { names: string[] } }>
+type Talk = UIMessage<never, { reads: { names: string[] }; card: CardData }>
 
 /** 칩에 보이는 이름. 아직 받지 못했거나 모르면 id */
 const key = (t: Target) => `${t.kind}/${t.id}`
@@ -130,11 +131,15 @@ function Panel() {
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3">
         {messages.map((m) => {
           const ids = m.parts.flatMap((p) => (p.type === 'data-reads' ? p.data.names : []))
+          const cards = m.parts.flatMap((p) => (p.type === 'data-card' ? [p.data] : []))
           const body = m.parts.map((p) => (p.type === 'text' ? p.text : '')).join('')
           return (
             <div key={m.id} className={`flex flex-col gap-1 ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
-              {m.role === 'assistant' && (body || ids.length > 0) && <span className={label}>{L.AI}</span>}
+              {m.role === 'assistant' && (body || ids.length > 0 || cards.length > 0) && <span className={label}>{L.AI}</span>}
               {body && <p className={`${bubble} ${m.role === 'user' ? 'bg-surface' : 'bg-bg'} max-w-full text-body`}>{body}</p>}
+              {cards.map((c) => (
+                <Card key={`${c.kind}/${c.id}/${c.action}`} card={c} />
+              ))}
               {ids.length > 0 && (
                 <div className="flex flex-col gap-1">
                   <span className={label}>{L.조회}</span>
