@@ -10,7 +10,7 @@ import { HStack } from '@astryxdesign/core/Layout'
 import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
 import { Timestamp } from '@astryxdesign/core/Timestamp'
 import { Source } from '../../ui/Source'
-import { num } from '../../ui/Table'
+import { num } from '../../ui/status'
 import { useReview } from '../04-심사/review'
 
 type Side = { total: number; approver: string }
