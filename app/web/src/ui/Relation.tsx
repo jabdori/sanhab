@@ -28,7 +28,7 @@ export function Relation({ left, mid, right, lines, hints = [] }: { left: Dot[];
   }
   return (
     // 자리가 좁으면(1280, 대화를 펼침) 그림 전체가 비율대로 줄어든다
-    <div>
+    <>
       <svg role="img" aria-label={L.관계} viewBox={`0 0 ${WIDTH} ${height}`} width={WIDTH} height={height} className="h-auto max-w-full text-sm">
         {[...lines, ...hints].map(([dealer, ident], i) => {
           const dash = i >= lines.length ? '4 4' : undefined
@@ -56,6 +56,6 @@ export function Relation({ left, mid, right, lines, hints = [] }: { left: Dot[];
           }),
         )}
       </svg>
-    </div>
+    </>
   )
 }

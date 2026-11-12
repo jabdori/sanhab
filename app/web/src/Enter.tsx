@@ -1,13 +1,17 @@
+// 접속: astryx login-card 템플릿 꼴. 가운데에 앱 아이콘 · 이름, 그 아래 Card 하나 — 패스워드 → (맞으면) 같은 Card에서 역할 고르기.
 import { Button } from '@astryxdesign/core/Button'
 import { Card } from '@astryxdesign/core/Card'
-import { Heading } from '@astryxdesign/core/Heading'
+import { Center } from '@astryxdesign/core/Center'
+import { Icon } from '@astryxdesign/core/Icon'
+import { VStack } from '@astryxdesign/core/Layout'
+import { Heading, Text } from '@astryxdesign/core/Text'
 import { TextInput } from '@astryxdesign/core/TextInput'
-import { Text } from '@astryxdesign/core/Text'
+import { BanknotesIcon } from '@heroicons/react/24/outline'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { useState } from 'react'
 import { APP, L } from './labels'
+import { fail } from './ui/status'
 import { api, roleAtom, rolesAtom } from './state'
-import { Pill } from './ui/Pill'
 
 /** 접속 패스워드 → 역할 고르기 */
 export function Enter() {
@@ -15,35 +19,56 @@ export function Enter() {
   const setRole = useSetAtom(roleAtom)
   const [pass, setPass] = useState('')
   const [bad, setBad] = useState(false)
+  const [busy, setBusy] = useState(false)
   return (
-    <main className="flex h-screen items-center justify-center bg-body">
-      <Card width="var(--spacing-list)" padding={6}>
-        <div className="flex flex-col gap-4">
+    <Center axis="both" padding={6} minHeight="100vh" className="bg-body">
+      <VStack gap={4} hAlign="center" width="100%" maxWidth={400}>
+        <VStack gap={2} hAlign="center">
+          <Icon icon={BanknotesIcon} size="lg" />
           <Heading level={1}>{APP}</Heading>
+        </VStack>
+        <Card padding={8} width="100%">
           {roles.length === 0 ? (
             <form
-              className="flex flex-col gap-4"
               onSubmit={(e) => {
                 e.preventDefault()
-                api('/enter', { pass }).then(() => setBad(false), () => setBad(true))
+                setBusy(true)
+                api('/enter', { pass })
+                  .then(() => setBad(false), () => setBad(true))
+                  .finally(() => setBusy(false))
               }}
             >
-              <TextInput type="password" label={L['접속 패스워드']} value={pass} onChange={setPass} hasAutoFocus htmlName="pass" />
-              <div className="flex items-center gap-2">
-                <Button type="submit" variant="primary" label={L.접속} />
-                {bad && <Pill tone="bad">{L.불일치}</Pill>}
-              </div>
+              <VStack gap={4} hAlign="stretch">
+                <TextInput
+                  type="password"
+                  label={L['접속 패스워드']}
+                  isLabelHidden
+                  placeholder={L['접속 패스워드']}
+                  size="lg"
+                  value={pass}
+                  onChange={(v: string) => {
+                    setPass(v)
+                    setBad(false)
+                  }}
+                  hasAutoFocus
+                  htmlName="pass"
+                  status={bad ? { type: fail, message: L.불일치 } : undefined}
+                />
+                <Button type="submit" variant="primary" size="lg" label={L.접속} isLoading={busy} />
+              </VStack>
             </form>
           ) : (
-            <div className="flex flex-col gap-2">
-              <Text type="supporting">{L.역할}</Text>
+            <VStack gap={3} hAlign="stretch">
+              <Text type="supporting" color="secondary">
+                {L.역할}
+              </Text>
               {roles.map((r) => (
-                <Button key={r.role} label={r.role} width="100%" onClick={() => setRole(r.role)} />
+                <Button key={r.role} label={r.role} size="lg" width="100%" onClick={() => setRole(r.role)} />
               ))}
-            </div>
+            </VStack>
           )}
-        </div>
-      </Card>
-    </main>
+        </Card>
+      </VStack>
+    </Center>
   )
 }

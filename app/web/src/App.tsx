@@ -1,23 +1,38 @@
 import { AppShell } from '@astryxdesign/core/AppShell'
-import { Layout, LayoutContent, LayoutHeader, LayoutPanel } from '@astryxdesign/core/Layout'
-import { SideNav, SideNavItem } from '@astryxdesign/core/SideNav'
-import { useAtom, useAtomValue } from 'jotai'
-import { useEffect } from 'react'
-import { Band } from './Band'
+import { Button } from '@astryxdesign/core/Button'
+import { Layout, LayoutContent, LayoutPanel } from '@astryxdesign/core/Layout'
+import { ResizeHandle, useResizable } from '@astryxdesign/core/Resizable'
+import { Selector } from '@astryxdesign/core/Selector'
+import { SideNav, SideNavHeading, SideNavItem } from '@astryxdesign/core/SideNav'
+import { useMediaQuery } from '@astryxdesign/core/hooks'
+import { Icon } from '@astryxdesign/core/Icon'
+import { Text } from '@astryxdesign/core/Text'
+import { HStack, StackItem, VStack } from '@astryxdesign/core/Layout'
+import { UserCircleIcon, BeakerIcon, BookOpenIcon, CalendarIcon, BuildingStorefrontIcon, InboxStackIcon } from '@heroicons/react/24/outline'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { type ReactNode, useState } from 'react'
+import { AiPanel } from './AiPanel'
+import { DemoDrawer } from './Demo'
 import { Enter } from './Enter'
-import { L } from './labels'
-import { type Slot, SlotView, usePieces } from './pieces'
-import { chatOpenAtom, listOpenAtom, MENUS, menuAtom, roleAtom, rolesAtom, targetAtom, trailOpenAtom, useData } from './state'
-import { Region } from './ui/Region'
+import { APP, L } from './labels'
+import { Clarify } from './pages/Clarify'
+import { Dealer } from './pages/Dealer'
+import { Dealers } from './pages/Dealers'
+import { Pay } from './pages/Pay'
+import { Ratify } from './pages/Ratify'
+import { Review } from './pages/Review'
+import { Rule } from './pages/Rule'
+import { Rules } from './pages/Rules'
+import { Signal } from './pages/Signal'
+import { Work } from './pages/Work'
+import { MENUS, type Menu, menuAtom, roleAtom, rolesAtom, targetAtom, useData } from './state'
+import { Chat } from './tickets/24-대화'
 
-/** 오른쪽(판단)의 칸. 순서 고정 */
-const RIGHT: [Slot, string][] = [
-  ['action', L.조치],
-  ['reason', L.사유],
-  ['report', L.보고],
-  ['trail', L.경위],
-  ['history', L.이력],
-]
+/** 기록의 종류 → 화면. 메뉴 → 목록 화면 */
+const RECORDS: Record<string, () => ReactNode> = { [L.심사]: Review, [L.정황]: Signal, [L.소명]: Clarify, [L.지급]: Pay, [L.추인]: Ratify, [L.대리점]: Dealer, [L.규정]: Rule }
+const LISTS: Record<Menu, () => ReactNode> = { [L.작업]: Work, [L.대리점]: Dealers, [L.규정]: Rules }
+
+const ICONS = { [L.작업]: InboxStackIcon, [L.대리점]: BuildingStorefrontIcon, [L.규정]: BookOpenIcon }
 
 export function App() {
   const roles = useAtomValue(rolesAtom)
@@ -26,120 +41,95 @@ export function App() {
 }
 
 /**
- * 전체 틀(astryx AppShell): 띠(TopNav) / 메뉴(SideNav) · 목록 · 가운데(사실) · 오른쪽(판단) · 대화.
- * 가운데는 머리(제목·숫자 줄, 고정)와 몸통(사실의 영역들, 스크롤)으로 나뉜다. 오른쪽은 다섯 칸이 선으로 나뉜 회색 바탕이다
+ * 틀(astryx docs layout/scaffold: 콘솔은 SideNav): 메뉴(머리에 앱 이름과 역할, 바닥에 날짜와 시연) | 본문 | 대화(380, 폭 조절).
+ * 본문은 메뉴와 연 기록으로 정해진다: 작업 목록 · 심사 기록 · 아직 옮기지 않은 화면(pages/Legacy)
  */
 function Shell() {
-  const [menu, setMenu] = useAtom(menuAtom)
-  const [target, setTarget] = useAtom(targetAtom)
-  const chat = usePieces('chat')
-  const head = usePieces('head')
-  // 고를 목록이 있고 아무것도 열지 않았으면 목록이 나머지를 다 쓴다. 목록이 없는 메뉴는 가운데와 오른쪽이 바로 보인다
-  const wide = usePieces('list').length > 0 && !target
-  // 규정은 모의(23)를 할 수 있는 역할에게만 판단할 것이 있다. 없으면 오른쪽(판단) 칸을 두지 않는다
-  const mock = useData<{ can: boolean }>(target?.kind === L.규정 ? '/mock' : null)
-  const judge = !(target?.kind === L.규정 && mock?.can === false)
-  // 소명·대리점을 열면 목록이 접힌다(서류에 폭을 준다, ux-plan). 접힌 자리의 손잡이를 누르면 펼쳐지고, 다른 대상을 열면 다시 접힌다
-  const [listOpen, setListOpen] = useAtom(listOpenAtom)
-  const [chatOpen, setChatOpen] = useAtom(chatOpenAtom)
-  const [trailOpen, setTrailOpen] = useAtom(trailOpenAtom)
-  useEffect(() => {
-    setListOpen(false)
-    setTrailOpen(false)
-  }, [target, setListOpen, setTrailOpen])
-  // 대화를 펼쳐도 목록이 나머지를 다 쓰고 있을 때(대상이 없을 때)는 접을 것이 없다
-  // 경위 그림을 펼쳐도 목록이 접힌다(그림에 폭을 준다)
-  // 대리점 상세도 목록이 접힌다(등록·관계·지급 세 표가 1280에서 밀려 나지 않게 가운데에 폭을 준다)
-  const folded = (target?.kind === L.소명 || target?.kind === L.대리점 || trailOpen || (chatOpen && !wide)) && !listOpen
-  const list = (
-    <div className="flex flex-col gap-4">
-      <SlotView slot="list" />
-    </div>
-  )
+  const menu = useAtomValue(menuAtom)
+  const target = useAtomValue(targetAtom)
+  const [demo, setDemo] = useState(false)
+  const narrow = useMediaQuery('(max-width: 1366px)')
+  const chat = useResizable({ defaultSize: 380, minSize: 320, maxSize: 560, autoSaveId: 'chat' })
+  const Open = target ? RECORDS[target.kind] : undefined
+  const List = LISTS[menu]
+  // 기록은 대상마다 새로 그린다(탭·사유 입력이 다른 기록으로 넘어가지 않게)
+  const page = Open && target ? <Open key={`${target.kind}/${target.id}`} /> : <List />
   return (
     <AppShell
-      variant="section"
-      topNav={<Band />}
-      sideNav={
-        <SideNav className="w-menu">
-          {MENUS.map((m) => (
-            <SideNavItem key={m} label={m} isSelected={m === menu} onClick={() => {
-                setMenu(m)
-                setTarget(null)
-              }}
-            />
-          ))}
-        </SideNav>
-      }
+      // 1280처럼 좁으면 메뉴가 아이콘 줄로 접힌 채 시작한다(폭이 경계를 넘으면 다시 정한다). 접기 단추로 언제든 펼친다
+      sideNav={<Nav key={narrow ? 'rail' : 'full'} folded={narrow} onDemo={() => setDemo(true)} />}
     >
       <Layout
-        start={
-          wide ? null : folded ? (
-            <LayoutPanel width="var(--spacing-chat)" padding={0} hasDivider>
-              <button className="w-full cursor-pointer pt-3 text-sm text-secondary hover:text-primary" aria-expanded={false}
-                onClick={() => {
-                  setListOpen(true)
-                  setChatOpen(false) // 목록과 대화는 둘 중 하나만 펼쳐진다
-                }}
-              >
-                {menu}
-              </button>
-            </LayoutPanel>
-          ) : (
-            <LayoutPanel width="var(--spacing-list)" padding={6} hasDivider label={menu}>
-              {list}
-            </LayoutPanel>
-          )
-        }
-        content={
-          wide ? (
-            <LayoutContent padding={6} label={menu}>
-              {list}
-            </LayoutContent>
-          ) : (
-            <LayoutContent padding={0}>
-              <Layout
-                header={
-                  head.length > 0 ? (
-                    <LayoutHeader hasDivider padding={6}>
-                      <div className="flex flex-col gap-4">
-                        <SlotView slot="head" />
-                      </div>
-                    </LayoutHeader>
-                  ) : null
-                }
-                content={
-                  <LayoutContent padding={6}>
-                    <div className="flex flex-col gap-8">
-                      <SlotView slot={trailOpen ? 'map' : 'fact'} />
-                    </div>
-                  </LayoutContent>
-                }
-              />
-            </LayoutContent>
-          )
-        }
+        height="fill"
+        content={<LayoutContent padding={0}>{page}</LayoutContent>}
         end={
-          <div className="flex h-full">
-            {!wide && judge && (
-              <LayoutPanel width="var(--spacing-right)" padding={0} hasDivider label={L.조치}>
-                <div className="min-h-full bg-body">
-                  {RIGHT.map(([slot, name]) => (
-                    <Region key={slot} title={name} className="border-b border-border p-6">
-                      <SlotView slot={slot} />
-                    </Region>
-                  ))}
-                </div>
-              </LayoutPanel>
-            )}
-            {chat.length ? (
-              <SlotView slot="chat" />
-            ) : (
-              <aside className="w-chat shrink-0 border-l border-border pt-3 text-center text-sm text-secondary">{L.대화}</aside>
-            )}
-          </div>
+          <>
+            <ResizeHandle direction="horizontal" resizable={chat.props} isReversed hasDivider isAlwaysVisible={false} label={L.대화} />
+            <LayoutPanel width={chat.size} padding={0} label={L.대화} isScrollable={false}>
+              {/* 오른쪽 = AI 구역: 위에 지금 연 기록의 AI 보고(접힘), 아래에 대화(입력창 상시) */}
+              <VStack height="100%" gap={0}>
+                <AiPanel />
+                <StackItem size="fill" className="min-h-0">
+                  <Chat />
+                </StackItem>
+              </VStack>
+            </LayoutPanel>
+          </>
         }
       />
+      <DemoDrawer isOpen={demo} onOpenChange={setDemo} />
     </AppShell>
+  )
+}
+
+/** 메뉴(SideNav): 머리에 앱 이름, 그 아래 역할, 바닥에 날짜와 시연. 접히면 역할은 Avatar, 메뉴와 시연은 아이콘만 */
+function Nav({ folded: start, onDemo }: { folded: boolean; onDemo: () => void }) {
+  const roles = useAtomValue(rolesAtom)
+  const [role, setRole] = useAtom(roleAtom)
+  const [menu, setMenu] = useAtom(menuAtom)
+  const setTarget = useSetAtom(targetAtom)
+  const today = useData<{ today: string }>('/state')?.today
+  const [folded, setFolded] = useState(start)
+  return (
+    <SideNav
+      collapsible={{ isCollapsed: folded, onCollapsedChange: setFolded }}
+      header={<SideNavHeading heading={APP} />}
+      topContent={
+        // 접히면 지금 역할을 아이콘 단추로(머물면 이름, 누르면 메뉴가 펼쳐져 역할을 바꿀 수 있다)
+        folded ? (
+          <Button label={role ?? L.역할} variant="ghost" isIconOnly icon={<Icon icon={UserCircleIcon} size="sm" />} onClick={() => setFolded(false)} />
+        ) : (
+          <Selector label={L.역할} isLabelHidden size="sm" width="100%" value={role ?? undefined} options={roles.map((r) => r.role)}
+            onChange={(v: string) => {
+              setRole(v)
+              setTarget(null)
+            }}
+          />
+        )
+      }
+      footer={
+        !folded && (
+          <HStack gap={2} vAlign="center">
+            <StackItem size="fill">
+              <HStack gap={2} vAlign="center">
+                <Icon icon={CalendarIcon} size="sm" color="secondary" />
+                {today && <Text type="supporting" weight="medium" hasTabularNumbers>{today}</Text>}
+              </HStack>
+            </StackItem>
+            <Button label={L.시연} size="sm" variant="secondary" icon={<Icon icon={BeakerIcon} size="sm" />} onClick={onDemo} />
+          </HStack>
+        )
+      }
+      footerIcons={folded && <Button label={L.시연} variant="ghost" isIconOnly icon={<Icon icon={BeakerIcon} size="sm" />} onClick={onDemo} />}
+    >
+      {MENUS.map((m) => (
+        <SideNavItem key={m} label={m} icon={ICONS[m]} isSelected={m === menu}
+          onClick={() => {
+            setMenu(m)
+            setTarget(null)
+          }}
+        />
+      ))}
+    </SideNav>
   )
 }

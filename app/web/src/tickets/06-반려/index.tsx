@@ -1,24 +1,19 @@
-// 06 반려: 심사 상세의 오른쪽에 재상신(반려된 심사를 연 영업지원에게만. 04의 조치 줄에 보이는 반려 결정과 사유의 아래), 재상신의 사유(필수, D55), 이력(결정과 재상신을 일어난 순서대로).
-// 반려 버튼과 사유의 분류는 04·05가 조치(act)에서 읽어 그대로 보인다.
-import { atom, useAtom, useAtomValue } from 'jotai'
+// 06 반려: 반려된 심사의 재상신(조치는 pages/Review의 페이지 조치, 사유는 그 확인 창)과 이력(결정과 재상신을 일어난 순서대로).
+import { atom, useAtomValue } from 'jotai'
 import { unwrap } from 'jotai/utils'
-import { useEffect, useState } from 'react'
+import { Icon } from '@astryxdesign/core/Icon'
+import { UserCircleIcon } from '@heroicons/react/24/outline'
 import { L } from '../../labels'
-import type { Piece } from '../../pieces'
-import { api, changedAtom, roleAtom, store, targetAtom } from '../../state'
-import { Button } from '@astryxdesign/core/Button'
+import { api, changedAtom, roleAtom, targetAtom } from '../../state'
+import { List, ListItem } from '@astryxdesign/core/List'
 import { Text } from '@astryxdesign/core/Text'
 import { Empty } from '../../ui/Empty'
-import { grade } from '../../ui/grade'
-import { Pill } from '../../ui/Pill'
-import { type Draft, Reason, blank, ready, sent as filled } from '../../ui/Reason'
-import { Line } from '../04-심사'
-import { type Decision, useReview } from '../04-심사/review'
+import type { Decision } from '../04-심사/review'
 
 /** can: 지금 역할이 재상신할 수 있는지. classes: 재상신의 사유에 고를 수 있는 분류. lines: 결정과 재상신 */
 type State = { id: string; can: boolean; classes: string[]; lines: (Decision & { was?: string | null })[] }
 
-// 열어 둔 심사의 재상신. 두 조각이 같은 값을 읽고, 조치 뒤에 저절로 다시 읽힌다
+// 열어 둔 심사의 재상신. 기록 화면의 조치와 이력이 같은 값을 읽고, 조치 뒤에 저절로 다시 읽힌다
 const stateAtom = atom(async (get) => {
   get(changedAtom)
   get(roleAtom)
@@ -27,76 +22,31 @@ const stateAtom = atom(async (get) => {
 })
 const latestAtom = unwrap(stateAtom, (prev) => prev ?? null)
 
-/** 쓰고 있는 재상신의 사유. 사유 칸이 채우고 재상신 버튼이 함께 보낸 뒤 비운다 */
-const draftAtom = atom<Draft>(blank)
-
-function useResubmit() {
+export function useResubmit() {
   const target = useAtomValue(targetAtom)
   const s = useAtomValue(latestAtom)
   return s && target?.kind === L.심사 && s.id === target.id ? s : null
 }
 
-function Action() {
+/** 이력: incident-console의 Timeline 꼴 — 역할의 Avatar · 결정(굵게) / 사유의 분류 · 메모 / 날짜(Timestamp, 원본의 과거 결정은 미상) */
+export function History() {
   const s = useResubmit()
-  // 재상신을 보낸 때의 값. 새 값을 받을 때까지는 다시 누를 수 없다
-  const [sent, setSent] = useState<unknown>(null)
-  // 서버가 거절한 까닭의 낱말. 다른 대상을 열면 사라진다
-  const [bad, setBad] = useState<string | null>(null)
-  const [draft, setDraft] = useAtom(draftAtom)
-  const id = s?.id
-  const role = useAtomValue(roleAtom)
-  useEffect(() => {
-    setBad(null)
-    setDraft(blank)
-  }, [id, role, setDraft])
-  if (!s || (!s.can && !bad)) return null
+  if (!s) return null
+  if (!s.lines.length) return <Empty />
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {s.can && (
-        <Button label={L.재상신} variant={grade(L.재상신)} isDisabled={sent === s || !ready(L.재상신, true, draft)}
-          onClick={() => {
-            setSent(s)
-            setBad(null)
-            api('/resubmit', { id: s.id, reason: filled(draft) }).then(
-              () => setDraft(blank),
-              (e: Error) => {
-                setBad(e.message)
-                store.set(changedAtom, (n) => n + 1)
-              },
-            )
-          }}
+    <List density="spacious">
+      {s.lines.map((d, i) => (
+        <ListItem
+          key={i}
+          align="start"
+          startContent={<Icon icon={UserCircleIcon} size="md" color="secondary" />}
+          // 그룹이 바뀌어 옮겨 온 옛 심사의 줄(13, D56)은 그 심사의 이름을 앞에 단다
+          label={[d.was, d.kind, d.role].filter(Boolean).join(' · ')}
+          description={[d.reason?.class ?? `${L.사유} ${L.없음}`, d.reason?.memo, d.source === L.원본 ? L.원본 : null].filter(Boolean).join(' · ')}
+          endContent={d.at ? <Text type="supporting" color="secondary" hasTabularNumbers>{d.at}</Text> : <Text type="supporting" color="secondary">{L.미상}</Text>}
         />
-      )}
-      {bad && <Pill tone="bad">{bad}</Pill>}
-    </div>
+      ))}
+    </List>
   )
 }
 
-/** 반려된 심사의 사유 자리(05의 사유 칸이 비켜 준다): 재상신할 수 있으면 재상신의 사유, 아니면 없음 */
-function Why() {
-  const s = useResubmit()
-  const r = useReview()
-  const [draft, setDraft] = useAtom(draftAtom)
-  if (!s || r?.review.status !== L.반려) return null
-  return s.can ? <Reason groups={[{ of: L.재상신, classes: s.classes }]} value={draft} onChange={setDraft} /> : <Empty />
-}
-
-function History() {
-  const s = useResubmit()
-  if (!s) return null
-  // 그룹이 바뀌어 옮겨 온 옛 심사의 줄(13, D56)은 그 심사의 이름을 위에 단다
-  return s.lines.length
-    ? s.lines.map((d, i) => (
-        <div key={i} className="flex flex-col gap-0.5">
-          {d.was && <Text type="supporting">{d.was}</Text>}
-          <Line d={d} />
-        </div>
-      ))
-    : <Empty />
-}
-
-export default [
-  { slot: 'action', kind: L.심사, View: Action },
-  { slot: 'reason', kind: L.심사, View: Why },
-  { slot: 'history', kind: L.심사, View: History },
-] satisfies Piece[]

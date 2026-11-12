@@ -1,3 +1,4 @@
+import { VStack } from '@astryxdesign/core/Layout'
 import { Selector, type SelectorOptionType } from '@astryxdesign/core/Selector'
 import { TextInput } from '@astryxdesign/core/TextInput'
 import { L } from '../labels'
@@ -19,7 +20,7 @@ export function Reason({ groups, value, onChange }: { groups: { of: string; clas
   // 목록에서는 조치가 묶음의 제목이라 분류만, 고른 값은 `보류 · 소명`처럼 조치까지
   const option = (g: { of: string }, c: string) => ({ value: `${g.of}/${c}`, label: c })
   return (
-    <div className="flex flex-col gap-2">
+    <VStack gap={2}>
       <Selector
         label={L.분류}
         isLabelHidden
@@ -35,6 +36,6 @@ export function Reason({ groups, value, onChange }: { groups: { of: string; clas
         }}
       />
       <TextInput label={L.메모} isLabelHidden placeholder={L.메모} width="100%" value={value.memo} onChange={(memo) => onChange({ ...value, memo })} />
-    </div>
+    </VStack>
   )
 }

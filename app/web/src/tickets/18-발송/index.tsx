@@ -1,210 +1,138 @@
-// 18 발송: 소명 상세(가운데: 제목·숫자 줄, 서류 목록 / 오른쪽: 조치(요청서를 고쳐 발송), 이력)와 정황 상세의 "소명" 줄.
-// 가운데의 값은 모두 코드가 정한 것이다(AI가 쓴 요청서 초안은 오른쪽 조치에 있다). 제목·숫자 줄은 머리(slot 'head')이고, 가운데의 조각은 order -30(서류 목록)이다.
-// 뒤 티켓이 kind: L.소명으로 끼우는 조각은 order를 적지 않으면 서류 목록 아래에 놓인다(19의 서류, 20의 비교).
+// 18 발송: 소명 기록(pages/Clarify)의 본문 영역 — 요청서, 서류 목록 — 과 이력, 정황 기록의 "소명" 줄(Of).
+// 값은 모두 코드가 정한 것이다(AI가 쓴 요청서 초안은 요청서 영역의 글 칸에 들어간다). 발송 조치는 페이지 조치(pages/Clarify)이고, 쓰고 있는 글은 letterAtom이 둘을 잇는다.
+import { Spinner } from '@astryxdesign/core/Spinner'
+import { HStack } from '@astryxdesign/core/Layout'
 import { Link } from '@astryxdesign/core/Link'
+import { List, ListItem } from '@astryxdesign/core/List'
+import { Table, proportional } from '@astryxdesign/core/Table'
 import { Text } from '@astryxdesign/core/Text'
 import { TextArea } from '@astryxdesign/core/TextArea'
-import { useSetAtom } from 'jotai'
-import { useEffect, useState } from 'react'
+import { atom, useAtom, useSetAtom } from 'jotai'
+import { useEffect } from 'react'
+import { Icon } from '@astryxdesign/core/Icon'
+import { UserCircleIcon } from '@heroicons/react/24/outline'
+import { State } from '../../ui/Mark'
 import { L } from '../../labels'
-import type { Piece } from '../../pieces'
-import { api, changedAtom, store, targetAtom, useData } from '../../state'
-import { Confirm } from '../../ui/Confirm'
+import { targetAtom, useData } from '../../state'
 import { Empty } from '../../ui/Empty'
-import { Figures } from '../../ui/Figures'
-import { grade } from '../../ui/grade'
-import { Line as Row } from '../../ui/Line'
-import { Pill } from '../../ui/Pill'
 import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
-import { Table } from '../../ui/Table'
-import { Title } from '../../ui/Title'
-import { Line } from '../04-심사'
-import type { Decision } from '../04-심사/review'
 import { useSignal } from '../11-정황/signal'
 import { tickAtom, useClarify } from './clarify'
 
-// 소명의 상태와 그 색(tokens.md): 요청·접수는 대기, 인정은 좋음, 보완·미응답은 멈춤, 불인정은 아님
-const tones = { [L.요청]: 'wait', [L.접수]: 'wait', [L.인정]: 'good', [L.보완]: 'hold', [L.미응답]: 'hold', [L.불인정]: 'bad' } as const
-export const pill = (state: string) => <Pill tone={tones[state as keyof typeof tones] ?? 'wait'}>{state}</Pill>
+/** 영업지원이 고친 요청서(null이면 AI 초안 그대로). 다른 소명을 열면 비운다 */
+export const letterAtom = atom<string | null>(null)
 
-const none = (v: string | null | undefined) => v ?? <Empty />
-
-/** 머리(가운데 위에 고정): 제목 줄과 숫자 줄(대리점, 일치, 발송한 날, 기한). 출처 표지는 일치에 계산·소명의 출처, 기한에 가정(D32) */
-function Head() {
-  const d = useClarify()
-  if (!d) return null
-  const { clarify: c } = d
-  const kinds = d.kinds.length ? d.kinds.join(' · ') : L.없음
-  return (
-    <>
-      <Title name={c.name}>{pill(c.state)}</Title>
-      <Figures
-        items={[
-          [L.대리점, c.dealer.name],
-          [
-            L.일치,
-            d.kinds.length ? (
-              // 일치는 계산(정황의 근거에서 고른 종류). 표지는 그 값 옆에
-              <span className="flex items-center gap-3">
-                {kinds}
-                <Source kind={c.source} tip={`${L.정황} · ${L.일치}`} rows={[...(c.signal ? ([[L.정황, c.signal.name]] as [string, string][]) : []), [L.일치, kinds]]} />
-              </span>
-            ) : (
-              <Empty />
-            ),
-          ],
-          [L.발송, none(d.sent)],
-          [
-            L.기한,
-            // 기한의 길이는 가정(D32). 발송 전에는 기한이 없으니 표지도 없다
-            d.due ? (
-              <span className="flex items-center gap-3">
-                {d.due}
-                <Source kind={L.가정} of={L.기한} rows={[[L.발송, none(d.sent)], [L.기한, d.due]]} />
-              </span>
-            ) : (
-              <Empty />
-            ),
-          ],
-        ]}
-      />
-    </>
-  )
-}
-
-/** 서류 목록(가정, D17): 일치 종류마다 정해진 서류. 요청서에는 항상 이 목록이 들어간다 */
-function Docs() {
-  const d = useClarify()
-  if (!d) return null
-  return (
-    <Region title={L.요청서} aside={<Source kind={L.가정} of={L.서류} rows={[[L.일치, d.kinds.length ? d.kinds.join(' · ') : L.없음]]} />}>
-      <Table head={[L.일치, L.서류]} rows={d.docs.map(([kind, doc]) => [kind, doc])} />
-    </Region>
-  )
-}
-
-/** 발송 한 줄: 발송 · 사람 · 날짜 */
-const Sent = ({ h }: { h: { kind?: string; role: string; at: string | null } }) => <Row kind={h.kind ?? L.발송} parts={[h.role, h.at ?? L.미상]} />
-
-/** 조치: 영업지원은 요청서(AI의 초안을 고친 글)를 쓰고 발송한다(주 버튼). 발송은 되돌릴 수 없으므로 확인 창을 거치고, 누른 뒤 새 값을 받을 때까지 다시 눌리지 않는다.
- * AI가 아직 초안을 쓰지 못했으면 대기 표지가 보이고(몇 초마다 다시 읽는다) 글 없이 목록만으로도 발송할 수 있다. 서버가 거절하면 그 낱말을 보인다.
- * 발송할 수 없는 역할에게는 발송한 요청서나 담당이 보인다 */
-function Action() {
+/** 요청서 영역: 영업지원이 발송할 수 있으면 AI 초안을 고치는 글 칸, 아니면 발송한 요청서. 초안이 아직 없으면 대기 Badge(몇 초마다 다시 읽는다) — 글 없이 목록만으로도 발송한다 */
+export function Letter() {
   const d = useClarify()
   const bump = useSetAtom(tickAtom)
-  const [typed, setTyped] = useState<string | null>(null)
-  const [sent, setSent] = useState<unknown>(null)
-  const [bad, setBad] = useState<string | null>(null)
+  const [typed, setTyped] = useAtom(letterAtom)
   const id = d?.clarify.id
   const waiting = !!d?.can && !d.draft
   useEffect(() => {
     setTyped(null)
-    setBad(null)
-  }, [id])
-  // 초안이 아직 없으면 AI가 쓰는 동안 몇 초마다 다시 읽는다
+  }, [id, setTyped])
   useEffect(() => {
     if (!waiting) return
     const t = setInterval(() => bump((n) => n + 1), 3000)
     return () => clearInterval(t)
   }, [waiting, bump])
   if (!d) return null
-  if (!d.can) {
-    // 소명의 결과(인정·불인정·보완)가 내려졌으면 조치 칸은 그 결정이다(발송한 요청서는 이력에 남는다)
-    const last = d.history.at(-1)
-    if (last && ![L.요청, L.발송, L.접수].includes(last.kind as never)) return <Line d={last as Decision} />
-    const h = d.history.filter((x) => x.kind === L.발송).at(-1)
-    if (!h)
-      return (
-        <div className="flex items-baseline gap-2">
-          <Text type="supporting">{L.담당}</Text>
-          <Text weight="semibold">{d.role}</Text>
-        </div>
-      )
-    return (
-      <div className="flex flex-col gap-2">
-        <Sent h={h} />
-        {d.body ? (
-          <p className="break-keep wrap-anywhere">
-            <Text>{d.body}</Text>
-          </p>
-        ) : (
-          <Empty />
-        )}
-      </div>
-    )
-  }
-  const value = typed ?? d.draft?.text ?? ''
-  const nothing = !d.docs.length && !value.trim()
-  const go = () => {
-    setSent(d)
-    setBad(null)
-    return api('/send', { id: d.clarify.id, body: value.trim() || undefined }).catch((e: Error) => {
-      setBad(e.message)
-      store.set(changedAtom, (n) => n + 1)
-    })
-  }
+  if (!d.can && !d.body) return null
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <Text weight="medium">{L.요청서}</Text>
-        <Source kind={L.AI} rows={[[L.모델, d.draft?.model ?? L.없음]]} />
-        {!d.draft && <Pill tone="wait">{L.대기}</Pill>}
-      </div>
-      <TextArea label={L.요청서} isLabelHidden rows={6} width="100%" value={value} onChange={setTyped} />
-      <div className="flex flex-wrap items-center gap-2">
-        <Confirm
-          label={L.발송}
-          variant={grade(L.발송)}
-          title={`${L.발송} ${d.clarify.dealer.name}`}
-          rows={d.docs.map(([kind, doc]): [string, string] => [kind, doc])}
-          isDisabled={sent === d || nothing}
-          onConfirm={go}
-        />
-        {bad && <Pill tone="bad">{bad}</Pill>}
-      </div>
-    </div>
+    <Region
+      title={L.요청서}
+      aside={
+        <>
+          {d.can && <Source kind={L.AI} rows={[[L.모델, d.draft?.model ?? L.없음]]} />}
+          {waiting && <Spinner size="sm" aria-label={L.대기} />}
+        </>
+      }
+    >
+      {d.can ? (
+        <TextArea label={L.요청서} isLabelHidden rows={6} width="100%" value={typed ?? d.draft?.text ?? ''} onChange={setTyped} />
+      ) : (
+        <Text className="break-keep wrap-anywhere">{d.body}</Text>
+      )}
+    </Region>
   )
 }
 
-/** 이력: 요청(내부 감시), 발송(영업지원)을 일어난 순서대로 */
-function History() {
+/** 서류 목록(가정, D17): 일치 종류마다 정해진 서류. 요청서에는 항상 이 목록이 들어간다 */
+export function Docs() {
   const d = useClarify()
   if (!d) return null
-  return d.history.length ? (
-    <div className="flex flex-col gap-3">
-      {d.history.map((h, i) => (h.kind === L.발송 || h.kind === L.접수 ? <Sent key={i} h={h} /> : <Line key={i} d={h} />))}
-    </div>
-  ) : (
-    <Empty />
+  type Row = { kind: string; doc: string } & Record<string, unknown>
+  const data: Row[] = d.docs.map(([kind, doc]) => ({ kind, doc }))
+  return (
+    <Region title={L.서류} aside={<Source kind={L.가정} of={L.서류} rows={[[L.일치, d.kinds.length ? d.kinds.join(' · ') : L.없음]]} />}>
+      {data.length ? (
+        <Table<Row>
+          data={data}
+          idKey="kind"
+          density="compact"
+          columns={[
+            { key: 'kind', header: L.일치, width: proportional(1, { minWidth: 80 }), renderCell: (r) => <Text weight="semibold">{r.kind}</Text> },
+            { key: 'doc', header: L.서류, width: proportional(2, { minWidth: 120 }), renderCell: (r) => <Text>{r.doc}</Text> },
+          ]}
+        />
+      ) : (
+        <Empty />
+      )}
+    </Region>
   )
 }
 
-/** 정황 상세의 "소명": 그 정황에서 열린 소명. 누르면 그 소명이 열린다. 없으면 보이지 않는다 */
-function Of() {
+/** 이력: 요청(내부 감시), 발송(영업지원), 접수, 결과를 일어난 순서대로. 역할의 Avatar · 낱말 · 역할 / 사유 / 날짜 */
+export function ClarifyHistory() {
+  const d = useClarify()
+  if (!d) return null
+  if (!d.history.length) return <Empty />
+  return (
+    <List density="spacious">
+      {d.history.map((h, i) => (
+        <ListItem
+          key={i}
+          align="start"
+          startContent={<Icon icon={UserCircleIcon} size="md" color="secondary" />}
+          label={`${h.kind} · ${h.role}`}
+          description={[h.reason?.class, h.reason?.memo].filter(Boolean).join(' · ') || undefined}
+          endContent={h.at ? <Text type="supporting" color="secondary" hasTabularNumbers>{h.at}</Text> : <Text type="supporting" color="secondary">{L.미상}</Text>}
+        />
+      ))}
+    </List>
+  )
+}
+
+/** 정황 기록의 "소명": 그 정황에서 열린 소명. 누르면 그 소명이 열린다. 없으면 보이지 않는다 */
+export function Of() {
   const s = useSignal()
   const list = useData<{ id: string; name: string; state: string }[]>(s ? `/signals/${encodeURIComponent(s.signal.id)}/clarifies` : null)
   const setTarget = useSetAtom(targetAtom)
   if (!list?.length) return null
+  type Row = { id: string; name: string; state: string } & Record<string, unknown>
   return (
     <Region title={L.소명}>
-      <Table
-        head={[L.소명, L.상태]}
-        rows={list.map((c) => [
-          <Link color="primary" weight="medium" onClick={() => setTarget({ kind: L.소명, id: c.id })}>
-            {c.name}
-          </Link>,
-          pill(c.state),
-        ])}
+      <Table<Row>
+        data={list as Row[]}
+        idKey="id"
+        density="compact"
+        columns={[
+          {
+            key: 'name',
+            header: L.소명,
+            width: proportional(3, { minWidth: 120 }),
+            renderCell: (c) => (
+              <Link weight="semibold" onClick={() => setTarget({ kind: L.소명, id: c.id })}>
+                {c.name}
+              </Link>
+            ),
+          },
+          { key: 'state', header: L.상태, align: 'end', width: proportional(1, { minWidth: 72 }), renderCell: (c) => <HStack hAlign="end"><State word={c.state} /></HStack> },
+        ]}
       />
     </Region>
   )
 }
 
-export default [
-  { slot: 'head', kind: L.소명, View: Head },
-  { slot: 'fact', kind: L.소명, order: -30, View: Docs },
-  { slot: 'action', kind: L.소명, View: Action },
-  { slot: 'history', kind: L.소명, View: History },
-  { slot: 'fact', kind: L.정황, order: -10, View: Of },
-] satisfies Piece[]

@@ -1,21 +1,26 @@
-import { Heading } from '@astryxdesign/core/Heading'
-import type { ReactNode } from 'react'
+import { HStack, Section, StackItem, VStack } from '@astryxdesign/core/Layout'
+import { Heading } from '@astryxdesign/core/Text'
+import { isValidElement, type ReactNode } from 'react'
+import { Empty } from './Empty'
 
 /**
- * 영역: 이름(영역 제목, Heading 3 모양) + 몸통. 가운데의 구성·관계·규정, 오른쪽의 조치·사유·보고·경위·이력이 모두 이것이다.
- * `aside`는 이름 옆에 붙는 것(출처 표지). 몸통이 `없음`뿐이면 이름과 없음이 한 줄로 접힌다(theme.css의 [data-region]).
- * 테두리를 두지 않는다: 영역은 간격으로 나뉘고, 오른쪽 칸에서는 칸이 선을 긋는다(App)
+ * 영역(astryx work-item-detail의 Section + SectionHeader): 위 구분선이 있는 흰 면의 Section — 제목 줄(Heading 2 + `aside` 출처 표지 · 건수 / 오른쪽 영역 조치 `actions`) 아래 몸통.
+ * 카드가 아니다(tokens.md 면 — Card soup 금지). 몸통이 `없음`(Empty)뿐이고 조치가 없으면 영역째 그리지 않는다
  */
-export const Region = ({ title, aside, className = '', children }: { title: string; aside?: ReactNode; className?: string; children: ReactNode }) => (
-  <section data-region="" className={`flex flex-col gap-3 ${className}`}>
-    <div className="flex items-center gap-2">
-      <Heading level={3} accessibilityLevel={2}>
-        {title}
-      </Heading>
-      {aside}
-    </div>
-    <div data-region-body="" className="flex min-w-0 flex-col gap-3">
-      {children}
-    </div>
-  </section>
-)
+export const Region = ({ title, aside, actions, children }: { title: string; aside?: ReactNode; actions?: ReactNode; children: ReactNode }) =>
+  isValidElement(children) && children.type === Empty && !actions ? null : (
+    <Section variant="transparent" padding={6} dividers={['top']}>
+      <VStack gap={4}>
+        <HStack gap={2} vAlign="center" wrap="wrap">
+          <StackItem size="fill">
+            <HStack gap={2} vAlign="center">
+              <Heading level={2}>{title}</Heading>
+              {aside}
+            </HStack>
+          </StackItem>
+          {actions && <HStack gap={2}>{actions}</HStack>}
+        </HStack>
+        <VStack gap={3}>{children}</VStack>
+      </VStack>
+    </Section>
+  )

@@ -1,9 +1,9 @@
 // 12 가설: 정황 상세와 심사 상세의 "가설" — 정황이 사실이라고 놓았을 때의 일치, 그룹, 승인권자를 현재와 나란히 둔다(다른 줄만 굵다).
 // 값은 모두 코드가 03의 계산에 정황이 가리키는 선을 더해 다시 구한 것이고 출처는 가정이다. 합산과 저장된 승인권자에는 들어가지 않는다.
 import { L } from '../../labels'
-import type { Piece } from '../../pieces'
 import { useData } from '../../state'
-import { Text } from '@astryxdesign/core/Text'
+import { VStack } from '@astryxdesign/core/Layout'
+import { Heading } from '@astryxdesign/core/Text'
 import { Compare } from '../../ui/Compare'
 import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
@@ -26,7 +26,8 @@ const kinds = (v: string[]) => (v.length ? v.join(' · ') : L.없음)
 /** 가설 영역의 출처 표지(가정). 설명 칸은 더하는 일치의 이름표와 값 */
 function Tag({ adds }: { adds: string[] }) {
   return (
-    <Source kind={L.가정} of={L.가설} tip={`${L.가설} · ${L.일치} ${kinds(adds)}`} rows={[[L.일치, kinds(adds)]]} />
+    // 설명 칸 아래 줄은 이 가설이 더하는 일치(정황이 사실이면 생기는 것). 더하는 것이 없으면 줄을 두지 않는다
+    <Source kind={L.가정} of={L.가설} tip={adds.length ? `${L.가설} · ${L.일치} ${kinds(adds)}` : L.가설} rows={adds.length ? [[L.가설, `${L.일치} ${kinds(adds)}`]] : undefined} />
   )
 }
 
@@ -43,7 +44,7 @@ function Rows({ h }: { h: Hypo }) {
   )
 }
 
-function OfSignal() {
+export function OfSignal() {
   const id = useSignal()?.signal.id
   const h = useData<Hypo>(id ? `/signals/${encodeURIComponent(id)}/hypo` : null)
   if (!id) return null
@@ -62,23 +63,22 @@ function OfSignal() {
 }
 
 /** 심사 상세: 그 심사의 구성원에 걸린 열린 정황마다. 그룹과 승인권자는 그 심사의 값이다 */
-function OfReview() {
+export function OfReview() {
   const id = useReview()?.review.id
   const list = useData<Hypo[]>(id ? `/reviews/${id}/hypo` : null)
   if (!list?.length) return null
   return (
     <Region title={L.가설} aside={<Tag adds={[...new Set(list.flatMap((h) => h.adds))]} />}>
-      {list.map((h) => (
-        <div key={h.id} className="flex flex-col gap-1">
-          <Text weight="semibold">{h.name}</Text>
-          <Rows h={h} />
-        </div>
-      ))}
+      {/* 정황마다 표 하나. 표 사이는 넓게(한 표의 제목과 표보다) */}
+      <VStack gap={6}>
+        {list.map((h) => (
+          <VStack key={h.id} gap={1}>
+            <Heading level={4}>{h.name}</Heading>
+            <Rows h={h} />
+          </VStack>
+        ))}
+      </VStack>
     </Region>
   )
 }
 
-export default [
-  { slot: 'fact', kind: L.정황, View: OfSignal },
-  { slot: 'fact', kind: L.심사, View: OfReview },
-] satisfies Piece[]

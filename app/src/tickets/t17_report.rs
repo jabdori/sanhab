@@ -97,7 +97,7 @@ fn plain(text: &str) -> bool {
     }
     !text.is_empty() && !rest.chars().any(|c| c.is_ascii_digit())
 }
-fn comma(n: i64) -> String {
+pub(crate) fn comma(n: i64) -> String {
     let s = n.abs().to_string();
     let g = s.as_bytes().rchunks(3).rev().map(|c| std::str::from_utf8(c).unwrap_or_default()).collect::<Vec<_>>().join(",");
     if n < 0 { format!("-{g}") } else { g }
@@ -168,6 +168,28 @@ struct ReadInput {
     query: String,
 }
 
+/// DB의 출처 `시연`은 사람이 화면에서 한 조치(변경 신고·결정·요청 …)로 생긴 기록이다. AI가 이것을 "시연 기록"으로 부르지 않게
+/// 도구의 결과에서 그 값을 `화면 입력`으로 바꿔 건넨다(지시문 SOURCE가 뜻을 적는다). DB와 화면의 값은 그대로다
+pub(super) const HUMAN: &str = "화면 입력";
+fn human(v: &mut J) {
+    match v {
+        J::Object(o) => {
+            for (k, x) in o.iter_mut() {
+                if k == "source" && x == "시연" {
+                    *x = json!(HUMAN);
+                } else {
+                    human(x);
+                }
+            }
+        }
+        J::Array(a) => a.iter_mut().for_each(human),
+        _ => {}
+    }
+}
+
+/// 지시문에 덧붙이는 출처의 뜻(보고·대화가 같이 쓴다)
+pub(super) const SOURCE: &str = "기록의 source 칸: 원본은 원본 데이터의 값, 화면 입력은 사람이 이 화면에서 한 조치(식별자 변경 신고, 결정, 요청 등)로 생긴 기록, 계산은 코드가 계산한 값이다. 화면 입력인 기록은 \"화면에서 입력한 변경\"처럼 사람이 한 일로 쓴다.";
+
 /// DB를 읽는 도구가 하는 일. AI의 세션으로 실행하므로 쓰기는 DB가 거절한다. 쓰는 글자가 보이면 보내지도 않는다
 pub(super) async fn read_db(ai: &Db, sql: &str) -> String {
     let up = sql.to_uppercase();
@@ -175,7 +197,11 @@ pub(super) async fn read_db(ai: &Db, sql: &str) -> String {
         return "읽기만 된다".into();
     }
     match q(ai, sql, json!({})).await {
-        Ok(v) => json!(v).to_string().chars().take(CUT).collect(),
+        Ok(v) => {
+            let mut v = json!(v);
+            human(&mut v);
+            v.to_string().chars().take(CUT).collect()
+        }
         Err(e) => format!("오류: {e}"),
     }
 }
@@ -214,7 +240,7 @@ pub(super) async fn ask(model: &str, key: Option<&str>, ai: &Db, basis: &J, toda
     let prompt = format!("오늘은 {today}이다. 아래 정황을 조사해 보고를 쓴다.\n{}", serde_json::to_string_pretty(basis).unwrap_or_default());
     let mut req = LanguageModelRequest::builder()
         .model(OpenAI::<aisdk::core::DynamicModel>::model_name(model))
-        .system(SYSTEM)
+        .system(format!("{SYSTEM}\n{SOURCE}"))
         .prompt(prompt)
         .with_tool(tool)
         .stop_when(step_count_is(8))
@@ -618,6 +644,9 @@ pub async fn check(c: &Check) -> Result<()> {
         ensure!(q1(root, "RETURN count(SELECT id FROM deposit);", json!({})).await? == 32, "원본");
         // 도구: 읽기는 되고, 쓰는 글자는 보내지도 않는다. 한 번에 읽는 양에는 한도가 있다
         ensure!(read_db(&ai, "RETURN count(SELECT id FROM deposit);").await.contains("32") && read_db(&ai, "CREATE signal:`기타-t` SET kind = '기타';").await == "읽기만 된다", "도구");
+        // 사람이 화면에서 한 조치의 출처(시연)는 화면 입력으로 건넨다
+        let got = read_db(&ai, "RETURN [{ source: '시연', item: '주소' }, { source: '원본' }];").await;
+        ensure!(got.contains(HUMAN) && got.contains("원본") && !got.contains("시연"), "화면 입력 {got}");
         ensure!(read_db(&ai, "SELECT * FROM deposit_of, deposit_into, payout_of, deposit;").await.chars().count() <= CUT && read_db(&ai, "SELECT FROM").await.starts_with("오류"), "도구의 한도");
         Ok(())
     }.await;

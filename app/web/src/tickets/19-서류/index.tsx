@@ -1,27 +1,28 @@
-// 19 서류: 소명 상세의 가운데(왼쪽 원본, 오른쪽 값 표 — 항목, 판독, 등록, 비교), 오른쪽 보고의 정리(AI), 영업지원의 조치(서류 접수).
-// 가운데에는 AI의 글이 없다: 판독은 글자 인식이 읽은 그대로, 등록은 원본(호실은 시연), 비교는 코드다. 값의 줄과 원본의 위치(판독의 위치 상자)가 서로 강조된다.
+// 19 서류: 소명 기록(pages/Clarify)의 본문 영역 — 원본(서류 그림), 판독(항목 · 판독 · 등록 · 비교), 접수(영업지원의 서류 올리기) — 과 레일의 "AI 정리", 대리점 기록의 "소명" 줄(OfDealer).
+// 본문에는 AI의 글이 없다: 판독은 글자 인식이 읽은 그대로, 등록은 원본(호실은 시연), 비교는 코드다. 값의 줄과 원본의 위치(판독의 위치 상자)가 서로 강조된다.
 // 판독이나 정리가 아직 없으면(멈춰 있으면) 원본만 보이고 값은 없음이다. 그동안 몇 초마다 다시 읽는다.
+import { Badge } from '@astryxdesign/core/Badge'
+import { Spinner } from '@astryxdesign/core/Spinner'
 import { Button } from '@astryxdesign/core/Button'
 import { FileInput } from '@astryxdesign/core/FileInput'
+import { HStack, VStack } from '@astryxdesign/core/Layout'
 import { Link } from '@astryxdesign/core/Link'
+import { Table, pixel, proportional } from '@astryxdesign/core/Table'
 import { Text } from '@astryxdesign/core/Text'
 import { ToggleButton } from '@astryxdesign/core/ToggleButton'
 import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useState } from 'react'
+import { State } from '../../ui/Mark'
 import { L } from '../../labels'
-import type { Piece } from '../../pieces'
 import { menuAtom, targetAtom, useData } from '../../state'
 import { Empty } from '../../ui/Empty'
-import { Figures } from '../../ui/Figures'
-import { grade } from '../../ui/grade'
-import { Pill } from '../../ui/Pill'
 import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
-import { Table } from '../../ui/Table'
-import { pill } from '../18-발송'
+import { fail, plain } from '../../ui/status'
 import { bin, type Doc, pick, pickAtom, range, seeAtom, tickAtom, useDoc, useDocs } from './docs'
 
-const tones = { [L.일치]: 'good', [L.불일치]: 'bad', [L.누락]: 'bad' } as const
+type Row = Doc['rows'][number] & Record<string, unknown>
+type Tidy = { item: string; value?: string; words: number[] } & Record<string, unknown>
 
 /** 판독·정리를 기다리는 서류가 있으면 몇 초마다 다시 읽는다 */
 function useWaiting(d: Doc | null) {
@@ -56,7 +57,8 @@ function Original({ d }: { d: Doc }) {
   if (d.mime === 'application/pdf') return <object data={url} type={d.mime} aria-label={d.name} className="aspect-3/4 w-full rounded-md border border-border" />
   const boxes = d.rows.flatMap((r) => r.words.map((i) => ({ item: r.item, w: d.words?.[i] })).filter((b) => b.w))
   return (
-    <div className="relative rounded-md border border-border">
+    // 상자를 겹치려면 그림 위에 같은 크기의 층이 필요해 relative 묶음이 하나 있다
+    <VStack className="relative w-full max-w-md rounded-md border border-border">
       <img src={url} alt={d.name} className="block w-full rounded-md" />
       <svg viewBox="0 0 1 1" preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
         {boxes.map(({ item, w }, i) => (
@@ -74,7 +76,7 @@ function Original({ d }: { d: Doc }) {
           </rect>
         ))}
       </svg>
-    </div>
+    </VStack>
   )
 }
 
@@ -82,103 +84,122 @@ function Original({ d }: { d: Doc }) {
 const RegSource = ({ r }: { r: Doc['rows'][number] }) =>
   r.reg && (r.reg.source === L.시연 ? <Source kind={L.합성} of={L.호실} /> : <Source kind={r.reg.source} file={r.reg.file} row={r.reg.row} />)
 
-/** 가운데: 서류 이름과 출처(판독의 모델·날짜), 서류가 여럿이면 번호, 왼쪽 원본 / 오른쪽 값 표(누락·불일치가 위)와 누락·불일치의 수 */
-function Center() {
+/** 서류 선택(서류가 여럿일 때 번호 단추)과 이름 · 출처(판독의 모델 · 날짜) */
+function Aside() {
   const all = useDocs()
   const d = useDoc()
   const setSee = useSetAtom(seeAtom)
-  const picked = useAtomValue(pickAtom)
   const target = useAtomValue(targetAtom)
-  useEffect(() => setSee(null), [target?.id, setSee])
-  useWaiting(d)
-  if (!all?.docs.length || !d) return null
+  useEffect(() => {
+    setSee(null)
+  }, [target?.id, setSee])
+  if (!all || !d) return null
   const at = all.docs.indexOf(d)
   return (
-    <Region
-      title={L.서류}
-      aside={
-        <>
-          <Text className="wrap-anywhere">{d.name}</Text>
-          {/* 판독은 글자 인식(AI)이 읽은 값이다 */}
-          <Source kind={L.AI} tip={L.판독} rows={[[L.접수, [d.role, d.at].join(' · ')], [L.판독, d.read_model ?? L.없음]]} />
-          {all.docs.length > 1 &&
-            all.docs.map((x, i) => <ToggleButton key={x.id} label={String(i + 1)} size="sm" isPressed={i === at} onPressedChange={() => setSee(i)} />)}
-        </>
-      }
-    >
-      <div className="grid grid-cols-3 items-start gap-4">
-        <div className="min-w-0">
-          <Original d={d} />
-        </div>
-        {/* 판독 전에는 값이 없다: 표도 숫자 줄도 그리지 않는다 */}
-        {d.rows.length > 0 && (
-          <div className="col-span-2 flex min-w-0 flex-col gap-3">
-            <Table
-              head={[L.항목, L.판독, L.등록, L.비교, L.출처]}
-              mark={picked ? d.rows.findIndex((r) => r.item === picked) : undefined}
-              rows={d.rows.map((r) => [
-                <Link color="primary" weight="medium" onClick={() => pick(r.item)}>
-                  {r.item}
-                </Link>,
-                r.read ? range(r.read) : <Empty />,
-                r.reg?.value ? range(r.reg.value) : <Empty />,
-                r.result ? <Pill tone={tones[r.result as keyof typeof tones] ?? 'wait'}>{r.result}</Pill> : <Empty />,
-                <RegSource r={r} />,
-              ])}
-            />
-            <Figures
-                items={[
-                  [L.누락, d.counts[L.누락] ?? 0],
-                  [L.불일치, d.counts[L.불일치] ?? 0],
-                ]}
-              >
-                <Source kind={L.계산} tip={`${L.누락} · ${L.불일치}`} rows={[[L.누락, d.counts[L.누락] ?? 0], [L.불일치, d.counts[L.불일치] ?? 0]]} />
-              </Figures>
-          </div>
-        )}
-      </div>
+    <>
+      <Text type="supporting" color="secondary" className="wrap-anywhere">{d.name}</Text>
+      {all.docs.length > 1 && all.docs.map((x, i) => <ToggleButton key={x.id} label={String(i + 1)} size="sm" isPressed={i === at} onPressedChange={() => setSee(i)} />)}
+    </>
+  )
+}
+
+/** 이미지 영역: 접수한 서류의 그림 */
+export function OriginalDoc() {
+  const all = useDocs()
+  const d = useDoc()
+  useWaiting(d)
+  if (!all?.docs.length || !d) return null
+  return (
+    // 접수한 서류의 그림. 출처의 낱말 `원본`과 겹치지 않게 영역 이름은 `이미지`
+    <Region title={L.이미지} aside={<Aside />}>
+      <Original d={d} />
     </Region>
   )
 }
 
-/** 오른쪽 보고의 정리(AI가 다듬은 값): 항목마다 값과 연결(↗ — 누르면 가운데의 판독 줄과 원본의 위치가 강조된다). 정리가 없으면 대기 */
-function Tidy() {
+/** 판독 영역: 항목마다 판독 · 등록 · 비교(누락 · 불일치가 위). 항목을 누르면 그 줄과 원본의 위치가 강조된다. 판독 전에는 값이 없다 */
+export function Read() {
+  const all = useDocs()
+  const d = useDoc()
+  const picked = useAtomValue(pickAtom)
+  const rows = (d?.rows ?? []) as Row[]
+  // 판독이 아직 없으면 영역을 두지 않는다(원본만 보이고, 기다리는 표시는 레일의 AI 정리에 있다)
+  if (!all?.docs.length || !d || !rows.length) return null
+  return (
+    // 판독은 글자 인식(AI)이 읽은 값이다: AI 표지는 이 영역에
+    <Region title={L.판독} aside={<Source kind={L.AI} tip={L.판독} rows={[[L.접수, [d.role, d.at].join(' · ')], [L.판독, d.read_model ?? L.없음]]} />}>
+      <Table<Row>
+          data={rows}
+          idKey="item"
+          density="compact"
+          columns={[
+            {
+              key: 'item',
+              header: L.항목,
+              width: proportional(2, { minWidth: 64 }),
+              // 강조: 줄 전체에 상태가 없어 첫 칸에 theme.css의 `.mark`를 건다
+              renderCell: (r) => (
+                <HStack className={r.item === picked ? 'mark' : undefined}>
+                  <Link weight="semibold" onClick={() => pick(r.item)}>
+                    {r.item}
+                  </Link>
+                </HStack>
+              ),
+            },
+            { key: 'read', header: L.판독, width: proportional(3, { minWidth: 96 }), renderCell: (r) => (r.read ? <Text hasTabularNumbers>{range(r.read)}</Text> : <Text color="secondary">{L.없음}</Text>) },
+            { key: 'reg', header: L.등록, width: proportional(3, { minWidth: 96 }), renderCell: (r) => (r.reg?.value ? <Text hasTabularNumbers>{range(r.reg.value)}</Text> : <Text color="secondary">{L.없음}</Text>) },
+            // 비교가 모두 기본 상태(일치)면 칸째 두지 않는다
+            ...(rows.some((r) => !plain(r.result)) ? [{ key: 'result', header: L.비교, width: pixel(80), renderCell: (r: Row) => <State word={r.result} /> }] : []),
+            { key: 'source', header: L.출처, align: 'end', width: pixel(88), renderCell: (r) => <RegSource r={r} /> },
+          ]}
+        />
+    </Region>
+  )
+}
+
+/** 레일 "AI 정리"의 몸통: 항목마다 값과 연결(↗ — 누르면 본문의 판독 줄과 원본의 위치가 강조된다). 정리가 없으면 대기 */
+export function Tidy() {
   const d = useDoc()
   const all = useDocs()
-  // 소명의 보고 칸에는 이 조각뿐이라 서류가 없으면 없음을 적는다
   if (!d) return all ? <Empty /> : null
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <Text weight="medium">{L.정리}</Text>
+    <VStack gap={2}>
+      <HStack gap={2} vAlign="center">
         <Source kind={L.AI} rows={[[L.모델, d.tidy_model ?? L.없음]]} />
-        {!d.tidy && <Pill tone="wait">{L.대기}</Pill>}
-      </div>
-      {d.tidy ? (
-        <Table
-          head={[L.항목, L.값, '']}
-          rows={d.tidy.map((t) => [
-            <Text weight="medium">{t.item}</Text>,
-            t.value ? range(t.value) : <Empty />,
-            t.words.length > 0 && (
-              <Link aria-label={t.item} onClick={() => pick(t.item)}>
-                ↗
-              </Link>
-            ),
-          ])}
+        {!d.tidy && <Spinner size="sm" aria-label={L.대기} />}
+      </HStack>
+      {d.tidy && (
+        <Table<Tidy>
+          data={d.tidy as Tidy[]}
+          idKey="item"
+          density="compact"
+          columns={[
+            { key: 'item', header: L.항목, width: proportional(2, { minWidth: 56 }), renderCell: (t) => <Text weight="semibold">{t.item}</Text> },
+            { key: 'value', header: L.값, width: proportional(3, { minWidth: 88 }), renderCell: (t) => (t.value ? <Text hasTabularNumbers>{range(t.value)}</Text> : <Text color="secondary">{L.없음}</Text>) },
+            {
+              key: 'go',
+              header: '',
+              align: 'end',
+              width: pixel(32),
+              renderCell: (t) =>
+                t.words.length > 0 && (
+                  <Link aria-label={t.item} onClick={() => pick(t.item)}>
+                    ↗
+                  </Link>
+                ),
+            },
+          ]}
         />
-      ) : (
-        <Empty />
       )}
-    </div>
+    </VStack>
   )
 }
 
 /** 접수할 파일. 조치 칸(Upload)의 파일 입력과 시연 서랍의 시연 서류(Samples)가 함께 채운다 */
-const fileAtom = atom<File | null>(null)
+export const fileAtom = atom<File | null>(null)
 
 /** 시연 서랍(slot 'demo'): 시연 서류를 골라 조치 칸의 접수할 파일로 둔다. 제품의 조작이 아니므로 소명 화면에는 없다. 그렇게 올린 서류는 출처가 모의다 */
-function Samples() {
+export function Samples() {
   const d = useDocs()
   const samples = useData<{ id: string; name: string; dealer: string; source: string }[]>(d?.can ? '/samples' : null)
   const [file, setFile] = useAtom(fileAtom)
@@ -190,17 +211,17 @@ function Samples() {
   return (
     // 시연 서랍의 다른 칸(날짜·초기화)과 같은 영역 제목. 단추는 서류 이름 · 그 서류를 낸 대리점
     <Region title={L.서류}>
-      <div className="flex flex-col items-start gap-2">
+      <VStack gap={2} hAlign="start">
         {samples.map((s) => (
           <ToggleButton key={s.id} label={`${s.name.replace(/\.\w+$/, '')} · ${s.dealer}`} size="sm" isPressed={file?.name === s.name} onPressedChange={() => choose(s.id, s.name)} />
         ))}
-      </div>
+      </VStack>
     </Region>
   )
 }
 
-/** 조치(영업지원, 올릴 수 있을 때): 파일(이미지·PDF)을 골라 접수(주 버튼). 누른 뒤 요청이 끝날 때까지 다시 눌리지 않고, 서버가 거절하면 그 낱말을 보인다 */
-function Upload() {
+/** 접수 영역(영업지원, 올릴 수 있을 때): 파일(이미지 · PDF)을 골라 접수(주 버튼, 영역 조치). 누른 뒤 요청이 끝날 때까지 다시 눌리지 않고, 서버가 거절하면 그 낱말을 보인다 */
+export function Upload() {
   const d = useDocs()
   const target = useAtomValue(targetAtom)
   const [file, setFile] = useAtom(fileAtom)
@@ -220,47 +241,51 @@ function Upload() {
       .finally(() => setBusy(false))
   }
   return (
-    <div className="flex flex-col gap-3">
+    <Region
+      title={L.접수}
+      aside={bad ? <Badge variant={fail} label={bad} /> : undefined}
+      actions={<Button label={L.접수} variant="primary" isDisabled={!file || busy} onClick={go} />}
+    >
       <FileInput label={L.서류} isLabelHidden placeholder={L.서류} width="100%" accept={d.kinds.join(',')} value={file} onChange={(f) => setFile(f as File | null)} />
-      <div className="flex flex-wrap items-center gap-2">
-        <Button label={L.접수} variant={grade(L.접수)} isDisabled={!file || busy} onClick={go} />
-        {bad && <Pill tone="bad">{bad}</Pill>}
-      </div>
-    </div>
+    </Region>
   )
 }
 
-/** 대리점 상세의 "소명": 그 대리점의 소명. 누르면 작업 메뉴에서 그 소명이 열린다(발송한 뒤 영업지원이 서류를 올리러 가는 길). 없으면 보이지 않는다 */
-function OfDealer() {
+/** 대리점 기록의 "소명": 그 대리점의 소명. 누르면 작업 메뉴에서 그 소명이 열린다(발송한 뒤 영업지원이 서류를 올리러 가는 길). 없으면 보이지 않는다 */
+export function OfDealer() {
   const target = useAtomValue(targetAtom)
   const list = useData<{ id: string; name: string; state: string }[]>(target?.kind === L.대리점 ? `/dealers/${encodeURIComponent(target.id)}/clarifies` : null)
   const setTarget = useSetAtom(targetAtom)
   const setMenu = useSetAtom(menuAtom)
   if (!list?.length) return null
+  type C = { id: string; name: string; state: string } & Record<string, unknown>
   return (
     <Region title={L.소명}>
-      <Table
-        head={[L.소명, L.상태]}
-        rows={list.map((c) => [
-          <Link color="primary" weight="medium"
-            onClick={() => {
-              setMenu(L.작업)
-              setTarget({ kind: L.소명, id: c.id })
-            }}
-          >
-            {c.name}
-          </Link>,
-          pill(c.state),
-        ])}
+      <Table<C>
+        data={list as C[]}
+        idKey="id"
+        density="compact"
+        columns={[
+          {
+            key: 'name',
+            header: L.소명,
+            width: proportional(3, { minWidth: 120 }),
+            renderCell: (c) => (
+              <Link
+                weight="semibold"
+                onClick={() => {
+                  setMenu(L.작업)
+                  setTarget({ kind: L.소명, id: c.id })
+                }}
+              >
+                {c.name}
+              </Link>
+            ),
+          },
+          { key: 'state', header: L.상태, align: 'end', width: proportional(1, { minWidth: 72 }), renderCell: (c) => <HStack hAlign="end"><State word={c.state} /></HStack> },
+        ]}
       />
     </Region>
   )
 }
 
-export default [
-  { slot: 'fact', kind: L.소명, View: Center },
-  { slot: 'report', kind: L.소명, View: Tidy },
-  { slot: 'action', kind: L.소명, View: Upload },
-  { slot: 'demo', kind: L.소명, View: Samples },
-  { slot: 'fact', kind: L.대리점, order: 450, View: OfDealer },
-] satisfies Piece[]

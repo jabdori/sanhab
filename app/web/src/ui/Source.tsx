@@ -1,9 +1,12 @@
 import { Collapsible } from '@astryxdesign/core/Collapsible'
+import { HStack, VStack } from '@astryxdesign/core/Layout'
+import { Link } from '@astryxdesign/core/Link'
 import { Markdown } from '@astryxdesign/core/Markdown'
 import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
 import { Popover } from '@astryxdesign/core/Popover'
 import { Text } from '@astryxdesign/core/Text'
-import { Token } from '@astryxdesign/core/Token'
+import { Icon } from '@astryxdesign/core/Icon'
+import { BeakerIcon, CalculatorIcon, InformationCircleIcon, LightBulbIcon, SparklesIcon, Square2StackIcon } from '@heroicons/react/24/outline'
 import { Tooltip } from '@astryxdesign/core/Tooltip'
 import { type ReactNode, useState } from 'react'
 import { L } from '../labels'
@@ -36,9 +39,10 @@ const readSpecs = () =>
     },
   ))
 
-/** 서버의 출처 → 화면의 표지. 서버의 '시연'은 모의로 보인다 — 부르는 쪽은 시연 서랍에서 만든 값(모의 회신, 시연 서류)일 때만 넘긴다. 제품 안의 조치(변경·결정)로 생긴 값은 표지를 그리지 않는다. 시연으로 넣은 값(D58의 호실)은 kind={L.합성} */
-const shown = (kind: string) => (kind === L.시연 ? L.모의 : kind)
 const base = (file: string) => file.split('/').at(-1)
+
+/** 출처 표지의 아이콘: 계산 · 가정 · 합성 · AI · 모의 */
+const ICON: Record<string, typeof SparklesIcon> = { [L.계산]: CalculatorIcon, [L.가정]: LightBulbIcon, [L.합성]: Square2StackIcon, [L.AI]: SparklesIcon, [L.모의]: BeakerIcon }
 
 /**
  * 출처 표지. **원본이 아닌 값에만** 작은 표지(Token)가 붙는다: 계산 · 가정 · 합성 · AI · 모의.
@@ -55,7 +59,10 @@ export function Source({ kind, file, row, place, quiet, side, of, decision, line
   const [open, setOpen] = useState(false)
   const [origin, setOrigin] = useState<Row>()
   const [spec, setSpec] = useState<Spec | null>()
-  const name = shown(kind)
+  // 서버의 출처 `시연`은 사람이 제품에서 한 조치(변경·결정·요청 …)로 생긴 값이다 — 제품의 동작이라 표지가 없다(누가 언제는 이력에).
+  // `모의`는 시연 서랍에서 만든 값(모의 회신, 시연 서류, 넘긴 날짜)에만, 부르는 쪽이 kind={L.모의}로 준다. 이 판정은 여기 한 곳이다
+  if (kind === L.시연) return null
+  const name = kind
   const id = decision ?? (of ? DECISION[of] : undefined)
   const isOrigin = name === L.원본
   if (isOrigin && !(file && row) && !children && !rows) return null
@@ -76,7 +83,7 @@ export function Source({ kind, file, row, place, quiet, side, of, decision, line
     setOpen(true)
   }
   const content = (
-    <div className="flex max-h-96 flex-col gap-3 overflow-y-auto">
+    <VStack gap={3} className="max-h-96 overflow-y-auto">
       <Text weight="semibold">{line}</Text>
       {origin && file && row && <Origin file={file} row={row} o={origin} />}
       {spec && <Decision s={spec} />}
@@ -90,16 +97,22 @@ export function Source({ kind, file, row, place, quiet, side, of, decision, line
         </MetadataList>
       )}
       {/* 글(조항의 원문 등 마크다운)은 그려서 보인다(## · ** 원문이 그대로 나오지 않게) */}
-      {typeof children === 'string' ? <Markdown density="compact" headingLevelStart={5}>{children}</Markdown> : children && <div className="flex flex-col gap-2 text-sm">{children}</div>}
-    </div>
+      {typeof children === 'string' ? <Markdown density="compact" headingLevelStart={5}>{children}</Markdown> : children && <VStack gap={2}>{children}</VStack>}
+    </VStack>
   )
   const trigger = isOrigin || quiet ? (
-    <button type="button" className="shrink-0 cursor-pointer rounded-sm px-0.5 text-sm font-normal whitespace-nowrap text-secondary tabular-nums hover:text-primary hover:underline">
+    // 원본은 표지 없이 조용한 행 번호(보조 색 Link)
+    <Link type="supporting" color="secondary" onClick={() => {}}>
       {file && row ? `${row}${L.행}` : (place ?? L.원본)}
-    </button>
+    </Link>
   ) : (
-    // Token은 onClick이 있으면 안에 단추를 둔다(설명 칸이 그 단추에 붙는다)
-    <Token label={name} size="sm" onClick={() => {}} />
+    // 표지는 상태 Badge(채운 알약)와 다른 꼴: 종류 아이콘 + 보조 색 글자의 Link(누르면 설명 칸)
+    <Link type="supporting" color="secondary" onClick={() => {}}>
+      <HStack gap={0.5} vAlign="center">
+        <Icon icon={ICON[name] ?? InformationCircleIcon} size="sm" color="inherit" />
+        {name}
+      </HStack>
+    </Link>
   )
   return (
     <Popover content={content} label={line} isOpen={open} onOpenChange={toggle} width={400} placement={side === 'right' ? 'end' : side === 'top' ? 'above' : 'below'}>
@@ -124,24 +137,24 @@ function Decision({ s }: { s: Spec }) {
       <MetadataListItem label={L.내용}>
         {/* 스펙의 표 한 줄(D46의 "숫자가 기대는 가정")은 칸마다 한 줄로 푼다 */}
         {s.text.includes(' | ') ? (
-          <ul className="flex flex-col gap-1">
+          <VStack gap={1}>
             {s.text.split(' | ').map((c, i) => (
-              <li key={i}>{c.trim()}</li>
+              <Text key={i}>{c.trim()}</Text>
             ))}
-          </ul>
+          </VStack>
         ) : (
           // 스펙 줄의 글머리(`- `, `4. `)와 맨 앞의 `가정 —`는 떼고 내용만
           s.text.replace(/^(-|\d+\.)\s*/, '').replace(new RegExp(`^${L.가정}\\s*—\\s*`), '')
         )}
       </MetadataListItem>
       <MetadataListItem label={L['적용 시점']}>
-        <span className="tabular-nums">{s.since} ~</span>
+        <Text hasTabularNumbers>{s.since} ~</Text>
       </MetadataListItem>
       <MetadataListItem label={L.위치}>
-        <span className="break-all">
+        <Text className="break-all">
           {s.file} {s.row}
           {L.행}
-        </span>
+        </Text>
       </MetadataListItem>
       <MetadataListItem label={L.이유}>
         {s.body.length > LONG ? (
@@ -149,10 +162,10 @@ function Decision({ s }: { s: Spec }) {
             {why}
           </Collapsible>
         ) : (
-          <div className="flex flex-col gap-1">
+          <VStack gap={1}>
             <Text weight="medium">{s.title}</Text>
             {why}
-          </div>
+          </VStack>
         )}
       </MetadataListItem>
       {s.used.length > 0 && <MetadataListItem label={L.쓰임}>{s.used.map((u) => u.view).join(' · ')}</MetadataListItem>}
@@ -165,18 +178,23 @@ function Origin({ file, row, o }: { file: string; row: number; o: Row }) {
   return (
     <MetadataList>
       <MetadataListItem label={L.원본}>
-        <span className="break-all">
+        <Text className="break-all">
           {file} {row}
           {L.행}
-        </span>
+        </Text>
       </MetadataListItem>
       {o.cells.map(([k, v]) => (
         <MetadataListItem key={k} label={k}>
-          <span className="tabular-nums">{v}</span>
+          <Text hasTabularNumbers>{v}</Text>
         </MetadataListItem>
       ))}
       <MetadataListItem label={L.해시}>
-        <span className="break-all text-secondary">{o.sha}</span>
+        {/* 64자 해시는 앞부분만(머물면 전체) — 설명 칸이 가로로 밀리지 않게 */}
+        <Tooltip content={o.sha}>
+          <Text color="secondary" hasTabularNumbers>
+            {o.sha.slice(0, 16)}…
+          </Text>
+        </Tooltip>
       </MetadataListItem>
     </MetadataList>
   )

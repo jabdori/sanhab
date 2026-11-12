@@ -1,12 +1,13 @@
-// 14 재심사: 지급 상세의 오른쪽 사유 자리. 지급이 재심사가 된 까닭(변경: 누가·언제·무엇을)과 앞선 승인, 다시 승인한 심사.
-// 재심사가 된 적 없는 지급에는 없음. 앞선 승인에는 04의 심사 상세가 표시 재심사를 보인다(Mark).
+// 14 재심사: 지급 기록의 "재심사" 영역. 지급이 재심사가 된 까닭(변경: 누가·언제·무엇을)과 앞선 승인, 다시 승인한 심사.
+// 재심사가 된 적 없는 지급에는 영역이 없다. 앞선 승인에는 04의 심사 기록이 표시 재심사를 보인다(Mark).
 import { Link } from '@astryxdesign/core/Link'
+import { VStack } from '@astryxdesign/core/Layout'
+import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
 import { Text } from '@astryxdesign/core/Text'
 import { useSetAtom } from 'jotai'
 import { L } from '../../labels'
-import type { Piece } from '../../pieces'
 import { targetAtom, useData } from '../../state'
-import { Empty } from '../../ui/Empty'
+import { Region } from '../../ui/Region'
 import { usePay } from '../07-지급/pay'
 
 type Redo = {
@@ -19,38 +20,30 @@ type Redo = {
   }
 }
 
-function Why() {
+export function Why() {
   const p = usePay()
   const r = useData<Redo>(p && `/pays/${p.pay.id}/redo`)
   const setTarget = useSetAtom(targetAtom)
-  if (!p) return null
-  if (r?.redo.payout !== p.pay.id) return <Empty />
+  if (!p || r?.redo.payout !== p.pay.id) return null
   const { cause, was, back } = r.redo
   const open = (x: { id: string; name: string }) => <Link onClick={() => setTarget({ kind: L.심사, id: x.id })}>{x.name}</Link>
   return (
-    <div className="flex flex-col gap-2 break-keep">
-      {cause && (
-        <div className="flex flex-col gap-0.5 tabular-nums">
-          <Text weight="semibold">{[L.변경, cause.role, cause.at].join(' · ')}</Text>
-          <span className="wrap-anywhere">
-            <Text color="secondary">
-              {cause.dealer} · {cause.item} {cause.value} · {L.변경일} {cause.since}
-            </Text>
-          </span>
-        </div>
-      )}
-      <div className="flex items-baseline gap-2">
-        <Text type="supporting">{L.승인}</Text>
-        {open(was)}
-      </div>
-      {back && (
-        <div className="flex items-baseline gap-2">
-          <Text type="supporting">{L.심사}</Text>
-          {open(back)}
-        </div>
-      )}
-    </div>
+    <Region title={L.재심사}>
+      <MetadataList columns="single" label={{ position: 'start', width: 72 }}>
+        {cause && (
+          <MetadataListItem label={L.변경}>
+            <VStack gap={0.5}>
+              <Text hasTabularNumbers>{[cause.role, cause.at].join(' · ')}</Text>
+              <Text type="supporting" color="secondary" hasTabularNumbers>
+                {`${cause.dealer} · ${cause.item} ${cause.value} · ${L.변경일} ${cause.since}`}
+              </Text>
+            </VStack>
+          </MetadataListItem>
+        )}
+        <MetadataListItem label={L.승인}>{open(was)}</MetadataListItem>
+        {back && <MetadataListItem label={L.심사}>{open(back)}</MetadataListItem>}
+      </MetadataList>
+    </Region>
   )
 }
 
-export default [{ slot: 'reason', kind: L.지급, View: Why }] satisfies Piece[]

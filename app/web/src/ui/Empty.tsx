@@ -1,9 +1,5 @@
-import { Text } from '@astryxdesign/core/Text'
+import { EmptyState } from '@astryxdesign/core/EmptyState'
 import { L } from '../labels'
 
-/** 빈 자리: `없음`만. data-empty가 있어 영역(Region)이 이것만 담으면 한 줄로 접힌다(theme.css) */
-export const Empty = () => (
-  <p data-empty="">
-    <Text color="secondary">{L.없음}</Text>
-  </p>
-)
+/** 빈 자리(영역의 몸통이 비었을 때): astryx EmptyState의 작은 꼴, 제목 `없음` */
+export const Empty = () => <EmptyState title={L.없음} isCompact headingLevel={4} />

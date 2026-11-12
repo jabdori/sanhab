@@ -15,12 +15,8 @@ export const rolesAtom = atomWithStorage<{ role: string; token: string }[]>('rol
 export const roleAtom = atomWithStorage<string | null>('role', null, session(), { getOnInit: true })
 export const menuAtom = atom<Menu>(MENUS[0])
 export const targetAtom = atom<Target | null>(null)
-/** 목록을 접는 화면(소명 — 서류에 폭을 준다)에서 목록을 다시 펼쳤는지. 대상이 바뀌면 다시 접힌다(App) */
-export const listOpenAtom = atom(false)
-/** 오른쪽 끝의 대화를 펼쳤는지. 펼치면 목록이 접힌다(App) */
-export const chatOpenAtom = atom(false)
-/** 경위를 펼쳤는지(16). 펼치면 가운데가 경위 그림으로 바뀌고, 대상이 바뀌면 접힌다(App) */
-export const trailOpenAtom = atom(false)
+/** 작업 목록에서 기록을 열 때의 목록 순서. 기록 화면의 `n/전체 · 앞 / 뒤`가 이것을 따른다 */
+export const navAtom = atom<Target[]>([])
 /** 조치(POST)가 끝날 때마다 오른다. useData가 이것을 보고 다시 읽는다 */
 export const changedAtom = atom(0)
 
