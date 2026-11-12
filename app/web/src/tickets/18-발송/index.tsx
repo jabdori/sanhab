@@ -57,8 +57,12 @@ function Head() {
       >
         <Source kind={c.source}>
           <dl className="grid grid-cols-2 gap-x-2 gap-y-1">
-            <dt className={label}>{L.정황}</dt>
-            <dd className="wrap-anywhere">{c.signal.name}</dd>
+            {c.signal && (
+              <>
+                <dt className={label}>{L.정황}</dt>
+                <dd className="wrap-anywhere">{c.signal.name}</dd>
+              </>
+            )}
             <dt className={label}>{L.일치}</dt>
             <dd>{d.kinds.length ? d.kinds.join(' · ') : L.없음}</dd>
           </dl>

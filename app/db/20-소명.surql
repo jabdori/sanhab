@@ -14,6 +14,15 @@ DEFINE FIELD ex_from ON acct TYPE option<datetime>;
 DEFINE FIELD ex_to ON acct TYPE option<datetime>;
 DEFINE FIELD excused ON acct TYPE option<record<clarify>>;
 
+-- 대리점이 먼저 낸 소명(D59): 정황 없이 열린다. 소명한 대리점(dealer)과 상대(pair의 둘째), 일치 종류(kind). 정황에서 시작한 소명은 둘 다 비어 있다
+DEFINE FIELD OVERWRITE signal ON clarify TYPE option<record<signal>>;
+DEFINE FIELD pair ON clarify TYPE option<array<record<dealer>>>;
+DEFINE FIELD kind ON clarify TYPE option<string> ASSERT $value = NONE OR $value IN ['대표자', '주소', '계좌'];
+-- 소명의 두 대리점(소명한 쪽이 먼저): 대리점이 낸 소명은 pair, 정황에서 시작한 소명은 그 정황의 대리점들
+DEFINE FUNCTION fn::pair($c: record<clarify>) -> option<array<record<dealer>>> {
+    RETURN $c.pair ?? $c.signal.dealers;
+} PERMISSIONS FULL;
+
 -- 서류가 입증하는 기간(D31): 가장 나중 서류의 정리 값 가운데 기간(`YYYY-MM-DD~YYYY-MM-DD`). 꼴이 맞지 않거나 없으면 NONE(기본값: 제한 없음)
 DEFINE FUNCTION fn::span($c: record<clarify>) -> option<array<datetime>> {
     LET $d = (SELECT tidy, stamp FROM doc WHERE clarify = $c ORDER BY stamp DESC LIMIT 1)[0];
@@ -29,7 +38,7 @@ DEFINE FUNCTION fn::span($c: record<clarify>) -> option<array<datetime>> {
 DEFINE FUNCTION fn::excusable($c: record<clarify>) -> array<record> {
     LET $all = array::distinct(($c.docs ?? []).map(|$d| $d[0]));
     LET $ks = IF '주소' IN $all THEN ['주소'] ELSE $all END;
-    LET $o = array::slice($c.signal.dealers, 1);
+    LET $o = array::slice(fn::pair($c), 1);
     LET $r = IF '대표자' IN $ks THEN (SELECT VALUE id FROM rep WHERE in = $c.dealer AND !excluded AND out IN (SELECT VALUE out FROM rep WHERE in IN $o AND !excluded AND since <= fn::today() AND (until = NONE OR until > fn::today()))) ELSE [] END;
     LET $a = IF '주소' IN $ks THEN (SELECT VALUE id FROM addr WHERE in = $c.dealer AND !excluded AND out IN (SELECT VALUE out FROM addr WHERE in IN $o AND !excluded AND since <= fn::today() AND (until = NONE OR until > fn::today()))) ELSE [] END;
     LET $k = IF '계좌' IN $ks THEN (SELECT VALUE id FROM acct WHERE in = $c.dealer AND !excluded AND out IN (SELECT VALUE out FROM acct WHERE in IN $o AND !excluded AND since <= fn::today() AND (until = NONE OR until > fn::today()))) ELSE [] END;
@@ -70,7 +79,7 @@ DEFINE EVENT t20_verdict ON verdict WHEN $event = 'CREATE' THEN {
     UPDATE task SET state = '완료' WHERE target = $c AND kind INSIDE ['소명', '미응답'];   -- 21: 결과가 나오면 미응답 작업도 닫는다(보완 포함)
     IF $after.kind = '인정' {
         UPDATE $ls SET excluded = true, ex_from = $after.since, ex_to = $after.until, excused = $c;
-        UPDATE $c.signal SET state = '해소';
+        IF $c.signal != NONE { UPDATE $c.signal SET state = '해소'; };   -- 정황에서 시작한 소명만(D59)
     };
     IF $after.kind = '보완' {
         UPDATE $c SET sent = NONE, due = NONE, body = NONE, docs = [];

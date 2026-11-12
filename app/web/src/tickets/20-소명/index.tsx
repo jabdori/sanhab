@@ -2,11 +2,11 @@
 // 가운데: 인정한 뒤의 "제외"(어느 선이 어느 기간 동안). 오른쪽: 조치 · 사유 · 보고의 "미확인"(코드가 찾은, 서류만으로 가를 수 없는 항목).
 // 인정은 되돌리기 어려워 확인 창을 거치고, 누른 뒤 새 값을 받을 때까지 다시 눌리지 않는다. 서버가 거절하면 그 낱말을 보인다.
 import { AlertDialog } from '@base-ui/react/alert-dialog'
-import { useAtom, useAtomValue } from 'jotai'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useState } from 'react'
 import { L } from '../../labels'
 import type { Piece } from '../../pieces'
-import { api, changedAtom, roleAtom, store, targetAtom } from '../../state'
+import { api, changedAtom, menuAtom, roleAtom, store, targetAtom, useData } from '../../state'
 import { Empty } from '../../ui/Empty'
 import { Pill } from '../../ui/Pill'
 import { Reason, blank, ready, sent as filled } from '../../ui/Reason'
@@ -14,7 +14,7 @@ import { Source } from '../../ui/Source'
 import { button, floating, label } from '../../ui/styles'
 import { Table } from '../../ui/Table'
 import { useClarify } from '../18-발송/clarify'
-import { useDocs } from '../19-서류/docs'
+import { bin, useDocs } from '../19-서류/docs'
 import { reasonAtom, useVerdict } from './verdict'
 
 /** 기간: 시작 ~ 끝. 둘 다 없으면 없음 */
@@ -146,9 +146,127 @@ function Box() {
   return <Reason groups={v.actions.map((a) => ({ of: a.kind, classes: a.classes }))} value={draft} onChange={setDraft} />
 }
 
+type Near = { id: string; name: string; match: string[]; related: boolean }
+
+/** 대리점 상세의 "접수"(영업지원, D59): 대리점이 먼저 낸 소명. 지금 일치가 있는 상대 대리점과 실제로 일치하는 종류를 고르고 서류(파일이나 시연 서류)를 올린다.
+ * 요청서·발송은 없다 — 접수하면 곧 내부 감시의 소명 작업이 된다. 되돌리기 어려워 확인 창을 거치고, 누른 뒤 요청이 끝날 때까지 다시 눌리지 않는다 */
+function Intake() {
+  const target = useAtomValue(targetAtom)
+  const id = target?.kind === L.대리점 ? target.id : null
+  const rel = useData<{ id: string; can: boolean; near: Near[] }>(id ? `/dealers/${encodeURIComponent(id)}/clarify` : null)
+  const samples = useData<{ id: string; name: string; dealer: string }[]>(rel?.can ? '/samples' : null)
+  const setTarget = useSetAtom(targetAtom)
+  const setMenu = useSetAtom(menuAtom)
+  const [other, setOther] = useState<Near | null>(null)
+  const [kind, setKind] = useState<string | null>(null)
+  const [file, setFile] = useState<File | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [bad, setBad] = useState<string | null>(null)
+  useEffect(() => {
+    setOther(null)
+    setKind(null)
+    setFile(null)
+    setBad(null)
+  }, [id])
+  if (!id || rel?.id !== id || !rel.can) return null
+  const near = rel.near
+  if (!near.length) return null
+  const choose = (sid: string, name: string) =>
+    bin(`/samples/${sid}`)
+      .then((r) => r.blob())
+      .then((b) => setFile(new File([b], name, { type: b.type })), () => {})
+  const go = () => {
+    if (!other || !kind || !file) return
+    setBusy(true)
+    setBad(null)
+    bin(`/dealers/${encodeURIComponent(id)}/clarify`, file, `?other=${encodeURIComponent(other.id)}&kind=${encodeURIComponent(kind)}&name=${encodeURIComponent(file.name)}`)
+      .then((r) => r.json())
+      .then((r: { id: string }) => {
+        setMenu(L.작업)
+        setTarget({ kind: L.소명, id: r.id })
+      })
+      .catch((e: Error) => setBad(e.message))
+      .finally(() => setBusy(false))
+  }
+  const pressed = `${button} aria-pressed:bg-surface`
+  return (
+    <section className="mb-4 flex flex-col gap-2">
+      <h2 className={label}>{L.접수}</h2>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className={label}>{L.대리점}</span>
+        {near.map((n) => (
+          <button
+            key={n.id}
+            aria-pressed={other?.id === n.id}
+            className={pressed}
+            onClick={() => {
+              setOther(n)
+              setKind(n.match.length === 1 ? (n.match[0] ?? null) : null)
+            }}
+          >
+            {n.name}
+          </button>
+        ))}
+      </div>
+      {other && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={label}>{L.일치}</span>
+          {other.match.map((m) => (
+            <button key={m} aria-pressed={kind === m} className={pressed} onClick={() => setKind(m)}>
+              {m}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <label className={`${button} content-center`}>
+          {L.서류}
+          <input type="file" accept="image/png,image/jpeg,application/pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="sr-only" />
+        </label>
+        {!!samples?.length && (
+          <>
+            <span className={label}>{L.시연}</span>
+            {samples.map((s) => (
+              <button key={s.id} aria-label={s.name} aria-pressed={file?.name === s.name} className={pressed} onClick={() => choose(s.id, s.name)}>
+                {s.id} {s.dealer}
+              </button>
+            ))}
+          </>
+        )}
+        {file && <span className="text-body wrap-anywhere">{file.name}</span>}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <AlertDialog.Root>
+          <AlertDialog.Trigger className={button} disabled={busy || !other || !kind || !file}>
+            {L.접수}
+          </AlertDialog.Trigger>
+          <AlertDialog.Portal>
+            <AlertDialog.Popup className={`${floating} fixed top-1/2 left-1/2 flex w-list -translate-x-1/2 -translate-y-1/2 flex-col gap-4 p-6`}>
+              <AlertDialog.Title className="flex items-baseline gap-2 text-title wrap-anywhere">
+                {L.접수}
+                <span>{kind}</span>
+              </AlertDialog.Title>
+              <Table head={[L.대리점, L.일치]} rows={[[other?.name ?? '', kind ?? '']]} />
+              <p className="text-body wrap-anywhere">{file?.name}</p>
+              <div className="flex justify-end gap-2">
+                <AlertDialog.Close className={button}>{L.취소}</AlertDialog.Close>
+                <AlertDialog.Close className={button} onClick={go}>
+                  {L.접수}
+                </AlertDialog.Close>
+              </div>
+            </AlertDialog.Popup>
+          </AlertDialog.Portal>
+        </AlertDialog.Root>
+        {bad && <Pill tone="bad">{bad}</Pill>}
+      </div>
+    </section>
+  )
+}
+
 export default [
   { slot: 'fact', kind: L.소명, View: Excluded },
   { slot: 'report', kind: L.소명, View: Unknown },
   { slot: 'action', kind: L.소명, View: Action },
   { slot: 'reason', kind: L.소명, View: Box },
+  { slot: 'fact', kind: L.대리점, order: 460, View: Intake },
 ] satisfies Piece[]

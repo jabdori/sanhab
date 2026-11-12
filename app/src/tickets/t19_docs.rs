@@ -255,7 +255,7 @@ fn rows(ws: &[J], tidy: &[J], reg: &HashMap<&str, J>) -> Vec<J> {
 pub(super) async fn list(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
     let c = q1(&db, "
         LET $c = type::record('clarify', $id);
-        LET $o = $c.signal.dealers[1];
+        LET $o = fn::pair($c)[1];
         LET $a = (SELECT out.value AS value, source, file.path AS file, row FROM addr WHERE in = $o AND excluded = false AND since <= fn::today() AND (until = NONE OR until > fn::today()) ORDER BY since DESC LIMIT 1)[0];
         RETURN IF $c.id = NONE THEN NONE ELSE {
             dealer: { value: $c.dealer.name, source: $c.dealer.source, file: $c.dealer.file.path, row: $c.dealer.row },
@@ -314,7 +314,7 @@ fn looks(mime: &str, b: &[u8]) -> bool {
 
 /// 서류 접수: 본문은 파일 그대로, `Content-Type`은 그 종류, 쿼리 `name`은 파일 이름. 쓰기 전에 거절의 낱말을 정한다(`refuse`: 대상 → 권한 → 상태):
 /// 없는 소명, 이미지·PDF가 아니거나 시작 표시가 그 종류와 다르거나 비었거나 2MB를 넘거나 이름이 없으면 대상, 영업지원이 아니면 권한, 발송 전이거나 요청 상태가 아니면 상태
-async fn upload(Extension(me): Extension<Me>, Path(id): Path<String>, Query(qs): Query<HashMap<String, String>>, h: HeaderMap, body: Result<Bytes, BytesRejection>) -> R {
+pub(super) async fn upload(Extension(me): Extension<Me>, Path(id): Path<String>, Query(qs): Query<HashMap<String, String>>, h: HeaderMap, body: Result<Bytes, BytesRejection>) -> R {
     let mime = h.get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or_default().split(';').next().unwrap_or_default().trim().to_string();
     let name = qs.get("name").map(|n| n.trim().to_string()).unwrap_or_default();
     let bytes = body.unwrap_or_default();

@@ -1,15 +1,22 @@
 //! 20 소명: 서류가 접수된 소명을 내부 감시가 인정·불인정·보완으로 정한다(D12, D13, D31, D41, 선 17·18·19). 셋 다 사유가 필수다.
 //! 인정이면 소명한 대리점의 해당 식별자 선에 소명으로 제외가 붙고(효력은 서류가 입증하는 기간 — DB의 `fn::span`), 그 소명의 정황이 해소된다(DB의 이벤트 `t20_verdict`).
 //! 처리기는 그 뒤에 그룹·심사·재검토를 다시 계산한다(`recalc` → `remark` → `detect`). 불인정은 관련자가 유지되고, 보완이면 영업지원에 발송 작업이 다시 생기며 그동안 관련자로 계속 본다.
+//! 정황에서 시작하지 않은 소명(D59)은 영업지원이 대리점 상세에서 접수한다(`intake`): 상대 대리점과 일치 종류를 고르고 서류를 올리면 소명이 열리자마자 접수가 된다(요청서·발송 없음). 이 소명은 정황을 해소하지 않는다.
 //! 인정·불인정이면 승인권자가 보류해 둔 심사의 작업이 담당으로 돌아온다(05의 규약). 보완은 아직 결과가 아니므로 돌아오지 않는다.
-use super::t03_related::ITEMS;
+use super::t03_related::{ITEMS, links, matches};
+use super::t18_send::DOCS;
+use super::t19_docs::MAX;
 use super::t17_report::USE;
 use super::t19_docs::{READ, SAMPLES, sweep_with};
 use crate::check::Check;
 use crate::db::{Db, as_user, q, q1};
 use crate::{Body, Me, R, attempt, err, refuse};
 use anyhow::{Result, ensure};
-use axum::extract::{Path, State};
+use axum::body::Bytes;
+use axum::extract::rejection::BytesRejection;
+use axum::extract::{DefaultBodyLimit, Path, Query, State};
+use axum::http::HeaderMap;
+use std::collections::HashMap;
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Extension, Json, Router};
@@ -19,6 +26,7 @@ pub const SCHEMA: &str = include_str!("../../db/20-소명.surql");
 
 pub fn routes() -> Router<Db> {
     Router::new().route("/clarifies/{id}/verdict", get(detail)).route("/verdict", post(decide))
+        .route("/dealers/{id}/clarify", get(options).post(intake).layer(DefaultBodyLimit::max(MAX + 4096)))
 }
 
 /// 선의 테이블 → 식별자의 종류(`ITEMS`의 자리: rep 0, addr 1, acct 2)
@@ -89,6 +97,46 @@ async fn decide(State(db): State<Db>, Extension(me): Extension<Me>, Body(b): Bod
 
 /// 결과 뒤의 계산. 인정이면 선이 제외되었으므로 그룹·심사·재검토·정황을 다시 맞춘다(승인권자가 올라가는 심사는 `recalc` 끝의 `raise`가 맞춘다).
 /// 인정·불인정이면 보류된 심사(그 정황의 대리점이 든 것)의 작업을 담당으로 되돌린다
+/// 접수할 수 있는 길: `{ id, can(영업지원인지), near[{ id, name, match[] }] }` — 지금 그 대리점과 일치가 있는 대리점과 실제로 일치하는 종류(그 밖의 종류는 고를 수 없다)
+async fn options(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
+    let ls = links(&db, None).await.map_err(|_| err(StatusCode::NOT_FOUND, "없음"))?;
+    let names = q1(&db, "RETURN (SELECT record::id(id) AS id, name FROM dealer);", json!({})).await?;
+    let near: Vec<J> = names.as_array().into_iter().flatten().filter(|d| d["id"] != id.as_str()).filter_map(|d| {
+        let m: Vec<&str> = matches(&ls, &id, d["id"].as_str()?).into_iter().map(|i| ITEMS[i]).collect();
+        (!m.is_empty()).then(|| json!({ "id": d["id"], "name": d["name"], "match": m }))
+    }).collect();
+    Ok(Json(json!({ "id": id, "can": me.role == "영업지원", "near": near })))
+}
+
+/// 대리점이 먼저 낸 소명을 접수한다(D59): `POST /api/dealers/{id}/clarify?other=<상대 대리점>&kind=<주소|계좌|대표자>&name=<파일 이름>`, 본문은 파일 그대로(19의 서류 접수와 같다).
+/// 상대는 지금 그 대리점과 그 종류가 실제로 일치하는 대리점이어야 한다(아니면 대상), 영업지원만 할 수 있다(권한). 소명은 발송한 것으로 열려(서류 목록은 그 종류의 것) 서류가 올라오면 19의 이벤트가 접수로 만든다.
+/// 서류를 받지 못하면(틀린 파일 …) 소명도 남기지 않는다
+async fn intake(State(db): State<Db>, Extension(me): Extension<Me>, Path(id): Path<String>, Query(qs): Query<HashMap<String, String>>, h: HeaderMap, body: Result<Bytes, BytesRejection>) -> R {
+    let (other, kind) = (qs.get("other").cloned().unwrap_or_default(), qs.get("kind").cloned().unwrap_or_default());
+    let Some(at) = ITEMS.iter().position(|i| *i == kind) else { return Err(refuse("대상")) };
+    let ls = links(&db, None).await.map_err(|_| refuse("대상"))?;
+    if id == other || !matches(&ls, &id, &other).contains(&at) {
+        return Err(refuse("대상"));
+    }
+    if me.role != "영업지원" {
+        return Err(refuse("권한"));
+    }
+    let docs: Vec<[&str; 2]> = DOCS.iter().filter(|d| d.0 == kind).flat_map(|d| d.1.iter().map(|n| [d.0, *n])).collect();
+    let made = q1(&db, "
+        LET $d = type::record('dealer', $id);
+        RETURN (CREATE clarify SET dealer = $d, pair = [$d, type::record('dealer', $other)], kind = $kind, name = string::concat($kind, ' · ', $d.name),
+            docs = $docs, sent = fn::today(), due = fn::today() + fn::term(), source = '시연' RETURN VALUE record::id(id))[0];",
+        json!({ "id": id, "other": other, "kind": kind, "docs": docs })).await.map_err(|_| refuse("대상"))?;
+    let cid = made.as_str().unwrap_or_default().to_string();
+    match super::t19_docs::upload(Extension(me), Path(cid.clone()), Query(qs), h, body).await {
+        Ok(_) => Ok(Json(json!({ "id": cid }))),
+        Err(e) => {
+            q(&db, "DELETE type::record('clarify', $id);", json!({ "id": cid })).await.ok();
+            Err(e)
+        }
+    }
+}
+
 async fn settle(db: &Db, id: &str, kind: &str) -> Result<()> {
     if kind == "인정" {
         super::t04_review::recalc(db).await?;
@@ -330,6 +378,41 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(review("2026-06-D-024").await?["review"]["total"] == 1_189_046, "6월의 성일상사24");
     restore().await?;
     ensure!(shape().await? == before, "끝");
+    // ---- D59: 정황 없이 대리점 상세에서 접수한 소명(시나리오 6의 실제 길) ----
+    let intake = async |role: &str, id: &str, other: &str, kind: &str, bytes: &[u8], mime: &str| -> Result<(u16, J)> {
+        let res = reqwest::Client::new().post(format!("{}/api/dealers/{id}/clarify?other={other}&kind={kind}&name=a.png", c.base())).bearer_auth(c.token(role)).header("content-type", mime).body(bytes.to_vec()).send().await?;
+        let code = res.status().as_u16();
+        Ok((code, res.json().await.unwrap_or(J::Null)))
+    };
+    let o = c.get(support, "/api/dealers/D-024/clarify").await?;
+    ensure!(o["can"] == true && o["near"] == json!([{ "id": "D-011", "name": "금강상사11", "match": ["대표자", "주소"] }, { "id": "D-037", "name": "대륙상사37", "match": ["대표자"] }]), "접수할 수 있는 상대 {o}");
+    ensure!(c.get(audit, "/api/dealers/D-024/clarify").await?["can"] == false, "내부 감시는 접수하지 않는다");
+    let count = || q1(&c.db, "RETURN count(SELECT id FROM clarify);", json!({}));
+    let n0 = count().await?;
+    for (role, other, kind, bytes, mime, want) in [(support, "D-011", "계좌", png1.2, "image/png", (400, "대상")), (support, "D-024", "주소", png1.2, "image/png", (400, "대상")), (support, "D-001", "주소", png1.2, "image/png", (400, "대상")),
+        (support, "D-011", "주소", &b"not a png"[..], "image/png", (400, "대상")), (audit, "D-011", "주소", png1.2, "image/png", (403, "권한")), (exec, "D-011", "주소", png1.2, "image/png", (403, "권한"))] {
+        let r = intake(role, "D-024", other, kind, bytes, mime).await?;
+        ensure!(r == (want.0, json!({ "error": want.1 })), "접수 거절 {role} {other} {kind} → {r:?}");
+    }
+    ensure!(count().await? == n0, "거절된 접수가 소명을 남김");
+    let (code, r) = intake(support, "D-024", "D-011", "주소", png1.2, "image/png").await?;
+    ensure!(code == 200, "접수 {code} {r}");
+    let mine = r["id"].as_str().unwrap_or_default().to_string();
+    let cl = c.get(audit, &format!("/api/clarifies/{mine}")).await?;
+    ensure!(cl["clarify"]["state"] == "접수" && cl["clarify"]["signal"].is_null() && cl["clarify"]["dealer"]["name"] == "성일상사24" && cl["kinds"] == json!(["주소"]) && cl["docs"][0] == json!(["주소", "임대차계약서"]), "접수한 소명 {cl}");
+    ensure!(tasks(audit, "mine", "소명").await?.iter().any(|t| t["target"] == mine.as_str()) && tasks(support, "going", "소명").await?.iter().any(|t| t["target"] == mine.as_str()), "소명 작업");
+    fill().await?;
+    let vv = v(&mine).await?;
+    ensure!(vv["lines"] == json!([{ "item": "주소", "value": "성남시 상공로 128" }]) && vv["can"] == true, "제외될 선 {vv}");
+    let x = c.get(audit, &format!("/api/clarifies/{mine}/docs")).await?;
+    ensure!(x["docs"][0]["rows"][0]["item"] == "호실" && x["docs"][0]["rows"][0]["result"] == "불일치", "호실의 비교");
+    ensure!(verdict(audit, &mine, "인정", json!({ "class": "입증" })).await? == "", "인정");
+    let (a, b) = (review("2026-06-D-011").await?, review("2026-06-D-024").await?);
+    ensure!(a["review"]["total"] == 2_699_051 && b["review"]["total"] == 1_189_046 && b["review"]["holder"] == "영업임원", "6월 {a} {b}");
+    ensure!(c.get(audit, "/api/signals/계좌-D-024").await?["signal"]["state"] == "접수", "정황은 해소되지 않는다");
+    ensure!(tasks(exec, "mine", "심사").await?.iter().any(|t| t["target"] == "2026-06-D-024") && tasks(support, "mine", "심사").await?.iter().all(|t| t["target"] != "2026-06-D-024"), "성일상사24의 심사는 영업임원의 담당");
+    restore().await?;
+    ensure!(shape().await? == before, "접수한 소명을 되돌린 뒤");
     // 21: 기한이 지나 미응답이 된 소명에도 늦게 낸 서류를 받고, 결과를 정하면 미응답 작업이 닫힌다
     let late = open("f", "D-024", "D-011").await?;
     q(&c.db, "RETURN fn::advance(15); RETURN fn::lapse();", json!({})).await?;
