@@ -22,7 +22,7 @@ export function Source({ kind, file, row, side, children }: { kind: string; file
         }, () => {})
       }}
     >
-      <Popover.Trigger className={`shrink-0 cursor-pointer rounded-box border border-line px-0.5 whitespace-nowrap ${label}`}>{kind}</Popover.Trigger>
+      <Popover.Trigger className={`shrink-0 cursor-pointer rounded-box border border-line px-1 whitespace-nowrap ${label}`}>{kind}</Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner side={side} sideOffset={4} className="z-10">
           <Popover.Popup className={`${floating} flex w-list flex-col gap-2 p-3 text-table`}>

@@ -2,7 +2,7 @@
 // 가운데의 조각은 order -40(제목·숫자 줄) · -30(근거) · -20(관계)이다. 뒤 티켓이 kind: L.정황으로 끼우는 조각은 order를 적지 않으면 관계 아래에 놓인다(12의 가설).
 // 가운데의 값은 모두 코드가 기록에서 읽은 것이다(AI의 글은 오른쪽 "보고"에 — 17).
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { L } from '../../labels'
 import type { Piece } from '../../pieces'
 import { api, changedAtom, roleAtom, store, targetAtom, useData } from '../../state'
@@ -70,14 +70,18 @@ function Evidence() {
   const rows = d.evidence
   const nodes = rows.some((e) => e.node)
   const amounts = rows.every((e) => e.amount != null)
-  // 2열은 줄마다 날짜·귀속월·대리점 중 하나다. 한 가지뿐이면 그 이름, 섞이면 대상
-  const when = rows.every((e) => e.ym) ? L.귀속월 : rows.every((e) => e.at) ? L.날짜 : rows.every((e) => !e.at && !e.ym && e.dealer) ? L.대리점 : L.대상
+  // 날짜(또는 귀속월)와 대리점은 뜻이 다르니 열을 나눈다. 줄이 없는 쪽은 빈칸이고, 한쪽이 아예 없으면 그 열을 두지 않는다
+  const dated = (e: (typeof rows)[number]) => e.at || e.ym
+  const hasDate = rows.some(dated)
+  const hasDealer = rows.some((e) => !dated(e) && e.dealer)
+  const when = rows.filter(dated).every((e) => e.ym && !e.at) ? L.귀속월 : L.날짜
+  const split = (date: ReactNode, dealer: ReactNode) => [...(hasDate ? [date] : []), ...(hasDealer ? [dealer] : [])]
   return (
     <section className="mb-4 flex flex-col gap-2">
       <h2 className={label}>{L.근거}</h2>
       <Table
-        head={[L.근거, when, nodes ? L.식별자 : amounts ? L.금액 : L.비교, L.출처]}
-        right={!nodes && amounts ? [2] : []}
+        head={[L.근거, ...(hasDate ? [when] : []), ...(hasDealer ? [L.대리점] : []), nodes ? L.식별자 : amounts ? L.금액 : L.비교, L.출처]}
+        right={!nodes && amounts ? [1 + Number(hasDate) + Number(hasDealer)] : []}
         mark={rows.findIndex((e) => e.id === mark)}
         rows={rows.map((e) => [
           d.fresh.includes(e.id) ? (
@@ -88,6 +92,7 @@ function Evidence() {
           ) : (
             e.item
           ),
+          ...split(
           e.known ? (
             <span className="flex flex-wrap items-center gap-x-2 tabular-nums">
               <span className="whitespace-nowrap">{`${L.변경일} ${e.at}`}</span>
@@ -101,7 +106,9 @@ function Evidence() {
               </Source>
             </span>
           ) : (
-            (e.at ?? e.ym ?? e.dealer?.name)
+            (e.at ?? e.ym)
+          ),
+          dated(e) ? null : e.dealer?.name,
           ),
           e.node?.name ?? (e.amount == null ? e.value : num(e.amount)),
           <Source kind={e.source} file={e.file ?? undefined} row={e.row ?? undefined}>
