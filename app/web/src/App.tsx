@@ -1,9 +1,10 @@
 import { useAtom, useAtomValue } from 'jotai'
+import { useEffect } from 'react'
 import { Band } from './Band'
 import { Enter } from './Enter'
 import { L } from './labels'
 import { type Slot, SlotView, usePieces } from './pieces'
-import { MENUS, menuAtom, roleAtom, rolesAtom, targetAtom } from './state'
+import { listOpenAtom, MENUS, menuAtom, roleAtom, rolesAtom, targetAtom } from './state'
 import { label } from './ui/styles'
 
 /** 오른쪽(판단)의 칸. 순서 고정 */
@@ -28,6 +29,10 @@ function Shell() {
   const chat = usePieces('chat')
   // 고를 목록이 있고 아무것도 열지 않았으면 목록이 나머지를 다 쓴다. 목록이 없는 메뉴는 가운데와 오른쪽이 바로 보인다
   const wide = usePieces('list').length > 0 && !target
+  // 소명을 열면 목록이 접힌다(서류에 폭을 준다, ux-plan). 접힌 자리의 손잡이를 누르면 펼쳐지고, 다른 대상을 열면 다시 접힌다
+  const [listOpen, setListOpen] = useAtom(listOpenAtom)
+  useEffect(() => setListOpen(false), [target, setListOpen])
+  const folded = target?.kind === L.소명 && !listOpen
   return (
     <div className="flex h-screen min-w-page flex-col text-body">
       <Band />
@@ -47,9 +52,17 @@ function Shell() {
             </button>
           ))}
         </nav>
-        <section className={`overflow-auto p-4 ${wide ? 'flex-1' : 'w-list shrink-0 border-r border-line'}`}>
-          <SlotView slot="list" />
-        </section>
+        {folded ? (
+          <section className="w-chat shrink-0 border-r border-line bg-surface pt-3 text-center">
+            <button className={`cursor-pointer ${label} hover:text-action`} aria-expanded={false} onClick={() => setListOpen(true)}>
+              {menu}
+            </button>
+          </section>
+        ) : (
+          <section className={`overflow-auto p-4 ${wide ? 'flex-1' : 'w-list shrink-0 border-r border-line'}`}>
+            <SlotView slot="list" />
+          </section>
+        )}
         {!wide && (
           <>
             <main className="min-w-0 flex-1 overflow-auto p-4">

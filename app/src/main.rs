@@ -173,6 +173,7 @@ async fn main() -> anyhow::Result<std::process::ExitCode> {
         println!("check OK");
     } else {
         println!("boot seeded: {}", boot(&db, false).await?);
+        tokio::spawn(tickets::ai_worker(db.clone()));
         let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
         println!("listening :{port}");
         axum::serve(listener, app(db)).with_graceful_shutdown(async { tokio::signal::ctrl_c().await.ok(); }).await?;

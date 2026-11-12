@@ -30,6 +30,9 @@ impl Check {
         Ok(())
     }
 
+    /// 검사 서버의 주소(JSON이 아닌 본문을 보낼 때)
+    pub fn base(&self) -> &str { &self.base }
+
     pub fn token(&self, role: &str) -> &str {
         self.tokens.get(role).map_or("", String::as_str)
     }
