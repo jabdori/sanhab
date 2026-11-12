@@ -50,9 +50,25 @@ pub async fn signin(_db: &Db, user: &str, pass: &str) -> Result<String> {
 }
 
 /// 토큰으로 인증된 별도 세션 — 이 세션의 쿼리에는 DB PERMISSIONS가 적용된다.
+/// 토큰마다 한 번 인증한 세션을 받아 두고 다시 쓴다. SDK의 `authenticate`는 HTTP 엔진에서 한 번에 5초(처음은 30초 넘게) 걸려
+/// 요청마다 부르면 배포의 작은 파드에서 모든 화면이 시간 초과가 됐다. 인증된 세션의 쿼리는 몇 ms다.
+/// ponytail: 받아 둔 세션은 토큰이 바뀔 때(초기화) 비운다. 토큰이 쌓이는 것은 초기화마다 네 개라 그대로 둔다
+static SESSIONS: std::sync::Mutex<Option<std::collections::HashMap<String, Db>>> = std::sync::Mutex::new(None);
+
+pub fn forget_sessions() {
+    *SESSIONS.lock().unwrap() = None;
+}
+
 pub async fn as_user(db: &Db, token: &str) -> Result<Db> {
-    let s = db.clone();
+    if let Some(s) = SESSIONS.lock().unwrap().as_ref().and_then(|m| m.get(token)) {
+        return Ok(s.clone());
+    }
+    let _ = db;
+    // 루트 클라이언트의 복제(clone)로 인증하면 그 세션의 쿼리가 매번 5초씩 걸렸다 — 토큰마다 따로 연결한다
+    let s = Surreal::new::<Http>(env("SURREAL_ADDR", "localhost:18000")).await?;
     s.authenticate(token.to_string()).await.context("토큰 무효")?;
+    s.use_ns(ns()).use_db(dbname()).await?;
+    SESSIONS.lock().unwrap().get_or_insert_with(Default::default).insert(token.to_string(), s.clone());
     Ok(s)
 }
 

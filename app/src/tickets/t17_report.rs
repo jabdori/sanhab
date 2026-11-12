@@ -46,8 +46,19 @@ pub(super) fn model() -> String {
 pub fn ai_pass() -> String {
     sha(&format!("ai:{}", std::env::var("SURREAL_PASS").unwrap_or_else(|_| "root".into())))
 }
+/// AI의 토큰은 받아 두고 다시 쓴다(일꾼이 몇 초마다 부른다 — 부를 때마다 로그인·인증하면 세션이 쌓이고 느리다).
+/// 다시 적재해 토큰이 무효가 되면 인증이 실패하므로 그때 새로 받는다
+static AI_TOKEN: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
 async fn ai_session(db: &Db) -> Result<Db> {
-    as_user(db, &signin(db, "ai", &ai_pass()).await?).await
+    let held = AI_TOKEN.lock().unwrap().clone();
+    if let Some(t) = held {
+        if let Ok(s) = as_user(db, &t).await {
+            return Ok(s);
+        }
+    }
+    let t = signin(db, "ai", &ai_pass()).await?;
+    *AI_TOKEN.lock().unwrap() = Some(t.clone());
+    as_user(db, &t).await
 }
 
 pub fn routes() -> Router<Db> {
