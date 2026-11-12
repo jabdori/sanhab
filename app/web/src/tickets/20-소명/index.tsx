@@ -114,7 +114,7 @@ type Rel = { id: string; can: boolean; near: Near[] }
 /** 접수할 파일. 조치 칸(Intake)의 파일 입력과 시연 서랍의 시연 서류(IntakeSamples)가 함께 채운다 */
 const intakeFileAtom = atom<File | null>(null)
 
-/** 대리점 상세의 "접수"(영업지원, D59): 대리점이 먼저 낸 소명. 지금 일치가 있는 상대 대리점과 실제로 일치하는 종류를 고르고 서류(파일)를 올린다.
+/** 대리점 상세의 "접수"(영업지원, D59): 대리점이 먼저 낸 소명. 대리점 화면에서 흐름을 앞으로 보내는 조치는 변경(13)이라 접수는 secondary. 지금 일치가 있는 상대 대리점과 실제로 일치하는 종류를 고르고 서류(파일)를 올린다.
  * 요청서·발송은 없다 — 접수(주 버튼)하면 곧 내부 감시의 소명 작업이 된다. 되돌리기 어려워 확인 창을 거치고, 누른 뒤 요청이 끝날 때까지 다시 눌리지 않는다 */
 function Intake() {
   const target = useAtomValue(targetAtom)
@@ -134,8 +134,8 @@ function Intake() {
     setBad(null)
   }, [id, setFile])
   if (!id || rel?.id !== id) return null
-  // 영업지원이 아니거나 일치하는 대리점이 없으면 조치가 없다
-  if (!rel.can || !rel.near.length) return <Empty />
+  // 영업지원이 아니거나 일치하는 대리점이 없으면 접수가 없다(빈 자리는 13의 변경이 한 번만 보인다)
+  if (!rel.can || !rel.near.length) return null
   const go = () => {
     if (!other || !kind || !file) return
     setBusy(true)
@@ -150,8 +150,7 @@ function Intake() {
       .finally(() => setBusy(false))
   }
   return (
-    <div className="flex flex-col gap-3">
-      <Text type="supporting">{L.접수}</Text>
+    <div className="flex flex-col gap-3 border-t border-border pt-6">
       <Selector
         label={L.대리점}
         isLabelHidden
@@ -171,7 +170,7 @@ function Intake() {
       )}
       <FileInput label={L.서류} isLabelHidden placeholder={L.서류} width="100%" accept="image/png,image/jpeg,application/pdf" value={file} onChange={(f) => setFile(f as File | null)} />
       <div className="flex flex-wrap items-center gap-2">
-        <Confirm label={L.접수} variant={grade(L.접수)} title={`${L.접수} ${kind ?? ''}`} isDisabled={busy || !other || !kind || !file} onConfirm={go}>
+        <Confirm label={L.접수} variant="secondary" title={`${L.접수} ${kind ?? ''}`} isDisabled={busy || !other || !kind || !file} onConfirm={go}>
           <div className="flex flex-col gap-3">
             <Table head={[L.대리점, L.일치]} rows={[[other?.name ?? '', kind ?? '']]} />
             <Text className="wrap-anywhere">{file?.name}</Text>

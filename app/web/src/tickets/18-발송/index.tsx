@@ -62,7 +62,7 @@ function Docs() {
   const d = useClarify()
   if (!d) return null
   return (
-    <Region title={L.서류} aside={<Source kind={L.가정} of={L.서류} rows={[[L.일치, d.kinds.length ? d.kinds.join(' · ') : L.없음]]} />}>
+    <Region title={L.요청서} aside={<Source kind={L.가정} of={L.서류} rows={[[L.일치, d.kinds.length ? d.kinds.join(' · ') : L.없음]]} />}>
       <Table head={[L.일치, L.서류]} rows={d.docs.map(([kind, doc]) => [kind, doc])} />
     </Region>
   )

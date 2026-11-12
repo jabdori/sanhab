@@ -76,24 +76,23 @@ function Registered() {
   return (
     <Region title={L.등록}>
       <Table
-        head={[L.식별자, '', L.변경일, L.인지일, L.경로, L.출처]}
+        head={[L.식별자, L.값, L.변경일, L.인지일, L.경로, L.출처]}
         rows={d.registered.map((r) => [
           <Text weight="medium">{r.item}</Text>,
+          // 값 아래에 덧말(동일인·제외·이전)을 보조 줄로 둔다
           <span className="flex flex-col">
-            <span className="flex items-center gap-2">
-              {r.value}
-              {r.same && (
-                <Text type="supporting">
-                  {L.동일인} {r.same}
-                </Text>
-              )}
-              {r.excluded && (
-                <>
-                  <Text type="supporting">{L.제외}</Text>
-                  <Source kind={L.소명} rows={[[L.상태, L.제외]]} />
-                </>
-              )}
-            </span>
+            <span>{r.value}</span>
+            {r.same && (
+              <Text type="supporting">
+                {L.동일인} {r.same}
+              </Text>
+            )}
+            {r.excluded && (
+              <span className="flex items-center gap-2">
+                <Text type="supporting">{L.제외}</Text>
+                <Source kind={L.소명} rows={[[L.상태, L.제외]]} />
+              </span>
+            )}
             {r.until && (
               <Text type="supporting">
                 {L.이전} ~{r.last}

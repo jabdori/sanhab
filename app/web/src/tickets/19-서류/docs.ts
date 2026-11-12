@@ -77,3 +77,7 @@ export async function bin(path: string, body?: Blob, query = '') {
   if (body) store.set(changedAtom, (n) => n + 1)
   return res
 }
+
+/** 날짜가 든 값은 `YYYY-MM-DD ~ YYYY-MM-DD` 하나로 보인다(판독의 `2026.02.01 ~ 2028.01.31`, 정리의 `2026-02-01~2028-01-31`) */
+export const range = (v: string) =>
+  v.replace(/(\d{4})[./](\d{1,2})[./](\d{1,2})/g, (_, y, m, d) => `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`).replace(/(\d{4}-\d{2}-\d{2})\s*~\s*(?=\d)/g, '$1 ~ ')

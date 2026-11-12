@@ -7,7 +7,7 @@ import { Band } from './Band'
 import { Enter } from './Enter'
 import { L } from './labels'
 import { type Slot, SlotView, usePieces } from './pieces'
-import { chatOpenAtom, listOpenAtom, MENUS, menuAtom, roleAtom, rolesAtom, targetAtom, trailOpenAtom } from './state'
+import { chatOpenAtom, listOpenAtom, MENUS, menuAtom, roleAtom, rolesAtom, targetAtom, trailOpenAtom, useData } from './state'
 import { Region } from './ui/Region'
 
 /** 오른쪽(판단)의 칸. 순서 고정 */
@@ -36,6 +36,9 @@ function Shell() {
   const head = usePieces('head')
   // 고를 목록이 있고 아무것도 열지 않았으면 목록이 나머지를 다 쓴다. 목록이 없는 메뉴는 가운데와 오른쪽이 바로 보인다
   const wide = usePieces('list').length > 0 && !target
+  // 규정은 모의(23)를 할 수 있는 역할에게만 판단할 것이 있다. 없으면 오른쪽(판단) 칸을 두지 않는다
+  const mock = useData<{ can: boolean }>(target?.kind === L.규정 ? '/mock' : null)
+  const judge = !(target?.kind === L.규정 && mock?.can === false)
   // 소명을 열면 목록이 접힌다(서류에 폭을 준다, ux-plan). 접힌 자리의 손잡이를 누르면 펼쳐지고, 다른 대상을 열면 다시 접힌다
   const [listOpen, setListOpen] = useAtom(listOpenAtom)
   const [chatOpen, setChatOpen] = useAtom(chatOpenAtom)
@@ -116,7 +119,7 @@ function Shell() {
         }
         end={
           <div className="flex h-full">
-            {!wide && (
+            {!wide && judge && (
               <LayoutPanel width="var(--spacing-right)" padding={0} hasDivider label={L.조치}>
                 <div className="min-h-full bg-body">
                   {RIGHT.map(([slot, name]) => (
