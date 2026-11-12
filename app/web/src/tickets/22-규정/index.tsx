@@ -65,7 +65,7 @@ export function Versions() {
             key: 'source',
             header: L.출처,
             align: 'end',
-            width: pixel(76),
+            width: pixel(88),
             renderCell: (r) => (
               <Source kind={r.source} tip={clause.title} place={`${clause.first}–${clause.last}${L.행}`} rows={[[L.위치, where(clause)]]}>
                 {clause.text}

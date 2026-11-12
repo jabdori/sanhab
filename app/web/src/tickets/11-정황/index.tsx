@@ -93,7 +93,7 @@ export function Evidence() {
               key: 'source',
               header: L.출처,
               align: 'end',
-              width: pixel(56),
+              width: pixel(88),
               renderCell: (e) => (
                 <Source
                   kind={e.source}

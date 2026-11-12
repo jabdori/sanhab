@@ -4,7 +4,7 @@ import { Badge } from '@astryxdesign/core/Badge'
 import { Banner } from '@astryxdesign/core/Banner'
 import { Citation } from '@astryxdesign/core/Citation'
 import { Icon } from '@astryxdesign/core/Icon'
-import { HStack, StackItem, VStack } from '@astryxdesign/core/Layout'
+import { HStack, Section, StackItem, VStack } from '@astryxdesign/core/Layout'
 import { Link } from '@astryxdesign/core/Link'
 import { List, ListItem } from '@astryxdesign/core/List'
 import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
@@ -20,7 +20,7 @@ import { Mark } from '../ui/Mark'
 import { Act, Meta, RecordPage, Tiles, byGrade } from '../ui/Record'
 import { Region } from '../ui/Region'
 import { Source } from '../ui/Source'
-import { badge, num } from '../ui/status'
+import { badge, caution, fail, meter, num } from '../ui/status'
 import { Links, Members, Rules } from '../tickets/04-심사'
 import { bundled, useReview } from '../tickets/04-심사/review'
 import { History, useResubmit } from '../tickets/06-반려'
@@ -65,12 +65,12 @@ function ReviewTiles() {
           name: L.합산,
           value: num(r.total),
           below: r.limit !== null && (
-            <ProgressBar label={L.한도} isLabelHidden value={Math.min(r.total, r.limit)} max={r.limit} variant={over ? 'error' : 'accent'} hasValueLabel formatValueLabel={() => `${Math.round((r.total / r.limit!) * 100)}%`} />
+            <ProgressBar label={L.한도} isLabelHidden value={Math.min(r.total, r.limit)} max={r.limit} variant={meter(over)} hasValueLabel formatValueLabel={() => `${Math.round((r.total / r.limit!) * 100)}%`} />
           ),
           aside: <Source kind={r.source} file={r.file ?? undefined} row={r.row ?? undefined} tip={L.합산} rows={[[L.합산, L['귀속월 지급의 합, 반려 제외']]]} />,
         },
         // 원본의 과거 승인에는 적용한 규칙의 기록이 없다(09)
-        { name: L.한도, value: r.limit === null ? L.미상 : num(r.limit), below: over && <Badge variant="error" label={`+${num(r.total - r.limit!)}`} /> },
+        { name: L.한도, value: r.limit === null ? L.미상 : num(r.limit), below: over && <Badge variant={fail} label={`+${num(r.total - r.limit!)}`} /> },
         {
           name: L.승인권자,
           // 값은 실제로 결정하는 사람(서버 fn::holder). 합산으로 정한 승인권자와 다르면(정황의 가설로 올라감) 아래에 그 계산과 까닭
@@ -103,7 +103,12 @@ function Notice() {
   if (!r || !on) return null
   // 제목: 걸린 정황의 수. 설명: 이 역할의 조치에 사유가 필수이면 `사유 필수`
   const must = r.actions.some((a) => a.reason && !bundled.includes(a.kind))
-  return <Banner status="warning" title={list ? `${L.정황} ${list.length}` : L.정황} description={must ? L['사유 필수'] : undefined} collapsible={false} />
+  return (
+    // 흰 면 위 Section 한 칸(영역들과 같은 안쪽 여백)
+    <Section variant="transparent" padding={6} paddingBlockEnd={0}>
+      <Banner status={caution} title={list ? `${L.정황} ${list.length}` : L.정황} description={must ? L['사유 필수'] : undefined} collapsible={false} />
+    </Section>
+  )
 }
 
 /** 경위 탭: 그림과 같은 칸들의 시간 순 목록(incident-console의 Timeline 꼴) */

@@ -1,17 +1,13 @@
-// 작업: astryx incident-console 템플릿에서 출발한 목록. 머리(제목 · 건수 / 전체·담당·진행) → 검색 → 종류별 묶음의 줄.
-// 템플릿의 오른쪽 검사기 대신 줄을 누르면 기록 화면이 열린다(오른쪽은 대화 칸이 쓴다). 심사 묶음은 체크로 골라 띠에서 한꺼번에 승인한다.
+// 작업: astryx table-grouped 템플릿 꼴. 머리(제목 / 전체·담당·진행 / 검색) → 숫자 타일(dashboard-alert-rail의 KPI) → 종류별 묶음(접힘 · 건수)이 있는 표.
+// 줄을 누르면 기록 화면이 열린다(오른쪽은 AI 구역). 심사 묶음은 체크로 골라 선택 띠에서 한꺼번에 승인한다.
 import { Badge } from '@astryxdesign/core/Badge'
-import { Card } from '@astryxdesign/core/Card'
 import { CheckboxInput } from '@astryxdesign/core/CheckboxInput'
-import { Grid } from '@astryxdesign/core/Grid'
 import { StatusDot } from '@astryxdesign/core/StatusDot'
 import { EmptyState } from '@astryxdesign/core/EmptyState'
 import { HStack, Layout, LayoutContent, LayoutHeader, StackItem, VStack } from '@astryxdesign/core/Layout'
-import { List, ListItem } from '@astryxdesign/core/List'
 import { PowerSearch, type PowerSearchFilter, usePowerSearchConfig } from '@astryxdesign/core/PowerSearch'
-import { Section } from '@astryxdesign/core/Section'
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl'
-import { TableSelectionToolbar } from '@astryxdesign/core/Table'
+import { Table, type TableColumn, type TablePlugin, TableSelectionToolbar, pixel, proportional, useTableGroupedRows } from '@astryxdesign/core/Table'
 import { Heading, Text } from '@astryxdesign/core/Text'
 import { useAtom, useSetAtom } from 'jotai'
 import { atom } from 'jotai'
@@ -21,6 +17,7 @@ import { api, changedAtom, navAtom, store, targetAtom, useData } from '../state'
 import { Confirm } from '../ui/Confirm'
 import { grade } from '../ui/grade'
 import { Mark } from '../ui/Mark'
+import { Tiles } from '../ui/Record'
 import { badge, dot } from '../ui/status'
 import { num } from '../ui/status'
 
@@ -48,6 +45,7 @@ export function Work() {
   const [scope, setScope] = useAtom(scopeAtom)
   const [filters, setFilters] = useState<PowerSearchFilter[]>([])
   const [picked, setPicked] = useState<Set<string>>(new Set())
+  const [folded, setFolded] = useState<Set<string>>(new Set())
   const setTarget = useSetAtom(targetAtom)
   const setNav = useSetAtom(navAtom)
   const { config, applyFilters } = usePowerSearchConfig(fields, L.작업)
@@ -80,123 +78,132 @@ export function Work() {
     setNav(rows.map((r) => ({ kind: r.view, id: r.target })))
     setTarget({ kind: t.view, id: t.target })
   }
+  // 표(table-grouped): 종류의 묶음마다 머리(접힘 · 건수), 줄 = 고르기 · 주의 점 · 대상 · 종류 · 귀속월 · 금액 · 담당 · 표시 · 상태
+  type Row = Task & Record<string, unknown>
+  const groupOf = (t: Task) => GROUPS.find((g) => g.includes(t.kind))?.filter((k) => rows.some((r) => r.kind === k)).join(' · ') ?? t.kind
+  const grouped = useTableGroupedRows<Row>({
+    data: rows as Row[],
+    groupBy: (t) => groupOf(t),
+    groupOrder: groups.map((g) => groupOf(g.items[0])),
+    collapsedGroups: folded,
+    onToggleGroup: (k) => setFolded((f) => new Set(f.has(k) ? [...f].filter((x) => x !== k) : [...f, k])),
+    getRowKey: (t) => t.id,
+    renderGroupHeader: (k, n) => {
+      // 심사 묶음의 머리에는 고를 수 있는 줄 전부를 고르는 체크
+      const pickable = rows.filter((t) => groupOf(t) === k && can(t))
+      return (
+        <HStack gap={2} vAlign="center">
+          {pickable.length > 0 && (
+            <HStack onClick={(e) => e.stopPropagation()}>
+              <CheckboxInput label={L.전체} isLabelHidden size="sm" value={pickable.every((t) => picked.has(t.target))} onChange={(on) => toggle(pickable.map((t) => t.target), on)} />
+            </HStack>
+          )}
+          <Text type="body" weight="bold">
+            {k}
+          </Text>
+          <Badge variant="neutral" label={String(n)} />
+        </HStack>
+      )
+    },
+  })
+  // 줄을 누르면 그 기록이 열린다(묶음 머리 줄은 접기만)
+  const openRow: TablePlugin<Row> = {
+    transformBodyRow(props, t) {
+      if (!t.id) return props
+      return { ...props, htmlProps: { ...props.htmlProps, onClick: (e: { target: EventTarget }) => !(e.target as Element).closest('button, a, input, label') && open(t) } }
+    },
+  }
+  const showRole = rows.some((t) => t.role !== rows[0]?.role)
+  const pickCol = rows.some((t) => t.kind === L.심사 && mine.some((m) => m.id === t.id))
+  const columns: TableColumn<Row>[] = [
+    // 고르기(심사 묶음이 있을 때만): 정황이 걸린 심사처럼 고를 수 없는 줄은 비활성
+    ...(pickCol
+      ? [
+          {
+            key: 'pick',
+            header: '',
+            width: pixel(48),
+            renderCell: (t: Row) =>
+              t.kind === L.심사 && mine.some((m) => m.id === t.id) && (
+                <HStack onClick={(e) => e.stopPropagation()}>
+                  <CheckboxInput label={L.선택} isLabelHidden size="sm" isDisabled={!can(t)} value={picked.has(t.target) && can(t)} onChange={(on) => toggle([t.target], on)} />
+                </HStack>
+              ),
+          } as TableColumn<Row>,
+        ]
+      : []),
+    {
+      key: 'name',
+      header: L.대상,
+      width: proportional(3, { minWidth: 160 }),
+      renderCell: (t) => (
+        <HStack gap={2} vAlign="center">
+          <StatusDot variant={dot(t.marks, t.pay ?? t.state)} label={t.marks.join(' · ') || (t.pay ?? t.state ?? t.kind)} />
+          <Text weight="medium">{t.name ?? t.target}</Text>
+        </HStack>
+      ),
+    },
+    { key: 'ym', header: L.귀속월, width: pixel(88), renderCell: (t) => <Text color="secondary" hasTabularNumbers>{t.ym}</Text> },
+    { key: 'total', header: L.금액, align: 'end', width: pixel(112), renderCell: (t) => t.total != null && <Text hasTabularNumbers>{num(t.total)}</Text> },
+    ...(showRole ? [{ key: 'role', header: L.담당, width: pixel(96), renderCell: (t: Row) => <Text color="secondary">{t.role}</Text> } as TableColumn<Row>] : []),
+    {
+      key: 'marks',
+      header: L.표시,
+      width: proportional(1, { minWidth: 96 }),
+      renderCell: (t) => (
+        <HStack gap={1} vAlign="center">
+          {t.marks.map((m) => (
+            <Mark key={m}>{m}</Mark>
+          ))}
+        </HStack>
+      ),
+    },
+    { key: 'state', header: L.상태, width: pixel(80), renderCell: (t) => (t.pay ?? t.state) && <Badge variant={badge((t.pay ?? t.state)!)} label={(t.pay ?? t.state)!} /> },
+  ]
+  // 값이 하나도 없는 칸은 두지 않는다(정황만 있는 내부 감시에는 귀속월 · 금액 · 표시가 없다)
+  const has = { ym: rows.some((t) => t.ym), total: rows.some((t) => t.total != null), marks: rows.some((t) => t.marks.length) } as Record<string, boolean>
+  const shown = columns.filter((c) => has[c.key as string] ?? true)
   return (
     <Layout
       height="fill"
       header={
-        <LayoutHeader hasDivider>
-          <HStack gap={3} vAlign="center">
-            <StackItem size="fill">
-              <HStack gap={2} vAlign="center">
+        <LayoutHeader hasDivider padding={4}>
+          <VStack gap={4}>
+            <HStack gap={3} vAlign="center">
+              <StackItem size="fill">
                 <Heading level={1}>{L.작업}</Heading>
-                <Text type="supporting" color="secondary" hasTabularNumbers>
-                  {mine.length}
-                </Text>
-              </HStack>
-            </StackItem>
-            <SegmentedControl label={L.작업} value={scope} onChange={(v) => setScope(v as typeof scope)} size="sm">
-              <SegmentedControlItem label={L.전체} value="all" />
-              <SegmentedControlItem label={L.담당} value="mine" />
-              <SegmentedControlItem label={L.진행} value="going" />
-            </SegmentedControl>
-          </HStack>
+              </StackItem>
+              <SegmentedControl label={L.작업} value={scope} onChange={(v) => setScope(v as typeof scope)} size="sm">
+                <SegmentedControlItem label={L.전체} value="all" />
+                <SegmentedControlItem label={L.담당} value="mine" />
+                <SegmentedControlItem label={L.진행} value="going" />
+              </SegmentedControl>
+            </HStack>
+            <PowerSearch config={config} filters={filters} onChange={(f) => setFilters([...f])} label={L.검색} placeholder={L.검색} resultCount={String(visible.length)} />
+          </VStack>
         </LayoutHeader>
       }
       content={
         <LayoutContent padding={0}>
-          <VStack gap={0} height="100%">
-            <Section variant="transparent" padding={3}>
-              <VStack gap={3}>
-              <Grid columns={{ minWidth: 140 }} gap={3}>
-                {tiles.map(([name, value, tone]) => (
-                  <Card key={name} padding={3}>
-                    <VStack gap={1}>
-                      <HStack gap={2} vAlign="center">
-                        {tone && <StatusDot variant={tone} label={name} />}
-                        <Text type="supporting" color="secondary">
-                          {name}
-                        </Text>
-                      </HStack>
-                      <Text type="large" weight="semibold" hasTabularNumbers>
-                        {value}
-                      </Text>
-                    </VStack>
-                  </Card>
-                ))}
-              </Grid>
-              <PowerSearch config={config} filters={filters} onChange={(f) => setFilters([...f])} label={L.검색} placeholder={L.검색} resultCount={String(visible.length)} />
-              </VStack>
-            </Section>
-            {chosen.length > 0 && (
-              <TableSelectionToolbar
-                label={L.선택}
-                selection={{ selectedKeys: new Set(chosen.map((t) => t.target)), selectedCount: chosen.length, hasSelection: true, clearSelection: () => setPicked(new Set()) }}
-                renderSelectionLabel={(n) => `${L.선택} ${n}`}
-                clearLabel={L.해제}
-                startContent={
-                  <Confirm label={L.승인} variant={grade(L.승인)} title={`${L.승인} ${chosen.length}`} rows={[[L.대상, chosen.map((t) => t.name).join(' · ')]]}
-                    onConfirm={() => decide(chosen.map((t) => t.target)).then(() => setPicked(new Set()))}
-                  />
-                }
-              />
-            )}
-            <StackItem size="fill" className="min-h-0 overflow-y-auto">
-              {d && !groups.length ? (
-                <EmptyState title={L.없음} />
-              ) : (
-                <VStack gap={0}>
-                  {groups.map((g) => {
-                    const pickable = g.items.filter(can)
-                    const box = g.kinds.includes(L.심사) && pickable.length > 0
-                    return (
-                      <VStack gap={0} key={g.kinds.join()}>
-                        <Section variant="muted" paddingBlock={2} paddingInline={3}>
-                          <HStack gap={2} vAlign="center">
-                          {box && (
-                            <CheckboxInput label={L.전체} isLabelHidden size="sm" value={pickable.every((t) => picked.has(t.target))} onChange={(on) => toggle(pickable.map((t) => t.target), on)} />
-                          )}
-                          <Text type="label" color="secondary">
-                            {g.kinds.filter((k) => g.items.some((t) => t.kind === k)).join(' · ')}
-                          </Text>
-                          <Badge variant="neutral" label={String(g.items.length)} />
-                        </HStack>
-                        </Section>
-                        <List density="compact" hasDividers>
-                          {g.items.map((t) => (
-                            <ListItem
-                              key={t.id}
-                              label={t.name ?? t.target}
-                              description={[t.ym, t.total != null && num(t.total), t.role].filter(Boolean).join(' · ')}
-                              startContent={
-                                <HStack gap={3} vAlign="center">
-                                  {box && (
-                                    // 줄을 여는 누름과 따로: 체크만 바뀐다
-                                    <HStack onClick={(e) => e.stopPropagation()}>
-                                      <CheckboxInput label={L.선택} isLabelHidden size="sm" isDisabled={!can(t)} value={picked.has(t.target) && can(t)} onChange={(on) => toggle([t.target], on)} />
-                                    </HStack>
-                                  )}
-                                  <StatusDot variant={dot(t.marks, t.pay ?? t.state)} label={t.marks.join(' · ') || (t.pay ?? t.state ?? t.kind)} />
-                                </HStack>
-                              }
-                              endContent={
-                                <HStack gap={3} vAlign="center">
-                                  {t.marks.map((m) => (
-                                    <Mark key={m}>{m}</Mark>
-                                  ))}
-                                  {(t.pay ?? t.state) && <Badge variant={badge((t.pay ?? t.state)!)} label={(t.pay ?? t.state)!} />}
-                                </HStack>
-                              }
-                              onClick={() => open(t)}
-                            />
-                          ))}
-                        </List>
-                      </VStack>
-                    )
-                  })}
-                </VStack>
-              )}
-            </StackItem>
-          </VStack>
+          {rows.length > 0 && <Tiles items={tiles.map(([name, value, tone]) => ({ name, value, dot: tone }))} />}
+          {chosen.length > 0 && (
+            <TableSelectionToolbar
+              label={L.선택}
+              selection={{ selectedKeys: new Set(chosen.map((t) => t.target)), selectedCount: chosen.length, hasSelection: true, clearSelection: () => setPicked(new Set()) }}
+              renderSelectionLabel={(n) => `${L.선택} ${n}`}
+              clearLabel={L.해제}
+              startContent={
+                <Confirm label={L.승인} variant={grade(L.승인)} title={`${L.승인} ${chosen.length}`} rows={[[L.대상, chosen.map((t) => t.name).join(' · ')]]}
+                  onConfirm={() => decide(chosen.map((t) => t.target)).then(() => setPicked(new Set()))}
+                />
+              }
+            />
+          )}
+          {d && !groups.length ? (
+            <EmptyState title={L.없음} />
+          ) : (
+            <Table<Row> data={grouped.data} columns={shown} idKey={grouped.idKey} density="balanced" dividers="rows" textOverflow="truncate" hasHover plugins={{ grouped: grouped.plugin, open: openRow }} />
+          )}
         </LayoutContent>
       }
     />

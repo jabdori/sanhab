@@ -5,13 +5,16 @@ import { Button } from '@astryxdesign/core/Button'
 import { Card } from '@astryxdesign/core/Card'
 import { Grid } from '@astryxdesign/core/Grid'
 import { Icon } from '@astryxdesign/core/Icon'
-import { HStack, Layout, LayoutContent, LayoutHeader, StackItem, VStack } from '@astryxdesign/core/Layout'
+import { HStack, Layout, LayoutContent, LayoutHeader, Section, StackItem, VStack } from '@astryxdesign/core/Layout'
+import { StatusDot } from '@astryxdesign/core/StatusDot'
+import { Token } from '@astryxdesign/core/Token'
 import { Link } from '@astryxdesign/core/Link'
 import { Tab, TabList } from '@astryxdesign/core/TabList'
 import { Heading, Text } from '@astryxdesign/core/Text'
 import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline'
 import { useAtom, useAtomValue } from 'jotai'
 import { Fragment, type ReactNode, useState } from 'react'
+import { fail } from './status'
 import { L } from '../labels'
 import { menuAtom, navAtom, targetAtom, useData } from '../state'
 import { type Draft, Reason, blank, ready, sent } from './Reason'
@@ -58,23 +61,21 @@ function Back() {
   )
 }
 
-/** 메타 한 줄의 항목: 아이콘 + 값 */
-export const Meta = ({ icon, children }: { icon: typeof ArrowLeftIcon; children: ReactNode }) => (
-  <HStack gap={1} vAlign="center">
-    <Icon icon={icon} size="sm" color="secondary" />
-    <Text>{children}</Text>
-  </HStack>
-)
+/** 칩 줄의 항목: 아이콘 + 값의 색 없는 Token(사람 · 구성 · 날짜 …) */
+export const Meta = ({ icon, children }: { icon: typeof ArrowLeftIcon; children: string }) => <Token size="sm" icon={<Icon icon={icon} size="sm" />} label={children} />
 
 /** 판단의 재료 타일(Card): 이름표(보조) · 값(large, 굵게) · 아래(막대 · 배지) · 옆(출처 표지) */
-export type TileItem = { name: string; value: ReactNode; below?: ReactNode; aside?: ReactNode }
+export type TileItem = { name: string; value: ReactNode; below?: ReactNode; aside?: ReactNode; dot?: 'neutral' | 'success' | 'warning' | 'error' }
+/** 숫자 타일(dashboard-alert-rail의 KPI): 이 앱에서 Card를 쓰는 곳. 흰 면 위 Section 한 칸에 놓인다 */
 export function Tiles({ items }: { items: TileItem[] }) {
   return (
-    <Grid columns={Math.min(items.length, 4)} gap={4}>
+    <Section variant="transparent" padding={6}>
+      <Grid columns={{ minWidth: 120, max: 5 }} gap={4}>
       {items.map((t) => (
         <Card key={t.name}>
           <VStack gap={2}>
             <HStack gap={2} vAlign="center">
+              {t.dot && <StatusDot variant={t.dot} label={t.name} />}
               <StackItem size="fill">
                 <Text type="supporting" color="secondary">
                   {t.name}
@@ -93,7 +94,8 @@ export function Tiles({ items }: { items: TileItem[] }) {
           </VStack>
         </Card>
       ))}
-    </Grid>
+      </Grid>
+    </Section>
   )
 }
 
@@ -119,7 +121,7 @@ export const byGrade = <T extends { kind: string }>(list: T[]) => [...list].sort
 export type RecordTab = { value: string; label: string; body: ReactNode }
 
 /**
- * 기록 화면 하나. `title`은 Heading 1, `meta`는 `・`로 잇는 한 줄(상태 Badge · 아이콘 값 · 표시 Token · 출처 표지), `actions`는 오른쪽 위(주 버튼은 맨 끝),
+ * 기록 화면 하나(work-item-detail 머리). `title`은 Heading 1, `meta`는 칩 줄(상태 Badge · 표시 · 사람 · 출처 표지), `actions`는 오른쪽 위(주 버튼은 맨 끝),
  * `bad`는 서버가 거절한 낱말(조치 아래 error Badge). 탭이 하나뿐이면 탭 줄을 두지 않는다.
  * 레일은 두지 않는다: 요약은 머리의 메타 · 타일과 겹치고, AI 보고는 오른쪽 AI 구역(대화 칸 위, AiPanel)에 있다
  */
@@ -130,23 +132,20 @@ export function RecordPage({ title, meta, actions, bad, tabs }: { title: string;
     <Layout
       height="fill"
       contentWidth={1000}
-      defaultHasDividers
       header={
-        <LayoutHeader hasDivider padding={4} paddingBlockEnd={tabs.length > 1 ? 0 : 4}>
-          <VStack gap={3}>
+        <LayoutHeader hasDivider padding={6} paddingBlockEnd={tabs.length > 1 ? 0 : 6}>
+          <VStack gap={4}>
             <HStack gap={4} vAlign="start">
               <StackItem size="fill">
-                <VStack gap={1}>
+                <VStack gap={2}>
                   <Back />
-                  <Heading level={1} maxLines={1}>
+                  <Heading level={1} maxLines={2}>
                     {title}
                   </Heading>
+                  {/* 칩 줄(work-item-detail): 상태 Badge · 표시 · 사람 · 출처 표지. 사이 기호 없이 칩끼리 */}
                   <HStack gap={1} vAlign="center" wrap="wrap">
                     {meta.filter(Boolean).map((f, i) => (
-                      <Fragment key={i}>
-                        {i > 0 && <Bullet />}
-                        {f}
-                      </Fragment>
+                      <Fragment key={i}>{f}</Fragment>
                     ))}
                   </HStack>
                 </VStack>
@@ -154,7 +153,7 @@ export function RecordPage({ title, meta, actions, bad, tabs }: { title: string;
               {(actions || bad) && (
                 <VStack gap={2} hAlign="end">
                   {actions}
-                  {bad && <Badge variant="error" label={bad} />}
+                  {bad && <Badge variant={fail} label={bad} />}
                 </VStack>
               )}
             </HStack>
@@ -173,10 +172,9 @@ export function RecordPage({ title, meta, actions, bad, tabs }: { title: string;
         </LayoutHeader>
       }
       content={
-        <LayoutContent role="main" className="bg-body">
-          <VStack gap={4}>
-            {body}
-          </VStack>
+        // 흰 면 하나: 숫자 타일과 영역(Section, 위 구분선)이 차례로 쌓인다(work-item-detail)
+        <LayoutContent role="main" padding={0}>
+          <VStack gap={0}>{body}</VStack>
         </LayoutContent>
       }
     />
