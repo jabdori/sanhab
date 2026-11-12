@@ -1,7 +1,6 @@
 // 심사 기록: astryx detail-page 템플릿에서 출발한 화면. 머리(← 작업 · n/전체 · 앞 뒤 / 제목 / 메타 한 줄 / 페이지 조치 / 탭) → 본문(바탕 위의 카드들) → 오른쪽 레일(요약 · AI 보고 카드).
 // 좁으면(본문이 레일과 나란히 설 수 없으면) 레일이 본문 아래로 간다. 조치는 누를 때 확인 창에서 사유(분류 · 메모)를 받는다.
 import { Badge } from '@astryxdesign/core/Badge'
-import { Banner } from '@astryxdesign/core/Banner'
 import { Citation } from '@astryxdesign/core/Citation'
 import { Icon } from '@astryxdesign/core/Icon'
 import { HStack, Section, StackItem, VStack } from '@astryxdesign/core/Layout'
@@ -95,22 +94,6 @@ function ReviewTiles() {
   )
 }
 
-/** 정황이 걸린 심사: 사유가 필수인 조치를 경고 띠로 */
-function Notice() {
-  const r = useReview()
-  const on = !!r?.review.marks.includes(L.정황)
-  const list = useData<unknown[]>(on ? `/reviews/${r!.review.id}/signals` : null)
-  if (!r || !on) return null
-  // 제목: 걸린 정황의 수. 설명: 이 역할의 조치에 사유가 필수이면 `사유 필수`
-  const must = r.actions.some((a) => a.reason && !bundled.includes(a.kind))
-  return (
-    // 흰 면 위 Section 한 칸(영역들과 같은 안쪽 여백)
-    <Section variant="transparent" padding={6} paddingBlockEnd={0}>
-      <Banner status={caution} title={list ? `${L.정황} ${list.length}` : L.정황} description={must ? L['사유 필수'] : undefined} collapsible={false} />
-    </Section>
-  )
-}
-
 /** 경위 탭: 그림과 같은 칸들의 시간 순 목록(incident-console의 Timeline 꼴) */
 function Trail() {
   return (
@@ -171,6 +154,7 @@ function SignalReport({ id, name }: { id: string; name: string }) {
 export function Reports() {
   const r = useReview()?.review
   const list = useData<{ id: string; name: string }[]>(r?.marks.includes(L.정황) ? `/reviews/${r.id}/signals` : null)
+  if (r?.marks.includes(L.정황) && !list) return null // 읽는 중에는 비운다(없음이 깜박이지 않게)
   if (!r?.marks.includes(L.정황) || !list?.length) return <Empty />
   return (
     <VStack gap={4}>
@@ -206,7 +190,6 @@ export function Review() {
           label: L.내용,
           body: (
             <>
-              <Notice />
               <ReviewTiles />
               <Then />
               <Members />
