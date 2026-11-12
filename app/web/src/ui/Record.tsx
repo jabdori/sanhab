@@ -138,8 +138,11 @@ export type RecordTab = { value: string; label: string; body: ReactNode }
 export function RecordPage({ title, meta, actions, bad, tabs, rail }: { title: string; meta: ReactNode[]; actions?: ReactNode; bad?: string | null; tabs: RecordTab[]; rail?: ReactNode }) {
   const [tab, setTab] = useState(tabs[0]?.value)
   const [showRail, setShowRail] = useState(true)
-  // 1440(메뉴 · 대화 380)에서는 본문과 레일이 나란히, 그보다 좁으면 레일이 본문 아래로
-  const narrow = useMediaQuery('(max-width: 1400px)')
+  // 반응 계약(astryx docs layout/responsive — 세 칸을 쓸 폭이 없으면 한 칸을 내린다):
+  //   >1680  메뉴 | 본문 | 레일 320 | 대화 380
+  //   ≤1680  레일은 본문 아래 카드로(1440에서 메뉴 260 · 대화 380을 빼고 본문 약 800 — 표가 열을 합치지 않고 들어간다)
+  //   ≤1366  메뉴가 아이콘 줄로 접힌다(App)
+  const narrow = useMediaQuery('(max-width: 1680px)')
   const body = (tabs.find((t) => t.value === tab) ?? tabs[0])?.body
   return (
     <Layout
