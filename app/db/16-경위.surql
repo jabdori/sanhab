@@ -1,0 +1,4 @@
+-- 16 경위: 저장하는 것이 없다. 원인 선(25)은 이미 저장된 기록을 거슬러 읽어 이은 것이다(app/src/tickets/t16_trail.rs).
+--   변경 사건(incident, 13) → 앞선 승인(redo.was, 14) → 재심사 지급(redo) → 다시 승인한 심사(redo.back)
+--   변경 사건 → 재검토인 과거의 승인(ratify.reviews, 10) → 추인 작업(ratify) → 추인·거부·종결·이견 결정(decision)
+-- 이 티켓이 더하는 테이블과 권한은 없다.

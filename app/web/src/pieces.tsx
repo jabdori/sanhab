@@ -4,8 +4,8 @@ import type { ComponentType } from 'react'
 import { type Menu, menuAtom, targetAtom } from './state'
 import { Empty } from './ui/Empty'
 
-/** 자리: 목록 / 가운데(사실) / 오른쪽의 조치·사유·보고·경위·이력 / 대화 */
-export type Slot = 'list' | 'fact' | 'action' | 'reason' | 'report' | 'trail' | 'history' | 'chat'
+/** 자리: 목록 / 가운데(사실) / 오른쪽의 조치·사유·보고·경위·이력 / 대화 / 그림(경위를 펼치면 가운데의 fact 대신 보인다) */
+export type Slot = 'list' | 'fact' | 'action' | 'reason' | 'report' | 'trail' | 'history' | 'chat' | 'map'
 export type Piece = {
   slot: Slot
   /** list 조각: 어느 메뉴의 목록인지 */

@@ -19,6 +19,8 @@ export const targetAtom = atom<Target | null>(null)
 export const listOpenAtom = atom(false)
 /** 오른쪽 끝의 대화를 펼쳤는지. 펼치면 목록이 접힌다(App) */
 export const chatOpenAtom = atom(false)
+/** 경위를 펼쳤는지(16). 펼치면 가운데가 경위 그림으로 바뀌고, 대상이 바뀌면 접힌다(App) */
+export const trailOpenAtom = atom(false)
 /** 조치(POST)가 끝날 때마다 오른다. useData가 이것을 보고 다시 읽는다 */
 export const changedAtom = atom(0)
 
