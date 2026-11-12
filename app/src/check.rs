@@ -30,7 +30,6 @@ impl Check {
         Ok(())
     }
 
-    /// 검사 서버의 주소(JSON이 아닌 본문을 보낼 때)
     /// 응답 시간: 역할별 작업 목록, 심사 상세, 접속 요청이 각각 1초 안에 온다(작은 파드에서 요청마다 몇 초씩 밀린 일이 있었다)
     pub async fn latency(&self) -> Result<()> {
         use std::time::{Duration, Instant};
@@ -49,6 +48,7 @@ impl Check {
         slow("접속 요청".into(), t)
     }
 
+    /// 검사 서버의 주소(JSON이 아닌 본문을 보낼 때)
     pub fn base(&self) -> &str { &self.base }
 
     pub fn token(&self, role: &str) -> &str {
