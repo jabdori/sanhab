@@ -86,15 +86,46 @@ async fn sign_all(db: &Db, pass: &str) -> anyhow::Result<J> {
     Ok(json!({ "roles": roles }))
 }
 
+/// 발급해 둔 토큰(접속마다 네 번 로그인하면 argon2 대조가 작은 파드에서 수십 초 걸린다). 초기화 때 새로 채운다.
+/// ponytail: 토큰 하나를 접속한 모두가 같이 쓴다(시연용 공용 패스워드라 사람마다 나눌 것이 없다). 유효 12시간이라 11시간이 지나면 다시 받는다
+static TOKENS: std::sync::Mutex<Option<(J, std::time::Instant)>> = std::sync::Mutex::new(None);
+
+async fn tokens(db: &Db, fresh: bool) -> anyhow::Result<J> {
+    if !fresh {
+        if let Some((t, at)) = TOKENS.lock().unwrap().clone() {
+            if at.elapsed() < std::time::Duration::from_secs(11 * 3600) {
+                return Ok(t);
+            }
+        }
+    }
+    let t = sign_all(db, &demo_pass()).await?;
+    *TOKENS.lock().unwrap() = Some((t.clone(), std::time::Instant::now()));
+    Ok(t)
+}
+
 async fn enter(State(db): State<Db>, Body(b): Body) -> R {
-    let r = sign_all(&db, b["pass"].as_str().unwrap_or("")).await.map_err(|_| err(StatusCode::UNAUTHORIZED, "접속"))?;
-    Ok(Json(r))
+    use subtle_eq::eq;
+    if !eq(b["pass"].as_str().unwrap_or("").as_bytes(), demo_pass().as_bytes()) {
+        return Err(err(StatusCode::UNAUTHORIZED, "접속"));
+    }
+    Ok(Json(tokens(&db, false).await.map_err(|_| err(StatusCode::UNAUTHORIZED, "접속"))?))
+}
+
+/// 길이와 상관없이 끝까지 견주는 비교(패스워드 대조의 시간으로 값을 알아내지 못하게)
+mod subtle_eq {
+    pub fn eq(a: &[u8], b: &[u8]) -> bool {
+        let mut d = a.len() ^ b.len();
+        for i in 0..a.len().max(b.len()) {
+            d |= (*a.get(i).unwrap_or(&0) ^ *b.get(i).unwrap_or(&0)) as usize;
+        }
+        d == 0
+    }
 }
 
 /// 초기화: DB를 원본 상태로 되돌린다. 토큰이 새로 발급되므로 접속과 같은 응답을 준다.
 async fn reset(State(db): State<Db>) -> R {
     boot(&db, true).await?;
-    Ok(Json(sign_all(&db, &demo_pass()).await?))
+    Ok(Json(tokens(&db, true).await?))
 }
 
 /// 스키마와 원본 적재. 볼륨이 사라져도(크레딧 소진) 원본에서 같은 상태로 다시 만든다.
@@ -110,6 +141,7 @@ pub async fn boot(db: &Db, force: bool) -> anyhow::Result<bool> {
         q(db, s, json!({})).await?;
     }
     tickets::seed(db).await?;
+    *TOKENS.lock().unwrap() = None; // 다시 적재하면 접속 역할이 새로 만들어져 받아 둔 토큰이 무효가 된다
     q(db, "UPDATE meta:v SET schema = $ver;", json!({ "ver": ver })).await?;
     Ok(true)
 }
@@ -173,6 +205,8 @@ async fn main() -> anyhow::Result<std::process::ExitCode> {
         println!("check OK");
     } else {
         println!("boot seeded: {}", boot(&db, false).await?);
+        // 첫 접속이 기다리지 않게 토큰을 미리 받아 둔다
+        { let d = db.clone(); tokio::spawn(async move { let _ = tokens(&d, true).await; }); }
         tokio::spawn(tickets::ai_worker(db.clone()));
         let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
         println!("listening :{port}");
