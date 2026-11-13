@@ -52,7 +52,7 @@ const words = [
   '해제',
   '사유 필수',
   '이미지',
-  '안내', '다음', '끝', '스킵',
+  '안내', '다음', '끝', '스킵', '예시', '도움말', '판매장려금', '낱말',
   // A: 정황·보고·소명·발송·서류
   // B: 지급·대사·재심사·추인·재검토
   // C: 대리점·관련자·변경·규정·모의·접속
@@ -68,65 +68,68 @@ export const ASK: Record<string, string> = {
 }
 
 /**
- * 안내(온보딩): 역할마다 처음 들어올 때 한 번, 메뉴 레일의 `안내`로 다시. 요소를 하나씩 밝혀 짧게 설명한다.
- * at: 밝힐 요소(CSS 선택자, 없으면 가운데). record: 이 단계부터 그 역할의 첫 기록을 열어 둔다.
- * body가 함수면 열어 둔 기록(예시)의 실제 값으로 쓴다. 제목은 명사, 본문은 한두 문장
+ * 안내(온보딩): 역할마다 처음 들어올 때 한 번, 도움말 창에서 다시. 예시 기록(ui/example.json — 예시상사A · B) 위에서 요소를 하나씩 밝힌다.
+ * at: 밝힐 요소(CSS 선택자). record: 이 단계부터 예시 기록을 열어 둔다. stage: 예시의 몇째 장면(문제가 드러난 뒤가 1).
+ * 한 줄은 "여기가 무엇이고 무엇을 하는지"만(도메인 설명은 도움말). 제목은 명사
  */
-export type TourEx = { name?: string; ym?: string; total?: number | null }
-export type TourStep = { at?: string; title: string; body: string | ((ex: TourEx) => string); record?: boolean }
+export type TourStep = { at: string; title: string; body: string; record?: boolean; stage?: number }
 
-const won = (n: number) => `${n.toLocaleString('ko-KR')}원`
-const LIMIT = 2000000
-const START: TourStep = {
-  title: '판매장려금',
-  body: '대리점 한 곳에 한 달 200만 원을 넘게 주려면 영업임원 승인이 필요합니다. 예: 금강상사11 · 성일상사24 · 대륙상사37은 이름은 다르지만 대표자나 계좌를 같이 써서 한 곳으로 보고, 6월 지급을 합치면 3,888,097원으로 한도를 넘습니다.',
-}
-const MENU: TourStep = { at: '[role=navigation]', title: '메뉴', body: '작업은 내 할 일, 대리점은 등록 정보와 관계, 규정은 판단의 근거입니다.' }
-const TABS: TourStep = { at: 'nav[aria-label="탭"]', title: '경위', body: '이 기록이 생긴 까닭과, 누가 언제 무엇을 했는지가 남습니다. 결정은 지워지지 않습니다.' }
-const SIDE: TourStep = { at: 'div[aria-label="요약"]', title: '요약', body: 'AI 보고는 사실과 추정을 나눠 적을 뿐, 판정은 사람이 합니다.' }
-const CHAT: TourStep = { at: 'div[aria-label="대화"]:not([role])', title: '대화', body: '연 기록에 대해 AI에게 묻습니다. @로 다른 기록을 붙입니다.' }
-const DEMO: TourStep = { at: 'button[aria-label="시연"]', title: '시연', body: '날짜 넘기기 · 초기화 · 시연 서류는 여기에만 있습니다.' }
-const SUM: TourStep = {
-  at: '[data-tour=tiles]',
-  title: '합산',
-  body: (ex) =>
-    ex.total == null
-      ? '합산은 관련 거래처까지 합친 그달 지급, 한도는 200만 원입니다.'
-      : `${ex.name ?? ''}의 합산 ${won(ex.total)}은 한도 ${won(LIMIT)}${ex.total > LIMIT ? '을 넘어 영업임원이 승인합니다' : ' 안이라 영업지원이 승인합니다'}.`,
-}
+const SIDE: TourStep = { at: 'div[aria-label="요약"]', record: true, title: '요약', body: 'AI가 정리한 보고를 봅니다' }
+const CHAT: TourStep = { at: 'div[aria-label="대화"]:not([role])', record: true, title: '대화', body: '이 기록에 대해 AI에게 묻습니다' }
+const DEMO: TourStep = { at: 'button[aria-label="시연"]', title: '시연', body: '날짜를 넘기거나 처음으로 되돌립니다' }
+const SUM: TourStep = { at: '[data-tour=tiles]', record: true, title: '합산', body: '관련 거래처까지 합친 금액과 한도를 비교합니다' }
 
 export const TOUR: Record<string, TourStep[]> = {
   영업지원: [
-    START,
-    { title: '영업지원', body: '대리점별 월 지급을 심사해 승인 · 반려 · 보류합니다.' },
-    MENU,
-    { at: '[data-tour=work] table', title: '작업', body: '내 차례의 심사입니다. 노란 점은 관련 거래처일 수 있다는 단서(정황)가 걸린 것입니다.' },
-    { at: '[data-tour=actions]', record: true, title: '조치', body: (ex) => `예시로 ${ex.name ?? '심사'} 기록을 열었습니다. 반려 · 보류에는 사유를 적습니다.` },
-    SUM, TABS, SIDE, CHAT, DEMO,
-  ],
-  영업임원: [
-    START,
-    { title: '영업임원', body: '한도를 넘는 심사를 승인하고, 지급 뒤에 묶인 달은 추인(사후 승인)합니다.' },
-    MENU,
-    { at: '[data-tour=work] table', title: '작업', body: '내 승인이 필요한 심사와 추인할 달입니다.' },
-    { at: '[data-tour=actions]', record: true, title: '조치', body: (ex) => `예시로 ${ex.name ?? '추인'} 기록을 열었습니다. 반려 · 보류 · 거부에는 사유를 적습니다.` },
-    SUM, TABS, SIDE, CHAT, DEMO,
+    { at: '[data-tour=work] table', title: '작업', body: '내 차례의 심사입니다. 열어서 처리합니다' },
+    { at: '[data-tour=actions]', record: true, title: '조치', body: '여기서 승인 · 반려 · 보류합니다' },
+    SUM,
+    { at: '[data-tour=tiles]', record: true, stage: 1, title: '관련 거래처', body: '관련 거래처를 합치면 한도를 넘어 영업임원이 승인합니다' },
+    SIDE, CHAT, DEMO,
   ],
   '내부 감시': [
-    START,
-    { title: '내부 감시', body: '관련 거래처일 수 있다는 단서(정황)를 판정합니다.' },
-    MENU,
-    { at: '[data-tour=work] table', title: '작업', body: '판정할 정황과 진행 중인 소명입니다.' },
-    { at: '[data-tour=actions]', record: true, title: '조치', body: (ex) => `예시로 ${ex.name ?? '정황'} 기록을 열었습니다. 요청은 대리점에 소명을 받는 것, 기각은 근거 부족으로 닫는 것입니다.` },
-    { at: '[data-tour=tiles]', title: '근거', body: '근거는 두 대리점이 같이 쓰는 대표자 · 주소 · 계좌의 수입니다.' },
+    { at: '[data-tour=work] table', title: '작업', body: '판정할 정황입니다. 열어서 처리합니다' },
+    { at: '[data-tour=actions]', record: true, title: '조치', body: '여기서 소명을 요청하거나 기각합니다' },
+    { at: '[data-tour=tiles]', record: true, title: '근거', body: '두 대리점이 같이 쓰는 식별자의 수입니다' },
+    { at: '[data-region="관계"]', record: true, title: '관계', body: '이름이 다른 두 대리점이 계좌 하나로 이어집니다' },
+    SIDE, CHAT, DEMO,
+  ],
+  영업임원: [
+    { at: '[data-tour=work] table', title: '작업', body: '내 승인이 필요한 심사와 추인입니다' },
+    { at: '[data-tour=actions]', record: true, title: '조치', body: '여기서 추인하거나 거부합니다' },
+    SUM,
+    { at: '[data-region="재검토"]', record: true, title: '재검토', body: '당시 영업지원 전결로 나간 돈을 지금 바로잡습니다' },
     SIDE, CHAT, DEMO,
   ],
   '회계·자금': [
-    START,
-    { title: '회계·자금', body: '승인된 지급을 보내고 은행 회신과 맞춰 봅니다(대사).' },
-    MENU,
-    { at: '[data-tour=work]', title: '작업', body: '승인된 지급이 여기에 쌓입니다. 비어 있으면 아직 승인된 것이 없습니다.' },
-    { at: '[data-tour=actions]', record: true, title: '조치', body: (ex) => `예시로 ${ex.name ?? '지급'} 기록을 열었습니다. 지급하면 이체가 나가고, 회신이 오면 대사합니다.` },
-    SUM, TABS, SIDE, CHAT, DEMO,
+    { at: '[data-tour=work] table', title: '작업', body: '보낼 지급입니다. 열어서 처리합니다' },
+    { at: '[data-tour=actions]', record: true, title: '조치', body: '여기서 지급합니다' },
+    { at: '[data-tour=tiles]', record: true, title: '금액', body: '지급 금액과 승인 때 본 합산 · 한도입니다' },
+    { at: '[data-region="재심사"]', record: true, stage: 1, title: '재심사', body: '관련 거래처가 밝혀져 지급이 멈췄습니다' },
+    SIDE, CHAT, DEMO,
   ],
+}
+
+/** 도움말(메뉴 레일의 물음표): 둘러보기에서 뺀 도메인 설명. docs/도움말.md와 같은 내용이다(고칠 때 둘 다) */
+export const HELP = {
+  intro:
+    '회사가 대리점에 주는 판매장려금은 대리점 한 곳에 한 달 200만 원까지 영업지원이 전결하고, 넘으면 영업임원이 승인합니다. 이름이 달라도 대표자 · 주소 · 계좌 가운데 둘 이상이 같은 대리점(관련 거래처)은 한 곳으로 보고 지급을 합쳐 한도를 봅니다. 예: 금강상사11 · 성일상사24 · 대륙상사37은 따로 보면 모두 한도 안이지만, 6월 지급을 합치면 3,888,097원입니다.',
+  roles: {
+    영업지원: '대리점별 월 지급을 심사해 승인 · 반려 · 보류합니다. 대리점의 서류를 받아 올립니다.',
+    영업임원: '한도를 넘는 심사를 승인하고, 지급한 뒤에 관련 거래처로 밝혀진 달을 추인하거나 거부합니다.',
+    '내부 감시': '관련 거래처일 수 있다는 단서(정황)를 보고 소명을 요청하거나 기각하고, 받은 서류로 인정 · 불인정 · 보완을 정합니다.',
+    '회계·자금': '승인된 지급을 보내고, 은행 회신과 금액 · 계좌가 맞는지 대사합니다.',
+  } as Record<string, string>,
+  words: [
+    ['관련 거래처', '대표자 · 주소 · 계좌 가운데 둘 이상이 같은 대리점들. 지급을 합쳐 한도를 봅니다'],
+    ['합산', '관련 거래처까지 합친 그달의 지급액'],
+    ['한도', '영업지원이 혼자 승인할 수 있는 한 달 금액(200만 원)'],
+    ['승인권자', '합산이 한도 안이면 영업지원, 넘으면 영업임원'],
+    ['정황', '관련 거래처일 수 있다는 단서. 내부 감시가 판정합니다'],
+    ['소명', '정황에 대해 대리점에게 받는 설명과 서류'],
+    ['추인', '이미 나간 지급을 나중에 승인하는 것'],
+    ['재심사', '승인 뒤에 관련 거래처가 밝혀져 지급을 멈추고 다시 보는 것'],
+    ['대사', '은행 회신과 보낸 금액 · 계좌를 맞춰 보는 것'],
+    ['출처 표지', '원본에 없는 값에 붙습니다: 계산 · 가정 · 합성 · AI · 모의 · 예시'],
+  ] as [string, string][],
 }

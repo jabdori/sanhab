@@ -9,7 +9,8 @@ import { Empty } from './Empty'
  */
 export const Region = ({ title, aside, actions, children }: { title: string; aside?: ReactNode; actions?: ReactNode; children: ReactNode }) =>
   isValidElement(children) && children.type === Empty && !actions ? null : (
-    <Section variant="transparent" padding={6} dividers={['top']}>
+    // data-region: 안내(ui/Tour)가 영역을 제목으로 찾아 밝힌다
+    <Section variant="transparent" padding={6} dividers={['top']} data-region={title}>
       <VStack gap={6}>
         <HStack gap={2} vAlign="center" wrap="wrap">
           <StackItem size="fill">

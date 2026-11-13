@@ -6,7 +6,7 @@ import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
 import { Popover } from '@astryxdesign/core/Popover'
 import { Text } from '@astryxdesign/core/Text'
 import { Icon } from '@astryxdesign/core/Icon'
-import { BeakerIcon, CalculatorIcon, InformationCircleIcon, LightBulbIcon, SparklesIcon, Square2StackIcon } from '@heroicons/react/24/outline'
+import { BeakerIcon, CalculatorIcon, InformationCircleIcon, LightBulbIcon, SparklesIcon, Square2StackIcon, AcademicCapIcon } from '@heroicons/react/24/outline'
 import { Tooltip } from '@astryxdesign/core/Tooltip'
 import { type ReactNode, useState } from 'react'
 import { L } from '../labels'
@@ -42,7 +42,7 @@ const readSpecs = () =>
 const base = (file: string) => file.split('/').at(-1)
 
 /** 출처 표지의 아이콘: 계산 · 가정 · 합성 · AI · 모의 */
-const ICON: Record<string, typeof SparklesIcon> = { [L.계산]: CalculatorIcon, [L.가정]: LightBulbIcon, [L.합성]: Square2StackIcon, [L.AI]: SparklesIcon, [L.모의]: BeakerIcon }
+const ICON: Record<string, typeof SparklesIcon> = { [L.예시]: AcademicCapIcon, [L.계산]: CalculatorIcon, [L.가정]: LightBulbIcon, [L.합성]: Square2StackIcon, [L.AI]: SparklesIcon, [L.모의]: BeakerIcon }
 
 /**
  * 출처 표지. **원본이 아닌 값에만** 작은 표지(Token)가 붙는다: 계산 · 가정 · 합성 · AI · 모의.

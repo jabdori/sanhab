@@ -1,20 +1,24 @@
-// 안내(온보딩): 요소를 하나씩 밝히고(둘레를 어둡게) 옆에 설명 카드를 띄운다. astryx에 둘러보기 부품이 없어 구멍과 카드의 자리를 직접 잰다(Popover의 밖 기준점은 고정 위치 요소를 따라가지 않았다).
-// 역할마다 처음 들어올 때 한 번(이 브라우저 기준), 메뉴 레일의 `안내`로 다시. 아무것도 결정하지 않는다 — 기록을 열어 보여 줄 뿐이고 끝나면 목록으로 돌아간다
+// 안내(온보딩): 예시 기록(ui/example.json) 위에서 요소를 하나씩 밝히고(둘레를 어둡게, 가장자리에 링) 옆에 떠 있는 흰 카드로 한 줄을 띄운다.
+// astryx에 둘러보기 부품이 없어 구멍과 카드의 자리를 직접 잰다. 역할마다 처음 들어올 때 한 번(이 브라우저 기준), 도움말 창에서 다시.
+// 예시가 켜진 동안 화면은 서버 대신 예시 응답을 받고 조치는 실행되지 않는다(state.ts의 exampleAtom). 끝나면 예시를 끄고 목록으로 돌아간다
 import { Button } from '@astryxdesign/core/Button'
 import { HStack, StackItem, VStack } from '@astryxdesign/core/Layout'
-import { Card } from '@astryxdesign/core/Card'
-import { Text } from '@astryxdesign/core/Text'
+import { Heading, Text } from '@astryxdesign/core/Text'
+import { Token } from '@astryxdesign/core/Token'
 import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { L, TOUR, type TourEx } from '../labels'
-import { firstTask, type Task } from '../pages/Work'
-import { api, roleAtom, targetAtom } from '../state'
+import { L, TOUR } from '../labels'
+import { changedAtom, exampleAtom, roleAtom, store, targetAtom, type Target } from '../state'
+import EXAMPLE from './example.json'
 
 export const tourAtom = atom(false)
 
+type Example = { target: Target; stages: Record<string, unknown>[] }
+const EX = EXAMPLE as Record<string, Example>
+
 const seenKey = (role: string) => `tour:${role}`
 /** 이 역할로 안내를 본 적이 있는가(저장소가 막혀 있으면 본 것으로 — 매번 뜨지 않게) */
-export const seen = (role: string) => {
+const seen = (role: string) => {
   try {
     return localStorage.getItem(seenKey(role)) === '1'
   } catch {
@@ -29,7 +33,7 @@ const markSeen = (role: string) => {
   }
 }
 
-/** 선택자의 요소가 나타날 때까지 잠깐 기다린다(기록을 연 직후). 없으면 null */
+/** 선택자의 요소가 나타날 때까지 잠깐 기다린다(예시 기록을 연 직후). 없으면 null */
 const wait = (sel: string, ms = 3000) =>
   new Promise<Element | null>((done) => {
     const t0 = Date.now()
@@ -46,15 +50,19 @@ export function Tour() {
   const [open, setOpen] = useAtom(tourAtom)
   const role = useAtomValue(roleAtom)
   const setTarget = useSetAtom(targetAtom)
+  // 예시를 바꾸면 changedAtom도 올린다: 기록 화면의 조회(atom)들이 그것을 보고 다시 읽는다
+  const setExample = (v: Record<string, unknown> | null) => {
+    if (store.get(exampleAtom) === v) return
+    store.set(exampleAtom, v)
+    store.set(changedAtom, (n) => n + 1)
+  }
   const steps = (role && TOUR[role]) || []
+  const ex = role ? EX[role] : undefined
   const [i, setI] = useState(0)
   const [el, setEl] = useState<Element | null>(null)
   const [ready, setReady] = useState(false)
   const hole = useRef<HTMLDivElement>(null)
   const card = useRef<HTMLDivElement>(null)
-  const opened = useRef(false)
-  // 열어 둔 첫 기록(설명의 예시)
-  const [ex, setEx] = useState<TourEx>({})
 
   // 이 역할로 처음 들어오면 저절로 연다
   useEffect(() => {
@@ -63,45 +71,26 @@ export function Tour() {
   useEffect(() => {
     if (open) {
       setI(0)
-      opened.current = false
       if (role) markSeen(role)
     }
   }, [open, role])
 
-  // 단계가 바뀌면: 필요하면 첫 기록을 열고, 밝힐 요소를 찾는다. 요소가 없으면(빈 목록의 기록 단계) 그 단계를 건너뛴다
+  // 단계마다: 예시의 장면을 고르고, 기록 단계면 예시 기록을 연다(아니면 닫는다). 밝힐 요소가 없으면 건너뛴다
   useEffect(() => {
-    if (!open) return
+    if (!open || !ex) return
     const s = steps[i]
     if (!s) return
     let live = true
     setReady(false)
-    // 기록을 열기 전 단계로 돌아가면 기록을 닫는다(목록을 다시 밝히게)
-    const first = steps.findIndex((x) => x.record)
-    if (opened.current && first >= 0 && i < first) {
-      opened.current = false
-      setTarget(null)
-    }
+    // 장면은 문제가 드러난 단계부터 그대로 이어진다(뒤로 가면 앞 장면으로)
+    const stage = Math.max(0, ...steps.slice(0, i + 1).map((x) => x.stage ?? 0))
+    setExample(ex.stages[Math.min(stage, ex.stages.length - 1)])
+    setTarget(s.record ? ex.target : null)
     ;(async () => {
-      if (s.record && !opened.current) {
-        const d = await api<{ mine: Task[] }>('/tasks').catch(() => null)
-        const t = d && firstTask(d.mine)
-        if (t) {
-          setEx({ name: [t.name ?? t.target, t.ym].filter(Boolean).join(' · '), ym: t.ym, total: t.total })
-          opened.current = true
-          setTarget({ kind: t.view, id: t.target })
-        }
-      }
-      const found = s.at ? await wait(s.at) : null
+      const found = await wait(s.at)
       if (!live) return
-      if (s.at && !found) {
-        // 이 단계와, 기록이 없어 이어지는 기록의 단계를 건너뛴다
-        const next = steps.findIndex((x, k) => k > i && (!x.at || document.querySelector(x.at)))
-        if (next < 0) return close()
-        return setI(next)
-      }
+      if (!found) return i < steps.length - 1 ? setI(i + 1) : close()
       setEl(found)
-      // 구멍을 먼저 옮기고 설명 창을 띄운다(창은 뜰 때 기준점을 잰다)
-      place(found)
       setReady(true)
     })()
     return () => {
@@ -110,44 +99,36 @@ export function Tour() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, i])
 
-  // 구멍(밝힌 자리)을 요소에 맞춘다. 화면이 움직여도 따라가게 짧게 다시 잰다
+  // 구멍(밝힌 자리)과 카드의 자리. 카드: 좁은 왼쪽 요소면 오른쪽에, 오른쪽 요소면 왼쪽에, 넓은 요소면 아래(모자라면 위). 꼬리는 요소 쪽 가장자리에
   const place = (target: Element | null) => {
     const h = hole.current
-    if (!h) return
-    const r = target?.getBoundingClientRect()
-    const pad = target ? 4 : 0
-    // 가운데 단계는 화면 위쪽 3분의 1에 크기 없는 구멍(둘레 전체가 어둡다)
-    const [x, y, w, hgt] = r ? [r.left - pad, r.top - pad, r.width + pad * 2, r.height + pad * 2] : [innerWidth / 2, innerHeight / 3, 0, 0]
-    const set = (e: HTMLElement, k: string, v: number) => e.style.setProperty(k, `${Math.round(v)}px`)
-    set(h, 'left', x)
-    set(h, 'top', y)
-    set(h, 'width', w)
-    set(h, 'height', hgt)
-    // 카드의 자리: 좁은 왼쪽 요소면 오른쪽에, 오른쪽 요소면 왼쪽에, 넓은 요소면 아래(아래가 모자라면 위). 화면 안으로 당긴다
     const c = card.current
+    if (!h || !target) return
+    const r = target.getBoundingClientRect()
+    const set = (e: HTMLElement, k: string, v: number) => e.style.setProperty(k, `${Math.round(v)}px`)
+    const pad = 6
+    set(h, 'left', r.left - pad)
+    set(h, 'top', r.top - pad)
+    set(h, 'width', r.width + pad * 2)
+    set(h, 'height', r.height + pad * 2)
     if (!c) return
-    const cw = c.offsetWidth
-    const ch = c.offsetHeight
-    const gap = 12
-    let [cx, cy] = [innerWidth / 2 - cw / 2, innerHeight / 3]
-    if (r) {
-      if (r.width < innerWidth * 0.3 && r.right < innerWidth * 0.55) [cx, cy] = [r.right + gap, r.top]
-      else if (r.left > innerWidth * 0.45) [cx, cy] = [r.left - cw - gap, r.top]
-      else if (innerHeight - r.bottom > ch + gap * 2) [cx, cy] = [r.left, r.bottom + gap]
-      else if (r.top > ch + gap * 2) [cx, cy] = [r.left, r.top - ch - gap]
-      else [cx, cy] = [r.left + gap * 2, r.top + gap * 2]
-    }
-    set(c, 'left', Math.min(Math.max(16, cx), innerWidth - cw - 16))
-    set(c, 'top', Math.min(Math.max(16, cy), innerHeight - ch - 16))
+    const [cw, ch, gap] = [c.offsetWidth, c.offsetHeight, 16]
+    let side: 'left' | 'right' | 'top' | 'bottom'
+    let [cx, cy] = [0, 0]
+    if (r.width < innerWidth * 0.3 && r.right < innerWidth * 0.55) [side, cx, cy] = ['left', r.right + pad + gap, r.top]
+    else if (r.left > innerWidth * 0.45) [side, cx, cy] = ['right', r.left - pad - cw - gap, r.top]
+    else if (innerHeight - r.bottom > ch + gap * 2) [side, cx, cy] = ['top', r.left, r.bottom + pad + gap]
+    else if (r.top > ch + gap * 2) [side, cx, cy] = ['bottom', r.left, r.top - pad - ch - gap]
+    else [side, cx, cy] = ['top', r.left + gap * 2, r.top + gap * 2]
+    cx = Math.min(Math.max(16, cx), innerWidth - cw - 16)
+    cy = Math.min(Math.max(16, cy), innerHeight - ch - 16)
+    set(c, 'left', cx)
+    set(c, 'top', cy)
+    // 꼬리: 카드 가장자리에서 요소의 가운데 쪽으로(카드 안에 머물게)
+    c.dataset.side = side
+    const along = side === 'left' || side === 'right' ? Math.min(Math.max(20, r.top + Math.min(r.height, 80) / 2 - cy), ch - 20) : Math.min(Math.max(20, r.left + Math.min(r.width, 160) / 2 - cx), cw - 20)
+    set(c, '--tail', along)
   }
-  // Esc로 닫는다
-  useEffect(() => {
-    if (!open) return
-    const key = (e: KeyboardEvent) => e.key === 'Escape' && close()
-    addEventListener('keydown', key)
-    return () => removeEventListener('keydown', key)
-  })
-  // 카드가 그려진 뒤(크기를 알게 된 뒤) 자리를 잡는다
   useLayoutEffect(() => {
     if (open && ready) place(el)
   })
@@ -160,38 +141,58 @@ export function Tour() {
       clearInterval(t)
       removeEventListener('resize', again)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, ready, el])
 
   const close = () => {
     setOpen(false)
     setEl(null)
-    if (opened.current) setTarget(null)
+    setReady(false)
+    setExample(null)
+    setTarget(null)
   }
+  // Esc로 닫는다
+  useEffect(() => {
+    if (!open) return
+    const key = (e: KeyboardEvent) => e.key === 'Escape' && close()
+    addEventListener('keydown', key)
+    return () => removeEventListener('keydown', key)
+  })
   if (!open || !steps.length) return null
   const s = steps[i]
+  const last = i === steps.length - 1
   return (
     <>
-      {/* 바깥을 누르는 것을 막는 막 + 둘레를 어둡게 하는 구멍(theme.css의 tour-) */}
+      {/* 바깥을 누르는 것을 막는 막 + 둘레를 어둡게 하고 가장자리에 링을 두른 구멍(theme.css의 tour-) */}
       <div className="tour-veil" />
-      <div ref={hole} className="tour-hole" />
+      <div ref={hole} className="tour-hole" hidden={!ready} />
       {ready && (
         <div ref={card} className="tour-card" role="dialog" aria-label={L.안내}>
-          <Card>
-            <VStack gap={3}>
+          <VStack gap={4}>
+            <VStack gap={1}>
               <HStack gap={2} vAlign="center">
                 <StackItem size="fill">
-                  <Text weight="semibold">{s.title}</Text>
+                  <Heading level={3}>{s.title}</Heading>
                 </StackItem>
-                <Text type="supporting" color="secondary" hasTabularNumbers>{`${i + 1}/${steps.length}`}</Text>
+                {/* 화면의 기록은 예시다(실제 업무 기록이 아니다) */}
+                <Token size="sm" label={L.예시} />
               </HStack>
-              <Text>{typeof s.body === 'function' ? s.body(ex) : s.body}</Text>
-              <HStack gap={2}>
-                <StackItem size="fill">{i < steps.length - 1 && <Button label={L.스킵} variant="ghost" size="sm" onClick={close} />}</StackItem>
-                {i > 0 && <Button label={L.이전} variant="secondary" size="sm" onClick={() => setI(i - 1)} />}
-                {i < steps.length - 1 ? <Button label={L.다음} variant="primary" size="sm" onClick={() => setI(i + 1)} /> : <Button label={L.끝} variant="primary" size="sm" onClick={close} />}
-              </HStack>
+              <Text color="secondary">{s.body}</Text>
             </VStack>
-          </Card>
+            <HStack gap={2} vAlign="center">
+              <StackItem size="fill">
+                {/* 진행 점: 지금 단계만 진하게 */}
+                <HStack gap={1} vAlign="center" aria-label={`${i + 1}/${steps.length}`}>
+                  {steps.map((_, k) => (
+                    <span key={k} className={k === i ? 'tour-dot tour-dot-on' : 'tour-dot'} />
+                  ))}
+                </HStack>
+              </StackItem>
+              {!last && <Button label={L.스킵} variant="ghost" size="sm" onClick={close} />}
+              {i > 0 && <Button label={L.이전} variant="secondary" size="sm" onClick={() => setI(i - 1)} />}
+              <Button label={last ? L.끝 : L.다음} variant="primary" size="sm" onClick={() => (last ? close() : setI(i + 1))} />
+            </HStack>
+          </VStack>
         </div>
       )}
     </>

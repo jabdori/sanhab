@@ -1,0 +1,1325 @@
+{
+ "영업지원": {
+  "target": {
+   "kind": "심사",
+   "id": "2026-06-X-A"
+  },
+  "stages": [
+   {
+    "/tasks": {
+     "mine": [
+      {
+       "id": "2026-06-X-A",
+       "kind": "심사",
+       "marks": [
+        "정황"
+       ],
+       "name": "예시상사A",
+       "pay": null,
+       "pick": false,
+       "role": "영업지원",
+       "state": "대기",
+       "target": "2026-06-X-A",
+       "total": 1200000,
+       "view": "심사",
+       "ym": "2026-06"
+      }
+     ],
+     "going": []
+    },
+    "/reviews/2026-06-X-A": {
+     "actions": [
+      {
+       "classes": [
+        "정상",
+        "경미",
+        "기타"
+       ],
+       "kind": "승인",
+       "reason": true,
+       "seq": 1
+      },
+      {
+       "classes": [
+        "소명",
+        "정황",
+        "서류",
+        "기타"
+       ],
+       "kind": "보류",
+       "reason": true,
+       "seq": 2
+      },
+      {
+       "classes": [
+        "서류",
+        "금액",
+        "정황",
+        "기타"
+       ],
+       "kind": "반려",
+       "reason": true,
+       "seq": 3
+      }
+     ],
+     "history": [],
+     "members": [
+      {
+       "id": "X-A",
+       "name": "예시상사A",
+       "match": [],
+       "pays": [
+        {
+         "amount": 1200000,
+         "dealer": "X-A",
+         "source": "예시",
+         "file": null,
+         "row": null
+        }
+       ]
+      }
+     ],
+     "relation": {
+      "left": [
+       {
+        "id": "X-A",
+        "name": "예시상사A"
+       }
+      ],
+      "lines": [],
+      "mid": [],
+      "right": []
+     },
+     "review": {
+      "approver": "영업지원",
+      "holder": "영업지원",
+      "id": "2026-06-X-A",
+      "limit": 2000000,
+      "marks": [
+       "정황"
+      ],
+      "name": "예시상사A",
+      "source": "계산",
+      "status": "대기",
+      "total": 1200000,
+      "ym": "2026-06",
+      "file": null,
+      "row": null,
+      "fixed": null
+     },
+     "rules": [
+      {
+       "clause": "지급한도",
+       "file": "00_common/approval_authority_policy.md",
+       "first": 41,
+       "last": 45,
+       "name": "한도",
+       "source": "원본",
+       "text": "## 판매장려금 지급 한도\n- 거래처별 **월 지급액 2백만원 이하**는 영업지원팀 전결.\n- 초과 시 **영업임원 승인** 필요.\n- **동일 관련자(대표자·주소·정산계좌 2개 이상 일치)는 합산하여 한도를 적용한다.**\n  개별 거래처 단위로만 심사하면 한도 통제가 우회될 수 있으므로, 지급 전 관련자 그룹 여부를 확인한다.",
+       "title": "판매장려금 지급 한도",
+       "value": 2000000,
+       "ver": 1
+      },
+      {
+       "clause": "지급한도",
+       "file": "00_common/approval_authority_policy.md",
+       "first": 41,
+       "last": 45,
+       "name": "합산",
+       "source": "원본",
+       "text": "## 판매장려금 지급 한도\n- 거래처별 **월 지급액 2백만원 이하**는 영업지원팀 전결.\n- 초과 시 **영업임원 승인** 필요.\n- **동일 관련자(대표자·주소·정산계좌 2개 이상 일치)는 합산하여 한도를 적용한다.**\n  개별 거래처 단위로만 심사하면 한도 통제가 우회될 수 있으므로, 지급 전 관련자 그룹 여부를 확인한다.",
+       "title": "판매장려금 지급 한도",
+       "value": 2,
+       "ver": 1
+      }
+     ]
+    },
+    "/reviews/2026-06-X-A/resubmit": {
+     "can": false,
+     "classes": [],
+     "lines": []
+    },
+    "/reviews/2026-06-X-A/ratify": null,
+    "/reviews/2026-06-X-A/signals": [
+     {
+      "id": "계좌-X-A",
+      "kind": "계좌",
+      "name": "계좌 · 예시상사A",
+      "state": "접수"
+     }
+    ],
+    "/reviews/2026-06-X-A/hypo": [],
+    "/signals/계좌-X-A/report": {
+     "actions": [
+      {
+       "classes": [
+        "기타"
+       ],
+       "kind": "채택",
+       "reason": false
+      },
+      {
+       "classes": [
+        "추정",
+        "의견",
+        "기타"
+       ],
+       "kind": "불채택",
+       "reason": true
+      }
+     ],
+     "decision": null,
+     "earlier": [],
+     "opened": true,
+     "report": {
+      "at": "2026-07-01",
+      "counter": "계좌를 잠시 빌려 쓴 것일 수 있다",
+      "error": null,
+      "facts": [
+       {
+        "parts": [
+         [
+          "",
+          false
+         ],
+         [
+          "예시상사A",
+          true
+         ],
+         [
+          "의 계좌 등록 ",
+          false
+         ],
+         [
+          "예시은행 100-200-300",
+          true
+         ],
+         [
+          "",
+          false
+         ]
+        ],
+        "ref": "ex-1",
+        "text": "예시상사A의 계좌 등록 예시은행 100-200-300"
+       },
+       {
+        "parts": [
+         [
+          "",
+          false
+         ],
+         [
+          "예시상사B",
+          true
+         ],
+         [
+          "의 계좌 등록 ",
+          false
+         ],
+         [
+          "예시은행 100-200-300",
+          true
+         ],
+         [
+          "",
+          false
+         ]
+        ],
+        "ref": "ex-2",
+        "text": "예시상사B의 계좌 등록 예시은행 100-200-300"
+       },
+       {
+        "parts": [
+         [
+          "",
+          false
+         ],
+         [
+          "예시상사A",
+          true
+         ],
+         [
+          "와 ",
+          false
+         ],
+         [
+          "예시상사B",
+          true
+         ],
+         [
+          "의 대표자 ",
+          false
+         ],
+         [
+          "예시대표",
+          true
+         ],
+         [
+          "",
+          false
+         ]
+        ],
+        "ref": "ex-3",
+        "text": "예시상사A와 예시상사B의 대표자 예시대표"
+       }
+      ],
+      "guess": [
+       "이름이 다른 두 대리점이 한 곳일 수 있다"
+      ],
+      "id": "6s663bo5p036pv4nqg38",
+      "model": "예시",
+      "opinion": {
+       "action": "요청",
+       "text": "근거가 서로 이어져 있어 대리점에 소명을 청해 볼 만하다"
+      },
+      "reads": 0,
+      "stale": false,
+      "state": "검토",
+      "unknown": [
+       "계좌 예금주"
+      ]
+     },
+     "role": "내부 감시",
+     "run": false,
+     "trail": []
+    }
+   },
+   {
+    "/tasks": {
+     "mine": [],
+     "going": [
+      {
+       "id": "2026-06-X-A",
+       "kind": "심사",
+       "marks": [
+        "정황"
+       ],
+       "name": "예시상사A 외 1",
+       "pay": null,
+       "pick": false,
+       "role": "영업임원",
+       "state": "대기",
+       "target": "2026-06-X-A",
+       "total": 2300000,
+       "view": "심사",
+       "ym": "2026-06"
+      }
+     ]
+    },
+    "/reviews/2026-06-X-A": {
+     "actions": [],
+     "history": [],
+     "members": [
+      {
+       "id": "X-A",
+       "name": "예시상사A",
+       "match": [
+        "대표자",
+        "계좌"
+       ],
+       "pays": [
+        {
+         "amount": 1200000,
+         "dealer": "X-A",
+         "source": "예시",
+         "file": null,
+         "row": null
+        }
+       ]
+      },
+      {
+       "id": "X-B",
+       "name": "예시상사B",
+       "match": [
+        "대표자",
+        "계좌"
+       ],
+       "pays": [
+        {
+         "amount": 1100000,
+         "dealer": "X-B",
+         "source": "예시",
+         "file": null,
+         "row": null
+        }
+       ]
+      }
+     ],
+     "relation": {
+      "left": [
+       {
+        "id": "X-A",
+        "name": "예시상사A"
+       }
+      ],
+      "lines": [
+       [
+        "X-A",
+        "person:`예시`"
+       ],
+       [
+        "X-B",
+        "person:`예시`"
+       ],
+       [
+        "X-A",
+        "account:`예시`"
+       ],
+       [
+        "X-B",
+        "account:`예시`"
+       ]
+      ],
+      "mid": [
+       {
+        "id": "account:`예시`",
+        "name": "예시은행 100-200-300"
+       },
+       {
+        "id": "person:`예시`",
+        "name": "예시대표"
+       }
+      ],
+      "right": [
+       {
+        "id": "X-B",
+        "name": "예시상사B"
+       }
+      ]
+     },
+     "review": {
+      "approver": "영업임원",
+      "holder": "영업임원",
+      "id": "2026-06-X-A",
+      "limit": 2000000,
+      "marks": [
+       "정황"
+      ],
+      "name": "예시상사A 외 1",
+      "source": "계산",
+      "status": "대기",
+      "total": 2300000,
+      "ym": "2026-06",
+      "file": null,
+      "row": null,
+      "fixed": null
+     },
+     "rules": [
+      {
+       "clause": "지급한도",
+       "file": "00_common/approval_authority_policy.md",
+       "first": 41,
+       "last": 45,
+       "name": "한도",
+       "source": "원본",
+       "text": "## 판매장려금 지급 한도\n- 거래처별 **월 지급액 2백만원 이하**는 영업지원팀 전결.\n- 초과 시 **영업임원 승인** 필요.\n- **동일 관련자(대표자·주소·정산계좌 2개 이상 일치)는 합산하여 한도를 적용한다.**\n  개별 거래처 단위로만 심사하면 한도 통제가 우회될 수 있으므로, 지급 전 관련자 그룹 여부를 확인한다.",
+       "title": "판매장려금 지급 한도",
+       "value": 2000000,
+       "ver": 1
+      },
+      {
+       "clause": "지급한도",
+       "file": "00_common/approval_authority_policy.md",
+       "first": 41,
+       "last": 45,
+       "name": "합산",
+       "source": "원본",
+       "text": "## 판매장려금 지급 한도\n- 거래처별 **월 지급액 2백만원 이하**는 영업지원팀 전결.\n- 초과 시 **영업임원 승인** 필요.\n- **동일 관련자(대표자·주소·정산계좌 2개 이상 일치)는 합산하여 한도를 적용한다.**\n  개별 거래처 단위로만 심사하면 한도 통제가 우회될 수 있으므로, 지급 전 관련자 그룹 여부를 확인한다.",
+       "title": "판매장려금 지급 한도",
+       "value": 2,
+       "ver": 1
+      }
+     ]
+    },
+    "/reviews/2026-06-X-A/resubmit": {
+     "can": false,
+     "classes": [],
+     "lines": []
+    },
+    "/reviews/2026-06-X-A/ratify": null,
+    "/reviews/2026-06-X-A/signals": [
+     {
+      "id": "계좌-X-A",
+      "kind": "계좌",
+      "name": "계좌 · 예시상사A",
+      "state": "접수"
+     }
+    ],
+    "/reviews/2026-06-X-A/hypo": [],
+    "/signals/계좌-X-A/report": {
+     "actions": [
+      {
+       "classes": [
+        "기타"
+       ],
+       "kind": "채택",
+       "reason": false
+      },
+      {
+       "classes": [
+        "추정",
+        "의견",
+        "기타"
+       ],
+       "kind": "불채택",
+       "reason": true
+      }
+     ],
+     "decision": null,
+     "earlier": [],
+     "opened": true,
+     "report": {
+      "at": "2026-07-01",
+      "counter": "계좌를 잠시 빌려 쓴 것일 수 있다",
+      "error": null,
+      "facts": [
+       {
+        "parts": [
+         [
+          "",
+          false
+         ],
+         [
+          "예시상사A",
+          true
+         ],
+         [
+          "의 계좌 등록 ",
+          false
+         ],
+         [
+          "예시은행 100-200-300",
+          true
+         ],
+         [
+          "",
+          false
+         ]
+        ],
+        "ref": "ex-1",
+        "text": "예시상사A의 계좌 등록 예시은행 100-200-300"
+       },
+       {
+        "parts": [
+         [
+          "",
+          false
+         ],
+         [
+          "예시상사B",
+          true
+         ],
+         [
+          "의 계좌 등록 ",
+          false
+         ],
+         [
+          "예시은행 100-200-300",
+          true
+         ],
+         [
+          "",
+          false
+         ]
+        ],
+        "ref": "ex-2",
+        "text": "예시상사B의 계좌 등록 예시은행 100-200-300"
+       },
+       {
+        "parts": [
+         [
+          "",
+          false
+         ],
+         [
+          "예시상사A",
+          true
+         ],
+         [
+          "와 ",
+          false
+         ],
+         [
+          "예시상사B",
+          true
+         ],
+         [
+          "의 대표자 ",
+          false
+         ],
+         [
+          "예시대표",
+          true
+         ],
+         [
+          "",
+          false
+         ]
+        ],
+        "ref": "ex-3",
+        "text": "예시상사A와 예시상사B의 대표자 예시대표"
+       }
+      ],
+      "guess": [
+       "이름이 다른 두 대리점이 한 곳일 수 있다"
+      ],
+      "id": "6s663bo5p036pv4nqg38",
+      "model": "예시",
+      "opinion": {
+       "action": "요청",
+       "text": "근거가 서로 이어져 있어 대리점에 소명을 청해 볼 만하다"
+      },
+      "reads": 0,
+      "stale": false,
+      "state": "검토",
+      "unknown": [
+       "계좌 예금주"
+      ]
+     },
+     "role": "내부 감시",
+     "run": false,
+     "trail": []
+    }
+   }
+  ]
+ },
+ "내부 감시": {
+  "target": {
+   "kind": "정황",
+   "id": "계좌-X-A"
+  },
+  "stages": [
+   {
+    "/tasks": {
+     "mine": [
+      {
+       "id": "계좌-X-A",
+       "kind": "정황",
+       "marks": [],
+       "name": "계좌 · 예시상사A",
+       "pay": null,
+       "pick": false,
+       "role": "내부 감시",
+       "state": "대기",
+       "target": "계좌-X-A",
+       "total": null,
+       "view": "정황",
+       "ym": null
+      }
+     ],
+     "going": []
+    },
+    "/signals/계좌-X-A": {
+     "actions": [
+      {
+       "classes": [
+        "기타"
+       ],
+       "kind": "요청",
+       "reason": false
+      },
+      {
+       "classes": [
+        "부족",
+        "정상",
+        "기타"
+       ],
+       "kind": "기각",
+       "reason": true
+      }
+     ],
+     "delay": 30,
+     "evidence": [
+      {
+       "amount": null,
+       "at": null,
+       "days": null,
+       "dealer": {
+        "id": "X-A",
+        "name": "예시상사A"
+       },
+       "got": null,
+       "id": "ex-1",
+       "item": "계좌",
+       "known": null,
+       "node": {
+        "id": "account:`예시`",
+        "name": "예시은행 100-200-300"
+       },
+       "value": null,
+       "want": null,
+       "ym": null,
+       "source": "예시",
+       "file": null,
+       "row": null
+      },
+      {
+       "amount": null,
+       "at": null,
+       "days": null,
+       "dealer": {
+        "id": "X-B",
+        "name": "예시상사B"
+       },
+       "got": null,
+       "id": "ex-2",
+       "item": "계좌",
+       "known": null,
+       "node": {
+        "id": "account:`예시`",
+        "name": "예시은행 100-200-300"
+       },
+       "value": null,
+       "want": null,
+       "ym": null,
+       "source": "예시",
+       "file": null,
+       "row": null
+      },
+      {
+       "amount": null,
+       "at": null,
+       "days": null,
+       "dealer": {
+        "id": "X-B",
+        "name": "예시상사B"
+       },
+       "got": null,
+       "id": "ex-3",
+       "item": "대표자",
+       "known": null,
+       "node": {
+        "id": "person:`예시`",
+        "name": "예시대표"
+       },
+       "value": null,
+       "want": null,
+       "ym": null,
+       "source": "예시",
+       "file": null,
+       "row": null
+      }
+     ],
+     "fresh": [],
+     "history": [],
+     "near": [
+      1800000,
+      2000000
+     ],
+     "relation": {
+      "hints": [],
+      "left": [
+       {
+        "id": "X-A",
+        "name": "예시상사A"
+       }
+      ],
+      "lines": [
+       [
+        "X-A",
+        "person:`예시`"
+       ],
+       [
+        "X-B",
+        "person:`예시`"
+       ],
+       [
+        "X-A",
+        "account:`예시`"
+       ],
+       [
+        "X-B",
+        "account:`예시`"
+       ]
+      ],
+      "mid": [
+       {
+        "id": "account:`예시`",
+        "name": "예시은행 100-200-300"
+       },
+       {
+        "id": "person:`예시`",
+        "name": "예시대표"
+       }
+      ],
+      "right": [
+       {
+        "id": "X-B",
+        "name": "예시상사B"
+       }
+      ]
+     },
+     "role": "내부 감시",
+     "signal": {
+      "dealers": [
+       {
+        "id": "X-A",
+        "name": "예시상사A"
+       },
+       {
+        "id": "X-B",
+        "name": "예시상사B"
+       }
+      ],
+      "id": "계좌-X-A",
+      "kind": "계좌",
+      "name": "계좌 · 예시상사A",
+      "source": "계산",
+      "state": "접수"
+     }
+    },
+    "/signals/계좌-X-A/hypo": null,
+    "/signals/계좌-X-A/clarifies": [],
+    "/signals/계좌-X-A/report": {
+     "actions": [
+      {
+       "classes": [
+        "기타"
+       ],
+       "kind": "채택",
+       "reason": false
+      },
+      {
+       "classes": [
+        "추정",
+        "의견",
+        "기타"
+       ],
+       "kind": "불채택",
+       "reason": true
+      }
+     ],
+     "decision": null,
+     "earlier": [],
+     "opened": true,
+     "report": {
+      "at": "2026-07-01",
+      "counter": "계좌를 잠시 빌려 쓴 것일 수 있다",
+      "error": null,
+      "facts": [
+       {
+        "parts": [
+         [
+          "",
+          false
+         ],
+         [
+          "예시상사A",
+          true
+         ],
+         [
+          "의 계좌 등록 ",
+          false
+         ],
+         [
+          "예시은행 100-200-300",
+          true
+         ],
+         [
+          "",
+          false
+         ]
+        ],
+        "ref": "ex-1",
+        "text": "예시상사A의 계좌 등록 예시은행 100-200-300"
+       },
+       {
+        "parts": [
+         [
+          "",
+          false
+         ],
+         [
+          "예시상사B",
+          true
+         ],
+         [
+          "의 계좌 등록 ",
+          false
+         ],
+         [
+          "예시은행 100-200-300",
+          true
+         ],
+         [
+          "",
+          false
+         ]
+        ],
+        "ref": "ex-2",
+        "text": "예시상사B의 계좌 등록 예시은행 100-200-300"
+       },
+       {
+        "parts": [
+         [
+          "",
+          false
+         ],
+         [
+          "예시상사A",
+          true
+         ],
+         [
+          "와 ",
+          false
+         ],
+         [
+          "예시상사B",
+          true
+         ],
+         [
+          "의 대표자 ",
+          false
+         ],
+         [
+          "예시대표",
+          true
+         ],
+         [
+          "",
+          false
+         ]
+        ],
+        "ref": "ex-3",
+        "text": "예시상사A와 예시상사B의 대표자 예시대표"
+       }
+      ],
+      "guess": [
+       "이름이 다른 두 대리점이 한 곳일 수 있다"
+      ],
+      "id": "6s663bo5p036pv4nqg38",
+      "model": "예시",
+      "opinion": {
+       "action": "요청",
+       "text": "근거가 서로 이어져 있어 대리점에 소명을 청해 볼 만하다"
+      },
+      "reads": 0,
+      "stale": false,
+      "state": "검토",
+      "unknown": [
+       "계좌 예금주"
+      ]
+     },
+     "role": "내부 감시",
+     "run": false,
+     "trail": []
+    }
+   }
+  ]
+ },
+ "영업임원": {
+  "target": {
+   "kind": "추인",
+   "id": "2026-05-X-A"
+  },
+  "stages": [
+   {
+    "/tasks": {
+     "mine": [
+      {
+       "id": "2026-05-X-A",
+       "kind": "추인",
+       "marks": [
+        "재검토"
+       ],
+       "name": "예시상사A 외 1",
+       "pay": null,
+       "pick": false,
+       "role": "영업임원",
+       "state": "대기",
+       "target": "2026-05-X-A",
+       "total": 2300000,
+       "view": "추인",
+       "ym": "2026-05"
+      }
+     ],
+     "going": []
+    },
+    "/ratifies/2026-05-X-A": {
+     "actions": [
+      {
+       "classes": [
+        "정상",
+        "미인지",
+        "기타"
+       ],
+       "kind": "추인",
+       "reason": true,
+       "seq": 4
+      },
+      {
+       "classes": [
+        "정황",
+        "기타"
+       ],
+       "kind": "거부",
+       "reason": true,
+       "seq": 5
+      }
+     ],
+     "history": [],
+     "members": [
+      {
+       "id": "X-A",
+       "name": "예시상사A"
+      },
+      {
+       "id": "X-B",
+       "name": "예시상사B"
+      }
+     ],
+     "ratify": {
+      "approver": "영업임원",
+      "id": "2026-05-X-A",
+      "limit": 2000000,
+      "marks": [
+       "재검토"
+      ],
+      "name": "예시상사A 외 1",
+      "source": "계산",
+      "total": 2300000,
+      "ym": "2026-05"
+     },
+     "reviews": [
+      {
+       "approver": "영업지원",
+       "id": "2026-05-X-A",
+       "marks": [
+        "재검토"
+       ],
+       "members": 1,
+       "name": "예시상사A",
+       "paid": "2026-06-04",
+       "total": 1200000,
+       "source": "예시",
+       "file": null,
+       "row": null
+      },
+      {
+       "approver": "영업지원",
+       "id": "2026-05-X-B",
+       "marks": [
+        "재검토"
+       ],
+       "members": 1,
+       "name": "예시상사B",
+       "paid": "2026-06-04",
+       "total": 1100000,
+       "source": "예시",
+       "file": null,
+       "row": null
+      }
+     ],
+     "role": "영업임원",
+     "target": "2026-05-X-A"
+    }
+   }
+  ]
+ },
+ "회계·자금": {
+  "target": {
+   "kind": "지급",
+   "id": "X-PAY"
+  },
+  "stages": [
+   {
+    "/tasks": {
+     "mine": [
+      {
+       "id": "X-PAY",
+       "kind": "지급",
+       "marks": [],
+       "name": "예시상사A",
+       "pay": null,
+       "pick": false,
+       "role": "회계·자금",
+       "state": "대기",
+       "target": "X-PAY",
+       "total": 1200000,
+       "view": "지급",
+       "ym": "2026-06"
+      }
+     ],
+     "going": []
+    },
+    "/pays/X-PAY": {
+     "accounts": [
+      {
+       "value": "예시은행 100-200-300",
+       "source": "예시",
+       "file": null,
+       "row": null
+      }
+     ],
+     "can": true,
+     "history": [],
+     "pay": {
+      "amount": 1200000,
+      "dealer": "X-A",
+      "id": "X-PAY",
+      "name": "예시상사A",
+      "review": {
+       "id": "2026-06-X-A",
+       "name": "예시상사A"
+      },
+      "state": "대기",
+      "ym": "2026-06",
+      "source": "예시",
+      "file": null,
+      "row": null
+     },
+     "role": "회계·자금"
+    },
+    "/pays/X-PAY/recon": {
+     "can": false,
+     "history": [],
+     "id": "X-PAY",
+     "lines": [],
+     "name": "예시상사A",
+     "recon": null,
+     "reply": null,
+     "role": "회계·자금",
+     "state": "대기",
+     "want": {
+      "accounts": [
+       "예시은행 100-200-300"
+      ],
+      "amount": 1200000
+     }
+    },
+    "/pays/X-PAY/redo": null,
+    "/reviews/2026-06-X-A": {
+     "actions": [],
+     "history": [],
+     "members": [
+      {
+       "id": "X-A",
+       "name": "예시상사A",
+       "match": [],
+       "pays": [
+        {
+         "amount": 1200000,
+         "dealer": "X-A",
+         "source": "예시",
+         "file": null,
+         "row": null
+        }
+       ]
+      }
+     ],
+     "relation": {
+      "left": [
+       {
+        "id": "X-A",
+        "name": "예시상사A"
+       }
+      ],
+      "lines": [],
+      "mid": [],
+      "right": []
+     },
+     "review": {
+      "approver": "영업지원",
+      "holder": "영업지원",
+      "id": "2026-06-X-A",
+      "limit": 2000000,
+      "marks": [],
+      "name": "예시상사A",
+      "source": "계산",
+      "status": "승인",
+      "total": 1200000,
+      "ym": "2026-06",
+      "file": null,
+      "row": null,
+      "fixed": "2026-07-01"
+     },
+     "rules": [
+      {
+       "clause": "지급한도",
+       "file": "00_common/approval_authority_policy.md",
+       "first": 41,
+       "last": 45,
+       "name": "한도",
+       "source": "원본",
+       "text": "## 판매장려금 지급 한도\n- 거래처별 **월 지급액 2백만원 이하**는 영업지원팀 전결.\n- 초과 시 **영업임원 승인** 필요.\n- **동일 관련자(대표자·주소·정산계좌 2개 이상 일치)는 합산하여 한도를 적용한다.**\n  개별 거래처 단위로만 심사하면 한도 통제가 우회될 수 있으므로, 지급 전 관련자 그룹 여부를 확인한다.",
+       "title": "판매장려금 지급 한도",
+       "value": 2000000,
+       "ver": 1
+      },
+      {
+       "clause": "지급한도",
+       "file": "00_common/approval_authority_policy.md",
+       "first": 41,
+       "last": 45,
+       "name": "합산",
+       "source": "원본",
+       "text": "## 판매장려금 지급 한도\n- 거래처별 **월 지급액 2백만원 이하**는 영업지원팀 전결.\n- 초과 시 **영업임원 승인** 필요.\n- **동일 관련자(대표자·주소·정산계좌 2개 이상 일치)는 합산하여 한도를 적용한다.**\n  개별 거래처 단위로만 심사하면 한도 통제가 우회될 수 있으므로, 지급 전 관련자 그룹 여부를 확인한다.",
+       "title": "판매장려금 지급 한도",
+       "value": 2,
+       "ver": 1
+      }
+     ]
+    }
+   },
+   {
+    "/tasks": {
+     "mine": [
+      {
+       "id": "X-PAY",
+       "kind": "지급",
+       "marks": [],
+       "name": "예시상사A",
+       "pay": "재심사",
+       "pick": false,
+       "role": "회계·자금",
+       "state": "대기",
+       "target": "X-PAY",
+       "total": 1200000,
+       "view": "지급",
+       "ym": "2026-06"
+      }
+     ],
+     "going": []
+    },
+    "/pays/X-PAY": {
+     "accounts": [
+      {
+       "value": "예시은행 100-200-300",
+       "source": "예시",
+       "file": null,
+       "row": null
+      }
+     ],
+     "can": false,
+     "history": [],
+     "pay": {
+      "amount": 1200000,
+      "dealer": "X-A",
+      "id": "X-PAY",
+      "name": "예시상사A",
+      "review": {
+       "id": "2026-06-X-A",
+       "name": "예시상사A"
+      },
+      "state": "재심사",
+      "ym": "2026-06",
+      "source": "예시",
+      "file": null,
+      "row": null
+     },
+     "role": "회계·자금"
+    },
+    "/pays/X-PAY/recon": {
+     "can": false,
+     "history": [],
+     "id": "X-PAY",
+     "lines": [],
+     "name": "예시상사A",
+     "recon": null,
+     "reply": null,
+     "role": "회계·자금",
+     "state": "재심사",
+     "want": {
+      "accounts": [
+       "예시은행 100-200-300"
+      ],
+      "amount": 1200000
+     }
+    },
+    "/pays/X-PAY/redo": {
+     "redo": {
+      "at": "2026-07-01",
+      "back": null,
+      "cause": {
+       "at": "2026-07-01",
+       "dealer": "예시상사A",
+       "item": "계좌",
+       "role": "영업지원",
+       "since": "2026-06-01",
+       "value": "예시은행 100-200-300"
+      },
+      "payout": "X-PAY",
+      "was": {
+       "id": "2026-06-X-A",
+       "name": "예시상사A"
+      }
+     }
+    },
+    "/reviews/2026-06-X-A": {
+     "actions": [],
+     "history": [],
+     "members": [
+      {
+       "id": "X-A",
+       "name": "예시상사A",
+       "match": [],
+       "pays": [
+        {
+         "amount": 1200000,
+         "dealer": "X-A",
+         "source": "예시",
+         "file": null,
+         "row": null
+        }
+       ]
+      }
+     ],
+     "relation": {
+      "left": [
+       {
+        "id": "X-A",
+        "name": "예시상사A"
+       }
+      ],
+      "lines": [],
+      "mid": [],
+      "right": []
+     },
+     "review": {
+      "approver": "영업지원",
+      "holder": "영업지원",
+      "id": "2026-06-X-A",
+      "limit": 2000000,
+      "marks": [
+       "재심사"
+      ],
+      "name": "예시상사A",
+      "source": "계산",
+      "status": "승인",
+      "total": 1200000,
+      "ym": "2026-06",
+      "file": null,
+      "row": null,
+      "fixed": "2026-07-01"
+     },
+     "rules": [
+      {
+       "clause": "지급한도",
+       "file": "00_common/approval_authority_policy.md",
+       "first": 41,
+       "last": 45,
+       "name": "한도",
+       "source": "원본",
+       "text": "## 판매장려금 지급 한도\n- 거래처별 **월 지급액 2백만원 이하**는 영업지원팀 전결.\n- 초과 시 **영업임원 승인** 필요.\n- **동일 관련자(대표자·주소·정산계좌 2개 이상 일치)는 합산하여 한도를 적용한다.**\n  개별 거래처 단위로만 심사하면 한도 통제가 우회될 수 있으므로, 지급 전 관련자 그룹 여부를 확인한다.",
+       "title": "판매장려금 지급 한도",
+       "value": 2000000,
+       "ver": 1
+      },
+      {
+       "clause": "지급한도",
+       "file": "00_common/approval_authority_policy.md",
+       "first": 41,
+       "last": 45,
+       "name": "합산",
+       "source": "원본",
+       "text": "## 판매장려금 지급 한도\n- 거래처별 **월 지급액 2백만원 이하**는 영업지원팀 전결.\n- 초과 시 **영업임원 승인** 필요.\n- **동일 관련자(대표자·주소·정산계좌 2개 이상 일치)는 합산하여 한도를 적용한다.**\n  개별 거래처 단위로만 심사하면 한도 통제가 우회될 수 있으므로, 지급 전 관련자 그룹 여부를 확인한다.",
+       "title": "판매장려금 지급 한도",
+       "value": 2,
+       "ver": 1
+      }
+     ]
+    }
+   }
+  ]
+ }
+}

@@ -26,7 +26,8 @@ import { Signal } from './pages/Signal'
 import { Work } from './pages/Work'
 import { MENUS, type Menu, menuAtom, paneAtom, roleAtom, rolesAtom, targetAtom, useData } from './state'
 import { Chat } from './tickets/24-대화'
-import { Tour, tourAtom } from './ui/Tour'
+import { Help } from './ui/Help'
+import { Tour } from './ui/Tour'
 
 /** 기록의 종류 → 화면. 메뉴 → 목록 화면 */
 const RECORDS: Record<string, () => ReactNode> = { [L.심사]: Review, [L.정황]: Signal, [L.소명]: Clarify, [L.지급]: Pay, [L.추인]: Ratify, [L.대리점]: Dealer, [L.규정]: Rule }
@@ -92,9 +93,9 @@ function Nav({ folded: start, onDemo }: { folded: boolean; onDemo: () => void })
   const setTarget = useSetAtom(targetAtom)
   const today = useData<{ today: string }>('/state')?.today
   const [folded, setFolded] = useState(start)
-  const setTour = useSetAtom(tourAtom)
-  // 안내 다시 보기: 시연 옆의 아이콘(펼치면 함께 있는 아이콘 단추)
-  const guide = <Button label={L.안내} variant="ghost" isIconOnly size="sm" icon={<Icon icon={QuestionMarkCircleIcon} size="sm" />} onClick={() => setTour(true)} />
+  // 도움말(둘러보기 다시 · 도메인 설명): 시연 옆의 아이콘
+  const [help, setHelp] = useState(false)
+  const guide = <Button label={L.도움말} variant="ghost" isIconOnly size="sm" icon={<Icon icon={QuestionMarkCircleIcon} size="sm" />} onClick={() => setHelp(true)} />
   return (
     <SideNav
       collapsible={{ isCollapsed: folded, onCollapsedChange: setFolded }}
@@ -130,12 +131,13 @@ function Nav({ folded: start, onDemo }: { folded: boolean; onDemo: () => void })
       footerIcons={
         folded && (
           <>
-            <Button label={L.안내} variant="ghost" isIconOnly icon={<Icon icon={QuestionMarkCircleIcon} size="sm" />} onClick={() => setTour(true)} />
+            <Button label={L.도움말} variant="ghost" isIconOnly icon={<Icon icon={QuestionMarkCircleIcon} size="sm" />} onClick={() => setHelp(true)} />
             <Button label={L.시연} variant="ghost" isIconOnly icon={<Icon icon={BeakerIcon} size="sm" />} onClick={onDemo} />
           </>
         )
       }
     >
+      <Help isOpen={help} onOpenChange={setHelp} />
       {MENUS.map((m) => (
         <SideNavItem key={m} label={m} icon={ICONS[m]} isSelected={m === menu}
           onClick={() => {

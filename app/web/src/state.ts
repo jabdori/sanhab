@@ -28,8 +28,35 @@ export const changedAtom = atom(0)
 
 export const store = getDefaultStore()
 
+/**
+ * 안내(온보딩)의 예시: 켜져 있으면 화면이 서버 대신 이 응답(경로 → 값)을 받는다. 실제 서버 · DB는 건드리지 않는다.
+ * 값이 null이면 `없음`(404)처럼, 목록에 없는 경로는 PASS만 서버에서 읽고 나머지는 `없음`. 조치(POST)는 실행하지 않는다
+ */
+export const exampleAtom = atom<Record<string, unknown> | null>(null)
+const PASS = ['/state', '/chat/sessions?n=', '/change', '/mock', '/rules', '/samples']
+const none = () => Object.assign(new Error(L.없음), { status: 404, data: null })
+function example<T>(ex: Record<string, unknown>, raw: string): T {
+  // 예시의 경로는 풀어 쓴 꼴(`/signals/계좌-X-A`)이다 — 화면은 id를 인코딩해 부른다
+  const path = decodeURIComponent(raw)
+  if (path in ex) {
+    if (ex[path] == null) throw none()
+    return structuredClone(ex[path]) as T
+  }
+  // 대화 칸의 문맥 이름: 예시 작업의 이름으로
+  if (path.startsWith('/chat/names?items=')) {
+    const items = JSON.parse(path.slice('/chat/names?items='.length)) as Target[]
+    const rows = (ex['/tasks'] as { mine: { target: string; name: string; ym?: string }[]; going: { target: string; name: string; ym?: string }[] }) ?? { mine: [], going: [] }
+    const all = [...rows.mine, ...rows.going]
+    return { names: items.map((i) => { const t = all.find((r) => r.target === i.id); return t ? [t.name, t.ym].filter(Boolean).join(' · ') : i.id }) } as T
+  }
+  throw none()
+}
+
 /** GET(body 없음) 또는 POST(`method`로 PUT 등). 지금 역할의 토큰으로 부른다. 실패하면 { status, data }를 가진 Error */
 export async function api<T = unknown>(path: string, body?: unknown, method?: string): Promise<T> {
+  const ex = store.get(exampleAtom)
+  if (ex && body !== undefined) return {} as T // 예시에서는 조치가 실행되지 않는다
+  if (ex && !PASS.some((p) => path.startsWith(p))) return example<T>(ex, path)
   const role = store.get(roleAtom)
   const token = store.get(rolesAtom).find((r) => r.role === role)?.token
   const res = await fetch(`/api${path}`, {
@@ -53,14 +80,16 @@ export async function api<T = unknown>(path: string, body?: unknown, method?: st
 export function useData<T>(path: string | null): T | undefined {
   const role = useAtomValue(roleAtom)
   const changed = useAtomValue(changedAtom)
+  const ex = useAtomValue(exampleAtom)
   const [data, setData] = useState<T>()
   useEffect(() => {
     if (!path) return
     let live = true
-    api<T>(path).then((d) => live && setData(d), () => {})
+    // 예시가 켜지거나 꺼지면 앞의 값을 지운다(예시와 실제가 섞여 보이지 않게)
+    api<T>(path).then((d) => live && setData(d), () => live && ex && setData(undefined))
     return () => {
       live = false
     }
-  }, [path, role, changed])
+  }, [path, role, changed, ex])
   return data
 }
