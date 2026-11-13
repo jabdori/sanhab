@@ -6,7 +6,7 @@ import { Card } from '@astryxdesign/core/Card'
 import { Text } from '@astryxdesign/core/Text'
 import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { L, TOUR } from '../labels'
+import { L, TOUR, type TourEx } from '../labels'
 import { firstTask, type Task } from '../pages/Work'
 import { api, roleAtom, targetAtom } from '../state'
 
@@ -53,6 +53,8 @@ export function Tour() {
   const hole = useRef<HTMLDivElement>(null)
   const card = useRef<HTMLDivElement>(null)
   const opened = useRef(false)
+  // 열어 둔 첫 기록(설명의 예시)
+  const [ex, setEx] = useState<TourEx>({})
 
   // 이 역할로 처음 들어오면 저절로 연다
   useEffect(() => {
@@ -84,6 +86,7 @@ export function Tour() {
         const d = await api<{ mine: Task[] }>('/tasks').catch(() => null)
         const t = d && firstTask(d.mine)
         if (t) {
+          setEx({ name: [t.name ?? t.target, t.ym].filter(Boolean).join(' · '), ym: t.ym, total: t.total })
           opened.current = true
           setTarget({ kind: t.view, id: t.target })
         }
@@ -181,9 +184,9 @@ export function Tour() {
                 </StackItem>
                 <Text type="supporting" color="secondary" hasTabularNumbers>{`${i + 1}/${steps.length}`}</Text>
               </HStack>
-              <Text>{s.body}</Text>
+              <Text>{typeof s.body === 'function' ? s.body(ex) : s.body}</Text>
               <HStack gap={2}>
-                <StackItem size="fill">{i < steps.length - 1 && <Button label={L.끝} variant="ghost" size="sm" onClick={close} />}</StackItem>
+                <StackItem size="fill">{i < steps.length - 1 && <Button label={L.스킵} variant="ghost" size="sm" onClick={close} />}</StackItem>
                 {i > 0 && <Button label={L.이전} variant="secondary" size="sm" onClick={() => setI(i - 1)} />}
                 {i < steps.length - 1 ? <Button label={L.다음} variant="primary" size="sm" onClick={() => setI(i + 1)} /> : <Button label={L.끝} variant="primary" size="sm" onClick={close} />}
               </HStack>
