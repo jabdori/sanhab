@@ -36,11 +36,13 @@ pub const KINDS: [&str; 3] = ["image/png", "image/jpeg", "application/pdf"];
 pub const ITEMS: [&str; 4] = ["임차인", "주소", "호실", "기간"];
 /// 상대 대리점의 호실(시연). 원본의 주소는 도로명·건물번호까지만 있어(D10) 호실을 견줄 등록 값이 없다. 시연에서 견줄 값으로만 쓰고 출처는 시연이다
 pub const ROOMS: [(&str, &str); 2] = [("D-011", "101호"), ("D-041", "205호")];
-/// 시연용 서류 세 장(D27): 이름, 누구의 서류인지(임차인 — 원본의 대리점 이름), 그림, 판독의 고정 응답(그 그림을 업스테이지 OCR에 한 번 보낸 응답). 그림은 `app/db/19-서류/make.py`가 그린다
-pub const SAMPLES: [(&str, &str, &[u8], &str); 3] = [
+/// 시연용 서류 네 장(D27): 이름, 누구의 서류인지(임차인 — 원본의 대리점 이름), 그림, 판독의 고정 응답(그 그림을 업스테이지 OCR에 한 번 보낸 응답). 그림은 `app/db/19-서류/make.py`가 그린다
+pub const SAMPLES: [(&str, &str, &[u8], &str); 4] = [
     ("임대차계약서-1.png", "성일상사24", include_bytes!("../../db/19-서류/1.png"), include_str!("../../db/19-서류/1.json")),
     ("임대차계약서-2.png", "성일상사24", include_bytes!("../../db/19-서류/2.png"), include_str!("../../db/19-서류/2.json")),
     ("임대차계약서-3.png", "한라인상사34", include_bytes!("../../db/19-서류/3.png"), include_str!("../../db/19-서류/3.json")),
+    // 보완된 서류(시나리오 5의 7): 호실이 금강상사41(205호)과 다르다
+    ("임대차계약서-4.png", "한라인상사34", include_bytes!("../../db/19-서류/4.png"), include_str!("../../db/19-서류/4.json")),
 ];
 /// 판독·정리를 다시 시도하는 간격(초)
 const RETRY: u64 = 60;
@@ -261,7 +263,7 @@ pub(super) async fn list(State(db): State<std::sync::Arc<Db>>, Extension(me): Ex
             dealer: { value: $c.dealer.name, source: $c.dealer.source, file: $c.dealer.file.path, row: $c.dealer.row },
             other: IF $o THEN record::id($o) END,
             addr: $a,
-            docs: (SELECT record::id(id) AS id, name, mime, size, role, time::format(at, '%Y-%m-%d') AS at, source, read, read_model, tidy, tidy_model, stamp FROM doc WHERE clarify = $c ORDER BY stamp),
+            docs: (SELECT record::id(id) AS id, name, mime, size, role, time::format(at, '%Y-%m-%d') AS at, source, sha, read, read_model, tidy, tidy_model, stamp FROM doc WHERE clarify = $c ORDER BY stamp),
         } END;", json!({ "id": id })).await?;
     if c.is_null() {
         return Err(err(StatusCode::NOT_FOUND, "없음"));
@@ -274,7 +276,8 @@ pub(super) async fn list(State(db): State<std::sync::Arc<Db>>, Extension(me): Ex
         let ws = d["read"].as_array().cloned().unwrap_or_default();
         let rs = d["tidy"].as_array().map(|t| rows(&ws, t, &reg)).unwrap_or_default();
         let n = |w: &str| rs.iter().filter(|r| r["result"] == w).count();
-        json!({ "id": d["id"], "name": d["name"], "mime": d["mime"], "size": d["size"], "role": d["role"], "at": d["at"], "source": d["source"],
+        // sample: 시연용으로 만든 서류(SAMPLES)와 내용이 같은가 — 어느 길로 올렸든 합성 서류다(A05 §6)
+        json!({ "id": d["id"], "name": d["name"], "mime": d["mime"], "size": d["size"], "role": d["role"], "at": d["at"], "source": d["source"], "sample": SAMPLES.iter().any(|x| d["sha"].as_str() == Some(sha(x.2).as_str())),
             "words": d["read"], "read_model": d["read_model"], "tidy": d["tidy"], "tidy_model": d["tidy_model"], "rows": rs,
             "counts": { "누락": n("누락"), "불일치": n("불일치") } })
     }).collect();
@@ -341,6 +344,14 @@ mod tests {
 
     fn sample_words(n: usize) -> Vec<J> {
         words(&serde_json::from_str(SAMPLES[n].3).unwrap()).unwrap()
+    }
+
+    #[test]
+    fn supplemented_sample_reads_a_different_room() {
+        // 시나리오 5의 7: 보완된 서류는 호실이 있고(제301호) 금강상사41의 205호와 다르다
+        let ws = sample_words(3);
+        let t = checked(&canned("fixture", &ws).unwrap(), &ws).unwrap();
+        assert!(serde_json::to_string(&t).unwrap().contains("301"), "{t:?}");
     }
 
     #[test]
@@ -511,7 +522,7 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(c.get(support, "/api/dealers/D-034/clarifies").await? == json!([{ "id": three, "name": "기타 · t19-3", "state": "접수" }]), "대리점의 소명");
     // 시연 서류는 언제나 받을 수 있다(실행 파일에 들어 있다)
     let s = c.get(support, "/api/samples").await?;
-    ensure!(s.as_array().is_some_and(|s| s.len() == 3) && s[2]["dealer"] == "한라인상사34" && s[0]["dealer"] == "성일상사24", "시연 서류 {s}");
+    ensure!(s.as_array().is_some_and(|s| s.len() == 4) && s[2]["dealer"] == "한라인상사34" && s[3]["dealer"] == "한라인상사34" && s[0]["dealer"] == "성일상사24", "시연 서류 {s}");
     none();
     Ok(())
 }

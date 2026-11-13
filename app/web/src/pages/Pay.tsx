@@ -6,7 +6,8 @@ import { store, targetAtom } from '../state'
 import { State } from '../ui/Mark'
 import { L } from '../labels'
 import { Source } from '../ui/Source'
-import { RecordPage } from '../ui/Record'
+import { Meta, RecordPage } from '../ui/Record'
+import { BuildingStorefrontIcon, UserIcon } from '@heroicons/react/24/outline'
 import { Region } from '../ui/Region'
 import { PayActions } from '../tickets/07-지급'
 import { usePay } from '../tickets/07-지급/pay'
@@ -26,6 +27,8 @@ export function Pay() {
       title={`${pay.name} · ${pay.ym}`}
       meta={[
         <State word={pay.state} />,
+        <Meta icon={BuildingStorefrontIcon}>{pay.name}</Meta>,
+        <Meta icon={UserIcon}>{p.role}</Meta>,
         <Source kind={pay.source} file={pay.file} row={pay.row} />,
       ]}
       actions={<PayActions onBad={setBad} />}

@@ -42,6 +42,14 @@ function Actions({ onBad }: { onBad: (word: string | null) => void }) {
   const go = (path: string, body: object) => (onBad(null), api(path, body).catch(fail))
   const v = r.review
   const rows: [string, string][] = [[L.귀속월, v.ym], [L.합산, num(v.total)]]
+  // 할 수 있는 조치가 없으면 버튼 자리에 누가 정하는지(components.md: 권한이 없으면 버튼 대신 승인권자)
+  if (!r.actions.some((a) => !bundled.includes(a.kind)) && !s?.can && !v.fixed)
+    return (
+      <HStack gap={2} vAlign="center">
+        <Text type="supporting" color="secondary">{L.승인권자}</Text>
+        <Text weight="semibold">{v.holder ?? v.approver}</Text>
+      </HStack>
+    )
   return (
     <HStack gap={2}>
       {byGrade(r.actions.filter((a) => !bundled.includes(a.kind))).map((a) => (

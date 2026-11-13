@@ -48,10 +48,10 @@ export function Evidence() {
             {
               key: 'item',
               header: L.근거,
-              width: pixel(80),
+              width: pixel(112),
               renderCell: (e) => (
                 <HStack gap={2} vAlign="center" className={e.id === picked ? 'mark' : undefined}>
-                  <Text weight="semibold">{e.item}</Text>
+                  <Text weight="semibold" className="whitespace-nowrap">{e.item}</Text>
                   {d.fresh.includes(e.id) && <Mark>{L.새}</Mark>}
                 </HStack>
               ),

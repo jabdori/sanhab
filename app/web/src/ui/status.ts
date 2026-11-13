@@ -1,6 +1,6 @@
 // 낱말 → astryx 색 변형의 대응은 이 파일 한 곳에만 둔다(tokens.md의 "색 — 의미가 있을 때만"). 다른 파일은 색 이름을 쓰지 않는다(lint가 막는다).
 // 색은 주의(warning) · 오류(error) · 완료(success)뿐이고 나머지는 neutral이다. 분류 · 일치 · 출처 · 규칙에는 색을 주지 않는다.
-import { ArrowPathIcon, CheckIcon, FlagIcon, NoSymbolIcon, StopIcon } from '@heroicons/react/24/outline'
+import { ArrowPathIcon, CheckIcon, FlagIcon, NoSymbolIcon, PlusCircleIcon, StopIcon } from '@heroicons/react/24/outline'
 import { L } from '../labels'
 
 type Tone = 'neutral' | 'success' | 'warning' | 'error'
@@ -36,6 +36,8 @@ const ICON: Record<string, typeof FlagIcon> = {
   [L.정산]: CheckIcon,
   [L.거부]: NoSymbolIcon,
   [L.종결]: StopIcon,
+  // 재접수 뒤에 붙은 근거(정황의 깃발과 겹치지 않게)
+  [L.새]: PlusCircleIcon,
 }
 export const mark = (m: string) => ({ icon: ICON[m] ?? FlagIcon, caution: m === L.정황 })
 

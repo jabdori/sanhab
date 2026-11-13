@@ -147,7 +147,7 @@ export function Picture() {
                     </StackItem>
                     {/* 아직 일어나지 않은 칸(결정 전의 심사, 표시 전의 지급)은 날짜를 비운다 */}
                     {n.at && (
-                      <Text type="supporting" hasTabularNumbers>
+                      <Text type="supporting" hasTabularNumbers className="whitespace-nowrap">
                         {n.at}
                       </Text>
                     )}

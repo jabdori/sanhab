@@ -3,19 +3,18 @@ import { Badge } from '@astryxdesign/core/Badge'
 import { EmptyState } from '@astryxdesign/core/EmptyState'
 import { HStack, Layout, LayoutContent, LayoutHeader, StackItem, VStack } from '@astryxdesign/core/Layout'
 import { Link } from '@astryxdesign/core/Link'
-import { PowerSearch, type PowerSearchFilter, usePowerSearchConfig } from '@astryxdesign/core/PowerSearch'
 import { Section } from '@astryxdesign/core/Section'
 import { Table, TableBody, TableCell, TableHeader, TableHeaderCell, TableRow } from '@astryxdesign/core/Table'
 import { Heading, Text } from '@astryxdesign/core/Text'
 import { useSetAtom } from 'jotai'
 import { useState } from 'react'
 import { L } from '../labels'
+import { Search, hit } from '../ui/Search'
 import { Rule } from './Rule'
 import { targetAtom } from '../state'
 import { Source } from '../ui/Source'
 import { useRules, where } from '../tickets/22-규정'
 
-const fields = [{ key: 'title', type: 'string', label: L.조항 }] as const
 
 /** 표의 줄: 조항과 그 조항의 규칙 수 */
 type Line = { id: string; title: string; place: string; where: string; rules: number; source: string; sha: string; first: number; last: number } & Record<string, unknown>
@@ -23,10 +22,9 @@ type Line = { id: string; title: string; place: string; where: string; rules: nu
 export function Rules() {
   const d = useRules()
   const setTarget = useSetAtom(targetAtom)
-  const [filters, setFilters] = useState<PowerSearchFilter[]>([])
-  const { config, applyFilters } = usePowerSearchConfig(fields, L.규정)
+  const [q, setQ] = useState('')
   const rows: Line[] = (d?.clauses ?? []).map((c) => ({ id: c.id, title: c.title, place: c.file, where: where(c), rules: d!.rules.filter((r) => r.clause === c.id).length, source: c.source, sha: c.sha, first: c.first, last: c.last }))
-  const visible = applyFilters(filters, rows)
+  const visible = rows.filter((r) => hit(q, r.title))
   // 조항이 하나뿐이면 한 줄짜리 목록 대신 그 조항의 기록을 바로 보인다
   if (d?.clauses.length === 1) return <Rule />
   return (
@@ -46,7 +44,7 @@ export function Rules() {
         <LayoutContent padding={0}>
           <VStack gap={0} height="100%">
             <Section variant="transparent" padding={3}>
-              <PowerSearch config={config} filters={filters} onChange={(f) => setFilters([...f])} label={L.검색} placeholder={L.검색} resultCount={String(visible.length)} />
+              <Search value={q} onChange={setQ} />
             </Section>
             <StackItem size="fill" className="min-h-0 overflow-y-auto">
               {d && !visible.length ? (

@@ -289,11 +289,12 @@ function Panel({ sid, initial, list, onPick }: { sid: string | null; initial: Ta
             <VStack gap={4}>
               <EmptyState title={L.대화} icon={<Icon icon={SparklesIcon} size="lg" color="accent" />} isCompact />
               {/* 제안: 줄 전체가 하나의 단추(ListItem의 숨은 단추 — 키보드로도 고르고 Enter로 보낸다) */}
-              <List hasDividers>
+              {/* 제안은 "지금 연 기록"에 대한 것이라 연 기록이 있을 때만 */}
+              {now && <List hasDividers>
                 {Object.entries(ASK).map(([name, prompt]) => (
                   <ListItem key={name} label={name} description={prompt} isDisabled={busy} onClick={() => send(prompt)} />
                 ))}
-              </List>
+              </List>}
             </VStack>
             </Section>
           }

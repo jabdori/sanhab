@@ -226,15 +226,9 @@ async fn fixture_doc(model: &str, me: &Db, talk: &[(String, String)], files: &Ar
 }
 
 /// 고정한 답(자동 검사용): 열어 둔 대상과 붙인 기록을 실제로 읽고(AI의 세션) 그 이름과 값 한두 개를 풀어 쓴다. 문맥이 없으면 읽지 않는다. 판정 의견은 내지 않는다. (글, 조각 사이의 쉼 밀리초). `fixture-down`은 없음
-async fn canned(model: &str, ai: &Db, system: &str, recs: &[Rec], talk: &[(String, String)], seen: &Arc<Mutex<BTreeSet<String>>>) -> Option<(String, u64)> {
+async fn canned(model: &str, ai: &Db, _system: &str, recs: &[Rec], talk: &[(String, String)], seen: &Arc<Mutex<BTreeSet<String>>>) -> Option<(String, u64)> {
     let pause = match model { "fixture" => 5, "fixture-slow" => 600, _ => return None };
     let ask = talk.last().map(|(_, t)| t.as_str()).unwrap_or_default();
-    // 문맥의 이름만 되풀이한다(테이블과 id는 모델용이다)
-    let ctx: Vec<String> = system.lines().filter(|l| l.starts_with("사용자가 지금") || l.starts_with("사용자가 열어") || l.starts_with("사용자가 붙인")).map(|l| {
-        let mut l = l.to_string();
-        while let (Some(a), Some(b)) = (l.find(" (테이블"), l.find(')')) { if b < a { break } l.replace_range(a..=b, ""); }
-        l
-    }).collect();
     let mut facts: Vec<String> = vec![];
     for r in recs {
         let Some(tb) = table_of(&r.kind) else { continue };
@@ -242,17 +236,20 @@ async fn canned(model: &str, ai: &Db, system: &str, recs: &[Rec], talk: &[(Strin
         let out = read_db(ai, &sql).await;
         cited(&out, &mut seen.lock().unwrap());
         let Some(row) = serde_json::from_str::<J>(&out).ok().and_then(|v| v[0].get(0).cloned()) else { continue };
-        let mut f = format!("{} {}", r.kind, row["name"].as_str().unwrap_or_default()).trim_end().to_string();
+        // 이름은 제목 줄과 같은 이름(지급은 `대리점 · 귀속월`)
+        let shown = reads_names(ai, &[format!("{tb}:`{}`", r.id.replace('`', ""))]).await.0.into_iter().next().unwrap_or_else(|| row["name"].as_str().unwrap_or_default().to_string());
+        let mut f = format!("{} {shown}", r.kind).trim_end().to_string();
         if let (Some(t), Some(a)) = (row["total"].as_i64(), row["approver"].as_str()) { f += &format!(": 합산 {}, 승인권자 {a}", super::t17_report::comma(t)); }
         // 근거는 정황에만 있다 — 다른 기록(지급 · 대리점 …)은 이름만
         else if let (true, Some(n)) = (tb == "signal", row["ev"].as_i64()) { f += &format!(": 근거 {n}건"); }
         facts.push(f);
     }
     let judge = ["해도", "해야", "승인", "반려", "기각"].iter().any(|w| ask.contains(w));
-    let text = if facts.is_empty() { "문맥 없음: 열어 둔 대상도 붙인 기록도 없어 조회하지 않았다.".to_string() }
+    let text = if facts.is_empty() { "열어 둔 기록도 붙인 기록도 없어 조회하지 않았다. 기록을 열거나 @로 붙여 물어보면 그 기록을 읽어 답한다.".to_string() }
         else if judge { format!("판정 의견은 내지 않는다. 사실과 규정을 보여 준다: {}. 결정은 사람이 한다.", facts.join(", ")) }
         else { format!("조회한 기록: {}.", facts.join(", ")) };
-    Some((format!("{text} {}", ctx.join(" ")), pause))
+    // 지시문(문맥 줄)은 되풀이하지 않는다 — 답에는 읽은 기록의 사실만
+    Some((text, pause))
 }
 
 pub fn routes() -> Router<Arc<Db>> {
@@ -304,14 +301,18 @@ async fn sessions(Extension(me): Extension<Me>, State(db): State<Arc<Db>>, Query
         None => None,
     };
     let filter = if of.is_some() { "AND type::record($of) INSIDE ->about->?" } else { "" };
-    let mut list = q1(&db, &format!("SELECT {SESSION}, <datetime> updated AS at FROM session WHERE role = $role {filter} ORDER BY at DESC LIMIT 100;"), json!({ "role": me.role, "of": of })).await?;
-    // 다룬 기록의 이름(제목 줄과 같은 이름)을 붙인다 — 목록에서 어느 기록의 대화인지 보이게
+    let mut list = q1(&db, &format!("SELECT {SESSION}, target_name, (->about->?).map(|$r| <string> $r) AS about, <datetime> updated AS at FROM session WHERE role = $role {filter} ORDER BY at DESC LIMIT 100;"), json!({ "role": me.role, "of": of })).await?;
+    // 다룬 기록의 이름: `첫 기록 외 n`. 기록이 없어졌으면(다시 적재로 바뀐 기록) 대화를 열 때 적어 둔 이름
     if let Some(rows) = list.as_array_mut() {
-        let recs: Vec<Option<Rec>> = rows.iter().map(|r| rec(&r["target"])).collect();
-        let known: Vec<Rec> = recs.iter().flatten().cloned().collect();
-        let mut names = names_of(&db, &known).await.unwrap_or_default().into_iter();
-        for (row, r) in rows.iter_mut().zip(&recs) {
-            row["name"] = if r.is_some() { names.next().flatten().map_or(J::Null, J::String) } else { J::Null };
+        for row in rows.iter_mut() {
+            let ids: Vec<String> = row["about"].as_array().into_iter().flatten().filter_map(|x| x.as_str().map(String::from)).collect();
+            let (names, _) = reads_names(&db, &ids).await;
+            row["name"] = match names.split_first() {
+                Some((first, rest)) if rest.is_empty() => J::String(first.clone()),
+                Some((first, rest)) => J::String(format!("{first} 외 {}", rest.len())),
+                None => row["target_name"].clone(),
+            };
+            if let Some(o) = row.as_object_mut() { o.remove("about"); o.remove("target_name"); o.remove("at"); }
         }
     }
     Ok(Json(json!({ "sessions": list })))
@@ -320,12 +321,14 @@ async fn sessions(Extension(me): Extension<Me>, State(db): State<Arc<Db>>, Query
 /// 새 대화: `{ target?: { kind, id } }` → `{ id }`. 문맥이 있으면 그 기록에 `about` 선을 잇는다
 async fn open_session(Extension(me): Extension<Me>, State(db): State<Arc<Db>>, Body(b): Body) -> R {
     let target = if b["target"].is_null() { None } else { Some(records_of(&db, &json!([b["target"]])).await.into_iter().next().ok_or_else(|| refuse("대상"))?) };
+    // 문맥 기록의 이름을 적어 둔다: 기록이 다시 적재로 바뀌어도 목록에서 어느 기록의 대화였는지 보이게
+    let named = match &target { Some(t) => reads_names(&db, std::slice::from_ref(t)).await.0.into_iter().next(), None => None };
     let r = q1(
         &db,
-        "LET $s = (CREATE session SET role = $role, title = '', target = $t, messages = [], created = time::now(), updated = time::now())[0].id;
+        "LET $s = (CREATE session SET role = $role, title = '', target = $t, target_name = $n, messages = [], created = time::now(), updated = time::now())[0].id;
          IF $r != NONE { RELATE $s->about->(type::record($r)) };
          RETURN record::id($s);",
-        json!({ "role": me.role, "t": if target.is_some() { b["target"].clone() } else { J::Null }, "r": target }),
+        json!({ "role": me.role, "t": if target.is_some() { b["target"].clone() } else { J::Null }, "r": target, "n": named }),
     )
     .await?;
     Ok(Json(json!({ "id": r })))
@@ -521,10 +524,10 @@ pub async fn check(c: &Check) -> Result<()> {
         // 문맥은 끌 수 있고, 붙인 기록이 따라온다. 판정을 묻는 말에는 사실과 규정을 답하고 판정 의견을 내지 않는다
         let (_, _, body) = stream(support, json!({ "messages": [say("이 지급을 승인해도 되나?")], "target": null, "attach": [{ "kind": "정황", "id": "계좌-D-024" }, { "kind": "지급", "id": "RB-00001" }] })).await?;
         let text = said(&events(&body).0);
-        ensure!(text.contains("열어 둔 대상은 없다") && text.contains("정황 계좌 · 성일상사24") && text.contains("지급 대성상사1 · ") && !text.contains("테이블") && !text.contains("D-024"), "끈 문맥과 붙임 {text}");
+        ensure!(text.contains("정황 계좌 · 성일상사24") && text.contains("지급 대성상사1 · ") && !text.contains("테이블") && !text.contains("D-024"), "끈 문맥과 붙임 {text}");
         ensure!(text.contains("판정 의견은 내지 않는다") && text.contains("결정은 사람이 한다") && !["승인하세요", "승인해도 된다", "승인해도 됩니다", "반려하세요", "기각하세요"].iter().any(|w| text.contains(w)), "판정 의견 {text}");
         let (_, _, body) = stream(support, json!({ "messages": [say("안녕"), bot("안녕하세요"), say("대리점 두 곳")] })).await?;
-        ensure!(said(&events(&body).0).starts_with("문맥 없음"), "여러 말");
+        ensure!(said(&events(&body).0).starts_with("열어 둔 기록도 붙인 기록도 없어"), "여러 말");
 
         // 대화는 남지 않는다: 보고·결정·경위·작업 어디에도 기록이 늘지 않았다
         ensure!(counts().await? == before, "대화가 기록을 남겼다 {before} {}", counts().await?);

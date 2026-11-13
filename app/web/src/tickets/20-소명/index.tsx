@@ -149,14 +149,14 @@ export function Intake() {
       .finally(() => setBusy(false))
   }
   return (
-    // 영역(Region) 한 장: 대리점 · 일치 · 서류를 고르고 접수(영역 조치). 접수는 흐름(소명)을 앞으로 보내는 조치라 이 영역의 주 버튼(primary)
+    // 영역(Region) 한 장: 대리점 · 일치 · 서류를 고르고 접수(영역 조치). 화면의 주 버튼은 머리의 `변경` 하나라 이 영역의 접수는 보조(secondary)
     <Region
       title={L.접수}
       aside={bad ? <Badge variant={fail} label={bad} /> : undefined}
       actions={
         <Confirm
           label={L.접수}
-          variant="primary"
+          variant="secondary"
           title={`${L.접수} · ${dealer?.dealer.name ?? ''}`}
           rows={[
             [L.대리점, other?.name ?? ''],

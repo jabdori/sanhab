@@ -1,3 +1,6 @@
+import { FlagIcon } from '@heroicons/react/24/outline'
+import { Icon } from '@astryxdesign/core/Icon'
+import { Token } from '@astryxdesign/core/Token'
 // 소명 기록: 머리(← 작업 · n/전체 / 소명 이름 / 칩: 상태 · 대리점 · 정황 / 페이지 조치 / 탭) → 본문(숫자 타일 · 요청서 · 서류 · 원본 · 판독 · 접수 · 제외). AI 보고는 오른쪽 AI 구역.
 // 페이지 조치: 영업지원은 발송(요청서를 고쳐), 내부 감시는 서류가 접수된 뒤 인정 · 불인정 · 보완. 모두 누르면 확인 창.
 import { HStack } from '@astryxdesign/core/Layout'
@@ -49,7 +52,8 @@ export function Clarify() {
       meta={[
         <State word={c.state} />,
         <Meta icon={BuildingStorefrontIcon}>{c.dealer.name}</Meta>,
-        ...(c.signal ? [<Link onClick={() => store.set(targetAtom, { kind: L.정황, id: c.signal!.id })}>{c.signal.name}</Link>] : []),
+        // 이 소명을 연 정황: 다른 칩과 같은 꼴(누르면 그 정황이 열린다)
+        ...(c.signal ? [<Token size="sm" icon={<Icon icon={FlagIcon} size="sm" />} label={c.signal.name} onClick={() => store.set(targetAtom, { kind: L.정황, id: c.signal!.id })} />] : []),
       ]}
       actions={
         <HStack gap={2}>

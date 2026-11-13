@@ -13,6 +13,8 @@ export type Row = { item: string; read: string | null; words: number[]; reg: Reg
 export type Doc = {
   id: string
   name: string
+  /** 시연용으로 만든 서류와 내용이 같은가(합성 표지) */
+  sample?: boolean
   mime: string
   size: number
   role: string

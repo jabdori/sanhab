@@ -103,6 +103,7 @@ function Nav({ folded: start, onDemo }: { folded: boolean; onDemo: () => void })
             onChange={(v: string) => {
               setRole(v)
               setTarget(null)
+              setFolded(true) // 역할을 고르면 다시 레일로 접는다(펴 둔 채면 본문이 좁아진다)
             }}
           />
         )

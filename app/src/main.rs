@@ -184,7 +184,7 @@ async fn seed_all(db: &Db, name: &str, ver: &str) -> anyhow::Result<()> {
             // 받아 둔 JSON에서 id·시각은 글자다 — 기록 id와 날짜로 되돌려 넣는다
             q(
                 db,
-                "FOR $x IN $s { UPSERT type::record($x.id) SET role = $x.role, title = $x.title, target = $x.target, messages = $x.messages, created = <datetime> $x.created, updated = <datetime> $x.updated };
+                "FOR $x IN $s { UPSERT type::record($x.id) SET role = $x.role, title = $x.title, target = $x.target, target_name = $x.target_name, messages = $x.messages, created = <datetime> $x.created, updated = <datetime> $x.updated };
                  FOR $x IN $a { RELATE (type::record($x.in))->about->(type::record($x.out)) };
                  FOR $x IN $r { RELATE (type::record($x.in))->reads->(type::record($x.out)) };",
                 json!({ "s": s, "a": a, "r": r }),

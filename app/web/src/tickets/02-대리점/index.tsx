@@ -119,7 +119,8 @@ export function Payouts() {
         columns={[
           { key: 'ym', header: L.귀속월, width: pixel(96), renderCell: (p) => <Text hasTabularNumbers>{p.ym}</Text> },
           { key: 'amount', header: L.금액, align: 'end', width: pixel(96), renderCell: (p) => <Text weight="semibold" hasTabularNumbers>{num(p.amount)}</Text> },
-          { key: 'status', header: L.상태, width: pixel(72), renderCell: (p) => <State word={p.state ?? p.status} /> },
+          { key: 'status', header: L.상태, width: pixel(72), // 원본의 상태(승인 · 미지급 · 반려)는 글자로, 앱이 정한 지급 상태(재심사 등)만 표지로 — 줄마다 초록이 깔리지 않게
+          renderCell: (p) => (p.state ? <State word={p.state} /> : <Text color="secondary">{p.status}</Text>) },
           {
             key: 'review',
             header: L.심사,

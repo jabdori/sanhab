@@ -5,7 +5,6 @@ import { CheckboxInput } from '@astryxdesign/core/CheckboxInput'
 import { StatusDot } from '@astryxdesign/core/StatusDot'
 import { EmptyState } from '@astryxdesign/core/EmptyState'
 import { HStack, Layout, LayoutContent, LayoutHeader, StackItem, VStack } from '@astryxdesign/core/Layout'
-import { PowerSearch, type PowerSearchFilter, usePowerSearchConfig } from '@astryxdesign/core/PowerSearch'
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl'
 import { Table, type TableColumn, type TablePlugin, TableSelectionToolbar, pixel, proportional, useTableGroupedRows } from '@astryxdesign/core/Table'
 import { Heading, Text } from '@astryxdesign/core/Text'
@@ -13,6 +12,7 @@ import { useAtom, useSetAtom } from 'jotai'
 import { atom } from 'jotai'
 import { useState } from 'react'
 import { L } from '../labels'
+import { Search, hit } from '../ui/Search'
 import { api, changedAtom, navAtom, store, targetAtom, useData } from '../state'
 import { Confirm } from '../ui/Confirm'
 import { grade } from '../ui/grade'
@@ -29,11 +29,6 @@ const order = (a: Task, b: Task) => (a.ym ?? '9').localeCompare(b.ym ?? '9') || 
 /** 전체 · 담당 · 진행. 기록을 열었다 돌아와도 남는다 */
 const scopeAtom = atom<'all' | 'mine' | 'going'>('mine')
 
-const fields = [
-  { key: 'name', type: 'string', label: L.대상 },
-  { key: 'kind', type: 'enum', label: L.종류, enumValues: GROUPS.flat().map((k) => ({ value: k, label: k })) },
-  { key: 'ym', type: 'string', label: L.귀속월 },
-] as const
 
 /** 결정을 보낸다. 거절되어도 목록을 다시 읽어 지금 할 수 있는 것을 보인다 */
 const decide = (ids: string[]) => api('/decide', { ids, kind: L.승인 }).catch(() => store.set(changedAtom, (n) => n + 1))
@@ -41,16 +36,15 @@ const decide = (ids: string[]) => api('/decide', { ids, kind: L.승인 }).catch(
 export function Work() {
   const d = useData<{ mine: Task[]; going: Task[] }>('/tasks')
   const [scope, setScope] = useAtom(scopeAtom)
-  const [filters, setFilters] = useState<PowerSearchFilter[]>([])
+  const [q, setQ] = useState('')
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [folded, setFolded] = useState<Set<string>>(new Set())
   const setTarget = useSetAtom(targetAtom)
   const setNav = useSetAtom(navAtom)
-  const { config, applyFilters } = usePowerSearchConfig(fields, L.작업)
   const mine = d?.mine ?? []
   const all = scope === 'all' ? [...mine, ...(d?.going ?? []).filter((g) => !mine.some((m) => m.id === g.id))] : d ? d[scope] : []
   // 검색은 이름·귀속월이 비지 않은 줄로 본다
-  const visible = applyFilters(filters, all.map((t) => ({ ...t, name: t.name ?? t.target, ym: t.ym ?? '' })))
+  const visible = all.filter((t) => hit(q, t.name ?? t.target, t.ym, t.kind))
   const groups = GROUPS.map((kinds) => ({ kinds, items: visible.filter((t) => kinds.includes(t.kind)).sort(order) })).filter((g) => g.items.length)
   const rows = groups.flatMap((g) => g.items)
   // 고를 수 있는 줄: 내 차례의 심사 가운데 서버가 고를 수 있다고 한 것(정황이 없는 것)
@@ -72,7 +66,9 @@ export function Work() {
     ...(d?.going.length ? [[L.진행, String(d.going.length), undefined] as [string, string, undefined]] : []),
   ]
   const open = (t: Task) => {
-    setNav(rows.map((r) => ({ kind: r.view, id: r.target })))
+    // 앞 · 뒤와 n/전체는 그 줄이 든 묶음 안에서(추인끼리, 심사끼리)
+    const g = groups.find((x) => x.items.some((i) => i.id === t.id))
+    setNav((g?.items ?? rows).map((r) => ({ kind: r.view, id: r.target })))
     setTarget({ kind: t.view, id: t.target })
   }
   // 표(table-grouped): 종류의 묶음마다 머리(접힘 · 건수), 줄 = 고르기 · 주의 점 · 대상 · 종류 · 귀속월 · 금액 · 담당 · 표시 · 상태
@@ -176,7 +172,7 @@ export function Work() {
                 <SegmentedControlItem label={L.진행} value="going" />
               </SegmentedControl>
             </HStack>
-            <PowerSearch config={config} filters={filters} onChange={(f) => setFilters([...f])} label={L.검색} placeholder={L.검색} resultCount={String(visible.length)} />
+            <Search value={q} onChange={setQ} />
           </VStack>
         </LayoutHeader>
       }
