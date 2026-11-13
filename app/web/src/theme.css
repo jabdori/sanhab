@@ -35,3 +35,23 @@ body {
 .mark {
   animation: mark 1.2s ease-out;
 }
+
+/* 예외 3 — 안내(ui/Tour): 밝힌 요소 둘레를 어둡게 하는 구멍과, 바깥 누름을 막는 막. astryx에 둘러보기 부품이 없다 */
+.tour-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+}
+.tour-hole {
+  position: fixed;
+  z-index: 901;
+  border-radius: 8px;
+  box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.45);
+  pointer-events: none;
+}
+.tour-card {
+  position: fixed;
+  z-index: 902;
+  width: 360px;
+  max-width: calc(100vw - 32px);
+}

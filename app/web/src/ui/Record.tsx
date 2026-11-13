@@ -76,7 +76,7 @@ export type TileItem = { name: string; value: ReactNode; below?: ReactNode; asid
 /** 숫자 타일(dashboard-alert-rail의 KPI): 이 앱에서 Card를 쓰는 곳. 흰 면 위 Section 한 칸에 놓인다 */
 export function Tiles({ items }: { items: TileItem[] }) {
   return (
-    <Section variant="transparent" padding={6}>
+    <Section variant="transparent" padding={6} data-tour="tiles">
       {/* 타일은 폭을 고르게 나눠 꽉 채운다(dashboard 템플릿) — 왼쪽에 몰려 오른쪽이 비지 않게 */}
       {/* 최소 폭은 큰 숫자(9,258,580)가 들어가는 폭 — 좁으면 줄을 바꿔 잘리지 않게 */}
       <Grid columns={{ minWidth: 200, max: items.length, repeat: 'fit' }} gap={4}>
@@ -161,7 +161,7 @@ export function RecordPage({ title, meta, actions, bad, tabs, props = [] }: { ti
                 </VStack>
               </StackItem>
               {(actions || bad) && (
-                <VStack gap={2} hAlign="end">
+                <VStack gap={2} hAlign="end" data-tour="actions">
                   {actions}
                   {bad && <Badge variant={fail} label={bad} />}
                 </VStack>

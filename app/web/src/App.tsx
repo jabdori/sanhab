@@ -7,7 +7,7 @@ import { SideNav, SideNavHeading, SideNavItem } from '@astryxdesign/core/SideNav
 import { Icon } from '@astryxdesign/core/Icon'
 import { Text } from '@astryxdesign/core/Text'
 import { HStack, StackItem, VStack } from '@astryxdesign/core/Layout'
-import { UserCircleIcon, BeakerIcon, BookOpenIcon, CalendarIcon, BuildingStorefrontIcon, InboxStackIcon } from '@heroicons/react/24/outline'
+import { UserCircleIcon, BeakerIcon, QuestionMarkCircleIcon, BookOpenIcon, CalendarIcon, BuildingStorefrontIcon, InboxStackIcon } from '@heroicons/react/24/outline'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { type ReactNode, useState } from 'react'
 import { Pane } from './Pane'
@@ -26,6 +26,7 @@ import { Signal } from './pages/Signal'
 import { Work } from './pages/Work'
 import { MENUS, type Menu, menuAtom, paneAtom, roleAtom, rolesAtom, targetAtom, useData } from './state'
 import { Chat } from './tickets/24-대화'
+import { Tour, tourAtom } from './ui/Tour'
 
 /** 기록의 종류 → 화면. 메뉴 → 목록 화면 */
 const RECORDS: Record<string, () => ReactNode> = { [L.심사]: Review, [L.정황]: Signal, [L.소명]: Clarify, [L.지급]: Pay, [L.추인]: Ratify, [L.대리점]: Dealer, [L.규정]: Rule }
@@ -78,6 +79,7 @@ function Shell() {
         }
       />
       <DemoDrawer isOpen={demo} onOpenChange={setDemo} />
+      <Tour />
     </AppShell>
   )
 }
@@ -90,6 +92,9 @@ function Nav({ folded: start, onDemo }: { folded: boolean; onDemo: () => void })
   const setTarget = useSetAtom(targetAtom)
   const today = useData<{ today: string }>('/state')?.today
   const [folded, setFolded] = useState(start)
+  const setTour = useSetAtom(tourAtom)
+  // 안내 다시 보기: 시연 옆의 아이콘(펼치면 함께 있는 아이콘 단추)
+  const guide = <Button label={L.안내} variant="ghost" isIconOnly size="sm" icon={<Icon icon={QuestionMarkCircleIcon} size="sm" />} onClick={() => setTour(true)} />
   return (
     <SideNav
       collapsible={{ isCollapsed: folded, onCollapsedChange: setFolded }}
@@ -117,11 +122,19 @@ function Nav({ folded: start, onDemo }: { folded: boolean; onDemo: () => void })
                 {today && <Text type="supporting" weight="medium" hasTabularNumbers>{today}</Text>}
               </HStack>
             </StackItem>
+            {guide}
             <Button label={L.시연} size="sm" variant="secondary" icon={<Icon icon={BeakerIcon} size="sm" />} onClick={onDemo} />
           </HStack>
         )
       }
-      footerIcons={folded && <Button label={L.시연} variant="ghost" isIconOnly icon={<Icon icon={BeakerIcon} size="sm" />} onClick={onDemo} />}
+      footerIcons={
+        folded && (
+          <>
+            <Button label={L.안내} variant="ghost" isIconOnly icon={<Icon icon={QuestionMarkCircleIcon} size="sm" />} onClick={() => setTour(true)} />
+            <Button label={L.시연} variant="ghost" isIconOnly icon={<Icon icon={BeakerIcon} size="sm" />} onClick={onDemo} />
+          </>
+        )
+      }
     >
       {MENUS.map((m) => (
         <SideNavItem key={m} label={m} icon={ICONS[m]} isSelected={m === menu}
