@@ -59,7 +59,7 @@ export function Timeline() {
 
 // 그림의 치수(간격 단위 4의 배수). 칸은 종류·날짜 / 대상(두 줄까지) / 사람·사유에 맞춘 높이. 1280에서 네 칸이 목록을 접은 가운데에 들어간다. 넘치면 그림이 가로로 밀린다(글자를 줄이지 않는다)
 const W = 128
-const H = 112
+const H = 120
 const GAP_X = 24
 const GAP_Y = 16
 

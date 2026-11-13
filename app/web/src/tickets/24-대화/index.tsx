@@ -64,7 +64,7 @@ const word = (e: Error) => {
 const Mark = ({ word }: { word: string }) => <Badge variant={word === L.대기 ? 'neutral' : fail} label={word} />
 
 /** 대화 목록의 한 줄(서버 `/chat/sessions`) */
-type Sess = { id: string; title: string; target: Target | null; name: string | null; updated: string }
+type Sess = { id: string; title: string; target: Target | null; name: string | null; count: number; updated: string }
 
 /** 저장할 말: 파일 파트(data URL)는 빼고 */
 const lean = (ms: Talk[]) => ms.map((m) => ({ ...m, parts: m.parts.filter((p) => p.type !== 'file') }))
@@ -132,7 +132,7 @@ function Panel({ sid, initial, list, onPick }: { sid: string | null; initial: Ta
       if (!id) return
       const first = all.find((m) => m.role === 'user')?.parts.map((p) => (p.type === 'text' ? p.text : '')).join('') ?? ''
       const reads = all.flatMap((m) => m.parts.flatMap((p) => (p.type === 'data-reads' ? (p.data.go ?? []).filter((g): g is Target => !!g) : [])))
-      api(`/chat/sessions/${id}`, { messages: lean(all), title: first.slice(0, 40), about: [ctx.current.target, ...ctx.current.attach].filter(Boolean), reads }, 'PUT').catch(() => {})
+      api(`/chat/sessions/${id}`, { messages: lean(all), title: first.replace(/\s+/g, ' ').trim().slice(0, 40), about: [ctx.current.target, ...ctx.current.attach].filter(Boolean), reads }, 'PUT').catch(() => {})
     },
     // AI가 파일을 소명의 서류로 넘겼으면 소명 화면이 다시 읽는다
     onData: (p) => {
@@ -207,7 +207,7 @@ function Panel({ sid, initial, list, onPick }: { sid: string | null; initial: Ta
                   <ListItem
                     key={x.id}
                     label={x.title || L.대화}
-                    description={[x.name, x.updated].filter(Boolean).join(' · ')}
+                    description={[x.name, x.count > 1 ? `${L.기록} ${x.count}` : null, x.updated].filter(Boolean).join(' · ')}
                     isSelected={x.id === session.current}
                     onClick={() => {
                       setHistory(false)

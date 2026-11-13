@@ -302,18 +302,16 @@ async fn sessions(Extension(me): Extension<Me>, State(db): State<Arc<Db>>, Query
     };
     let filter = if of.is_some() { "AND type::record($of) INSIDE ->about->?" } else { "" };
     let mut list = q1(&db, &format!("SELECT {SESSION}, target_name, (->about->?).map(|$r| <string> $r) AS about, <datetime> updated AS at FROM session WHERE role = $role {filter} ORDER BY at DESC LIMIT 100;"), json!({ "role": me.role, "of": of })).await?;
-    // 다룬 기록의 이름: `첫 기록 외 n`. 기록이 없어졌으면(다시 적재로 바뀐 기록) 대화를 열 때 적어 둔 이름
+    // 다룬 기록의 이름(첫 기록)과 수. 기록이 없어졌으면(다시 적재로 바뀐 기록) 대화를 열 때 적어 둔 이름
     if let Some(rows) = list.as_array_mut() {
         for row in rows.iter_mut() {
             let ids: Vec<String> = row["about"].as_array().into_iter().flatten().filter_map(|x| x.as_str().map(String::from)).collect();
             // 수는 선의 수로 센다(다시 적재로 없어진 기록도 다룬 기록이다), 첫 이름은 연 기록의 이름(적어 둔 것)이 먼저
             let (names, _) = reads_names(&db, &ids).await;
             let first = row["target_name"].as_str().map(String::from).or_else(|| names.first().cloned());
-            row["name"] = match first {
-                Some(f) if ids.len() > 1 => J::String(format!("{f} 외 {}", ids.len() - 1)),
-                Some(f) => J::String(f),
-                None => J::Null,
-            };
+            // 기록 이름에 이미 `외 n`(심사의 구성)이 있을 수 있어 수는 따로 낸다(화면: `기록 n`)
+            row["name"] = first.map_or(J::Null, J::String);
+            row["count"] = json!(ids.len());
             if let Some(o) = row.as_object_mut() { o.remove("about"); o.remove("target_name"); o.remove("at"); }
         }
     }
