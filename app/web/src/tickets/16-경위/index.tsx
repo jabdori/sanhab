@@ -3,7 +3,6 @@
 import { ClickableCard } from '@astryxdesign/core/ClickableCard'
 import { HStack, StackItem, VStack } from '@astryxdesign/core/Layout'
 import { List as Rows, ListItem } from '@astryxdesign/core/List'
-import { ScrollableArea } from '@astryxdesign/core/ScrollableArea'
 import { Text } from '@astryxdesign/core/Text'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { Icon } from '@astryxdesign/core/Icon'
@@ -59,9 +58,9 @@ export function Timeline() {
 }
 
 // 그림의 치수(간격 단위 4의 배수). 칸은 종류·날짜 / 대상(두 줄까지) / 사람·사유에 맞춘 높이. 1280에서 네 칸이 목록을 접은 가운데에 들어간다. 넘치면 그림이 가로로 밀린다(글자를 줄이지 않는다)
-const W = 144
-const H = 96
-const GAP_X = 32
+const W = 128
+const H = 112
+const GAP_X = 24
 const GAP_Y = 16
 
 /** 지금 대상의 줄기: 지금 칸에서 원인 쪽과 결과 쪽으로 이어진 칸 전부 */
@@ -109,8 +108,8 @@ export function Picture() {
   const height = most * (H + GAP_Y) - GAP_Y
   return (
     <Region title={L.그림}>
-      <ScrollableArea axis="inline" label={L.그림}>
-        <svg role="img" aria-label={L.경위} width={width} height={height}>
+        {/* 칸 폭이 모자라면(1280) 그림 전체가 비율대로 줄어든다 — 마지막 칸이 잘리지 않게 */}
+        <svg role="img" aria-label={L.경위} viewBox={`0 0 ${width} ${height}`} width={width} height={height} className="h-auto max-w-full">
           <defs>
             <marker id="head" markerUnits="userSpaceOnUse" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" orient="auto">
               <path d="M0 0L8 4L0 8z" className="fill-disabled" />
@@ -139,20 +138,18 @@ export function Picture() {
               {/* 칸: 지금 대상은 muted 카드, 줄기 밖의 칸은 투명 카드(흐리게) */}
               <ClickableCard label={n.name} onClick={() => setTarget(n.go)} variant={n.key === d.now ? 'muted' : on.has(n.key) ? 'default' : 'transparent'} padding={2} height="100%" aria-current={n.key === d.now || undefined}>
                 <VStack gap={0.5}>
-                  <HStack gap={2} vAlign="center">
-                    <StackItem size="fill">
-                      <Text weight="semibold" color={on.has(n.key) ? 'primary' : 'secondary'}>
-                        {n.kind}
-                      </Text>
-                    </StackItem>
-                    {/* 아직 일어나지 않은 칸(결정 전의 심사, 표시 전의 지급)은 날짜를 비운다 */}
-                    {n.at && (
-                      <Text type="supporting" hasTabularNumbers className="whitespace-nowrap">
-                        {n.at}
-                      </Text>
-                    )}
-                  </HStack>
-                  <Text maxLines={2} color={on.has(n.key) ? 'primary' : 'secondary'}>
+                  {/* 종류 · 날짜는 한 줄씩(좁은 칸에서 `재심사`가 꺾이지 않게) */}
+                  <Text weight="semibold" color={on.has(n.key) ? 'primary' : 'secondary'} className="whitespace-nowrap">
+                    {n.kind}
+                  </Text>
+                  {/* 아직 일어나지 않은 칸(결정 전의 심사, 표시 전의 지급)은 날짜를 비운다 */}
+                  {n.at && (
+                    <Text type="supporting" hasTabularNumbers className="whitespace-nowrap">
+                      {n.at}
+                    </Text>
+                  )}
+                  {/* 줄은 띄어쓰기에서만 바꾼다(`2026-06`이 꺾이지 않게) */}
+                  <Text maxLines={2} color={on.has(n.key) ? 'primary' : 'secondary'} className="break-keep">
                     {n.name}
                   </Text>
                   {n.who?.role && (
@@ -165,7 +162,6 @@ export function Picture() {
             </foreignObject>
           ))}
         </svg>
-      </ScrollableArea>
     </Region>
   )
 }

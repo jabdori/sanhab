@@ -68,6 +68,8 @@ export function Signal() {
         [L.종류, s.kind],
         [L.대리점, dealers],
         [k, <HStack gap={2} vAlign="center"><Text>{v}</Text>{src}</HStack>],
+        // 다시 올라온 정황(D57): 앞선 기각과 그 사유를 함께 보인다(시나리오 4의 4)
+        ...d.history.filter((h) => h.kind === L.기각).slice(-1).map((h): [string, ReactNode] => [L.기각, [h.reason?.class, h.reason?.memo, h.at].filter(Boolean).join(' · ')]),
       ]}
       title={s.name}
       meta={[

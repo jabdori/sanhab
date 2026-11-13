@@ -306,11 +306,13 @@ async fn sessions(Extension(me): Extension<Me>, State(db): State<Arc<Db>>, Query
     if let Some(rows) = list.as_array_mut() {
         for row in rows.iter_mut() {
             let ids: Vec<String> = row["about"].as_array().into_iter().flatten().filter_map(|x| x.as_str().map(String::from)).collect();
+            // 수는 선의 수로 센다(다시 적재로 없어진 기록도 다룬 기록이다), 첫 이름은 연 기록의 이름(적어 둔 것)이 먼저
             let (names, _) = reads_names(&db, &ids).await;
-            row["name"] = match names.split_first() {
-                Some((first, rest)) if rest.is_empty() => J::String(first.clone()),
-                Some((first, rest)) => J::String(format!("{first} 외 {}", rest.len())),
-                None => row["target_name"].clone(),
+            let first = row["target_name"].as_str().map(String::from).or_else(|| names.first().cloned());
+            row["name"] = match first {
+                Some(f) if ids.len() > 1 => J::String(format!("{f} 외 {}", ids.len() - 1)),
+                Some(f) => J::String(f),
+                None => J::Null,
             };
             if let Some(o) = row.as_object_mut() { o.remove("about"); o.remove("target_name"); o.remove("at"); }
         }
