@@ -58,7 +58,7 @@ export function Versions() {
         density="balanced"
         columns={[
           { key: 'name', header: L.규칙, width: proportional(2, { minWidth: 96 }), renderCell: (r) => <Text weight="semibold">{`${r.name} v${r.ver}`}</Text> },
-          { key: 'value', header: L.값, align: 'end', width: pixel(88), renderCell: (r) => <Text hasTabularNumbers>{r.name === L.합산 ? `${L.일치} ${r.value}` : num(r.value)}</Text> },
+          { key: 'value', header: L.값, align: 'end', width: pixel(104), renderCell: (r) => <Text hasTabularNumbers className="whitespace-nowrap">{r.name === L.합산 ? `${L.일치} ${r.value}` : num(r.value)}</Text> },
           { key: 'since', header: L.시행, width: proportional(1, { minWidth: 80 }), renderCell: (r) => (r.since || r.until ? <Text hasTabularNumbers>{`${r.since ?? ''} ~ ${r.until ?? ''}`.trim()}</Text> : none) },
           { key: 'prev', header: L.이전, width: proportional(1, { minWidth: 96 }), renderCell: (r) => (r.prev ? <Text>{`${r.prev.name} v${r.prev.ver}`}</Text> : none) },
           {

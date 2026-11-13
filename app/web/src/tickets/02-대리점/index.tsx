@@ -57,7 +57,7 @@ export function RegisteredRegion() {
         idKey={(r) => `${r.item}/${r.value}/${r.since}`}
         density="balanced"
         columns={[
-          { key: 'item', header: L.식별자, width: pixel(72), renderCell: (r) => <Text weight="semibold">{r.item}</Text> },
+          { key: 'item', header: L.식별자, width: pixel(88), renderCell: (r) => <Text weight="semibold" className="whitespace-nowrap">{r.item}</Text> },
           {
             key: 'value',
             header: L.값,
@@ -86,8 +86,8 @@ export function RegisteredRegion() {
               </VStack>
             ),
           },
-          { key: 'since', header: L.변경일, width: pixel(104), renderCell: (r) => <Text hasTabularNumbers>{r.since}</Text> },
-          { key: 'known', header: L.인지일, width: pixel(104), renderCell: (r) => (r.known ? <Text hasTabularNumbers>{r.known}</Text> : <Text color="secondary">{L.미상}</Text>) },
+          { key: 'since', header: L.변경일, width: pixel(104), renderCell: (r) => <Text hasTabularNumbers className="whitespace-nowrap">{r.since}</Text> },
+          { key: 'known', header: L.인지일, width: pixel(104), renderCell: (r) => (r.known ? <Text hasTabularNumbers className="whitespace-nowrap">{r.known}</Text> : <Text color="secondary">{L.미상}</Text>) },
           {
             key: 'via',
             header: L.경로,
