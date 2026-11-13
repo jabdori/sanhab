@@ -20,6 +20,10 @@ export function Rule() {
         <Source kind={clause.source} tip={where(clause)} place={`${clause.first}–${clause.last}${L.행}`} rows={[[L.위치, where(clause)], [L.해시, clause.sha]]} />,
       ]}
       actions={<Simulate target={clause.title} onBad={setBad} />}
+      props={[
+        [L.위치, where(clause)],
+        [L.규칙, rules.map((x) => `${x.name} v${x.ver}`).join(' · ') || L.없음],
+      ]}
       bad={bad}
       tabs={[
         {

@@ -21,7 +21,11 @@ import { DefaultChatTransport, type UIMessage } from 'ai'
 import { useAtomValue } from 'jotai'
 import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog'
 import { IconButton } from '@astryxdesign/core/IconButton'
-import { ClockIcon, DocumentCheckIcon, PencilSquareIcon } from '@heroicons/react/24/outline'
+import { AtSymbolIcon, BanknotesIcon, BookOpenIcon, BuildingStorefrontIcon, ClipboardDocumentCheckIcon, ClockIcon, DocumentCheckIcon, DocumentTextIcon, FlagIcon, ArrowPathIcon, PencilSquareIcon, PlusIcon } from '@heroicons/react/24/outline'
+import { DropdownMenu } from '@astryxdesign/core/DropdownMenu'
+import { Kbd } from '@astryxdesign/core/Kbd'
+import type { ChatComposerInputHandle } from '@astryxdesign/core/Chat'
+import type { SearchableItem } from '@astryxdesign/core/Typeahead'
 import { useEffect, useRef, useState } from 'react'
 import { ASK, L } from '../../labels'
 import { State } from '../../ui/Mark'
@@ -30,11 +34,22 @@ import { fail } from '../../ui/status'
 import { Card as ActionCard, type CardData } from '../25-카드'
 
 /** 답에 붙는 조회한 기록(서버가 `data-reads`로 보낸다). go는 이름과 같은 순서의 여는 길(열 화면이 없는 기록은 null) */
-type Talk = UIMessage<never, { reads: { names: string[]; go?: (Target | null)[] }; card: CardData; doc: { id: string; name: string } }>
+/** 말에 붙은 문맥(보낸 말 위에 그대로 남는다): 종류 · id · 이름 */
+type Ctx = { kind: string; id: string; name: string }
+type Talk = UIMessage<{ ctx?: Ctx[] }, { reads: { names: string[]; go?: (Target | null)[] }; card: CardData; doc: { id: string; name: string } }>
 
 /** 칩에 보이는 이름. 아직 받지 못했거나 모르면 id */
 const key = (t: Target) => `${t.kind}/${t.id}`
 const same = (a: Target, b: Target) => a.kind === b.kind && a.id === b.id
+/** 기록 종류의 아이콘(문맥 카드) */
+const KIND_ICON: Record<string, typeof FlagIcon> = { [L.심사]: ClipboardDocumentCheckIcon, [L.정황]: FlagIcon, [L.소명]: DocumentTextIcon, [L.대리점]: BuildingStorefrontIcon, [L.지급]: BanknotesIcon, [L.추인]: ArrowPathIcon, [L.규정]: BookOpenIcon }
+const kindIcon = (k: string) => <Icon icon={KIND_ICON[k] ?? DocumentTextIcon} size="sm" />
+/** `@`로 붙일 기록 찾기(서버 /chat/find — 문맥 밖의 기록도 이름으로 찾는다) */
+const records = {
+  search: async (q: string): Promise<SearchableItem<Ctx>[]> => (await api<{ items: Ctx[] }>(`/chat/find?q=${encodeURIComponent(q)}`)).items.map((i) => ({ id: `${i.kind}/${i.id}`, label: i.name, auxiliaryData: i })),
+  bootstrap: () => records.search(''),
+  cancel: () => {},
+}
 
 /** 서버의 오류: 200이 아니면 본문 `{ error }`, 스트림 안의 오류는 낱말 그대로 */
 const word = (e: Error) => {
@@ -59,7 +74,6 @@ function Panel({ sid, initial, list, onPick }: { sid: string | null; initial: Ta
   // 이 대화의 id: 새 대화면 첫 말을 보낼 때 서버에 만든다(만든 뒤에도 칸은 그대로 — 다시 그리지 않는다)
   const session = useRef<string | null>(sid)
   const [history, setHistory] = useState(false)
-  const title = list.find((x) => x.id === session.current)?.title
   const [follow, setFollow] = useState(true)
   const [pinned, setPinned] = useState<Target[]>([])
   const [text, setText] = useState('')
@@ -69,6 +83,13 @@ function Panel({ sid, initial, list, onPick }: { sid: string | null; initial: Ta
   const [file, setFile] = useState<File | null>(null)
   const pick = useRef<HTMLInputElement>(null)
   const [tooBig, setTooBig] = useState(false)
+  const input = useRef<ChatComposerInputHandle>(null)
+  /** 올릴 서류 고르기(+ 메뉴 · 붙여넣기 · 끌어놓기): 19의 한도(2MB, 이미지·PDF)를 넘으면 붙이지 않는다 */
+  const choose = (f: File | null) => {
+    const ok = !f || (f.size <= 2 * 1024 * 1024 && ['image/png', 'image/jpeg', 'application/pdf'].includes(f.type))
+    setTooBig(!ok)
+    setFile(ok ? f : null)
+  }
   // 보낼 때의 문맥을 읽는 곳(전송기는 한 번만 만든다)
   const ctx = useRef<{ target: Target | null; attach: Target[] }>({ target: null, attach: [] })
   const now = follow ? target : null
@@ -119,6 +140,8 @@ function Panel({ sid, initial, list, onPick }: { sid: string | null; initial: Ta
     },
   })
   const busy = status === 'submitted' || status === 'streaming'
+  // 머리의 제목: 저장된 제목, 아직 목록에 없으면(방금 연 새 대화) 첫 말
+  const title = list.find((x) => x.id === session.current)?.title || messages.find((m) => m.role === 'user')?.parts.map((p) => (p.type === 'text' ? p.text : '')).join('').slice(0, 40)
 
   const send = async (value: string) => {
     if (busy || !value.trim()) return
@@ -131,7 +154,9 @@ function Panel({ sid, initial, list, onPick }: { sid: string | null; initial: Ta
       }
     }
     setKept(null)
-    sendMessage({ text: value.trim(), files: file ? pick.current?.files ?? undefined : undefined })
+    const used: Ctx[] = [...(now ? [now] : []), ...pinned].map((t) => ({ ...t, name: named[key(t)] ?? t.id }))
+    const files = file ? (() => { const d = new DataTransfer(); d.items.add(file); return d.files })() : undefined
+    sendMessage({ text: value.trim(), files, metadata: { ctx: used } })
     setText('')
     setFile(null)
     setTooBig(false)
@@ -210,25 +235,50 @@ function Panel({ sid, initial, list, onPick }: { sid: string | null; initial: Ta
               onSubmit={send}
               density="balanced"
               placeholder={L.대화}
-              input={<ChatComposerInput label={L.대화} placeholder={L.대화} maxRows={4} />}
+              input={
+                <ChatComposerInput
+                  handleRef={input}
+                  label={L.대화}
+                  placeholder={L.대화}
+                  maxRows={4}
+                  // `@`: 문맥 밖의 기록을 이름으로 찾아 문맥 카드로 붙인다(입력에는 남기지 않는다)
+                  triggers={[
+                    {
+                      character: '@',
+                      searchSource: records,
+                      onSelect: (item) => {
+                        const c = item.auxiliaryData as Ctx
+                        setNamed((n) => ({ ...n, [key(c)]: c.name }))
+                        setPinned((p) => (p.some((x) => same(x, c)) ? p : [...p, { kind: c.kind, id: c.id }].slice(-5)))
+                        return ''
+                      },
+                    },
+                  ]}
+                  onFiles={(fs) => choose(fs[0] ?? null)}
+                />
+              }
               drawer={
-                <ChatComposerDrawer label={L.문맥}>
-                  <HStack gap={1} vAlign="center" wrap="wrap">
-                    {now && <Token label={shown(now)} size="sm" onClick={() => setFollow(false)} />}
-                    {pinned.map((t) => (
-                      <Token key={key(t)} label={shown(t)} size="sm" onRemove={() => setPinned(pinned.filter((p) => !same(p, t)))} />
-                    ))}
-                    {!follow && target && <Token label={shown(target)} size="sm" color="gray" onClick={() => setFollow(true)} />}
-                    {file && <Token label={file.name} size="sm" onRemove={() => { setFile(null); if (pick.current) pick.current.value = '' }} />}
-                    {!now && !pinned.length && !file && <Text type="supporting">{L.문맥} {L.없음}</Text>}
-                  </HStack>
-                </ChatComposerDrawer>
+                // 문맥은 입력창 안의 카드다: 지금 연 기록(자동, 빼면 이 대화에서 빠진다) · `@`로 붙인 기록 · 올릴 서류. 아무것도 없으면 칸을 두지 않는다
+                (now || pinned.length > 0 || file) && (
+                  <ChatComposerDrawer label={L.문맥}>
+                    <HStack gap={1} vAlign="center" wrap="wrap">
+                      {[...(now ? [now] : []), ...pinned].map((t) => (
+                        <Token key={key(t)} icon={kindIcon(t.kind)} label={named[key(t)] ?? t.id} size="md" onRemove={() => (now && same(t, now) ? setFollow(false) : setPinned(pinned.filter((p) => !same(p, t))))} />
+                      ))}
+                      {file && <Token icon={<Icon icon={DocumentTextIcon} size="sm" />} label={file.name} size="md" onRemove={() => choose(null)} />}
+                    </HStack>
+                  </ChatComposerDrawer>
+                )
               }
               headerActions={
-                <>
-                  <Button label={L.붙임} variant="ghost" size="sm" isIconOnly icon={<Icon icon={PaperClipIcon} size="sm" />} isDisabled={!target || pinned.some((p) => same(p, target))} onClick={() => target && setPinned([...pinned, target].slice(-5))} />
-                  <Button label={L.서류} variant="ghost" size="sm" isIconOnly icon={<Icon icon={DocumentArrowUpIcon} size="sm" />} isDisabled={busy} onClick={() => pick.current?.click()} />
-                </>
+                // `+`: 아이콘 + 명사, 오른쪽에 단축·형식(보조). 기록은 입력에 @를 넣어 찾기를 연다
+                <DropdownMenu
+                  button={{ label: L.붙임, isIconOnly: true, variant: 'ghost', size: 'sm', icon: <Icon icon={PlusIcon} size="sm" /> }}
+                  items={[
+                    { label: L.기록, icon: AtSymbolIcon, endContent: <Kbd keys="@" />, onClick: () => input.current?.insertText('@') },
+                    { label: L.서류, icon: DocumentTextIcon, endContent: <Text type="supporting" color="secondary">PNG · JPEG · PDF</Text>, onClick: () => pick.current?.click() },
+                  ]}
+                />
               }
               footerActions={<IconButton label={L.보고} tooltip={L.보고} variant="ghost" size="sm" icon={<Icon icon={DocumentCheckIcon} size="sm" />} isDisabled={busy || keeping || !answered || !signal} onClick={keep} />}
             />
@@ -281,7 +331,15 @@ function Panel({ sid, initial, list, onPick }: { sid: string | null; initial: Ta
                     )
                   }
                 >
-                  {m.parts.map((p) => (p.type === 'file' ? <Token key={p.url.slice(-40) + p.filename} label={p.filename ?? L.서류} size="sm" /> : null))}
+                  {/* 보낸 말에 붙었던 문맥과 서류(카드 그대로 남는다) */}
+                  {!ai && (m.metadata?.ctx?.length || m.parts.some((p) => p.type === 'file')) ? (
+                    <HStack gap={1} wrap="wrap" hAlign="end">
+                      {m.metadata?.ctx?.map((c) => (
+                        <Token key={key(c)} icon={kindIcon(c.kind)} label={c.name} size="sm" onClick={() => store.set(targetAtom, { kind: c.kind, id: c.id })} />
+                      ))}
+                      {m.parts.map((p) => (p.type === 'file' ? <Token key={p.url.slice(-40) + p.filename} icon={<Icon icon={DocumentTextIcon} size="sm" />} label={p.filename ?? L.서류} size="sm" /> : null))}
+                    </HStack>
+                  ) : null}
                   {body && (
                     <ChatMessageBubble variant={ai ? 'ghost' : undefined}>
                       <Text className="break-keep wrap-anywhere whitespace-pre-wrap">{body}</Text>
@@ -315,11 +373,8 @@ function Panel({ sid, initial, list, onPick }: { sid: string | null; initial: Ta
         </VStack>
         <input ref={pick} type="file" hidden aria-label={L.서류} accept="image/png,image/jpeg,application/pdf" onChange={(e) => {
             // 19의 한도(2MB, 이미지·PDF)를 넘으면 붙이지 않는다
-            const f = e.target.files?.[0] ?? null
-            const ok = !f || (f.size <= 2 * 1024 * 1024 && ['image/png', 'image/jpeg', 'application/pdf'].includes(f.type))
-            setTooBig(!ok)
-            setFile(ok ? f : null)
-            if (!ok) e.target.value = ''
+            choose(e.target.files?.[0] ?? null)
+            e.target.value = ''
           }} />
         </LayoutContent>
       }
@@ -338,20 +393,24 @@ export function Chat() {
 }
 
 function For({ target }: { target: Target | null }) {
-  // 고른 대화: undefined = 기본(이어 하기), '' = 새 대화, 그 밖 = 그 대화. 고를 때마다 칸을 새로 그린다(n)
-  const [pick, setPick] = useState<{ id?: string; n: number }>({ n: 0 })
+  // 연 대화: 처음 한 번만 기본값(이어 하기)으로 정하고, 그 뒤에는 사람이 고를 때만 바뀐다 — 첫 말로 새 대화가 생겨 목록이 바뀌어도 칸을 다시 그리지 않는다(답이 끊기지 않게)
+  const [open, setOpen] = useState<{ sid: string | null; n: number } | null>(null)
+  const all = useData<{ sessions: Sess[] }>(`/chat/sessions?n=${open?.n ?? 0}`)
+  const of = useData<{ sessions: Sess[] }>(target ? `/chat/sessions?of=${encodeURIComponent(key(target))}` : null)
+  const pick = (id: string) => setOpen((o) => ({ sid: id || null, n: (o?.n ?? 0) + 1 }))
   // 보조 칸의 대화 목록에서 고른 대화를 연다
   const talk = useAtomValue(talkAtom)
   const [seen, setSeen] = useState(talk?.n)
   if (talk && talk.n !== seen) {
     setSeen(talk.n)
-    setPick((p) => ({ id: talk.id, n: p.n + 1 }))
+    pick(talk.id)
   }
-  const all = useData<{ sessions: Sess[] }>(`/chat/sessions?n=${pick.n}`)
-  const of = useData<{ sessions: Sess[] }>(target ? `/chat/sessions?of=${encodeURIComponent(key(target))}` : null)
   if (!all || (target && !of)) return null
-  const start = pick.id !== undefined ? pick.id || null : ((target ? of!.sessions : all.sessions)[0]?.id ?? null)
-  return <Load key={`${pick.n}/${start ?? ''}`} sid={start} list={all.sessions} onPick={(id) => setPick((p) => ({ id, n: p.n + 1 }))} />
+  if (!open) {
+    setOpen({ sid: (target ? of!.sessions : all.sessions)[0]?.id ?? null, n: 0 })
+    return null
+  }
+  return <Load key={open.n} sid={open.sid} list={all.sessions} onPick={pick} />
 }
 
 function Load({ sid, list, onPick }: { sid: string | null; list: Sess[]; onPick: (id: string) => void }) {

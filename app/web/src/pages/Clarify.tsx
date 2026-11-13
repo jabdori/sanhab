@@ -58,6 +58,14 @@ export function Clarify() {
         </HStack>
       }
       bad={bad?.id === c.id ? bad.word : null}
+      // 보조 칸의 요약: 상태 · 대리점 · 정황 · 발송 · 기한(가정 D32)
+      props={[
+        [L.상태, c.state],
+        [L.대리점, c.dealer.name],
+        ...(c.signal ? [[L.정황, c.signal.name] as [string, string]] : []),
+        [L.발송, d.sent ?? L.없음],
+        [L.기한, d.due ? <HStack gap={2} vAlign="center"><Text>{d.due}</Text><Source kind={L.가정} of={L.기한} rows={[[L.발송, d.sent ?? L.없음], [L.기한, d.due]]} /></HStack> : L.없음],
+      ]}
       tabs={[
         {
           value: 'body',
@@ -70,7 +78,6 @@ export function Clarify() {
                   { name: L.서류, value: d.docs.length },
                   { name: L.접수, value: docs?.docs.length ?? 0 },
                   // 기한(발송일 아래). 기한의 길이는 가정(D32). 발송 전에는 기한이 없으니 타일도 없다
-                  ...(d.due ? [{ name: L.기한, value: d.due, below: d.sent && <Text type="supporting" color="secondary">{`${L.발송} ${d.sent}`}</Text>, aside: <Source kind={L.가정} of={L.기한} rows={[[L.발송, d.sent ?? L.없음], [L.기한, d.due]]} /> }] : []),
                   ...(read
                     ? [
                         { name: L.누락, value: docs?.docs.at(-1)?.counts[L.누락] ?? 0, aside: <Source kind={L.계산} tip={L.누락} rows={[[L.누락, docs?.docs.at(-1)?.counts[L.누락] ?? 0]]} /> },

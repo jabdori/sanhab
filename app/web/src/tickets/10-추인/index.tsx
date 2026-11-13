@@ -83,19 +83,8 @@ export function RatifyTiles() {
             />
           ),
         },
-        { name: L.한도, value: num(r.limit), below: over && <Badge variant={fail} label={`+${num(r.total - r.limit)}`} /> },
-        {
-          name: L.승인권자,
-          value: (
-            <HStack gap={2} vAlign="center">
-              <Icon icon={UserIcon} size="sm" color="secondary" />
-              <Text type="large" weight="semibold">
-                {r.approver}
-              </Text>
-            </HStack>
-          ),
-          aside: <Source kind={L.계산} tip={L.승인권자} rows={[[L.승인권자, L['한도 이하 영업지원, 초과 영업임원']]]} />,
-        },
+        // 넘친 금액은 보조 글자로(합산 막대가 이미 빨갛다)
+        { name: L.한도, value: num(r.limit), below: over && <Text type="supporting" color="secondary" hasTabularNumbers>{`+${num(r.total - r.limit)}`}</Text> },
       ]}
     />
   )

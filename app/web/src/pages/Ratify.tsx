@@ -23,6 +23,11 @@ export function Ratify() {
         <Meta icon={BuildingStorefrontIcon}>{`${b.members.length}${L.곳}`}</Meta>,
       ]}
       actions={<RatifyActions onBad={setBad} />}
+      props={[
+        [L.승인권자, r.approver],
+        [L.귀속월, r.ym],
+        [L.구성, b.members.map((m) => m.name).join(' · ')],
+      ]}
       bad={bad}
       tabs={[
         {

@@ -5,45 +5,64 @@ import { Link } from '@astryxdesign/core/Link'
 import { Text } from '@astryxdesign/core/Text'
 import { useSetAtom } from 'jotai'
 import { L } from '../../labels'
-import { api, changedAtom, store, targetAtom } from '../../state'
+import { api, changedAtom, store, targetAtom, useData } from '../../state'
+import { ProgressBar } from '@astryxdesign/core/ProgressBar'
+import { Table } from '@astryxdesign/core/Table'
+import { Region } from '../../ui/Region'
+import type { Review } from '../04-심사/review'
 import { Empty } from '../../ui/Empty'
 import { Act } from '../../ui/Record'
 import { Source } from '../../ui/Source'
 import { Tiles } from '../../ui/Record'
-import { num } from '../../ui/status'
+import { meter, num } from '../../ui/status'
 import { usePay } from './pay'
 
 /** 판단의 재료 타일: 금액(원본이라 행 번호 표지) · 계좌 · 이 지급을 승인한 심사(누르면 그 심사가 열린다) */
 export function PayTiles() {
   const p = usePay()
-  const setTarget = useSetAtom(targetAtom)
+  const r = useData<Review>(p ? `/reviews/${p.pay.review.id}` : null)?.review
   if (!p) return null
   const { pay } = p
+  const over = !!r?.limit && r.total > r.limit
+  // 지표만: 이 지급의 금액, 이 지급을 승인한 심사의 합산(한도 대비 막대)과 한도. 계좌 · 심사 같은 글은 보조 칸의 요약으로
   return (
     <Tiles
       items={[
         { name: L.금액, value: num(pay.amount), aside: <Source kind={pay.source} file={pay.file} row={pay.row} /> },
-        {
-          name: L.계좌,
-          value: p.accounts.length ? (
-            <Text type="large" weight="semibold" hasTabularNumbers>
-              {p.accounts.map((a) => a.value).join(' · ')}
-            </Text>
-          ) : (
-            <Empty />
-          ),
-        },
-        {
-          name: L.심사,
-          value: (
-            // 다른 타일의 값과 같은 크기(large)로. 누르면 그 심사가 열린다
-            <Link type="large" weight="semibold" onClick={() => setTarget({ kind: L.심사, id: pay.review.id })}>
-              {pay.review.name}
-            </Link>
-          ),
-        },
+        ...(r
+          ? [
+              {
+                name: L.합산,
+                value: num(r.total),
+                below: r.limit ? <ProgressBar label={L.한도} isLabelHidden value={Math.min(r.total, r.limit)} max={r.limit} variant={meter(over)} hasValueLabel formatValueLabel={() => `${Math.round((r.total / r.limit!) * 100)}%`} /> : undefined,
+              },
+              { name: L.한도, value: r.limit === null ? L.미상 : num(r.limit) },
+            ]
+          : []),
       ]}
     />
+  )
+}
+
+/** 구성: 이 지급을 승인한 심사에 묶인 대리점과 금액 — 지급이 어느 묶음의 돈인지(이 대리점이 굵게) */
+export function PayGroup() {
+  const p = usePay()
+  const r = useData<Review>(p ? `/reviews/${p.pay.review.id}` : null)
+  const setTarget = useSetAtom(targetAtom)
+  if (!p || !r) return null
+  const rows = r.members.map((m) => ({ id: m.id, name: m.name, amount: m.pays.reduce((n, x) => n + x.amount, 0), self: m.id === p.pay.dealer }))
+  return (
+    <Region title={L.구성} aside={<Link type="supporting" onClick={() => setTarget({ kind: L.심사, id: r.review.id })}>{`${r.review.name} · ${r.review.ym}`}</Link>}>
+      <Table<(typeof rows)[number]>
+        data={rows}
+        idKey="id"
+        density="balanced"
+        columns={[
+          { key: 'name', header: L.대리점, renderCell: (x) => <Text weight={x.self ? 'semibold' : 'normal'}>{x.name}</Text> },
+          { key: 'amount', header: L.금액, align: 'end', renderCell: (x) => <Text weight={x.self ? 'semibold' : 'normal'} hasTabularNumbers>{num(x.amount)}</Text> },
+        ]}
+      />
+    </Region>
   )
 }
 

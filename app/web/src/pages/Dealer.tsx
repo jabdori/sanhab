@@ -56,6 +56,11 @@ export function Dealer() {
         <HStack gap={1}><Source kind={v.source} file={v.file} row={v.row} /></HStack>,
       ]}
       actions={<Change onBad={setBad} />}
+      // 보조 칸의 요약: 지금 유효한 등록값(대표자 · 주소 · 계좌)과 그룹
+      props={[
+        ...[L.대표자, L.주소, L.계좌].map((k): [string, string] => [k, d.registered.filter((x) => x.item === k && !x.until).map((x) => x.value).join(' · ') || L.없음]),
+        ...(rel && rel.group.length > 1 ? [[L.그룹, rel.group.map((g) => g.name).join(' · ')] as [string, string]] : []),
+      ]}
       bad={bad}
       tabs={[
         {

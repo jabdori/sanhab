@@ -259,8 +259,27 @@ pub fn routes() -> Router<Arc<Db>> {
         .route("/chat", post(chat).layer(axum::extract::DefaultBodyLimit::max(8 * 1024 * 1024)))
         .route("/chat/report", post(keep))
         .route("/chat/names", get(names))
+        .route("/chat/find", get(find))
         .route("/chat/sessions", get(sessions).post(open_session))
         .route("/chat/sessions/{id}", get(session).put(save_session).layer(axum::extract::DefaultBodyLimit::max(4 * 1024 * 1024)))
+}
+
+/// `@`로 붙일 기록 찾기: `?q=` → `{ items: [{ kind, id, name }] }`(대리점 · 심사 · 정황 · 소명 · 추인 · 조항, 이름이나 id에 q가 든 것, 종류마다 몇 개).
+/// 그 사람의 세션으로 읽는다(볼 수 있는 기록만). q가 비면 종류마다 두 개(처음 펼친 목록)
+async fn find(Extension(me): Extension<Me>, Query(q): Query<HashMap<String, String>>) -> R {
+    let q = q.get("q").map(|s| s.trim().to_lowercase()).unwrap_or_default().chars().take(40).collect::<String>();
+    let n = if q.is_empty() { 2 } else { 5 };
+    let pick = |kind: &str, tb: &str, name: &str| format!("(SELECT '{kind}' AS kind, <string> record::id(id) AS id, {name} AS name FROM {tb} WHERE string::contains(string::lowercase({name} + ' ' + <string> record::id(id)), $q) LIMIT {n})");
+    let parts = [
+        pick("대리점", "dealer", "name"),
+        pick("심사", "review", "name + ' · ' + ym"),
+        pick("정황", "signal", "name"),
+        pick("소명", "clarify", "name"),
+        pick("추인", "ratify", "name + ' · ' + ym"),
+        pick("규정", "clause", "title"),
+    ];
+    let items = q1(&me.db, &format!("RETURN array::flatten([{}]);", parts.join(", ")), json!({ "q": q })).await?;
+    Ok(Json(json!({ "items": items })))
 }
 
 // ---- 대화 세션(D61): 그래프의 노드 `session`과 선 `about`(대화 → 다룬 기록: 문맥·붙임) · `reads`(대화 → AI가 읽은 기록).
