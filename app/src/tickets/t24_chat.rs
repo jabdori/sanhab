@@ -284,7 +284,16 @@ async fn sessions(Extension(me): Extension<Me>, State(db): State<Arc<Db>>, Query
         None => None,
     };
     let filter = if of.is_some() { "AND type::record($of) INSIDE ->about->?" } else { "" };
-    let list = q1(&db, &format!("SELECT {SESSION}, <datetime> updated AS at FROM session WHERE role = $role {filter} ORDER BY at DESC LIMIT 100;"), json!({ "role": me.role, "of": of })).await?;
+    let mut list = q1(&db, &format!("SELECT {SESSION}, <datetime> updated AS at FROM session WHERE role = $role {filter} ORDER BY at DESC LIMIT 100;"), json!({ "role": me.role, "of": of })).await?;
+    // 다룬 기록의 이름(제목 줄과 같은 이름)을 붙인다 — 목록에서 어느 기록의 대화인지 보이게
+    if let Some(rows) = list.as_array_mut() {
+        let recs: Vec<Option<Rec>> = rows.iter().map(|r| rec(&r["target"])).collect();
+        let known: Vec<Rec> = recs.iter().flatten().cloned().collect();
+        let mut names = names_of(&db, &known).await.unwrap_or_default().into_iter();
+        for (row, r) in rows.iter_mut().zip(&recs) {
+            row["name"] = if r.is_some() { names.next().flatten().map_or(J::Null, J::String) } else { J::Null };
+        }
+    }
     Ok(Json(json!({ "sessions": list })))
 }
 

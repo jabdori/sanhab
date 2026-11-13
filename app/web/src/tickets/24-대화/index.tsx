@@ -19,8 +19,9 @@ import { Section } from '@astryxdesign/core/Section'
 import { Token } from '@astryxdesign/core/Token'
 import { DefaultChatTransport, type UIMessage } from 'ai'
 import { useAtomValue } from 'jotai'
-import { Selector } from '@astryxdesign/core/Selector'
-import { PlusIcon } from '@heroicons/react/24/outline'
+import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog'
+import { IconButton } from '@astryxdesign/core/IconButton'
+import { ClockIcon, DocumentCheckIcon, PencilSquareIcon } from '@heroicons/react/24/outline'
 import { useEffect, useRef, useState } from 'react'
 import { ASK, L } from '../../labels'
 import { State } from '../../ui/Mark'
@@ -48,7 +49,7 @@ const word = (e: Error) => {
 const Mark = ({ word }: { word: string }) => <Badge variant={word === L.대기 ? 'neutral' : fail} label={word} />
 
 /** 대화 목록의 한 줄(서버 `/chat/sessions`) */
-type Sess = { id: string; title: string; target: Target | null; updated: string }
+type Sess = { id: string; title: string; target: Target | null; name: string | null; updated: string }
 
 /** 저장할 말: 파일 파트(data URL)는 빼고 */
 const lean = (ms: Talk[]) => ms.map((m) => ({ ...m, parts: m.parts.filter((p) => p.type !== 'file') }))
@@ -57,6 +58,8 @@ function Panel({ sid, initial, list, onPick }: { sid: string | null; initial: Ta
   const target = useAtomValue(targetAtom)
   // 이 대화의 id: 새 대화면 첫 말을 보낼 때 서버에 만든다(만든 뒤에도 칸은 그대로 — 다시 그리지 않는다)
   const session = useRef<string | null>(sid)
+  const [history, setHistory] = useState(false)
+  const title = list.find((x) => x.id === session.current)?.title
   const [follow, setFollow] = useState(true)
   const [pinned, setPinned] = useState<Target[]>([])
   const [text, setText] = useState('')
@@ -155,28 +158,43 @@ function Panel({ sid, initial, list, onPick }: { sid: string | null; initial: Ta
       height="fill"
       header={
         <LayoutHeader hasDivider>
-          <VStack gap={2}>
-            <HStack gap={2} vAlign="center">
-              <Icon icon={SparklesIcon} size="sm" color="accent" />
-              <Heading level={3}>{L.대화}</Heading>
-            </HStack>
-            {/* 지난 대화를 고르거나 새 대화를 연다(대화는 저장된다 — D61) */}
-            <HStack gap={2} vAlign="center">
-              <StackItem size="fill">
-                <Selector
-                  label={L.대화}
-                  isLabelHidden
-                  size="sm"
-                  width="100%"
-                  value={session.current ?? ''}
-                  placeholder={`${L.새} ${L.대화}`}
-                  options={list.map((x) => ({ value: x.id, label: x.title || L.대화, description: x.updated }))}
-                  onChange={onPick}
-                />
-              </StackItem>
-              <Button label={`${L.새} ${L.대화}`} size="sm" variant="secondary" icon={<Icon icon={PlusIcon} size="sm" />} onClick={() => onPick('')} />
-            </HStack>
-          </VStack>
+          {/* 머리: 대화 · 지금 대화의 제목 / 아이콘 단추 — 지난 대화(히스토리 → 목록 창), 새 대화 */}
+          <HStack gap={2} vAlign="center">
+            <Icon icon={SparklesIcon} size="sm" color="accent" />
+            <StackItem size="fill">
+              <VStack gap={0}>
+                <Heading level={3}>{L.대화}</Heading>
+                {title && (
+                  <Text type="supporting" color="secondary" maxLines={1}>
+                    {title}
+                  </Text>
+                )}
+              </VStack>
+            </StackItem>
+            <IconButton label={`${L.대화} ${L.목록}`} tooltip={`${L.대화} ${L.목록}`} variant="ghost" size="sm" icon={<Icon icon={ClockIcon} size="sm" />} onClick={() => setHistory(true)} />
+            <IconButton label={`${L.새} ${L.대화}`} tooltip={`${L.새} ${L.대화}`} variant="ghost" size="sm" icon={<Icon icon={PencilSquareIcon} size="sm" />} onClick={() => onPick('')} />
+          </HStack>
+          <Dialog isOpen={history} onOpenChange={setHistory} width={480}>
+            <DialogHeader title={`${L.대화} ${L.목록}`} onOpenChange={setHistory} />
+            {list.length ? (
+              <List hasDividers>
+                {list.map((x) => (
+                  <ListItem
+                    key={x.id}
+                    label={x.title || L.대화}
+                    description={[x.name, x.updated].filter(Boolean).join(' · ')}
+                    isSelected={x.id === session.current}
+                    onClick={() => {
+                      setHistory(false)
+                      onPick(x.id)
+                    }}
+                  />
+                ))}
+              </List>
+            ) : (
+              <EmptyState title={`${L.대화} ${L.없음}`} isCompact />
+            )}
+          </Dialog>
         </LayoutHeader>
       }
       content={
@@ -212,7 +230,7 @@ function Panel({ sid, initial, list, onPick }: { sid: string | null; initial: Ta
                   <Button label={L.서류} variant="ghost" size="sm" isIconOnly icon={<Icon icon={DocumentArrowUpIcon} size="sm" />} isDisabled={busy} onClick={() => pick.current?.click()} />
                 </>
               }
-              footerActions={<Button label={L.보고} variant="ghost" size="sm" isDisabled={busy || keeping || !answered || !signal} onClick={keep} />}
+              footerActions={<IconButton label={L.보고} tooltip={L.보고} variant="ghost" size="sm" icon={<Icon icon={DocumentCheckIcon} size="sm" />} isDisabled={busy || keeping || !answered || !signal} onClick={keep} />}
             />
           }
           emptyState={
