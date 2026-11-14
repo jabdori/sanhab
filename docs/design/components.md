@@ -78,6 +78,7 @@
 | 기록 | detail-page | 머리 왼쪽 위에 목록 펴기 · n/전체 · 앞 뒤 | 이전 합의(목록 사이드바, 앞 · 뒤) |
 | 기록 | detail-page | 숫자 묶음은 제목 없는 Section + MetadataList | 템플릿에 없는 지표(합산 · 한도 …)를 InvoiceCard 꼴로 |
 | 정황 · 소명 | work-item-detail | detail-page 틀을 같이 쓴다 | 모든 기록을 한 틀로(2026-11-14 합의) |
+| 규정 | documentation-design | detail-page 틀을 같이 쓴다(모의 단추 · 내용/가정 탭 · 요약 칸) | 모든 기록을 한 틀로(2026-11-14 합의) |
 | 대화 | ai-chat · ai-chat-landing | 입력창 위 문맥 칸(ChatComposerDrawer: 연 기록 · @로 붙인 기록 · 서류) | 문맥 카드(이전 합의). 같은 부품을 ai-chat-landing이 첨부 칸으로 쓴다 |
 | 대화 | ai-chat | `@`는 단추 하나(입력에 @를 넣어 찾기를 연다), 모드 · 설정 메뉴와 받아쓰기 단추 없음 | 대화 열의 기준은 ai-chat(Mention 단추 하나). 모드 · 설정 · 받아쓰기는 우리에게 없는 기능 |
 | 빈 대화 | ai-chat-landing | 제목 display-3, 카드 Grid 최소 폭 200, 바깥은 Section | 대화 칸 폭(360) |
