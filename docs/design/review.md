@@ -25,11 +25,12 @@
 
 ## 준비
 - 문서: `tokens.md`, `components.md`, `copy.md`, `sources.md`, `docs/user-scenarios.md`
-- 템플릿 렌더: components.md "화면 ↔ 템플릿"의 템플릿을 받아 neutral 테마로 1440 × 900에 띄워 찍는다(`astryx template <id> --type page <임시 경로>`; StyleX 템플릿은 임시 vite 설정에 `@stylexjs/babel-plugin`을 걸어 띄운다. 앱 코드에는 들이지 않는다).
+- 템플릿 렌더: components.md "화면 ↔ 템플릿"의 템플릿을 받아 neutral 테마로 1440 × 900에 띄워 찍는다(`astryx template <id> <임시 경로>`).
 - 앱: 로컬 주소, 접속 패스워드. 검사 전에 시연 서랍의 초기화로 출발 상태를 만든다.
 - 브라우저는 agent-browser를 **headless**로만 쓴다.
 
-## 3. 템플릿과 나란히 (화면마다)
+## 3. 템플릿과 나란히 (화면마다 — 바뀐 화면은 판정 때마다 반드시)
+화면은 템플릿 코드에서 출발한다(components.md). 화면마다 **템플릿 코드와 우리 코드의 차이 목록**(부품 · 구조 · 스타일)을 만들어 components.md의 "템플릿에서 벗어난 곳"과 대조한다. 목록에 없는 차이는 어김. 이 절의 나란히 이미지와 차이 목록이 빠진 판정은 막힘(판정이 끝나지 않은 것으로 본다).
 화면마다 `템플릿 | 우리` 한 장의 나란히 이미지를 만든다(같은 폭 1440). 흐리게 한 이미지(squint)도 한 장.
 - 면: 흰 면 하나인가. 회색 면이 묶음 머리 밖에 있는가
 - 경계: 영역이 Section · Divider · 표의 줄로 나뉘는가. 영역마다 Card가 있는가(Card soup — 막힘)

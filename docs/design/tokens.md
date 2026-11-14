@@ -41,7 +41,7 @@
 - 위계는 부품으로 만든다: 화면 제목 `Heading 1`, 영역 제목 `Heading 2`(`ui/Region` = `Section` + 위 구분선), 보조는 `Text type="supporting"`·`color="secondary"`.
 - 날짜는 `YYYY-MM-DD` 글자 한 꼴(고정폭 숫자). 금액은 오른쪽 정렬 · 천 단위 쉼표 · "원" 없음.
 - 레이아웃은 `Layout`·`LayoutHeader`·`LayoutContent`·`LayoutPanel`과 `VStack`·`HStack`·`Grid`·`Section`·`Divider`. raw `div`·`span`으로 짜지 않는다.
-- `#색`, 숫자가 든 직접 값(`w-[360px]`), `style=`은 `npm run lint`가 막는다. 구조의 폭(대화 칸 380, 접속 카드 360)은 부품 props의 숫자로 둔다(astryx scaffold: 구조의 폭만 px).
+- `#색`, 숫자가 든 직접 값(`w-[360px]`), `style=`은 `npm run lint`가 막는다. 예외: 템플릿에서 온 파일(첫 줄 `// astryx template: <id>`)은 템플릿의 스타일을 그대로 쓴다(components.md). 구조의 폭(대화 칸 380, 접속 카드 360)은 부품 props의 숫자로 둔다(astryx scaffold: 구조의 폭만 px).
 - 비활성 · 표 여백 · 빈 영역은 astryx 부품의 기본 동작 그대로다. CSS로 덮지 않는다.
 
 ## 자리의 폭 (기준 1440 × 900, 최소 1280)

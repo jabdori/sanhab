@@ -11,12 +11,15 @@ const CARD_OK = ['ui/Record.tsx', 'Enter.tsx', 'tickets/25-카드/index.tsx', 't
 const bad = []
 for (const f of readdirSync('src', { recursive: true })) {
   if (!/\.tsx?$/.test(f) || f === 'labels.ts') continue
-  const code = readFileSync(`src/${f}`, 'utf8').replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, '')).replace(/\/\/.*$/gm, '')
+  const raw = readFileSync(`src/${f}`, 'utf8')
+  // 템플릿에서 온 파일(첫 줄 `// astryx template: <id>`)은 템플릿의 스타일(style= · 직접 값)을 그대로 쓴다(components.md)
+  const fromTemplate = raw.startsWith('// astryx template:')
+  const code = raw.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, '')).replace(/\/\/.*$/gm, '')
   code.split('\n').forEach((line, i) => {
     // 다른 티켓의 폴더에서 가져오는 경로(from '../04-심사/review')는 낱말이 아니다
     const rest = line.replace(/\bL\.[가-힣A-Za-z0-9_]+|\bL\['[^']+'\]|\bfrom '\.[^']+'/g, '')
     if (/[가-힣]/.test(rest)) bad.push(`src/${f}:${i + 1} 낱말은 labels.ts에 두고 L.낱말로 쓴다`)
-    if (/#[0-9a-fA-F]{3,8}\b|[a-z]-\[[^\]]*[0-9#]|style=\{/.test(rest)) bad.push(`src/${f}:${i + 1} 색·크기는 theme.css의 이름만 쓴다`)
+    if (!fromTemplate && /#[0-9a-fA-F]{3,8}\b|[a-z]-\[[^\]]*[0-9#]|style=\{/.test(rest)) bad.push(`src/${f}:${i + 1} 색·크기는 theme.css의 이름만 쓴다`)
     if (f !== 'ui/status.ts' && COLOR.test(rest)) bad.push(`src/${f}:${i + 1} 색 이름은 ui/status.ts에서만 쓴다(tokens.md 색 표)`)
     if (!['ui/status.ts', 'ui/Mark.tsx'].includes(f) && /\bbadge\(/.test(rest)) bad.push(`src/${f}:${i + 1} 상태 표지는 ui/Mark의 State로(기본 상태는 그리지 않는다, tokens.md)`)
     if (/<Banner\b/.test(rest)) bad.push(`src/${f}:${i + 1} 상세 머리에 경고 띠를 두지 않는다(tokens.md — 칩 ⚑정황과 확인 창의 사유로)`)
