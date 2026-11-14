@@ -333,7 +333,7 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(ids("대사").await? == json!(["대사-D-001"]) && d["signal"]["name"] == "대사 · 대성상사1" && d["signal"]["state"] == "접수" && d["signal"]["source"] == "계산" && rows(&d["actions"]).len() == 2, "대사 정황 {}", d["signal"]);
     let e = &d["evidence"][0];
     ensure!(rows(&d["evidence"]).len() == 1 && e["item"] == "대사" && e["dealer"]["name"] == "대성상사1" && e["ym"] == "2026-06" && e["value"] == "금액" && e["source"] == "계산"
-        && e["want"] == json!({ "amount": 988_932, "accounts": [own] }) && e["got"] == json!({ "amount": 900_000, "account": own, "owner": "대성상사1" }), "대사 정황의 근거 {e}");
+        && e["want"] == json!({ "amount": 988_932, "accounts": [own] }) && e["got"] == json!({ "amount": 900_000, "account": own, "owner": "대성상사1", "owner_then": "대성상사1" }), "대사 정황의 근거 {e}");
     ensure!(mine(&c.get(audit, "/api/tasks").await?).iter().filter(|m| m["target"] == "대사-D-001").count() == 1, "대사 정황의 작업");
     // 일치하는 회신은 정황이 아니다
     let pay = "RB-00168";

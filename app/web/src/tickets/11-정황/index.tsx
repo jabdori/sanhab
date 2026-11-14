@@ -89,7 +89,7 @@ export function Evidence() {
                   <VStack gap={0.5}>
                     <Text hasTabularNumbers>{[e.value, e.got.amount !== e.want.amount ? `${L.차액} ${num(e.got.amount - e.want.amount)}` : null].filter(Boolean).join(' · ')}</Text>
                     <Text type="supporting" color="secondary" hasTabularNumbers>
-                      {`${L.회신} ${e.got.account} · ${e.got.owner || L['등록 없음']}`}
+                      {`${L.회신} ${e.got.account} · ${e.got.owner_then || L['등록 없음']}${e.got.owner_then !== e.got.owner ? ` (${L.현재} ${e.got.owner || L['등록 없음']})` : ''}`}
                     </Text>
                   </VStack>
                 ) : (

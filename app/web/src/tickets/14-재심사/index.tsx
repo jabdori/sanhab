@@ -13,7 +13,7 @@ import { usePay } from '../07-지급/pay'
 type Redo = {
   redo: {
     payout: string
-    was: { id: string; name: string }
+    was: { id: string; name: string; approver?: string; at?: string | null }
     cause: { role: string; at: string; item: string; value: string; since: string; dealer: string } | null
     at: string
     back: { id: string; name: string } | null
@@ -42,7 +42,13 @@ export function Why() {
             </VStack>
           </MetadataListItem>
         )}
-        <MetadataListItem label={L.승인}>{open(was)}</MetadataListItem>
+        {/* 앞선 승인: 누가 · 언제, 그 심사(누르면 열린다) */}
+        <MetadataListItem label={L.승인}>
+          <VStack gap={0.5}>
+            <Text hasTabularNumbers>{[was.approver, was.at].filter(Boolean).join(' · ')}</Text>
+            {open(was)}
+          </VStack>
+        </MetadataListItem>
         {(back ?? now) && <MetadataListItem label={L.심사}>{open((back ?? now)!)}</MetadataListItem>}
       </MetadataList>
     </Region>

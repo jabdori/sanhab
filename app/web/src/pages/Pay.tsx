@@ -39,7 +39,8 @@ export function Pay() {
       actions={<PayActions onBad={setBad} />}
       // 보조 칸의 요약: 상태 · 대리점 · 귀속월 · 계좌(지금 등록된 것) · 심사(누르면 열린다) · 담당
       props={[
-        [L.상태, off ? <HStack gap={2} vAlign="center"><Text>{pay.state}</Text><State word={L.불일치} /></HStack> : pay.state],
+        // 대사 불일치: 상태는 불일치 하나로(돈이 나갔다는 것은 대사 표의 회신에)
+        [L.상태, off ? <State word={L.불일치} /> : pay.state],
         [L.대리점, pay.name],
         [L.귀속월, pay.ym],
         [L.계좌, p.accounts.length ? p.accounts.map((a) => a.value).join(' · ') : L.없음],

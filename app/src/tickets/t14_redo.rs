@@ -47,7 +47,7 @@ async fn detail(Extension(me): Extension<crate::Me>, Path(id): Path<String>) -> 
         LET $r = (SELECT * FROM redo WHERE payout = type::record('payout', $id) ORDER BY stamp DESC LIMIT 1)[0];
         RETURN IF $r = NONE THEN NONE ELSE {
             payout: $id,
-            was: { id: record::id($r.was), name: $r.was.name },
+            was: { id: record::id($r.was), name: $r.was.name, approver: $r.was.approver, at: IF $r.was.fixed THEN time::format($r.was.fixed, '%Y-%m-%d') END },
             cause: IF $r.cause THEN { role: $r.cause.role, at: time::format($r.cause.at, '%Y-%m-%d'), item: $r.cause.item, value: $r.cause.value, since: time::format($r.cause.since, '%Y-%m-%d'), dealer: $r.cause.dealer.name } END,
             at: time::format($r.at, '%Y-%m-%d'),
             back: IF $r.back THEN { id: record::id($r.back), name: $r.back.name } END,
@@ -101,7 +101,7 @@ pub async fn check(c: &mut Check) -> Result<()> {
     ensure!(r["redo"]["now"]["name"].as_str().is_some_and(|n| n.starts_with("한라인상사34 외 1")), "지금 든 심사 {r}");
     let mut r = r;
     if let Some(o) = r["redo"].as_object_mut() { o.remove("now"); }
-    ensure!(r == json!({ "redo": { "payout": pay, "was": { "id": r34, "name": "한라인상사34" }, "at": "2026-07-01", "back": null,
+    ensure!(r == json!({ "redo": { "payout": pay, "was": { "id": r34, "name": "한라인상사34", "approver": support, "at": "2026-07-01" }, "at": "2026-07-01", "back": null,
         "cause": { "role": support, "at": "2026-07-01", "item": "주소", "value": addr41, "since": "2026-02-01", "dealer": "한라인상사34" } } }), "재심사의 기록 {r}");
     // 앞선 승인은 기록으로 남되 효력을 잃는다: 승인 결정과 이력은 그대로, 표시는 재심사(재검토가 아니다). 추인 묶음에 들지 않는다. 2·3월은 그대로 재검토
     let old = c.get(support, &format!("/api/reviews/{r34}")).await?;

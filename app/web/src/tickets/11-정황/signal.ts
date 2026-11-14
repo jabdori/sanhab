@@ -19,7 +19,7 @@ export type Evidence = {
   /** 대사: 맞지 않은 항목(금액 · 계좌)과 맞춰 본 값(승인)·회신의 값 */
   value?: string | null
   want?: { amount: number; accounts: string[] } | null
-  got?: { amount: number; account: string; owner?: string | null } | null
+  got?: { amount: number; account: string; owner?: string | null; owner_then?: string | null } | null
   /** 사건(변경): 인지일과 변경일과의 차이(일) */
   known?: string | null
   days?: number | null
