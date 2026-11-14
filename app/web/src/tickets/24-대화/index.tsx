@@ -351,6 +351,15 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
               const cards = m.parts.flatMap((p) => (p.type === 'data-card' ? [p.data] : []))
               const body = m.parts.map((p) => (p.type === 'text' ? p.text : '')).join('')
               const ai = m.role === 'assistant'
+              const empty = ai && !body && !steps.length && !cards.length
+              // 답이 오기 전의 빈 AI 말: 마지막이고 받는 중이면 응답 대기 줄 하나, 아니면 그리지 않는다(아바타가 둘이 되지 않게)
+              if (empty && !(busy && m === messages.at(-1))) return null
+              if (empty)
+                return (
+                  <ChatMessage key={m.id} sender="assistant" avatar={<Avatar name={L.AI} size="md" />}>
+                    <ChatToolCalls calls={[{ key: 'wait', name: L.응답, status: 'running' }]} />
+                  </ChatMessage>
+                )
               return (
                 <ChatMessage
                   key={m.id}
@@ -399,7 +408,7 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
                 </ChatMessage>
               )
             })}
-            {busy && (messages.at(-1)?.role === 'user' || !messages.at(-1)?.parts.some((p) => p.type === 'text' || p.type === 'data-step')) && (
+            {busy && messages.at(-1)?.role === 'user' && (
               <ChatMessage sender="assistant" avatar={<Avatar name={L.AI} size="md" />}>
                 <ChatToolCalls calls={[{ key: 'wait', name: L.응답, status: 'running' }]} />
               </ChatMessage>

@@ -355,7 +355,7 @@ async fn open_session(Extension(me): Extension<Me>, State(db): State<Arc<Db>>, B
     let r = q1(
         &db,
         "LET $s = (CREATE session SET role = $role, title = '', target = $t, target_name = $n, messages = [], created = time::now(), updated = time::now())[0].id;
-         IF $r != NONE { RELATE $s->about->(type::record($r)) };
+         IF $r { RELATE $s->about->(type::record($r)) };
          RETURN record::id($s);",
         json!({ "role": me.role, "t": if target.is_some() { b["target"].clone() } else { J::Null }, "r": target, "n": named }),
     )
@@ -482,6 +482,11 @@ pub async fn check(c: &Check) -> Result<()> {
     // 대화 세션(D61): 새로 → 저장 → 목록 맨 위 → 열면 말과 선이 그대로, 다른 역할에는 404 → (맨 끝에서) 다시 적재해도 남는다
     let kept: String;
     {
+        // 목록 화면(연 기록 없음)에서 시작하는 대화도 만들어진다(D67) — null도 빠진 것도
+        for body in [json!({ "target": null }), json!({})] {
+            let (code, s) = c.post(support, "/api/chat/sessions", body.clone()).await?;
+            ensure!(code == 200 && s["id"].is_string(), "기록 없는 새 대화 {body} → {code} {s}");
+        }
         let (code, s) = c.post(support, "/api/chat/sessions", json!({ "target": { "kind": "심사", "id": "2026-06-D-001" } })).await?;
         let id = s["id"].as_str().unwrap_or_default().to_string();
         ensure!(code == 200 && !id.is_empty(), "새 대화 {code} {s}");
