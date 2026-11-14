@@ -89,7 +89,7 @@ for n,x in enumerate(evs):
     elif x['kind'].startswith('mock'): mock.append(T)
     elif x['kind']=='hl':
         nx=[out(y['raw']) for y in evs[n+1:] if y['kind'] in('hl','clear')]+[total]
-        boxes.append({'t':T,'d':round(max(0.4,min(nx[0],T+4)-T),2),'r':x['r']})
+        boxes.append({'t':T,'d':round(max(0.1,min(nx[0],T+4)-T),2),'r':x['r']})   # 다음 상자 · 화면 전환에서 끝난다(늘리지 않는다)
 # 관문 5: 상자가 화면이 바뀐 뒤까지 남지 않는다
 clears=[out(x['raw']) for x in evs if x['kind']=='clear']
 for b in boxes: gate(not any(b['t']<c<b['t']+b['d']-0.02 for c in clears),f'상자가 화면 전환 뒤에도 남음 at {b["t"]:.1f}초')

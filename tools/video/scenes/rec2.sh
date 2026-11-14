@@ -2,9 +2,9 @@
 # 장면 2 정상 녹화. W=<작업 폴더> bash tools/video/scenes/rec2.sh  (로컬 앱이 열린 agent-browser 세션 vid)
 source "$(dirname "$0")/../lib.sh"; eval "$(python3 $HERE/cuetimes.py $HERE/scenes/s2.json $W)"
 : > $MARKS
-reset_demo; role_quiet 영업지원; prep
+reset_demo; role_quiet 영업지원
 A click @$(ref 'button "작업"') >/dev/null; sleep 2
-A click @$(ref 'radio "전체"') >/dev/null; A fill @$(ref 'searchbox "검색"') "금강상사11" >/dev/null; sleep 1.5
+A click @$(ref 'radio "전체"') >/dev/null; A fill @$(ref 'searchbox "검색"') "금강상사11" >/dev/null; sleep 1.5; prep
 A mouse move 640 500 >/dev/null
 recstart 1
 stage input
