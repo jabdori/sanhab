@@ -1,6 +1,8 @@
 // astryx template: ai-chat, ai-chat-landing — 대화 열(ai-chat)과 빈 대화(ai-chat-landing)의 코드에서 출발. 벗어난 곳은 docs/design/components.md
 // 24 대화: 모든 화면 오른쪽 끝의 대화 칸(App의 end, 폭 조절). 사람이 묻고 AI가 DB를 읽어 답한다.
-// 대화는 그래프의 노드다(D61): 기록을 열면 그 기록을 다룬 가장 최근 대화를 이어 열고, 새 대화·지난 대화를 고를 수 있다. 답이 끝날 때마다 서버에 저장한다(다룬 기록·읽은 기록은 선으로).
+// 대화는 역할마다 하나의 어시스턴트다(D67): 화면을 옮겨도 이어지고, 새 대화는 사람이 시작한다. 지금 보는 화면은 입력창의 문맥 카드로 늘 따라오고,
+// 사람의 말마다 그때의 화면이 남는다. 대화는 그래프의 노드다(D61): 답이 끝날 때마다 저장하고 말마다 다룬 기록을 선으로 잇는다.
+// AI의 도구 호출(조회 · 카드 · 서류)은 부르는 순간 한 줄씩 보인다(서버의 data-step). 조회문은 보이지 않고 읽은 기록의 이름만 보인다.
 // 받는 부품은 AI SDK의 useChat(UI 메시지 스트림 — docs/spike). 가운데(사실)에는 AI의 글이 없고 이 칸에만 있다.
 // 지금 열어 둔 대상이 문맥으로 따라오고(눌러서 끈다) 붙임으로 다른 기록을 더한다. 답 아래의 조회는 서버가 도구 결과에서 찾아 붙인 기록 목록이다.
 // 대화는 역할마다 따로다. 누른 뒤 요청이 끝날 때까지 전송·보고는 다시 눌리지 않는다. AI가 멈춰 있어도 다른 화면은 그대로 된다.
@@ -17,7 +19,8 @@ import { ClickableCard } from '@astryxdesign/core/ClickableCard'
 import { Grid } from '@astryxdesign/core/Grid'
 import { Icon } from '@astryxdesign/core/Icon'
 import { Heading } from '@astryxdesign/core/Text'
-import { DocumentArrowUpIcon, PaperClipIcon, SparklesIcon } from '@heroicons/react/24/outline'
+import { DocumentArrowUpIcon, InboxIcon, PaperClipIcon, SparklesIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import { Card } from '@astryxdesign/core/Card'
 import { Text } from '@astryxdesign/core/Text'
 import { Section } from '@astryxdesign/core/Section'
 import { Token } from '@astryxdesign/core/Token'
@@ -33,20 +36,22 @@ import type { SearchableItem } from '@astryxdesign/core/Typeahead'
 import { useEffect, useRef, useState } from 'react'
 import { ASK, L } from '../../labels'
 import { State } from '../../ui/Mark'
-import { api, changedAtom, exampleAtom, roleAtom, rolesAtom, store, targetAtom, useData, type Target } from '../../state'
+import { api, changedAtom, exampleAtom, menuAtom, roleAtom, rolesAtom, store, targetAtom, useData, type Target } from '../../state'
 import { fail, nb } from '../../ui/status'
 import { Card as ActionCard, type CardData } from '../25-카드'
 
 /** 답에 붙는 조회한 기록(서버가 `data-reads`로 보낸다). go는 이름과 같은 순서의 여는 길(열 화면이 없는 기록은 null) */
 /** 말에 붙은 문맥(보낸 말 위에 그대로 남는다): 종류 · id · 이름 */
 type Ctx = { kind: string; id: string; name: string }
-type Talk = UIMessage<{ ctx?: Ctx[] }, { reads: { names: string[]; go?: (Target | null)[] }; card: CardData; doc: { id: string; name: string } }>
+/** 도구 호출 한 줄(서버의 data-step, 같은 id로 진행 → 완료): 도구의 낱말, 상태, 읽은 기록의 이름과 여는 길 */
+type Step = { tool: string; state: 'run' | 'done' | 'fail'; names: string[]; go: (Target | null)[] }
+type Talk = UIMessage<{ ctx?: Ctx[] }, { reads: { names: string[]; go?: (Target | null)[] }; card: CardData; doc: { id: string; name: string }; step: Step }>
 
 /** 칩에 보이는 이름. 아직 받지 못했거나 모르면 id */
 const key = (t: Target) => `${t.kind}/${t.id}`
 const same = (a: Target, b: Target) => a.kind === b.kind && a.id === b.id
 /** 기록 종류의 아이콘(문맥 카드) */
-const KIND_ICON: Record<string, typeof FlagIcon> = { [L.심사]: ClipboardDocumentCheckIcon, [L.정황]: FlagIcon, [L.소명]: DocumentTextIcon, [L.대리점]: BuildingStorefrontIcon, [L.지급]: BanknotesIcon, [L.추인]: ArrowPathIcon, [L.규정]: BookOpenIcon }
+const KIND_ICON: Record<string, typeof FlagIcon> = { [L.심사]: ClipboardDocumentCheckIcon, [L.정황]: FlagIcon, [L.소명]: DocumentTextIcon, [L.대리점]: BuildingStorefrontIcon, [L.지급]: BanknotesIcon, [L.추인]: ArrowPathIcon, [L.규정]: BookOpenIcon, [L.작업]: InboxIcon }
 const kindIcon = (k: string) => <Icon icon={KIND_ICON[k] ?? DocumentTextIcon} size="sm" />
 /** `@`로 붙일 기록 찾기(서버 /chat/find — 문맥 밖의 기록도 이름으로 찾는다) */
 const records = {
@@ -99,7 +104,12 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
   }
   // 보낼 때의 문맥을 읽는 곳(전송기는 한 번만 만든다)
   const ctx = useRef<{ target: Target | null; attach: Target[] }>({ target: null, attach: [] })
+  const menu = useAtomValue(menuAtom)
+  // 화면을 옮기면 문맥 카드가 다시 따라온다(앞 화면에서 뺐어도)
+  useEffect(() => setFollow(true), [target ? key(target) : menu])
   const now = follow ? target : null
+  // 목록 화면(연 기록이 없음)의 문맥은 메뉴 이름 하나다
+  const view = follow && !target ? menu : null
   // 칩의 이름(제목 줄과 같은 이름)은 서버에서 한 번에 받아 둔다
   const [named, setNamed] = useState<Record<string, string | null>>({})
   const want = [target, ...pinned].filter((t): t is Target => !!t && !(key(t) in named))
@@ -139,7 +149,8 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
       if (!id) return
       const first = all.find((m) => m.role === 'user')?.parts.map((p) => (p.type === 'text' ? p.text : '')).join('') ?? ''
       const reads = all.flatMap((m) => m.parts.flatMap((p) => (p.type === 'data-reads' ? (p.data.go ?? []).filter((g): g is Target => !!g) : [])))
-      api(`/chat/sessions/${id}`, { messages: lean(all), title: first.replace(/\s+/g, ' ').trim().slice(0, 40), about: [ctx.current.target, ...ctx.current.attach].filter(Boolean), reads }, 'PUT').catch(() => {})
+      const about = all.flatMap((m) => (m.metadata?.ctx ?? []).filter((c) => c.id).map(({ kind, id }) => ({ kind, id })))
+      api(`/chat/sessions/${id}`, { messages: lean(all), title: first.replace(/\s+/g, ' ').trim().slice(0, 40), about, reads }, 'PUT').catch(() => {})
     },
     // AI가 파일을 소명의 서류로 넘겼으면 소명 화면이 다시 읽는다
     onData: (p) => {
@@ -161,7 +172,8 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
       }
     }
     setKept(null)
-    const used: Ctx[] = [...(now ? [now] : []), ...pinned].map((t) => ({ ...t, name: named[key(t)] ?? t.id }))
+    // 이 말을 할 때 보던 화면(목록이면 메뉴 이름)과 붙인 기록 — 말 위에 남고 서버가 AI에게도 전한다
+    const used: Ctx[] = [...(view ? [{ kind: view, id: '', name: '' }] : []), ...[...(now ? [now] : []), ...pinned].map((t) => ({ ...t, name: named[key(t)] ?? t.id }))]
     const files = file ? (() => { const d = new DataTransfer(); d.items.add(file); return d.files })() : undefined
     sendMessage({ text: value.trim(), files, metadata: { ctx: used } })
     setText('')
@@ -272,14 +284,33 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
               }
               drawer={
                 // 문맥은 입력창 안의 카드다: 지금 연 기록(자동, 빼면 이 대화에서 빠진다) · `@`로 붙인 기록 · 올릴 서류. 아무것도 없으면 칸을 두지 않는다
-                (now || pinned.length > 0 || file) && (
+                (now || view || pinned.length > 0 || file) && (
                   <ChatComposerDrawer label={L.문맥}>
+                    <VStack gap={2}>
+                    {/* 지금 보는 화면: 종류 아이콘 · 이름 · 종류. 빼면 이번 말에서 빠지고, 화면을 옮기면 다시 따라온다 */}
+                    {(now || view) && (
+                      <Card padding={2} variant="muted">
+                        <HStack gap={2} vAlign="center">
+                          <Icon icon={KIND_ICON[now ? now.kind : (view ?? '')] ?? DocumentTextIcon} size="md" />
+                          <StackItem size="fill">
+                            <VStack gap={0}>
+                              <Text weight="semibold" maxLines={1}>{now ? named[key(now)] ?? now.id : view}</Text>
+                              {now && <Text type="supporting" color="secondary">{now.kind}</Text>}
+                            </VStack>
+                          </StackItem>
+                          <IconButton label={L.빼기} tooltip={L.빼기} variant="ghost" size="sm" icon={<Icon icon={XMarkIcon} size="sm" />} onClick={() => setFollow(false)} />
+                        </HStack>
+                      </Card>
+                    )}
+                    {(pinned.length > 0 || file) && (
                     <HStack gap={1} vAlign="center" wrap="wrap">
-                      {[...(now ? [now] : []), ...pinned].map((t) => (
-                        <Token key={key(t)} icon={kindIcon(t.kind)} label={named[key(t)] ?? t.id} size="md" onRemove={() => (now && same(t, now) ? setFollow(false) : setPinned(pinned.filter((p) => !same(p, t))))} />
+                      {pinned.map((t) => (
+                        <Token key={key(t)} icon={kindIcon(t.kind)} label={named[key(t)] ?? t.id} size="md" onRemove={() => setPinned(pinned.filter((p) => !same(p, t)))} />
                       ))}
                       {file && <Token icon={<Icon icon={DocumentTextIcon} size="sm" />} label={file.name} size="md" onRemove={() => choose(null)} />}
                     </HStack>
+                    )}
+                    </VStack>
                   </ChatComposerDrawer>
                 )
               }
@@ -294,30 +325,21 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
             />
           }
           emptyState={
-            // ai-chat-landing: 인사(아이콘 + 한 줄)와 큰 제목, 제안 카드(누르면 그 말을 보낸다). 제안은 "지금 연 기록"에 대한 것이라 연 기록이 있을 때만
-            <Section variant="transparent" padding={4}>
-              <VStack gap={6}>
-                <VStack gap={1}>
-                  <HStack gap={2} vAlign="center">
-                    <Icon icon={SparklesIcon} size="md" color="accent" />
-                    <Text type="large" as="h2">{L.대화}</Text>
-                  </HStack>
-                  {now && named[key(now)] && <Text type="display-3" as="h1">{nb(named[key(now)] ?? "")}</Text>}
-                </VStack>
-                {now && (
-                  <Grid columns={{ minWidth: 200 }} gap={3}>
-                    {Object.entries(ASK).map(([name, prompt]) => (
-                      <ClickableCard key={name} label={name} padding={3} variant="muted" isDisabled={busy} onClick={() => send(prompt)}>
-                        <VStack gap={0.5}>
-                          <Heading level={4}>{name}</Heading>
-                          <Text type="supporting" color="secondary">{prompt}</Text>
-                        </VStack>
-                      </ClickableCard>
-                    ))}
-                  </Grid>
-                )}
-              </VStack>
-            </Section>
+            // ai-chat-landing에서 벗어남(components.md): 인사와 큰 제목은 두지 않는다 — 지금 화면은 입력창의 문맥 카드가 보인다. 제안은 연 기록이 있을 때만
+            now ? (
+              <Section variant="transparent" padding={4}>
+                <Grid columns={{ minWidth: 200 }} gap={3}>
+                  {Object.entries(ASK).map(([name, prompt]) => (
+                    <ClickableCard key={name} label={name} padding={3} variant="muted" isDisabled={busy} onClick={() => send(prompt)}>
+                      <VStack gap={0.5}>
+                        <Heading level={4}>{name}</Heading>
+                        <Text type="supporting" color="secondary">{prompt}</Text>
+                      </VStack>
+                    </ClickableCard>
+                  ))}
+                </Grid>
+              </Section>
+            ) : null
           }
         >
           {messages.length > 0 || error ? (
@@ -325,8 +347,7 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
             {/* ai-chat: 맨 위 날짜 구분선 — 이 대화의 날짜(새 대화면 오늘) */}
             <ChatSystemMessage variant="divider">{(list.find((x) => x.id === session.current)?.updated ?? new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' })).slice(0, 10)}</ChatSystemMessage>
             {messages.map((m) => {
-              const reads = m.parts.flatMap((p) => (p.type === 'data-reads' ? p.data.names.map((name, i) => ({ name, go: p.data.go?.[i] ?? null })) : []))
-              const ids = reads.map((r) => r.name)
+              const steps = m.parts.flatMap((p) => (p.type === 'data-step' ? [{ id: p.id ?? '', ...p.data }] : []))
               const cards = m.parts.flatMap((p) => (p.type === 'data-card' ? [p.data] : []))
               const body = m.parts.map((p) => (p.type === 'text' ? p.text : '')).join('')
               const ai = m.role === 'assistant'
@@ -340,28 +361,35 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
                   {!ai && (m.metadata?.ctx?.length || m.parts.some((p) => p.type === 'file')) ? (
                     <HStack gap={1} wrap="wrap" hAlign="end">
                       {m.metadata?.ctx?.map((c) => (
-                        <Token key={key(c)} icon={kindIcon(c.kind)} label={c.name} size="sm" onClick={() => store.set(targetAtom, { kind: c.kind, id: c.id })} />
+                        <Token key={key(c)} icon={kindIcon(c.kind)} label={c.name || c.kind} size="sm" onClick={c.id ? () => store.set(targetAtom, { kind: c.kind, id: c.id }) : undefined} />
                       ))}
                       {m.parts.map((p) => (p.type === 'file' ? <Token key={p.url.slice(-40) + p.filename} icon={<Icon icon={DocumentTextIcon} size="sm" />} label={p.filename ?? L.서류} size="sm" /> : null))}
                     </HStack>
                   ) : null}
+                  {/* AI의 도구 호출: 부르는 순간 한 줄(진행 → 완료). 조회는 읽은 기록의 이름, 펼치면 기록마다 여는 링크 */}
+                  {steps.length > 0 && (
+                    <ChatToolCalls
+                      label={`${L.도구} ${steps.length}`}
+                      calls={steps.map((x) => ({
+                        key: x.id,
+                        name: x.tool,
+                        status: x.state === 'run' ? ('running' as const) : x.state === 'fail' ? ('error' as const) : ('complete' as const),
+                        target: x.names.length > 2 ? `${x.names.slice(0, 2).join(' · ')} ${L.외} ${x.names.length - 2}` : x.names.join(' · '),
+                        resultDetail: x.names.length ? (
+                          <VStack gap={1}>
+                            {x.names.map((name, i) => {
+                              const go = x.go[i]
+                              return go ? <Link key={name} type="supporting" onClick={() => store.set(targetAtom, go)}>{name}</Link> : <Text key={name} type="supporting">{name}</Text>
+                            })}
+                          </VStack>
+                        ) : undefined,
+                      }))}
+                    />
+                  )}
                   {body && (
                     <ChatMessageBubble variant={ai ? 'ghost' : undefined}>
                       {ai ? <Markdown density="compact" isStreaming={busy} className="break-keep">{body}</Markdown> : <ChatTokenizedText>{body}</ChatTokenizedText>}
                     </ChatMessageBubble>
-                  )}
-                  {/* AI가 조회한 기록: 도구 호출 목록(ai-chat의 ChatToolCalls). 화면이 있는 기록은 줄 끝의 링크로 연다 */}
-                  {ids.length > 0 && (
-                    <ChatToolCalls
-                      label={`${L.조회} ${ids.length}`}
-                      calls={reads.map(({ name, go }, k) => ({
-                        key: `${k}/${name}`,
-                        name: L.조회,
-                        target: name,
-                        status: 'complete' as const,
-                        stats: go ? <Link type="supporting" onClick={() => store.set(targetAtom, go)}>{L.열기}</Link> : undefined,
-                      }))}
-                    />
                   )}
                   {cards.map((c) => (
                     <ChatMessageBubble key={`${c.kind}/${c.id}/${c.action}`} variant="ghost" width="100%">
@@ -402,14 +430,14 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
 
 /**
  * 대화 칸(astryx ai-chat 템플릿의 대화 열): 모든 화면의 오른쪽 끝에 붙고 입력창이 늘 보인다.
- * 기본은 이어 하기: 기록을 열었으면 그 기록을 다룬 가장 최근 대화, 아니면 이 역할의 가장 최근 대화. `새 대화`나 목록에서 고르면 그것을 연다
+ * 역할마다 하나의 대화(D67): 이 역할의 가장 최근 대화를 이어 열고, 화면을 옮겨도 다시 그리지 않는다. `새 대화`나 목록에서 고르면 그것을 연다
  */
 export function Chat() {
   const role = useAtomValue(roleAtom)
   const target = useAtomValue(targetAtom)
   // 안내의 예시 장면이 바뀌면(문제가 드러난 뒤 예시 대화가 생긴다) 대화 칸을 다시 그린다
   const ex = useAtomValue(exampleAtom)
-  return <For key={`${role}/${target ? key(target) : ''}/${(ex?.['#'] as string | undefined) ?? ''}`} target={target} />
+  return <For key={`${role}/${(ex?.['#'] as string | undefined) ?? ''}`} target={target} />
 }
 
 function For({ target }: { target: Target | null }) {
@@ -420,7 +448,8 @@ function For({ target }: { target: Target | null }) {
   const pick = (id: string) => setOpen((o) => ({ sid: id || null, n: (o?.n ?? 0) + 1 }))
   if (!all || (target && !of)) return null
   if (!open) {
-    setOpen({ sid: (target ? of!.sessions : all.sessions)[0]?.id ?? null, n: 0 })
+    // 역할의 가장 최근 대화를 이어 연다(화면을 옮겨도 그대로)
+    setOpen({ sid: all.sessions[0]?.id ?? null, n: 0 })
     return null
   }
   return <Load key={open.n} sid={open.sid} list={all.sessions} here={target ? of!.sessions : null} onPick={pick} />

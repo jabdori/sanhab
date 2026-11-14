@@ -41,3 +41,6 @@ prep(){ A set viewport 1280 720 1.5 >/dev/null
   echo "prep $(now) tour=$ok viewport=1280x720x1.5" >> $MARKS; }
 recstart(){ A record start $W/clip$1.mp4 --cursor >/dev/null 2>&1; echo "rec$1 $(now)" >> $MARKS; sleep 0.5; }
 recstop(){ wait; echo "end$1 $(now)" >> $MARKS; A record stop >/dev/null 2>&1; }
+# 접속(서버를 다시 띄우면 토큰이 바뀐다): 패스워드는 .env에서 읽어 입력만 하고 출력하지 않는다
+login(){ local p; p=$(grep '^DEMO_PASS=' "$HERE/../../.env" | cut -d= -f2- | tr -d '"'); A open http://localhost:3100 >/dev/null 2>&1; sleep 3
+  [ -n "$(ref textbox)" ] || return 0; A fill @$(ref textbox) "$p" >/dev/null; A click @$(ref 'button "접속"') >/dev/null; sleep 3; A click @$(ref "button \"${1:-영업지원}\"") >/dev/null; sleep 3; }

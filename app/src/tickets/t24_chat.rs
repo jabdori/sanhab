@@ -47,7 +47,7 @@ const LISTED: usize = 30;
 const NAME: &str = "(SELECT VALUE (IF record::tb(id) IN ['review', 'ratify'] THEN name + ' · ' + ym
     ELSE IF record::tb(id) = 'payout' THEN (->payout_of->dealer)[0].name + ' · ' + ym
     ELSE IF record::tb(id) = 'deposit' THEN (->deposit_of->dealer)[0].name
-    ELSE IF record::tb(id) = 'rule' THEN name + ' v' + <string> ver
+    ELSE IF record::tb(id) = 'rule' THEN name
     ELSE IF record::tb(id) = 'clause' THEN title
     ELSE IF record::tb(id) IN ['address', 'account'] THEN value ELSE name END) ?? '' FROM $r)[0]";
 
@@ -89,7 +89,12 @@ fn parse(b: &J, asking: bool) -> Result<Ask, ApiError> {
         let text: String = m["parts"].as_array().ok_or_else(bad)?.iter().filter(|p| p["type"] == "text").filter_map(|p| p["text"].as_str()).collect();
         if text.chars().count() > CHARS { return Err(bad()); }
         if role == "user" { files.extend(files_of(m["parts"].as_array().map_or(&[][..], Vec::as_slice))); }
-        if !text.trim().is_empty() { talk.push((role.to_string(), text)); }
+        if text.trim().is_empty() { continue; }
+        // 대화는 역할마다 하나라 화면을 오간다(D67): 사람의 말마다 그때 보던 화면을 적어 보낸다. 화면이 보낸 이름이라 짧게 자른다
+        let seen: Vec<String> = m["metadata"]["ctx"].as_array().into_iter().flatten().take(ATTACH + 1)
+            .filter_map(|c| Some(format!("{} {}", c["kind"].as_str()?, c["name"].as_str().unwrap_or_default()).trim().chars().take(80).collect::<String>())).collect();
+        let text = if role == "user" && !seen.is_empty() { format!("[이 말을 할 때 보던 화면: {}] {text}", seen.join(", ")) } else { text };
+        talk.push((role.to_string(), text));
     }
     if talk.last().is_none_or(|(r, _)| asking && r != "user") { return Err(bad()); }
     let target = match &b["target"] { J::Null => None, t => Some(rec(t).ok_or_else(bad)?) };
@@ -105,7 +110,8 @@ fn parse(b: &J, asking: bool) -> Result<Ask, ApiError> {
 fn context(role: &str, a: &Ask, names: &HashMap<String, String>) -> String {
     let one = |r: &Rec| format!("{} {} (테이블 {}, id {})", r.kind, names.get(&format!("{}/{}", r.kind, r.id)).filter(|n| !n.is_empty()).unwrap_or(&r.id), table_of(&r.kind).unwrap_or_default(), r.id);
     let mut s = format!("{SYSTEM}\n{}\n사용자의 역할은 {role}이다.", super::t17_report::SOURCE);
-    match &a.target { Some(t) => s += &format!("\n사용자가 지금 열어 둔 대상: {}. 묻는 말에 대상이 따로 없으면 이것을 가리킨다.", one(t)), None => s += "\n사용자가 열어 둔 대상은 없다." }
+    match &a.target { Some(t) => s += &format!("\n사용자가 지금 보는 화면: {}. 묻는 말에 대상이 따로 없으면 이것을 가리킨다.", one(t)), None => s += "\n사용자가 지금 연 기록은 없다(목록 화면)." }
+    s += "\n대화는 화면을 옮겨도 이어진다. 앞선 말의 [이 말을 할 때 보던 화면]은 그 말이 가리키던 기록이다. 그 표시는 답에 되풀이하지 않는다.";
     if !a.attach.is_empty() { s += &format!("\n사용자가 붙인 기록: {}.", a.attach.iter().map(one).collect::<Vec<_>>().join(", ")); }
     if !a.files.is_empty() { s += &format!("\n사용자가 올린 파일: {}.", a.files.iter().map(|f| f.name.as_str()).collect::<Vec<_>>().join(", ")); }
     s
@@ -183,6 +189,18 @@ fn talk(model: String, key: Option<String>, ai: Db, me: Db, system: String, recs
                                 yield json!({ "type": "text-delta", "id": format!("t{n}"), "delta": t });
                             }
                             LanguageModelStreamChunkType::TextEnd => if open { open = false; yield json!({ "type": "text-end", "id": format!("t{n}") }); },
+                            LanguageModelStreamChunkType::ToolCallAvailable(info) => {
+                                let what = match info.tool.name.as_str() { "read_db" => "조회", "card" => "카드", "doc" => "서류", _ => "" };
+                                if !what.is_empty() { yield json!({ "type": "data-step", "id": info.tool.id, "data": { "tool": what, "state": "run", "names": [], "go": [] } }); }
+                            }
+                            LanguageModelStreamChunkType::ToolCallEnd(r) => {
+                                let what = match r.tool.name.as_str() { "read_db" => "조회", "card" => "카드", "doc" => "서류", _ => "" };
+                                if !what.is_empty() {
+                                    let out = r.output.as_ref().map(|v| v.to_string()).unwrap_or_default();
+                                    let (names, go) = if what == "조회" { let mut one = BTreeSet::new(); cited(&out, &mut one); reads_names(&ai, &one.into_iter().take(LISTED).collect::<Vec<_>>()).await } else { (vec![], vec![]) };
+                                    yield json!({ "type": "data-step", "id": r.tool.id, "data": { "tool": what, "state": if r.output.is_ok() { "done" } else { "fail" }, "names": names, "go": go } });
+                                }
+                            }
                             LanguageModelStreamChunkType::Failed(_) => { word = Some("대기"); break }
                             _ => {}
                         }
@@ -191,6 +209,10 @@ fn talk(model: String, key: Option<String>, ai: Db, me: Db, system: String, recs
             }
         }
         if open { yield json!({ "type": "text-end", "id": format!("t{n}") }); }
+        if model.starts_with("fixture") {
+            let ids: Vec<String> = seen.lock().unwrap().iter().take(LISTED).cloned().collect();
+            if !ids.is_empty() { let (names, go) = reads_names(&ai, &ids).await; yield json!({ "type": "data-step", "id": "s1", "data": { "tool": "조회", "state": "done", "names": names, "go": go } }); }
+        }
         // 글 없이 끝났으면(단계를 다 쓰고도 답하지 못함) 응답이 없는 것과 같다
         if n == 0 && word.is_none() && cards.lock().unwrap().is_empty() && handed.lock().unwrap().is_empty() { word = Some("대기"); }
         if let Some(w) = word { yield json!({ "type": "error", "errorText": w }); }
@@ -509,6 +531,8 @@ pub async fn check(c: &Check) -> Result<()> {
         ensure!(text.contains("조회한 기록: ") && text.contains("대리점 금강상사11"), "문맥이 따라왔다 {text}");
         let reads = ev.iter().find(|e| e["type"] == "data-reads").map(|e| e["data"].clone()).unwrap_or_default();
         // 조회한 기록은 이름으로 보이고(테이블 · id가 없다) 그 이름은 모두 DB의 대리점 이름이다
+        let step = ev.iter().find(|e| e["type"] == "data-step").map(|e| e["data"].clone()).unwrap_or_default();
+        ensure!(step["tool"] == "조회" && step["state"] == "done" && step["names"] == json!(["금강상사11"]), "도구 호출 한 줄(D67) {step}");
         ensure!(reads["names"] == json!(["금강상사11"]) && reads.get("ids").is_none() && reads["go"] == json!([{ "kind": "대리점", "id": "D-011" }]) && !text.contains("테이블") && !text.contains("D-0"), "조회한 기록 {reads} {text}");
         // 열어 둔 심사의 이름이 조회한 기록으로 나가고, 답은 그 대상의 값(합산 · 승인권자)을 말한다. 정황이면 근거 수
         let rid = "2026-06-D-001";
@@ -626,6 +650,13 @@ mod tests {
         let mut s = BTreeSet::new();
         cited(r#"[[{"id":"dealer:`D-001`"},{"id":"payout:abc12","x":"http://a"},{"to":"xdealer:zz"},{"id":"review:⟨가-1⟩"}]]"#, &mut s);
         assert_eq!(s.into_iter().collect::<Vec<_>>(), ["dealer:`D-001`", "payout:abc12", "review:⟨가-1⟩"]);
+    }
+
+    #[test]
+    fn stamps_the_screen() {
+        let b = json!({ "messages": [{ "role": "user", "metadata": { "ctx": [{ "kind": "심사", "id": "x", "name": "금강상사11 외 2 · 2026-06" }] }, "parts": [{ "type": "text", "text": "왜 영업임원이야?" }] }] });
+        let Ok(a) = parse(&b, true) else { panic!("본문") };
+        assert_eq!(a.talk[0].1, "[이 말을 할 때 보던 화면: 심사 금강상사11 외 2 · 2026-06] 왜 영업임원이야?");
     }
 
     #[test]
