@@ -7,6 +7,7 @@ import { Heading, Text } from '@astryxdesign/core/Text'
 import { Token } from '@astryxdesign/core/Token'
 import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { L, TOUR } from '../labels'
 import { changedAtom, exampleAtom, roleAtom, store, targetAtom, type Target } from '../state'
 import EXAMPLE from './example.json'
@@ -97,6 +98,10 @@ export function Tour() {
       const found = await wait(s.at)
       if (!live) return
       if (!found) return i < steps.length - 1 ? setI(i + 1) : close()
+      // 밝힐 영역을 화면 가운데로(아래에 걸쳐 잘리지 않게). 스크롤이 멈춘 뒤 링과 카드를 둔다
+      document.querySelector(found)?.scrollIntoView({ block: 'center' })
+      await new Promise((r) => setTimeout(r, 150))
+      if (!live) return
       setEl(found)
       setReady(true)
     })()
@@ -158,6 +163,15 @@ export function Tour() {
     setExample(null)
     setTarget(null)
   }
+  // 안내 중에는 뒤 화면(앱 틀) 전체를 키보드로도 닿지 않게(inert). 안내는 틀 밖, 테마 안에 따로 그린다(테마의 색 이름을 그대로 쓰게)
+  useEffect(() => {
+    const root = document.querySelector<HTMLElement>('.astryx-app-shell')
+    if (!open || !root) return
+    root.inert = true
+    return () => {
+      root.inert = false
+    }
+  }, [open])
   // Esc로 닫는다
   useEffect(() => {
     if (!open) return
@@ -168,7 +182,7 @@ export function Tour() {
   if (!open || !steps.length) return null
   const s = steps[i]
   const last = i === steps.length - 1
-  return (
+  return createPortal(
     <>
       {/* 바깥을 누르는 것을 막는 막 + 둘레를 어둡게 하고 가장자리에 링을 두른 구멍(theme.css의 tour-) */}
       <div className="tour-veil" />
@@ -202,6 +216,7 @@ export function Tour() {
           </VStack>
         </div>
       )}
-    </>
+    </>,
+    document.querySelector('[data-astryx-theme]') ?? document.body,
   )
 }

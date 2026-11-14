@@ -57,6 +57,9 @@ body {
   padding: 20px;
   border-radius: 14px;
   background: var(--color-background-surface, #fff);
+  /* 한 글자만 다음 줄로 넘어가지 않게: 낱말(어절) 단위로 끊고 줄 길이를 고르게 */
+  word-break: keep-all;
+  text-wrap: pretty;
   box-shadow: 0 24px 48px rgb(0 0 0 / 0.28), 0 4px 12px rgb(0 0 0 / 0.16);
 }
 .tour-card::before {

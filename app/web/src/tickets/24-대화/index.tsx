@@ -20,6 +20,7 @@ import { Token } from '@astryxdesign/core/Token'
 import { DefaultChatTransport, type UIMessage } from 'ai'
 import { useAtomValue } from 'jotai'
 import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog'
+import { Markdown } from '@astryxdesign/core/Markdown'
 import { IconButton } from '@astryxdesign/core/IconButton'
 import { AtSymbolIcon, BanknotesIcon, BookOpenIcon, BuildingStorefrontIcon, ClipboardDocumentCheckIcon, ClockIcon, DocumentCheckIcon, DocumentTextIcon, FlagIcon, ArrowPathIcon, PencilSquareIcon, PlusIcon } from '@heroicons/react/24/outline'
 import { DropdownMenu } from '@astryxdesign/core/DropdownMenu'
@@ -29,7 +30,7 @@ import type { SearchableItem } from '@astryxdesign/core/Typeahead'
 import { useEffect, useRef, useState } from 'react'
 import { ASK, L } from '../../labels'
 import { State } from '../../ui/Mark'
-import { api, changedAtom, roleAtom, rolesAtom, store, talkAtom, targetAtom, useData, type Target } from '../../state'
+import { api, changedAtom, exampleAtom, roleAtom, rolesAtom, store, talkAtom, targetAtom, useData, type Target } from '../../state'
 import { fail } from '../../ui/status'
 import { Card as ActionCard, type CardData } from '../25-카드'
 
@@ -343,7 +344,7 @@ function Panel({ sid, initial, list, onPick }: { sid: string | null; initial: Ta
                   ) : null}
                   {body && (
                     <ChatMessageBubble variant={ai ? 'ghost' : undefined}>
-                      <Text className="break-keep wrap-anywhere whitespace-pre-wrap">{body}</Text>
+                      {ai ? <Markdown density="compact" isStreaming={busy} className="break-keep">{body}</Markdown> : <Text className="break-keep wrap-anywhere whitespace-pre-wrap">{body}</Text>}
                     </ChatMessageBubble>
                   )}
                   {cards.map((c) => (
@@ -390,7 +391,9 @@ function Panel({ sid, initial, list, onPick }: { sid: string | null; initial: Ta
 export function Chat() {
   const role = useAtomValue(roleAtom)
   const target = useAtomValue(targetAtom)
-  return <For key={`${role}/${target ? key(target) : ''}`} target={target} />
+  // 안내의 예시 장면이 바뀌면(문제가 드러난 뒤 예시 대화가 생긴다) 대화 칸을 다시 그린다
+  const ex = useAtomValue(exampleAtom)
+  return <For key={`${role}/${target ? key(target) : ''}/${(ex?.['#'] as string | undefined) ?? ''}`} target={target} />
 }
 
 function For({ target }: { target: Target | null }) {
