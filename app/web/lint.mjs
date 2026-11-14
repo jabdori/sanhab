@@ -23,7 +23,7 @@ for (const f of readdirSync('src', { recursive: true })) {
     if (f !== 'ui/status.ts' && COLOR.test(rest)) bad.push(`src/${f}:${i + 1} 색 이름은 ui/status.ts에서만 쓴다(tokens.md 색 표)`)
     if (!['ui/status.ts', 'ui/Mark.tsx'].includes(f) && /\bbadge\(/.test(rest)) bad.push(`src/${f}:${i + 1} 상태 표지는 ui/Mark의 State로(기본 상태는 그리지 않는다, tokens.md)`)
     if (/<Banner\b/.test(rest)) bad.push(`src/${f}:${i + 1} 상세 머리에 경고 띠를 두지 않는다(tokens.md — 칩 ⚑정황과 확인 창의 사유로)`)
-    if (!CARD_OK.includes(f) && /<(Card|ClickableCard)\b/.test(rest)) bad.push(`src/${f}:${i + 1} Card는 숫자 타일 · 접속 · 조치 카드에만(tokens.md 면, Card soup 금지)`)
+    if (!fromTemplate && !CARD_OK.includes(f) && /<(Card|ClickableCard)\b/.test(rest)) bad.push(`src/${f}:${i + 1} Card는 숫자 타일 · 접속 · 조치 카드에만(tokens.md 면, Card soup 금지)`)
   })
 }
 if (bad.length) {

@@ -1,9 +1,11 @@
+// astryx template: table-grouped — 작업 목록. 벗어난 곳은 docs/design/components.md
 // 작업: astryx table-grouped 템플릿 꼴. 머리(제목 / 전체·담당·진행 / 검색) → 숫자 타일(dashboard-alert-rail의 KPI) → 종류별 묶음(접힘 · 건수)이 있는 표.
 // 줄을 누르면 기록 화면이 열린다(오른쪽은 AI 구역). 심사 묶음은 체크로 골라 선택 띠에서 한꺼번에 승인한다.
 import { Badge } from '@astryxdesign/core/Badge'
 import { CheckboxInput } from '@astryxdesign/core/CheckboxInput'
 import { StatusDot } from '@astryxdesign/core/StatusDot'
 import { EmptyState } from '@astryxdesign/core/EmptyState'
+import { Center } from '@astryxdesign/core/Center'
 import { HStack, Layout, LayoutContent, LayoutHeader, StackItem, VStack } from '@astryxdesign/core/Layout'
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl'
 import { Table, type TableColumn, type TablePlugin, TableSelectionToolbar, pixel, proportional, useTableGroupedRows } from '@astryxdesign/core/Table'
@@ -131,15 +133,25 @@ export function Work() {
           } as TableColumn<Row>,
         ]
       : []),
+    // table-grouped: 첫 칸은 상태 점(가운데), 다음 칸이 이름
+    {
+      key: 'dot',
+      header: '',
+      width: pixel(44),
+      renderCell: (t) => (
+        <Center axis="horizontal">
+          <StatusDot variant={dot(t.marks, t.pay ?? t.state)} label={t.marks.join(' · ') || (t.pay ?? t.state ?? t.kind)} />
+        </Center>
+      ),
+    },
     {
       key: 'name',
       header: L.대상,
       width: proportional(3, { minWidth: 160 }),
       renderCell: (t) => (
-        <HStack gap={2} vAlign="center">
-          <StatusDot variant={dot(t.marks, t.pay ?? t.state)} label={t.marks.join(' · ') || (t.pay ?? t.state ?? t.kind)} />
-          <Text weight="medium">{t.name ?? t.target}</Text>
-        </HStack>
+        <Text type="body" maxLines={1}>
+          {t.name ?? t.target}
+        </Text>
       ),
     },
     { key: 'ym', header: L.귀속월, width: pixel(88), renderCell: (t) => <Text color="secondary" hasTabularNumbers>{t.ym}</Text> },

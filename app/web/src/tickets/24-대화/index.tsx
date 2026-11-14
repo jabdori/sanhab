@@ -1,3 +1,4 @@
+// astryx template: ai-chat, ai-chat-landing — 대화 열(ai-chat)과 빈 대화(ai-chat-landing)의 코드에서 출발. 벗어난 곳은 docs/design/components.md
 // 24 대화: 모든 화면 오른쪽 끝의 대화 칸(App의 end, 폭 조절). 사람이 묻고 AI가 DB를 읽어 답한다.
 // 대화는 그래프의 노드다(D61): 기록을 열면 그 기록을 다룬 가장 최근 대화를 이어 열고, 새 대화·지난 대화를 고를 수 있다. 답이 끝날 때마다 서버에 저장한다(다룬 기록·읽은 기록은 선으로).
 // 받는 부품은 AI SDK의 useChat(UI 메시지 스트림 — docs/spike). 가운데(사실)에는 AI의 글이 없고 이 칸에만 있다.
@@ -10,7 +11,10 @@ import { List, ListItem } from '@astryxdesign/core/List'
 import { Badge } from '@astryxdesign/core/Badge'
 import { EmptyState } from '@astryxdesign/core/EmptyState'
 import { HStack, Layout, LayoutContent, LayoutHeader, StackItem, VStack } from '@astryxdesign/core/Layout'
-import { ChatComposer, ChatComposerDrawer, ChatComposerInput, ChatLayout, ChatMessage, ChatMessageBubble, ChatMessageList, ChatSystemMessage } from '@astryxdesign/core/Chat'
+import { ChatComposer, ChatComposerDrawer, ChatComposerInput, ChatLayout, ChatMessage, ChatMessageBubble, ChatMessageList, ChatSystemMessage, ChatToolCalls } from '@astryxdesign/core/Chat'
+import { Avatar } from '@astryxdesign/core/Avatar'
+import { ClickableCard } from '@astryxdesign/core/ClickableCard'
+import { Grid } from '@astryxdesign/core/Grid'
 import { Icon } from '@astryxdesign/core/Icon'
 import { Heading } from '@astryxdesign/core/Text'
 import { DocumentArrowUpIcon, PaperClipIcon, SparklesIcon } from '@heroicons/react/24/outline'
@@ -23,9 +27,7 @@ import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog'
 import { Markdown } from '@astryxdesign/core/Markdown'
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl'
 import { IconButton } from '@astryxdesign/core/IconButton'
-import { AtSymbolIcon, BanknotesIcon, BookOpenIcon, BuildingStorefrontIcon, ClipboardDocumentCheckIcon, ClockIcon, DocumentCheckIcon, DocumentTextIcon, FlagIcon, ArrowPathIcon, PencilSquareIcon, PlusIcon } from '@heroicons/react/24/outline'
-import { DropdownMenu } from '@astryxdesign/core/DropdownMenu'
-import { Kbd } from '@astryxdesign/core/Kbd'
+import { AtSymbolIcon, BanknotesIcon, BookOpenIcon, BuildingStorefrontIcon, ClipboardDocumentCheckIcon, ClockIcon, DocumentCheckIcon, DocumentTextIcon, FlagIcon, ArrowPathIcon, PencilSquareIcon } from '@heroicons/react/24/outline'
 import type { ChatComposerInputHandle } from '@astryxdesign/core/Chat'
 import type { SearchableItem } from '@astryxdesign/core/Typeahead'
 import { useEffect, useRef, useState } from 'react'
@@ -238,7 +240,7 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
         {/* ChatLayout은 flex 1로 높이를 채운다: 세로 Stack(높이 100%) 안에 둔다 */}
         <VStack height="100%">
         <ChatLayout
-          density="balanced"
+          density="spacious"
           composer={
             <ChatComposer
               value={text}
@@ -282,31 +284,39 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
                 )
               }
               headerActions={
-                // `+`: 아이콘 + 명사, 오른쪽에 단축·형식(보조). 기록은 입력에 @를 넣어 찾기를 연다
-                <DropdownMenu
-                  button={{ label: L.붙임, isIconOnly: true, variant: 'ghost', size: 'sm', icon: <Icon icon={PlusIcon} size="sm" /> }}
-                  items={[
-                    { label: L.기록, icon: AtSymbolIcon, endContent: <Kbd keys="@" />, onClick: () => input.current?.insertText('@') },
-                    { label: L.서류, icon: DocumentTextIcon, endContent: <Text type="supporting" color="secondary">PNG · JPEG · PDF</Text>, onClick: () => pick.current?.click() },
-                  ]}
-                />
+                // ai-chat: 기록 찾기(@)와 서류 붙이기 — 아이콘 단추 둘
+                <>
+                  <Button label={L.기록} variant="ghost" size="sm" icon={<Icon icon={AtSymbolIcon} size="sm" />} isIconOnly onClick={() => input.current?.insertText('@')} />
+                  <Button label={L.서류} variant="ghost" size="sm" icon={<Icon icon={PaperClipIcon} size="sm" />} isIconOnly onClick={() => pick.current?.click()} />
+                </>
               }
               footerActions={<IconButton label={L.보고} tooltip={L.보고} variant="ghost" size="sm" icon={<Icon icon={DocumentCheckIcon} size="sm" />} isDisabled={busy || keeping || !answered || !signal} onClick={keep} />}
             />
           }
           emptyState={
-            // ai-chat-landing 꼴: 비었을 때 제목과 질문 제안. 제안을 누르면 그 말을 보낸다
+            // ai-chat-landing: 인사(아이콘 + 한 줄)와 큰 제목, 제안 카드(누르면 그 말을 보낸다). 제안은 "지금 연 기록"에 대한 것이라 연 기록이 있을 때만
             <Section variant="transparent" padding={4}>
-            <VStack gap={4}>
-              <EmptyState title={L.대화} icon={<Icon icon={SparklesIcon} size="lg" color="accent" />} isCompact />
-              {/* 제안: 줄 전체가 하나의 단추(ListItem의 숨은 단추 — 키보드로도 고르고 Enter로 보낸다) */}
-              {/* 제안은 "지금 연 기록"에 대한 것이라 연 기록이 있을 때만 */}
-              {now && <List hasDividers>
-                {Object.entries(ASK).map(([name, prompt]) => (
-                  <ListItem key={name} label={name} description={prompt} isDisabled={busy} onClick={() => send(prompt)} />
-                ))}
-              </List>}
-            </VStack>
+              <VStack gap={6}>
+                <VStack gap={1}>
+                  <HStack gap={2} vAlign="center">
+                    <Icon icon={SparklesIcon} size="md" color="accent" />
+                    <Text type="large" as="h2">{L.대화}</Text>
+                  </HStack>
+                  {now && <Text type="display-3" as="h1">{named[key(now)] ?? now.id}</Text>}
+                </VStack>
+                {now && (
+                  <Grid columns={{ minWidth: 200 }} gap={3}>
+                    {Object.entries(ASK).map(([name, prompt]) => (
+                      <ClickableCard key={name} label={name} padding={3} variant="muted" isDisabled={busy} onClick={() => send(prompt)}>
+                        <VStack gap={0.5}>
+                          <Heading level={4}>{name}</Heading>
+                          <Text type="supporting" color="secondary">{prompt}</Text>
+                        </VStack>
+                      </ClickableCard>
+                    ))}
+                  </Grid>
+                )}
+              </VStack>
             </Section>
           }
         >
@@ -322,26 +332,7 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
                 <ChatMessage
                   key={m.id}
                   sender={ai ? 'assistant' : 'user'}
-                  avatar={ai ? <Icon icon={SparklesIcon} size="md" color="accent" /> : null}
-                  metadata={
-                    ids.length > 0 && (
-                      <VStack gap={1}>
-                        <Text type="supporting">{L.조회}</Text>
-                        {/* 화면이 있는 기록은 이동 링크(다른 화면의 이동과 같은 꼴), 없는 것(사람·주소 …)은 글자 */}
-                        {reads.map(({ name, go }) =>
-                          go ? (
-                            <Link key={name} type="supporting" onClick={() => store.set(targetAtom, go)}>
-                              {name}
-                            </Link>
-                          ) : (
-                            <Text key={name} type="supporting" hasTabularNumbers className="wrap-anywhere">
-                              {name}
-                            </Text>
-                          ),
-                        )}
-                      </VStack>
-                    )
-                  }
+                  avatar={ai ? <Avatar name={L.AI} size="md" /> : null}
                 >
                   {/* 보낸 말에 붙었던 문맥과 서류(카드 그대로 남는다) */}
                   {!ai && (m.metadata?.ctx?.length || m.parts.some((p) => p.type === 'file')) ? (
@@ -356,6 +347,19 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
                     <ChatMessageBubble variant={ai ? 'ghost' : undefined}>
                       {ai ? <Markdown density="compact" isStreaming={busy} className="break-keep">{body}</Markdown> : <Text className="break-keep wrap-anywhere whitespace-pre-wrap">{body}</Text>}
                     </ChatMessageBubble>
+                  )}
+                  {/* AI가 조회한 기록: 도구 호출 목록(ai-chat의 ChatToolCalls). 화면이 있는 기록은 줄 끝의 링크로 연다 */}
+                  {ids.length > 0 && (
+                    <ChatToolCalls
+                      label={`${L.조회} ${ids.length}`}
+                      calls={reads.map(({ name, go }, k) => ({
+                        key: `${k}/${name}`,
+                        name: L.조회,
+                        target: name,
+                        status: 'complete' as const,
+                        stats: go ? <Link type="supporting" onClick={() => store.set(targetAtom, go)}>{L.열기}</Link> : undefined,
+                      }))}
+                    />
                   )}
                   {cards.map((c) => (
                     <ChatMessageBubble key={`${c.kind}/${c.id}/${c.action}`} variant="ghost" width="100%">

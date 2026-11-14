@@ -1,5 +1,5 @@
-// 기록 화면의 틀(astryx detail-page 템플릿): 머리(← 메뉴 · n/전체 · 앞 뒤 / 제목 / 메타 한 줄 / 오른쪽 위 페이지 조치 / 탭) → 바탕 위의 카드 본문.
-// 모든 기록 화면(심사 · 정황 · 소명 · 지급 · 추인 · 대리점 · 규정)이 이것 하나로 같은 꼴이 된다. 내용(카드 · 타일)만 화면이 채운다.
+// astryx template: detail-page — 기록 화면의 틀. 머리(PageHeader: ← 메뉴 / 제목 / 메타 한 줄(아이콘 + 글, 사이 점) / 오른쪽 조치 / 탭 + 오른쪽 칸 단추) · 본문(Section 카드가 gap 4로 쌓임) · 오른쪽 칸(RightPanel: 접는 묶음).
+// 모든 기록 화면(심사 · 정황 · 소명 · 지급 · 추인 · 대리점 · 규정)이 이것 하나로 같은 꼴이 된다. 템플릿에서 벗어난 곳은 docs/design/components.md
 import { Badge } from '@astryxdesign/core/Badge'
 import { Button } from '@astryxdesign/core/Button'
 import { Card } from '@astryxdesign/core/Card'
@@ -15,7 +15,9 @@ import { Tab, TabList } from '@astryxdesign/core/TabList'
 import { Heading, Text } from '@astryxdesign/core/Text'
 import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, QueueListIcon, SparklesIcon, ViewColumnsIcon } from '@heroicons/react/24/outline'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { Fragment, type ReactNode, useState } from 'react'
+import { isValidElement, type ReactNode, useState } from 'react'
+import { State } from './Mark'
+import { plain } from './status'
 import { fail } from './status'
 import { L } from '../labels'
 import { menuAtom, navAtom, paneAtom, sideAtom, targetAtom, useData } from '../state'
@@ -67,42 +69,44 @@ function Back() {
   )
 }
 
-/** 칩 줄의 항목: 아이콘 + 값의 색 없는 Token(사람 · 구성 · 날짜 …) */
-export const Meta = ({ icon, children }: { icon: typeof ArrowLeftIcon; children: string }) => <Token size="sm" icon={<Icon icon={icon} size="sm" />} label={children} />
+/** 메타 줄의 항목(detail-page): 보조 색 아이콘 + 글(사람 · 구성 · 날짜 …) */
+export const Meta = ({ icon, children }: { icon: typeof ArrowLeftIcon; children: string }) => (
+  <HStack gap={1} vAlign="center">
+    <Icon icon={icon} size="sm" color="secondary" />
+    <Text type="body" maxLines={1}>
+      {children}
+    </Text>
+  </HStack>
+)
 
 /** 판단의 재료 타일(Card): 이름표(보조) · 값(large, 굵게) · 아래(막대 · 배지) · 옆(출처 표지) */
 export type TileItem = { name: string; value: ReactNode; below?: ReactNode; aside?: ReactNode; dot?: 'neutral' | 'success' | 'warning' | 'error' }
-/** 숫자 타일(dashboard-alert-rail의 KPI): 이 앱에서 Card를 쓰는 곳. 흰 면 위 Section 한 칸에 놓인다 */
+/** 숫자 묶음(detail-page의 InvoiceCard): Section 하나에 MetadataList — 이름표 / (막대 · 출처 표지) · 값(굵게, 오른쪽) */
 export function Tiles({ items }: { items: TileItem[] }) {
   return (
-    <Section variant="transparent" padding={6} data-tour="tiles">
-      {/* 타일은 폭을 고르게 나눠 꽉 채운다(dashboard 템플릿) — 왼쪽에 몰려 오른쪽이 비지 않게 */}
-      {/* 최소 폭은 큰 숫자(9,258,580)가 들어가는 폭 — 좁으면 줄을 바꿔 잘리지 않게 */}
-      <Grid columns={{ minWidth: 200, max: items.length, repeat: 'fit' }} gap={4}>
-      {items.map((t) => (
-        <Card key={t.name}>
-          <VStack gap={2}>
+    <Section data-tour="tiles">
+      <MetadataList>
+        {items.map((t) => (
+          <MetadataListItem key={t.name} label={t.name}>
             <HStack gap={2} vAlign="center">
               {t.dot && <StatusDot variant={t.dot} label={t.name} />}
               <StackItem size="fill">
-                <Text type="supporting" color="secondary">
-                  {t.name}
-                </Text>
+                <VStack gap={1}>
+                  {t.below}
+                  {t.aside}
+                </VStack>
               </StackItem>
-              {t.aside}
+              {typeof t.value === 'string' || typeof t.value === 'number' ? (
+                <Text type="body" weight="bold" hasTabularNumbers className="whitespace-nowrap">
+                  {t.value}
+                </Text>
+              ) : (
+                t.value
+              )}
             </HStack>
-            {typeof t.value === 'string' || typeof t.value === 'number' ? (
-              <Text type="display-3" hasTabularNumbers className="whitespace-nowrap">
-                {t.value}
-              </Text>
-            ) : (
-              t.value
-            )}
-            {t.below}
-          </VStack>
-        </Card>
-      ))}
-      </Grid>
+          </MetadataListItem>
+        ))}
+      </MetadataList>
     </Section>
   )
 }
@@ -141,20 +145,24 @@ export function RecordPage({ title, meta, actions, bad, tabs, props = [] }: { ti
     <Layout
       height="fill"
       contentWidth={1000}
+      defaultHasDividers
       header={
-        <LayoutHeader hasDivider padding={6} paddingBlockEnd={tabs.length > 1 ? 0 : 6}>
-          <VStack gap={4}>
+        <LayoutHeader hasDivider padding={4} paddingBlockEnd={tabs.length > 1 ? 0 : 4}>
+          <VStack gap={3}>
             <HStack gap={4} vAlign="start">
               <StackItem size="fill">
-                <VStack gap={2}>
+                <VStack gap={0}>
                   <Back />
                   <Heading level={1} maxLines={2}>
                     {title}
                   </Heading>
-                  {/* 칩 줄(work-item-detail): 상태 Badge · 표시 · 사람 · 출처 표지. 사이 기호 없이 칩끼리 */}
+                  {/* 메타 줄(detail-page): 상태 Badge · 표시 · 사람 · 출처 표지, 사이에 점 */}
                   <HStack gap={1} vAlign="center" wrap="wrap">
-                    {meta.filter(Boolean).map((f, i) => (
-                      <Fragment key={i}>{f}</Fragment>
+                    {meta.filter((f) => f && !(isValidElement<{ word?: string | null }>(f) && f.type === State && plain(f.props.word))).map((f, i) => (
+                      <HStack key={i} gap={1} vAlign="center">
+                        {i > 0 && <Bullet />}
+                        {f}
+                      </HStack>
                     ))}
                   </HStack>
                 </VStack>
@@ -176,23 +184,23 @@ export function RecordPage({ title, meta, actions, bad, tabs, props = [] }: { ti
                   </TabList>
                 </StackItem>
                 {/* 보조 칸(요약 · AI 보고 · 대화)을 펴고 접는다(work-item-detail의 Hide details) */}
-                <Button label={L.요약} variant="ghost" size="sm" isIconOnly icon={<Icon icon={ViewColumnsIcon} size="sm" />} onClick={() => setSide(!side)} />
+                <Button label={L.요약} variant="ghost" size="md" isIconOnly icon={<Icon icon={ViewColumnsIcon} size="sm" />} onClick={() => setSide(!side)} />
               </HStack>
             )}
           </VStack>
         </LayoutHeader>
       }
       content={
-        // 흰 면 하나: 숫자 타일과 영역(Section, 위 구분선)이 차례로 쌓인다(work-item-detail)
-        <LayoutContent role="main" padding={0}>
-          <VStack gap={0}>{body}</VStack>
+        // detail-page: 본문은 Section(카드)이 gap 4로 쌓인다
+        <LayoutContent role="main">
+          <VStack gap={4}>{body}</VStack>
         </LayoutContent>
       }
       end={
         side && (
           // 보조 칸(work-item-detail의 Details 레일): 접고 펴는 영역이 위에서 아래로 이어진다 — 요약 → AI 보고 → 대화. 칸 전체가 하나로 스크롤된다
-          <LayoutPanel width={300} hasDivider isScrollable padding={0} label={L.요약}>
-            <VStack gap={0}>
+          <LayoutPanel width={320} padding={4} role="complementary" isScrollable label={L.요약}>
+            <VStack gap={4}>
               {props.length > 0 && (
                 <Fold title={L.요약}>
                   <MetadataList>
@@ -216,19 +224,18 @@ export function RecordPage({ title, meta, actions, bad, tabs, props = [] }: { ti
 /** 보조 칸의 영역 하나: 제목을 누르면 접고 편다(열린 채 시작) */
 function Fold({ title, icon, children }: { title: string; icon?: typeof SparklesIcon; children: ReactNode }) {
   return (
-    <Section variant="transparent" padding={4} dividers={['bottom']}>
-      <Collapsible
-        trigger={
-          <HStack gap={2} vAlign="center">
-            {icon && <Icon icon={icon} size="sm" color="accent" />}
-            <Heading level={4}>{title}</Heading>
-          </HStack>
-        }
-        defaultIsOpen
-      >
-        <VStack gap={3}>{children}</VStack>
-      </Collapsible>
-    </Section>
+    // detail-page의 RightPanel: 제목(Heading 4)을 누르면 접고 펴는 묶음
+    <Collapsible
+      trigger={
+        <HStack gap={2} vAlign="center">
+          {icon && <Icon icon={icon} size="sm" color="accent" />}
+          <Heading level={4}>{title}</Heading>
+        </HStack>
+      }
+      defaultIsOpen
+    >
+      <VStack gap={3}>{children}</VStack>
+    </Collapsible>
   )
 }
 
