@@ -155,6 +155,8 @@ fn talk(model: String, key: Option<String>, ai: Db, me: Db, system: String, recs
         let mut n = 0;
         let mut open = false;
         let mut word: Option<&str> = None;
+        // 시작한 도구 호출(끝나지 않고 멈추면 실패로 닫는다)
+        let mut running: Vec<(String, &str)> = vec![];
         if model.starts_with("fixture") {
             let say = match match fixture_card(&model, &me, &talk, &cards).await { None => fixture_doc(&model, &me, &talk, &files, &handed).await, c => c } { Some(t) => Some((t, 5)), None => canned(&model, &ai, &system, &recs, &talk, &seen).await };
             match say {
@@ -191,14 +193,17 @@ fn talk(model: String, key: Option<String>, ai: Db, me: Db, system: String, recs
                             LanguageModelStreamChunkType::TextEnd => if open { open = false; yield json!({ "type": "text-end", "id": format!("t{n}") }); },
                             LanguageModelStreamChunkType::ToolCallAvailable(info) => {
                                 let what = match info.tool.name.as_str() { "read_db" => "조회", "card" => "카드", "doc" => "서류", _ => "" };
-                                if !what.is_empty() { yield json!({ "type": "data-step", "id": info.tool.id, "data": { "tool": what, "state": "run", "names": [], "go": [] } }); }
+                                if !what.is_empty() { running.push((info.tool.id.clone(), what)); yield json!({ "type": "data-step", "id": info.tool.id, "data": { "tool": what, "state": "run", "names": [], "go": [] } }); }
                             }
                             LanguageModelStreamChunkType::ToolCallEnd(r) => {
                                 let what = match r.tool.name.as_str() { "read_db" => "조회", "card" => "카드", "doc" => "서류", _ => "" };
                                 if !what.is_empty() {
-                                    let out = r.output.as_ref().map(|v| v.to_string()).unwrap_or_default();
+                                    running.retain(|(id, _)| id != &r.tool.id);
+                                    // aisdk는 도구의 실패를 `Error: …` 글로 감싸 돌려준다
+                                    let out = r.output.as_ref().map(|v| v.as_str().map_or_else(|| v.to_string(), String::from)).unwrap_or_default();
+                                    let failed = r.output.is_err() || out.starts_with("Error:");
                                     let (names, go) = if what == "조회" { let mut one = BTreeSet::new(); cited(&out, &mut one); reads_names(&ai, &one.into_iter().take(LISTED).collect::<Vec<_>>()).await } else { (vec![], vec![]) };
-                                    yield json!({ "type": "data-step", "id": r.tool.id, "data": { "tool": what, "state": if r.output.is_ok() { "done" } else { "fail" }, "names": names, "go": go } });
+                                    yield json!({ "type": "data-step", "id": r.tool.id, "data": { "tool": what, "state": if failed { "fail" } else { "done" }, "names": names, "go": go } });
                                 }
                             }
                             LanguageModelStreamChunkType::Failed(_) => { word = Some("대기"); break }
@@ -209,6 +214,8 @@ fn talk(model: String, key: Option<String>, ai: Db, me: Db, system: String, recs
             }
         }
         if open { yield json!({ "type": "text-end", "id": format!("t{n}") }); }
+        // 시간 초과 · 모델 실패로 끝났으면 진행 중인 도구 줄을 실패로 닫는다(저장된 대화에 `진행`이 남지 않게)
+        for (id, what) in std::mem::take(&mut running) { yield json!({ "type": "data-step", "id": id, "data": { "tool": what, "state": "fail", "names": [], "go": [] } }); }
         if model.starts_with("fixture") {
             let ids: Vec<String> = seen.lock().unwrap().iter().take(LISTED).cloned().collect();
             if !ids.is_empty() { let (names, go) = reads_names(&ai, &ids).await; yield json!({ "type": "data-step", "id": "s1", "data": { "tool": "조회", "state": "done", "names": names, "go": go } }); }

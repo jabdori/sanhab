@@ -149,7 +149,7 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
       if (!id) return
       const first = all.find((m) => m.role === 'user')?.parts.map((p) => (p.type === 'text' ? p.text : '')).join('') ?? ''
       const reads = all.flatMap((m) => m.parts.flatMap((p) => (p.type === 'data-reads' ? (p.data.go ?? []).filter((g): g is Target => !!g) : [])))
-      const about = all.flatMap((m) => (m.metadata?.ctx ?? []).filter((c) => c.id).map(({ kind, id }) => ({ kind, id })))
+      const about = [...new Map(all.flatMap((m) => (m.metadata?.ctx ?? []).filter((c) => c.id).map(({ kind, id }) => [key({ kind, id }), { kind, id }] as const))).values()]
       api(`/chat/sessions/${id}`, { messages: lean(all), title: first.replace(/\s+/g, ' ').trim().slice(0, 40), about, reads }, 'PUT').catch(() => {})
     },
     // AI가 파일을 소명의 서류로 넘겼으면 소명 화면이 다시 읽는다
@@ -399,6 +399,11 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
                 </ChatMessage>
               )
             })}
+            {busy && (messages.at(-1)?.role === 'user' || !messages.at(-1)?.parts.some((p) => p.type === 'text' || p.type === 'data-step')) && (
+              <ChatMessage sender="assistant" avatar={<Avatar name={L.AI} size="md" />}>
+                <ChatToolCalls calls={[{ key: 'wait', name: L.응답, status: 'running' }]} />
+              </ChatMessage>
+            )}
             {(error || kept || tooBig) && (
               <ChatSystemMessage>
                 <HStack gap={2} vAlign="center" wrap="wrap">
@@ -446,13 +451,14 @@ function For({ target }: { target: Target | null }) {
   const all = useData<{ sessions: Sess[] }>(`/chat/sessions?n=${open?.n ?? 0}`)
   const of = useData<{ sessions: Sess[] }>(target ? `/chat/sessions?of=${encodeURIComponent(key(target))}` : null)
   const pick = (id: string) => setOpen((o) => ({ sid: id || null, n: (o?.n ?? 0) + 1 }))
-  if (!all || (target && !of)) return null
+  // 기록을 다룬 대화 목록(of)은 대화 목록 창의 `기록` 탭에만 쓴다 — 기다리지 않는다(기다리면 칸이 사라졌다 다시 생겨 진행 중인 대화를 잃는다)
+  if (!all) return null
   if (!open) {
     // 역할의 가장 최근 대화를 이어 연다(화면을 옮겨도 그대로)
     setOpen({ sid: all.sessions[0]?.id ?? null, n: 0 })
     return null
   }
-  return <Load key={open.n} sid={open.sid} list={all.sessions} here={target ? of!.sessions : null} onPick={pick} />
+  return <Load key={open.n} sid={open.sid} list={all.sessions} here={target ? of?.sessions ?? null : null} onPick={pick} />
 }
 
 function Load({ sid, list, here, onPick }: { sid: string | null; list: Sess[]; here: Sess[] | null; onPick: (id: string) => void }) {
