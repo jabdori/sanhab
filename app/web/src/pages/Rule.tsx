@@ -3,7 +3,6 @@ import { DocumentTextIcon } from '@heroicons/react/24/outline'
 import { useState } from 'react'
 import { L } from '../labels'
 import { Meta, RecordPage, Tiles } from '../ui/Record'
-import { Source } from '../ui/Source'
 import { Assumes, Original, Uses, Versions, useClause, where } from '../tickets/22-규정'
 import { Result, Simulate } from '../tickets/23-모의'
 
@@ -17,7 +16,6 @@ export function Rule() {
       title={clause.title}
       meta={[
         <Meta icon={DocumentTextIcon}>{clause.file}</Meta>,
-        <Source kind={clause.source} tip={where(clause)} place={`${clause.first}–${clause.last}${L.행}`} rows={[[L.위치, where(clause)], [L.해시, clause.sha]]} />,
       ]}
       actions={<Simulate target={clause.title} onBad={setBad} />}
       props={[

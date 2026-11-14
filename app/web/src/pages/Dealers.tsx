@@ -50,7 +50,7 @@ export function Dealers() {
                 <MetadataListItem label={L.대리점}>
                   <Text hasTabularNumbers>{`${rows.length}${L.곳}`}</Text>
                 </MetadataListItem>
-                <MetadataListItem label={L.검색}>
+                <MetadataListItem label={L.결과}>
                   <Text hasTabularNumbers>{`${visible.length}${L.건}`}</Text>
                 </MetadataListItem>
               </MetadataList>

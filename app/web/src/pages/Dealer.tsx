@@ -7,7 +7,6 @@ import { L } from '../labels'
 import { useData } from '../state'
 import { Meta, RecordPage, Tiles } from '../ui/Record'
 import { Region } from '../ui/Region'
-import { Source } from '../ui/Source'
 import { num } from '../ui/status'
 import { Payouts, RegisteredRegion, useDetail } from '../tickets/02-대리점'
 import { Links, useRelated } from '../tickets/03-관련자'
@@ -53,7 +52,6 @@ export function Dealer() {
       meta={[
         <Text type="supporting" color="secondary" hasTabularNumbers>{v.id}</Text>,
         rel && rel.group.length > 1 && <Meta icon={UserGroupIcon}>{rel.group.map((g) => g.name).join(' · ')}</Meta>,
-        <HStack gap={1}><Source kind={v.source} file={v.file} row={v.row} /></HStack>,
       ]}
       actions={<Change onBad={setBad} />}
       // 보조 칸의 요약: 지금 유효한 등록값(대표자 · 주소 · 계좌)과 그룹

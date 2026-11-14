@@ -5,7 +5,6 @@ import { Link } from '@astryxdesign/core/Link'
 import { store, targetAtom } from '../state'
 import { State } from '../ui/Mark'
 import { L } from '../labels'
-import { Source } from '../ui/Source'
 import { Meta, RecordPage } from '../ui/Record'
 import { BuildingStorefrontIcon, UserIcon } from '@heroicons/react/24/outline'
 import { Region } from '../ui/Region'
@@ -29,7 +28,6 @@ export function Pay() {
         <State word={pay.state} />,
         <Meta icon={BuildingStorefrontIcon}>{pay.name}</Meta>,
         <Meta icon={UserIcon}>{p.role}</Meta>,
-        <Source kind={pay.source} file={pay.file} row={pay.row} />,
       ]}
       actions={<PayActions onBad={setBad} />}
       // 보조 칸의 요약: 상태 · 대리점 · 귀속월 · 계좌(지금 등록된 것) · 심사(누르면 열린다) · 담당
