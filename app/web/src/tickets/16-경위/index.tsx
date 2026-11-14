@@ -8,6 +8,7 @@ import { useAtomValue, useSetAtom } from 'jotai'
 import { Icon } from '@astryxdesign/core/Icon'
 import { UserCircleIcon, DocumentTextIcon } from '@heroicons/react/24/outline'
 import { L } from '../../labels'
+import { nb } from '../../ui/status'
 import { targetAtom, useData } from '../../state'
 import { Empty } from '../../ui/Empty'
 import { Region } from '../../ui/Region'
@@ -150,7 +151,7 @@ export function Picture() {
                   )}
                   {/* 줄은 띄어쓰기에서만 바꾼다(`2026-06`이 꺾이지 않게) */}
                   <Text maxLines={2} color={on.has(n.key) ? 'primary' : 'secondary'} className="break-keep">
-                    {n.name}
+                    {nb(n.name)}
                   </Text>
                   {n.who?.role && (
                     <Text type="supporting" maxLines={1}>

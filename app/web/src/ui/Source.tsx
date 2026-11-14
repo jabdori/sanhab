@@ -9,7 +9,7 @@ import { Icon } from '@astryxdesign/core/Icon'
 import { BeakerIcon, CalculatorIcon, InformationCircleIcon, LightBulbIcon, SparklesIcon, Square2StackIcon, AcademicCapIcon } from '@heroicons/react/24/outline'
 import { Tooltip } from '@astryxdesign/core/Tooltip'
 import { type ReactNode, useState } from 'react'
-import { L } from '../labels'
+import { COLS, L } from '../labels'
 import { api } from '../state'
 
 /**
@@ -187,8 +187,12 @@ function Origin({ file, row, o }: { file: string; row: number; o: Row }) {
         </Text>
       </MetadataListItem>
       {o.cells.map(([k, v]) => (
-        <MetadataListItem key={k} label={k}>
-          <Text hasTabularNumbers>{v}</Text>
+        // 열 이름은 사람이 읽는 이름으로, 원래 열 이름은 보조 글로(원본을 추적할 수 있게). 빈 값(NONE · 빈칸)은 없음
+        <MetadataListItem key={k} label={COLS[k] ?? k}>
+          <VStack gap={0}>
+            <Text hasTabularNumbers>{v && v !== 'NONE' ? v : L.없음}</Text>
+            {COLS[k] && <Text type="supporting" color="secondary">{k}</Text>}
+          </VStack>
         </MetadataListItem>
       ))}
       <MetadataListItem label={L.해시}>

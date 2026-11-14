@@ -34,7 +34,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ASK, L } from '../../labels'
 import { State } from '../../ui/Mark'
 import { api, changedAtom, exampleAtom, roleAtom, rolesAtom, store, targetAtom, useData, type Target } from '../../state'
-import { fail } from '../../ui/status'
+import { fail, nb } from '../../ui/status'
 import { Card as ActionCard, type CardData } from '../25-카드'
 
 /** 답에 붙는 조회한 기록(서버가 `data-reads`로 보낸다). go는 이름과 같은 순서의 여는 길(열 화면이 없는 기록은 null) */
@@ -302,7 +302,7 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
                     <Icon icon={SparklesIcon} size="md" color="accent" />
                     <Text type="large" as="h2">{L.대화}</Text>
                   </HStack>
-                  {now && named[key(now)] && <Text type="display-3" as="h1">{named[key(now)]}</Text>}
+                  {now && named[key(now)] && <Text type="display-3" as="h1">{nb(named[key(now)] ?? "")}</Text>}
                 </VStack>
                 {now && (
                   <Grid columns={{ minWidth: 200 }} gap={3}>

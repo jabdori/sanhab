@@ -52,10 +52,10 @@ export function Excluded() {
 export function Unknown() {
   const v = useVerdict()
   const docs = useDocs()
-  // 미확인이 없으면 그리지 않는다(AI 구역에 빈 칸을 두지 않게)
-  if (!v || !docs?.docs.length || !v.unknown.length) return null
+  // 미확인이 없으면 그리지 않는다. 요청한 서류가 빠졌으면(서류 종류) 그 서류도 누락으로 맨 위에
+  if (!v || !docs?.docs.length || !(v.unknown.length || v.lacking?.length)) return null
   type U = { item: string; word: string } & Record<string, unknown>
-  const data: U[] = v.unknown.map(([item, word]) => ({ item, word }))
+  const data: U[] = [...(v.lacking ?? []).map((item) => ({ item, word: L.누락 })), ...v.unknown.map(([item, word]) => ({ item, word }))]
   return (
     <VStack gap={2}>
       <Source kind={L.계산} tip={L.서류} rows={[[L.서류, docs.docs.at(-1)?.name ?? L.없음]]} />

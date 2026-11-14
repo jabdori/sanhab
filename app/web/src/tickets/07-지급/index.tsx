@@ -14,7 +14,7 @@ import { Empty } from '../../ui/Empty'
 import { Act } from '../../ui/Record'
 import { Source } from '../../ui/Source'
 import { Tiles } from '../../ui/Record'
-import { meter, num } from '../../ui/status'
+import { meter, num, pct } from '../../ui/status'
 import { usePay } from './pay'
 
 /** 판단의 재료 타일: 금액(원본이라 행 번호 표지) · 계좌 · 이 지급을 승인한 심사(누르면 그 심사가 열린다) */
@@ -34,7 +34,7 @@ export function PayTiles() {
               {
                 name: L.합산,
                 value: num(r.total),
-                below: r.limit ? <ProgressBar label={L.한도} isLabelHidden value={Math.min(r.total, r.limit)} max={r.limit} variant={meter(over)} hasValueLabel formatValueLabel={() => `${Math.round((r.total / r.limit!) * 100)}%`} /> : undefined,
+                below: r.limit ? <ProgressBar label={L.한도} isLabelHidden value={Math.min(r.total, r.limit)} max={r.limit} variant={meter(over)} hasValueLabel formatValueLabel={() => pct(r.total, r.limit!)} /> : undefined,
               },
               { name: L.한도, value: r.limit === null ? L.미상 : num(r.limit) },
             ]

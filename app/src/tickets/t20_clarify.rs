@@ -51,6 +51,9 @@ async fn detail(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<M
         return Err(err(StatusCode::NOT_FOUND, "없음"));
     }
     let can = q1(&me.db, "RETURN fn::decidable(type::record('clarify', $id));", json!({ "id": id })).await? == true;
+    let (lack, all) = lacking(&db, &id).await;
+    // 인정의 근거가 되는 서류가 하나도 없다(요청한 종류 전부가 빠짐)
+    let bare = all > 0 && lack.len() == all;
     let docs = super::t19_docs::list(State(db), Extension(me), Path(id.clone())).await?.0;
     let mut unknown = vec![];
     for r in docs["docs"].as_array().and_then(|d| d.last()).and_then(|d| d["rows"].as_array()).into_iter().flatten() {
@@ -62,8 +65,26 @@ async fn detail(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<M
     }
     let lines: Vec<J> = r["lines"].as_array().into_iter().flatten().map(|l| json!({ "item": item(l["tb"].as_str().unwrap_or_default()), "value": l["value"] })).collect();
     let excluded: Vec<J> = r["excluded"].as_array().into_iter().flatten().map(|l| json!({ "item": item(l["tb"].as_str().unwrap_or_default()), "value": l["value"], "since": l["since"], "until": l["until"] })).collect();
-    let actions: Vec<J> = if can { ["인정", "불인정", "보완"].iter().map(|k| json!({ "kind": k, "classes": classes(k) })).collect() } else { vec![] };
-    Ok(Json(json!({ "id": id, "can": can, "role": "내부 감시", "actions": actions, "span": r["span"], "lines": lines, "excluded": excluded, "unknown": unknown })))
+    // 요청한 종류의 서류가 하나도 없으면 인정할 수 없다(보완 · 불인정만)
+    let actions: Vec<J> = if can { ["인정", "불인정", "보완"].iter().filter(|k| !bare || **k != "인정").map(|k| json!({ "kind": k, "classes": classes(k) })).collect() } else { vec![] };
+    Ok(Json(json!({ "id": id, "can": can, "role": "내부 감시", "actions": actions, "span": r["span"], "lines": lines, "excluded": excluded, "unknown": unknown, "lacking": lack })))  // lacking: 요청한 서류 가운데 받은 서류에 없는 것(서류 종류를 본다 — 계좌 소명에 임대차계약서만 오면 통장 사본 · 예금주 확인서)
+}
+
+/// 서류의 종류를 가르는 낱말: 요청한 서류 이름 → 판독한 글에 있어야 할 낱말
+const DOC_WORD: [(&str, &str); 5] = [("임대차계약서", "임대차계약서"), ("사업자등록증", "사업자등록증"), ("통장 사본", "통장"), ("예금주 확인서", "예금주"), ("생년월일을 확인할 수 있는 서류", "생년월일")];
+
+/// 요청한 서류 가운데 빠진 것: 일치 종류마다 그 종류의 서류가 하나도 없으면 그 종류의 서류 이름들(`통장 사본 · 예금주 확인서`).
+/// 서류의 종류는 판독한 글에 그 서류의 낱말이 있는지로 가른다(코드의 판정). 주소는 임대차계약서나 사업자등록증 하나면 된다.
+/// 둘째 값은 요청한 일치 종류의 수 — 하나도 맞는 서류가 없으면(빠진 종류 수 = 전체) 인정할 근거가 없다
+async fn lacking(db: &Db, id: &str) -> (Vec<String>, usize) {
+    let want = super::t18_send::requested(db, id).await;
+    let text = q1(db, "RETURN array::join((SELECT VALUE (read ?? []).map(|$w| $w.text) FROM doc WHERE clarify = type::record('clarify', $id)).flatten(), ' ');", json!({ "id": id })).await.ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_default();
+    let compact: String = text.chars().filter(|c| !c.is_whitespace()).collect();
+    let has = |n: &str| compact.contains(DOC_WORD.iter().find(|d| d.0 == n).map_or(n, |d| d.1));
+    let mut kinds: Vec<&str> = want.iter().map(|[k, _]| k.as_str()).collect();
+    kinds.dedup();
+    let all = kinds.len();
+    (kinds.into_iter().filter(|k| !want.iter().any(|[kk, n]| kk == k && has(n))).map(|k| want.iter().filter(|[kk, _]| kk == k).map(|[_, n]| n.as_str()).collect::<Vec<_>>().join(" · ")).collect(), all)
 }
 
 /// 결과의 분류(DB의 `fn::verdict_classes`와 같다 — 화면이 목록을 받는 자리)
@@ -84,12 +105,16 @@ async fn decide(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<M
     if b["reason"].is_object() {
         vars["reason"] = b["reason"].clone();
     }
+    // 요청한 종류의 서류가 하나도 없으면 인정은 거절한다(서류 — 대상 · 권한 · 상태 · 사유 다음에 본다)
+    let (lack, all) = lacking(&db, id).await;
+    vars["bare"] = json!(all > 0 && lack.len() == all);
     attempt(&me.db, "
         LET $c = type::record('clarify', $id);
         RETURN IF $c.id = NONE OR $kind NOTINSIDE ['인정', '불인정', '보완'] THEN '대상'
             ELSE IF $auth.role != '내부 감시' THEN '권한'
             ELSE IF !fn::decidable($c) THEN '상태'
-            ELSE IF !fn::reason(true, fn::verdict_classes($kind), $reason) THEN '사유' END;",
+            ELSE IF !fn::reason(true, fn::verdict_classes($kind), $reason) THEN '사유'
+            ELSE IF $kind = '인정' AND $bare THEN '서류' END;",
         "RETURN (CREATE verdict SET clarify = type::record('clarify', $id), kind = $kind, reason = $reason);", vars).await?;
     settle(&db, id, kind).await.map_err(|_| err(StatusCode::INTERNAL_SERVER_ERROR, "오류"))?;
     Ok(Json(json!({ "id": id })))
@@ -241,6 +266,7 @@ pub async fn check(c: &Check) -> Result<()> {
     // 동시에 둘이 정하면 하나만 되고 진 쪽은 상태다(소명 하나에 결과는 한 번)
     let race = open("e", "D-024", "D-011").await?;
     ensure!(up(&race, png2).await? == 200, "접수 e");
+    fill().await?; // 판독한 뒤에 다툰다(판독 전의 인정은 서류로 거절된다)
     let (r1, r2) = tokio::join!(c.post(audit, "/api/verdict", json!({ "id": race, "kind": "불인정", "reason": { "class": "일치" } })), c.post(audit, "/api/verdict", json!({ "id": race, "kind": "인정", "reason": { "class": "입증" } })));
     let mut got = [r1?, r2?];
     got.sort_by_key(|g| g.0);

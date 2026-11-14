@@ -15,7 +15,8 @@ DEFINE FIELD source ON signal TYPE string;                    -- 계산. 기준�
 DEFINE FUNCTION fn::signal($kind: string, $of: string, $name: string, $dealers: array<record<dealer>>, $evidence: array<record>, $source: string) -> record<signal> {
     LET $s = type::record('signal', string::concat($kind, '-', $of));
     IF $s.id = NONE {
-        CREATE $s SET kind = $kind, name = string::concat($kind, ' · ', $name), dealers = $dealers, evidence = $evidence, source = $source;
+        -- 거부된 추인의 정황(D52)은 이름을 `거부 · …`로(종류 낱말 추인은 결과와 반대로 읽힌다)
+        CREATE $s SET kind = $kind, name = string::concat(IF $kind = '추인' THEN '거부' ELSE $kind END, ' · ', $name), dealers = $dealers, evidence = $evidence, source = $source;
         -- 작업의 id는 정황의 id와 같다(04의 심사 작업처럼. 목록의 순서가 고르고, 다시 접수할 때 같은 작업을 되살릴 수 있다)
         CREATE type::record('task', record::id($s)) SET kind = '정황', view = '정황', target = $s, role = '내부 감시', source = '계산';
     } ELSE {
@@ -77,7 +78,10 @@ DEFINE FUNCTION fn::evidence($e: record) -> object {
         ELSE IF $t = 'payout' THEN { item: '지급', dealer: ($e->payout_of->dealer)[0], ym: $e.ym, amount: $e.amount }
         ELSE IF $t INSIDE ['rep', 'addr', 'acct'] THEN { item: { rep: '대표자', addr: '주소', acct: '계좌' }[$t], dealer: $e.in, node: $e.out }
         ELSE IF $t = 'recon' THEN { item: '대사', dealer: ($e.payout->payout_of->dealer)[0], ym: $e.payout.ym, value: array::join($e.diff, ' · '),
-            want: { amount: $e.amount, accounts: $e.accounts }, got: { amount: $e.reply.amount, account: $e.reply.account } }
+            want: { amount: $e.amount, accounts: $e.accounts },
+            -- 회신의 계좌가 누구의 등록 계좌인지(없으면 등록되지 않은 계좌) — 감사인이 "돈이 어디로 갔나"를 바로 보게
+            got: { amount: $e.reply.amount, account: $e.reply.account, owner: (SELECT VALUE in.name FROM acct WHERE out.value = $e.reply.account AND excluded = false)[0] } }
+        ELSE IF $t = 'review' THEN { item: '심사', ym: $e.ym, amount: $e.total, value: $e.name }
         ELSE { item: $t } END;
     RETURN {
         id: <string> $e, item: $v.item, at: $v.at, ym: $v.ym, amount: $v.amount, value: $v.value, want: $v.want, got: $v.got,

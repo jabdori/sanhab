@@ -5,8 +5,9 @@ DEFINE FIELD raised ON review TYPE bool DEFAULT false;   -- 열린 정황의 가
 DEFINE FIELD raised ON signal TYPE bool DEFAULT false;   -- 그 정황의 가설에서 승인권자가 올라가는 심사가 있다(17의 의견은 조치 뒤에 열린다)
 
 -- 그 심사에 승인권자의 조치를 하는 역할: 저장된 승인권자, 가설에서 올라가는 심사는 영업임원
+DEFINE FIELD left ON review TYPE bool DEFAULT false;   -- D64: 등록 변경으로 그룹에서 빠진 대리점의 심사(변경한 영업지원이 바로 전결하지 못하게 영업임원으로)
 DEFINE FUNCTION fn::holder($r: record<review>) -> string {
-    RETURN IF $r.raised THEN '영업임원' ELSE $r.approver END;
+    RETURN IF $r.raised OR $r.left THEN '영업임원' ELSE $r.approver END;
 } PERMISSIONS FULL;
 
 -- 04·10의 조건과 같고 승인권자 자리만 fn::holder로 바꿨다(다른 티켓이 fn::can에 조건을 더하면 여기에도 더한다)

@@ -1,3 +1,6 @@
+import { Text } from '@astryxdesign/core/Text'
+import { HStack } from '@astryxdesign/core/Layout'
+import { useRecon } from '../tickets/08-대사'
 // 지급 기록: 심사 기록(Review)과 같은 틀. 머리(대리점 · 귀속월 / 상태 · 표시) → 본문(타일 · 대사 · 재심사) → 레일(요약).
 // 탭: 내용 | 경위 | 이력(지급 표시와 회신을 일어난 순서대로). 조치는 지급 하나(회신은 시연 서랍).
 import { useState } from 'react'
@@ -18,21 +21,25 @@ import { Picture, Timeline } from '../tickets/16-경위'
 
 export function Pay() {
   const p = usePay()
+  const rc = useRecon()
   const [bad, setBad] = useState<string | null>(null)
   if (!p) return null
   const { pay } = p
+  // 돈은 나갔어도(완료) 대사가 불일치면 머리 · 요약은 불일치(오류)로 — 초록 완료로 끝난 것처럼 보이지 않게
+  const off = rc?.recon?.verdict === L.불일치
+  const shown = off ? L.불일치 : pay.state
   return (
     <RecordPage
       title={`${pay.name} · ${pay.ym}`}
       meta={[
-        <State word={pay.state} />,
+        <State word={shown} />,
         <Meta icon={BuildingStorefrontIcon}>{pay.name}</Meta>,
         <Meta icon={UserIcon}>{p.role}</Meta>,
       ]}
       actions={<PayActions onBad={setBad} />}
       // 보조 칸의 요약: 상태 · 대리점 · 귀속월 · 계좌(지금 등록된 것) · 심사(누르면 열린다) · 담당
       props={[
-        [L.상태, pay.state],
+        [L.상태, off ? <HStack gap={2} vAlign="center"><Text>{pay.state}</Text><State word={L.불일치} /></HStack> : pay.state],
         [L.대리점, pay.name],
         [L.귀속월, pay.ym],
         [L.계좌, p.accounts.length ? p.accounts.map((a) => a.value).join(' · ') : L.없음],

@@ -51,6 +51,8 @@ async fn detail(Extension(me): Extension<crate::Me>, Path(id): Path<String>) -> 
             cause: IF $r.cause THEN { role: $r.cause.role, at: time::format($r.cause.at, '%Y-%m-%d'), item: $r.cause.item, value: $r.cause.value, since: time::format($r.cause.since, '%Y-%m-%d'), dealer: $r.cause.dealer.name } END,
             at: time::format($r.at, '%Y-%m-%d'),
             back: IF $r.back THEN { id: record::id($r.back), name: $r.back.name } END,
+            -- 아직 다시 승인되지 않았으면 이 지급이 지금 든 심사(새 그룹) — 회계·자금이 그 심사로 바로 간다
+            now: IF !$r.back THEN (SELECT record::id(id) AS id, string::concat(name, ' · ', ym) AS name FROM review WHERE payouts CONTAINS type::record('payout', $id) AND fixed = NONE)[0] END,
         } END;", json!({ "id": id })).await?;
     if r.is_null() {
         return Err(err(StatusCode::NOT_FOUND, "없음"));
@@ -96,6 +98,9 @@ pub async fn check(c: &mut Check) -> Result<()> {
     ensure!(line["state"] == "재심사" && line["state_source"] == "계산" && line["status"] == "미지급", "대리점 상세의 지급 줄 {line}");
     // 사유: 변경이 원인이다(경위 16이 지급 → 앞선 승인 → 변경으로 거슬러 오른다)
     let r = c.get(acct, &format!("/api/pays/{pay}/redo")).await?;
+    ensure!(r["redo"]["now"]["name"].as_str().is_some_and(|n| n.starts_with("한라인상사34 외 1")), "지금 든 심사 {r}");
+    let mut r = r;
+    if let Some(o) = r["redo"].as_object_mut() { o.remove("now"); }
     ensure!(r == json!({ "redo": { "payout": pay, "was": { "id": r34, "name": "한라인상사34" }, "at": "2026-07-01", "back": null,
         "cause": { "role": support, "at": "2026-07-01", "item": "주소", "value": addr41, "since": "2026-02-01", "dealer": "한라인상사34" } } }), "재심사의 기록 {r}");
     // 앞선 승인은 기록으로 남되 효력을 잃는다: 승인 결정과 이력은 그대로, 표시는 재심사(재검토가 아니다). 추인 묶음에 들지 않는다. 2·3월은 그대로 재검토

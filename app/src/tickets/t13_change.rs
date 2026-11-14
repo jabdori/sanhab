@@ -57,7 +57,19 @@ async fn change(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<M
         "CREATE incident SET kind = '변경', dealer = type::record('dealer', $id), item = $item, value = $value, since = <datetime> ($since + 'T00:00:00Z') RETURN VALUE record::id(id);",
         json!({ "id": id, "item": item, "value": value, "since": since }),
     ).await?;
+    // 직무 분리(D64): 변경으로 그룹에서 빠진 대리점의 굳지 않은 심사는 영업임원 승인으로 올리고 `이탈` 표시를 붙인다 — 바꾼 영업지원이 그 건을 바로 전결하지 못하게
+    let before = q1(&db, "SELECT ym, members.map(|$d| record::id($d)) AS m FROM review WHERE fixed = NONE;", json!({})).await?;
     regroup(&db).await?;
+    let after = q1(&db, "SELECT record::id(id) AS id, ym, members.map(|$d| record::id($d)) AS m FROM review WHERE fixed = NONE AND approver = '영업지원';", json!({})).await?;
+    let set = |v: &J| v.as_array().into_iter().flatten().filter_map(|x| x.as_str().map(String::from)).collect::<std::collections::BTreeSet<_>>();
+    let left: Vec<J> = after.as_array().into_iter().flatten().filter(|a| {
+        let am = set(&a["m"]);
+        before.as_array().into_iter().flatten().any(|b| b["ym"] == a["ym"] && { let bm = set(&b["m"]); am.is_subset(&bm) && am.len() < bm.len() })
+    }).map(|a| a["id"].clone()).collect();
+    if !left.is_empty() {
+        q(&db, "UPDATE review SET left = true, marks += '이탈' WHERE record::id(id) INSIDE $ids AND marks CONTAINSNOT '이탈';
+            UPDATE task SET role = '영업임원' WHERE kind = '심사' AND record::id(target) INSIDE $ids AND state != '완료';", json!({ "ids": left })).await?;
+    }
     attach(&db, made[0].as_str().unwrap_or_default()).await?;
     Ok(Json(json!({ "id": made[0] })))
 }
@@ -269,6 +281,15 @@ async fn main_flow(c: &Check) -> Result<()> {
         .bearer_auth(c.token(support)).header("content-type", "image/png").body(super::t19_docs::SAMPLES[0].2.to_vec()).send().await?;
     ensure!(res.status() == 200, "소명 접수 {}", res.status());
     let cl = res.json::<J>().await?["id"].as_str().unwrap_or_default().to_string();
+    // 인정은 받은 서류를 판독한 뒤에(요청한 종류의 서류인지 판독한 글로 가린다) — 판독 전에는 서류로 거절된다
+    let (code, v) = c.post(audit, "/api/verdict", json!({ "id": cl, "kind": "인정", "reason": { "class": "입증" } })).await?;
+    ensure!(code == 400 && v == json!({ "error": "서류" }), "판독 전 인정 {code} {v}");
+    *super::t19_docs::READ.lock().unwrap() = Some("fixture".into());
+    *super::t17_report::USE.lock().unwrap() = Some("fixture".into());
+    for _ in 0..2 {
+        q(&c.db, "UPDATE doc SET read_tried = NONE, tidy_tried = NONE;", json!({})).await?;
+        super::t19_docs::sweep_with(&c.db, None, None).await?;
+    }
     let (code, v) = c.post(audit, "/api/verdict", json!({ "id": cl, "kind": "인정", "reason": { "class": "입증" } })).await?;
     ensure!(code == 200, "인정 {code} {v}");
     let near = |rel: &J| rows(&rel["near"]).into_iter().find(|n| n["id"] == "D-041").map(|n| n["related"].clone());

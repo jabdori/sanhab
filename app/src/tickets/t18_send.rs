@@ -75,6 +75,11 @@ async fn kinds(db: &Db, signal_kind: &str, signal: &str, dealers: &[String]) -> 
 }
 
 /// 소명 한 건(root로 읽는다): 없으면 None. 서류 목록(`docs`)은 발송했으면 그때 남긴 것, 아니면 지금 계산한 것
+/// 이 소명에 요청한(발송했으면 발송한) 서류: `[일치 종류, 서류 이름]`. 없는 소명이면 빈 목록
+pub async fn requested(db: &Db, id: &str) -> Vec<[String; 2]> {
+    row(db, id).await.ok().flatten().map(|(_, _, d)| d).unwrap_or_default()
+}
+
 async fn row(db: &Db, id: &str) -> Result<Option<(J, BTreeSet<&'static str>, Vec<[String; 2]>)>> {
     let c = q1(db, "
         LET $c = type::record('clarify', $id);

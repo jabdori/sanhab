@@ -1,7 +1,7 @@
 // 11 정황: 정황 기록(pages/Signal)의 본문 영역 — 근거, 관계 — 과 이력, 그리고 심사 기록의 "정황" 줄(Flags). 데이터는 signal.ts의 useSignal().
 // 머리·조치·요약은 pages/Signal, AI 보고는 17, 가설은 12, 소명 줄은 18이 그린다. 값은 모두 코드가 기록에서 읽은 것이다(AI의 글은 17).
 import { Badge } from '@astryxdesign/core/Badge'
-import { HStack } from '@astryxdesign/core/Layout'
+import { HStack, VStack } from '@astryxdesign/core/Layout'
 import { List, ListItem } from '@astryxdesign/core/List'
 import { StatusDot } from '@astryxdesign/core/StatusDot'
 import { Table, pixel, proportional } from '@astryxdesign/core/Table'
@@ -83,11 +83,18 @@ export function Evidence() {
               header: nodes ? L.식별자 : amounts ? L.금액 : L.비교,
               align: !nodes && amounts ? 'end' : undefined,
               width: proportional(2, { minWidth: 128 }),
-              renderCell: (e) => (
-                <Text hasTabularNumbers>
-                  {e.node?.name ?? (e.amount == null ? e.value : num(e.amount))}
-                </Text>
-              ),
+              renderCell: (e) =>
+                // 대사: 무엇이 달랐는지 + 차액 + 돈이 들어간 계좌(누구의 등록 계좌인지)
+                e.want && e.got ? (
+                  <VStack gap={0.5}>
+                    <Text hasTabularNumbers>{[e.value, e.got.amount !== e.want.amount ? `${L.차액} ${num(e.got.amount - e.want.amount)}` : null].filter(Boolean).join(' · ')}</Text>
+                    <Text type="supporting" color="secondary" hasTabularNumbers>
+                      {`${L.회신} ${e.got.account} · ${e.got.owner ?? L['등록 없음']}`}
+                    </Text>
+                  </VStack>
+                ) : (
+                  <Text hasTabularNumbers>{e.node?.name ?? (e.amount == null ? e.value : num(e.amount))}</Text>
+                ),
             },
             {
               key: 'source',

@@ -11,7 +11,7 @@ import { ProgressBar } from '@astryxdesign/core/ProgressBar'
 import { Text } from '@astryxdesign/core/Text'
 import { BuildingStorefrontIcon, UserIcon } from '@heroicons/react/24/outline'
 import { useSetAtom } from 'jotai'
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { L } from '../labels'
 import { api, changedAtom, store, targetAtom, useData } from '../state'
 import { Empty } from '../ui/Empty'
@@ -20,7 +20,7 @@ import { AiCard } from '../ui/AiCard'
 import { Act, Meta, RecordPage, Tiles, byGrade } from '../ui/Record'
 import { Region } from '../ui/Region'
 import { Source } from '../ui/Source'
-import { caution, fail, meter, num, plain } from '../ui/status'
+import { caution, fail, meter, num, pct, plain } from '../ui/status'
 import { Links, Members, Rules } from '../tickets/04-심사'
 import { bundled, useReview } from '../tickets/04-심사/review'
 import { History, useResubmit } from '../tickets/06-반려'
@@ -73,7 +73,7 @@ function ReviewTiles() {
           name: L.합산,
           value: num(r.total),
           below: r.limit !== null && (
-            <ProgressBar label={L.한도} isLabelHidden value={Math.min(r.total, r.limit)} max={r.limit} variant={meter(over)} hasValueLabel formatValueLabel={() => `${Math.round((r.total / r.limit!) * 100)}%`} />
+            <ProgressBar label={L.한도} isLabelHidden value={Math.min(r.total, r.limit)} max={r.limit} variant={meter(over)} hasValueLabel formatValueLabel={() => pct(r.total, r.limit!)} />
           ),
           aside: <Source kind={r.source} file={r.file ?? undefined} row={r.row ?? undefined} tip={L.합산} rows={[[L.합산, L['귀속월 지급의 합, 반려 제외']]]} />,
         },
@@ -115,8 +115,8 @@ function SignalReport({ id, name }: { id: string; name: string }) {
       title={<Link onClick={() => setTarget({ kind: L.정황, id })}>{name}</Link>}
       aside={
         <HStack gap={2} vAlign="center">
-          <State word={r?.state ?? L.대기} />
           <Source kind={L.AI} tip={r?.model ?? undefined} rows={[[L.모델, r?.model ?? L.없음], [L.날짜, r?.at ?? L.없음], [L.조회, String(r?.reads ?? L.없음)]]} />
+          <State word={r?.state ?? L.대기} />
         </HStack>
       }
     >
@@ -177,7 +177,10 @@ export function Review() {
       // 보조 칸의 요약: 상태 · 담당(실제로 결정하는 사람) · 승인권자(합산으로 정한 것, 가설로 올라갔으면 표시) · 귀속월 · 구성
       props={[
         [L.상태, plain(v.status) ? v.status : <State word={v.status} />],
-        [L.담당, v.holder ?? v.approver],
+        // 반려 뒤의 차례는 영업지원(재상신) — 담당은 지금 할 사람
+        [L.담당, v.status === L.반려 ? L.영업지원 : v.holder ?? v.approver],
+        // 반려 · 보류의 사유는 받는 사람이 내용에서 바로 본다(이력 탭까지 가지 않게)
+        ...r.history.filter((h) => h.kind === v.status && (h.kind === L.반려 || h.kind === L.보류)).slice(-1).map((h): [string, ReactNode] => [L.사유, [h.reason?.class, h.reason?.memo].filter(Boolean).join(' · ') || L.없음]),
         [L.승인권자, v.holder && v.holder !== v.approver ? <HStack gap={2} vAlign="center"><Text>{v.holder}</Text><Mark>{L.가설}</Mark></HStack> : v.approver],
         [L.귀속월, v.ym],
         [L.구성, r.members.map((m) => m.name).join(' · ')],

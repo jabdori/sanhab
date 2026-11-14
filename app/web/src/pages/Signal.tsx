@@ -64,7 +64,8 @@ function SignalAi() {
   if (!d || !s) return null
   return (
     <AiCard title={s.signal.name} aside={<ReportHead />}>
-      <ReportBody />
+      {/* AI가 응답하지 않았으면 빈 카드 대신 그렇다고 적는다(조사를 다시 누를 수 있다) */}
+      {d.report?.state === L.오류 && !d.report.facts?.length ? <Text color="secondary">{L['AI 응답 없음']}</Text> : <ReportBody />}
       <ReportDecide />
     </AiCard>
   )
@@ -81,7 +82,7 @@ export function Signal() {
     <RecordPage
       props={[
         [L.상태, plain(s.state) ? s.state : <State word={s.state} />],
-        [L.종류, s.kind],
+        [L.종류, s.kind === L.추인 ? L.거부 : s.kind],
         [L.대리점, dealers],
         [k, <HStack gap={2} vAlign="center"><Text>{v}</Text>{src}</HStack>],
         // 다시 올라온 정황(D57): 앞선 기각과 그 사유를 함께 보인다(시나리오 4의 4)
@@ -90,7 +91,7 @@ export function Signal() {
       title={s.name}
       meta={[
         <State word={s.state} />,
-        <Meta icon={FlagIcon}>{s.kind}</Meta>,
+        <Meta icon={FlagIcon}>{s.kind === L.추인 ? L.거부 : s.kind}</Meta>,
         <Meta icon={BuildingStorefrontIcon}>{dealers}</Meta>,
       ]}
       actions={<Actions d={d} onBad={(word) => setBad(word ? { id: s.id, word } : null)} />}

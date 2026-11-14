@@ -52,7 +52,7 @@ const words = [
   '해제',
   '사유 필수',
   '이미지',
-  '안내', '다음', '끝', '스킵', '예시', '도움말', '열기', '질문', '건', '판정은 사람', '버전', '판매장려금', '낱말',
+  '안내', '다음', '끝', '스킵', '예시', '도움말', '열기', '질문', '건', '판정은 사람', '버전', '차액', '등록 없음', 'AI 응답 없음', '이탈', '영업지원', '판매장려금', '낱말',
   // A: 정황·보고·소명·발송·서류
   // B: 지급·대사·재심사·추인·재검토
   // C: 대리점·관련자·변경·규정·모의·접속
@@ -85,7 +85,7 @@ export const TOUR: Record<string, TourStep[]> = {
     { at: '[data-tour=work] table', title: '작업', body: '내 차례의 심사입니다. 열어서 처리합니다' },
     { at: '[data-tour=actions]', record: true, title: '조치', body: '여기서 승인 · 반려 · 보류합니다' },
     SUM,
-    { at: '[data-region="가설"]', record: true, stage: 1, title: '가설', body: '정황이 맞으면 두 곳이 묶여 영업임원이 승인합니다' },
+    { at: '[data-region="가설"]', record: true, stage: 1, title: '가설', body: '새 정황이 붙었습니다. 맞으면 두 곳이 묶여 영업임원이 승인합니다' },
     SIDE_AI, CHAT, DEMO,
   ],
   '내부 감시': [
@@ -99,7 +99,7 @@ export const TOUR: Record<string, TourStep[]> = {
     { at: '[data-tour=work] table', title: '작업', body: '내 승인이 필요한 심사와 추인입니다' },
     { at: '[data-tour=actions]', record: true, title: '조치', body: '여기서 추인하거나 거부합니다' },
     SUM,
-    { at: '[data-region="재검토"]', record: true, title: '재검토', body: '당시 영업지원 전결로 나간 돈을 지금 바로잡습니다' },
+    { at: '[data-region="재검토"]', record: true, title: '재검토', body: '당시와 지금의 구성 · 승인권자를 견줍니다' },
     { at: 'div[aria-label="요약"], [data-tour=props]', record: true, title: '요약', body: '이 추인의 승인권자와 구성을 봅니다' },
     CHAT, DEMO,
   ],
@@ -140,4 +140,11 @@ export const HELP = {
 /** 원본 문서의 사람이 읽는 이름(문서 첫 줄의 제목). 파일 경로는 화면에 두지 않는다(review.md 2-1) — 출처 설명 칸에서만 */
 export const DOCS: Record<string, string> = {
   '00_common/approval_authority_policy.md': '의사결정 권한',
+}
+
+/** 원본 CSV 열 이름 → 사람이 읽는 이름(원본 설명 칸). 원래 열 이름은 그 아래 보조 글로 남는다(추적용) */
+export const COLS: Record<string, string> = {
+  agency_id: '대리점 번호', agency_name: '대리점', representative_name: '대표자', business_reg_no: '사업자등록번호', address: '주소', bank_account_no: '계좌', rebate_eligible: '지급 대상', registered_date: '등록일',
+  rebate_id: '지급 번호', period_ym: '귀속월', sales_performance_krw: '매출', rebate_amount_krw: '지급액', approval_status: '승인 상태', approver: '승인자', payment_date: '지급일',
+  deposit_id: '입금 번호', deposit_date: '입금일', amount_krw: '금액', matched_ar_id: '대응 채권 번호',
 }

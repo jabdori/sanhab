@@ -28,7 +28,7 @@ async fn list(Extension(me): Extension<Me>) -> R {
 
 /// 대리점 상세: 등록(식별자와 변경일·다음 값으로 바뀐 날(`until`, 13)·유효했던 마지막 날(`last` = 그 전날)·인지일·경로)과 귀속월별 지급. 인지일이 없으면(null) 미상이다.
 /// 지급의 `status`는 원본의 값, `state`·`state_source`는 이 앱이 준 지급의 상태와 그 출처(07. 없으면 아직 손대지 않은 지급),
-/// `review`는 그 지급의 심사(09. 과거의 결정이거나 승인된 것. 심사를 기다리는 지급에는 없다)
+/// `review`는 그 지급의 심사(09. 과거의 결정이거나 승인된 것. 심사를 기다리는 지급은 지금 든 심사 — 그룹 심사로 갈 수 있게)
 async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
     // 선의 공통 열. $item은 화면의 이름표, 값은 가리키는 노드에서 꺼낸다
     let edge = |item: &str, table: &str, value: &str| {
@@ -42,7 +42,7 @@ async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
         RETURN {{
             dealer: (SELECT record::id(id) AS id, name, source, file.path AS file, row FROM $d)[0],
             registered: array::concat({}, {}, {}),
-            payouts: (SELECT ym, amount, status, state, state_source, IF review THEN {{ id: record::id(review), name: review.name, marks: review.marks }} END AS review, source, file.path AS file, row FROM payout WHERE ->payout_of->dealer CONTAINS $d ORDER BY ym)
+            payouts: (SELECT ym, amount, status, state, state_source, IF review THEN {{ id: record::id(review), name: review.name, marks: review.marks }} ELSE (SELECT record::id(id) AS id, name, marks FROM review WHERE payouts CONTAINS $parent.id AND fixed = NONE)[0] END AS review, source, file.path AS file, row FROM payout WHERE ->payout_of->dealer CONTAINS $d ORDER BY ym)
         }};",
         edge("대표자", "rep", "out.name AS value, out.same AS same"),
         edge("주소", "addr", "out.value AS value"),

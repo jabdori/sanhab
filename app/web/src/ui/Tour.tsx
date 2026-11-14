@@ -9,7 +9,7 @@ import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { L, TOUR } from '../labels'
-import { changedAtom, exampleAtom, roleAtom, store, targetAtom, type Target } from '../state'
+import { MENUS, changedAtom, exampleAtom, menuAtom, roleAtom, store, targetAtom, type Target } from '../state'
 import EXAMPLE from './example.json'
 
 export const tourAtom = atom(false)
@@ -79,6 +79,8 @@ export function Tour() {
   useEffect(() => {
     if (open) {
       setI(0)
+      // 예시 기록은 작업에서 연 것으로(돌아가기 줄이 직전 메뉴로 남지 않게)
+      store.set(menuAtom, MENUS[0])
       if (role) markSeen(role)
     }
   }, [open, role])

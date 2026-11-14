@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { AiCard } from '../ui/AiCard'
 import { Tidy } from '../tickets/19-서류'
 import { Unknown } from '../tickets/20-소명'
@@ -57,7 +58,7 @@ function ClarifyAi() {
 }
 function UnknownRegion() {
   const v = useVerdict()
-  if (!v?.unknown.length) return null
+  if (!v?.unknown.length && !v?.lacking?.length) return null
   return (
     <Region title={L.미확인}>
       <Unknown />
@@ -94,6 +95,8 @@ export function Clarify() {
         [L.상태, c.state],
         [L.대리점, c.dealer.name],
         ...(c.signal ? [[L.정황, c.signal.name] as [string, string]] : []),
+        // 보완의 사유는 서류를 다시 받을 영업지원이 내용에서 바로 본다
+        ...d.history.filter((h) => h.kind === L.보완).slice(-1).map((h): [string, ReactNode] => [L.보완, [h.reason?.class, h.reason?.memo].filter(Boolean).join(' · ') || L.없음]),
         [L.발송, d.sent ?? L.없음],
         [L.기한, d.due ? <HStack gap={2} vAlign="center"><Text>{d.due}</Text><Source kind={L.가정} of={L.기한} rows={[[L.발송, d.sent ?? L.없음], [L.기한, d.due]]} /></HStack> : L.없음],
       ]}

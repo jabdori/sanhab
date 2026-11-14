@@ -20,6 +20,8 @@ export type Verdict = {
   excluded: { item: string; value: string; since: string | null; until: string | null }[]
   /** 가장 나중 서류에서 서류만으로 가를 수 없는 항목 `[항목, 누락 | 추가 확인]` */
   unknown: [string, string][]
+  /** 요청한 서류 가운데 받은 서류에 없는 것(서류 종류로 가른다). 요청한 종류가 모두 빠졌으면 인정이 없다 */
+  lacking?: string[]
 }
 
 const verdictAtom = atom(async (get) => {

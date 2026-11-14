@@ -211,7 +211,11 @@ export function Samples() {
   const choose = (id: string, name: string) =>
     bin(`/samples/${id}`)
       .then((r) => r.blob())
-      .then((b) => setFile(new File([b], name, { type: b.type })), () => {})
+      .then((b) => {
+        setFile(new File([b], name, { type: b.type }))
+        // 고른 서류가 담긴 접수 영역을 보이게(서랍은 뒤를 막지 않는다)
+        document.querySelector(`[data-region="${L.접수}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      }, () => {})
   return (
     // 시연 서랍의 다른 칸(날짜·초기화)과 같은 영역 제목. 단추는 서류 이름 · 그 서류를 낸 대리점
     <Region title={L.서류}>

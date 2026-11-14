@@ -195,9 +195,9 @@ pub async fn check(c: &Check) -> Result<()> {
     for path in ["/api/reviews/2026-05-D-017/again", "/api/reviews/2026-06-D-001/again", "/api/reviews/x/again", "/api/reviews/%27%3B%20DELETE%20review/again"] {
         ensure!(code(path).await? == 404, "{path}");
     }
-    // 과거의 심사를 여는 길: 대리점 상세의 지급 줄이 그 지급의 심사를 가리킨다. 심사를 기다리는 6월분에는 없다
+    // 과거의 심사를 여는 길: 대리점 상세의 지급 줄이 그 지급의 심사를 가리킨다. 심사를 기다리는 6월분은 지금 든 심사(그룹)를 가리킨다
     let p = c.get(support, "/api/dealers/D-011").await?["payouts"].clone();
-    ensure!(p[0]["review"] == json!({ "id": "2026-01-D-011", "name": "금강상사11", "marks": ["재검토"] }) && p[0]["status"] == "승인" && p[5]["review"].is_null(), "대리점 상세의 지급 줄 {p}");
+    ensure!(p[0]["review"] == json!({ "id": "2026-01-D-011", "name": "금강상사11", "marks": ["재검토"] }) && p[0]["status"] == "승인" && p[5]["review"]["id"] == "2026-06-D-011", "대리점 상세의 지급 줄 {p}");
     ensure!(c.get(support, "/api/dealers/D-001").await?["payouts"][0]["review"] == json!({ "id": "2026-01-D-001", "name": "대성상사1", "marks": [] }), "표시 없는 지급 줄");
 
     // 역할은 표시도 과거의 기록도 고치지 못한다

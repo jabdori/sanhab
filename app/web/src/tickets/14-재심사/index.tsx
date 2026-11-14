@@ -17,6 +17,8 @@ type Redo = {
     cause: { role: string; at: string; item: string; value: string; since: string; dealer: string } | null
     at: string
     back: { id: string; name: string } | null
+    /** 아직 다시 승인되지 않았으면 이 지급이 지금 든 심사 */
+    now?: { id: string; name: string } | null
   }
 }
 
@@ -25,7 +27,7 @@ export function Why() {
   const r = useData<Redo>(p && `/pays/${p.pay.id}/redo`)
   const setTarget = useSetAtom(targetAtom)
   if (!p || r?.redo.payout !== p.pay.id) return null
-  const { cause, was, back } = r.redo
+  const { cause, was, back, now } = r.redo
   const open = (x: { id: string; name: string }) => <Link onClick={() => setTarget({ kind: L.심사, id: x.id })}>{x.name}</Link>
   return (
     <Region title={L.재심사}>
@@ -41,7 +43,7 @@ export function Why() {
           </MetadataListItem>
         )}
         <MetadataListItem label={L.승인}>{open(was)}</MetadataListItem>
-        {back && <MetadataListItem label={L.심사}>{open(back)}</MetadataListItem>}
+        {(back ?? now) && <MetadataListItem label={L.심사}>{open((back ?? now)!)}</MetadataListItem>}
       </MetadataList>
     </Region>
   )
