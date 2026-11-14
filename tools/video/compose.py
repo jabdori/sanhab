@@ -38,6 +38,8 @@ for s in P['segs']:
 for i,(nm,a,b) in enumerate(spans):
     chips=''.join(f'<span class="chip{" on" if n==nm else (" done" if nm in names and names.index(n)<names.index(nm) else "")}">{n}</span>' for n in names)
     clip(f'rail{i}',a,b-a,'rail',f'<span class="sc">{P["num"]} {html.escape(P["title"])}</span>{chips}',30,anim=False)
+# 응답 대기를 잘라 낸 자리: 1.6초 표지(빨리 감기 대신 생략했음을 보인다)
+for i,t in enumerate(P.get('skips',[])): clip(f'skip{i}',max(0,t),1.6,'badge skip','<i></i>대기 생략',32)
 # 실제 / 모의
 cuts=[0]+[x for m in P['mock'] for x in m]+[T]
 for i in range(0,len(cuts),2):
@@ -61,7 +63,7 @@ html,body{{width:1920px;height:1080px;overflow:hidden;background:#f6f7f8}}
 .rail{{left:24px;bottom:112px}} .rail .in{{display:flex;gap:6px;align-items:center;background:rgba(255,255,255,.94);border:1px solid #e3e5e8;border-radius:999px;padding:6px 8px 6px 18px;box-shadow:0 2px 10px rgba(0,0,0,.08);font-size:19px;color:#888}}
 .rail .sc{{font-weight:700;color:#111;margin-right:8px}} .chip{{padding:5px 12px;border-radius:999px}} .chip.done{{color:#444}} .chip.on{{background:#111;color:#fff;font-weight:600}}
 .badge{{right:24px;bottom:112px}} .badge .in{{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.94);border:1px solid #e3e5e8;border-radius:999px;padding:9px 16px;font-size:19px;font-weight:600;color:#222;box-shadow:0 2px 10px rgba(0,0,0,.08)}}
-.badge i{{width:10px;height:10px;border-radius:5px;display:inline-block}} .real i{{background:#1a7f37}} .mock i{{background:#bf8700}} .mock .in{{color:#7a5600;background:#fff8c5;border-color:#eed888}}
+.badge i{{width:10px;height:10px;border-radius:5px;display:inline-block}} .real i{{background:#1a7f37}} .skip{{right:200px}} .skip i{{background:#6e7781}} .mock i{{background:#bf8700}} .mock .in{{color:#7a5600;background:#fff8c5;border-color:#eed888}}
 .cap{{left:160px;right:160px;bottom:36px;text-align:center}} .cap .in{{display:inline-block;background:rgba(17,17,17,.86);color:#fff;padding:12px 26px;border-radius:12px;font-size:32px;font-weight:600;line-height:1.4;max-width:1500px}}
 </style></head><body>
 <div id="root" data-composition-id="main" data-start="0" data-duration="{T:.2f}" data-width="1920" data-height="1080">

@@ -383,7 +383,8 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
                         key: x.id,
                         name: x.tool,
                         status: x.state === 'run' ? ('running' as const) : x.state === 'fail' ? ('error' as const) : ('complete' as const),
-                        target: x.names.length > 2 ? `${x.names.slice(0, 2).join(' · ')} ${L.외} ${x.names.length - 2}` : x.names.join(' · '),
+                        // 이름이 없는 조회(개수 세기 등)는 이름 칸을 두지 않는다
+                        target: x.names.length > 2 ? `${x.names.slice(0, 2).join(' · ')} ${L.외} ${x.names.length - 2}` : x.names.length ? x.names.join(' · ') : undefined,
                         resultDetail: x.names.length ? (
                           <VStack gap={1}>
                             {x.names.map((name, i) => {

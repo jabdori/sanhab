@@ -40,7 +40,7 @@ def wrel(j,w):
     p=PA[chunk[j]['para']];i=p['text'].find(w,chunk[j]['a']);assert i>=0,(j,w); return p['cs'][i]-chunk[j]['cut0']
 evs=[]
 for e in ev:
-    if e[0] in('hl','clear','wide','focus','mock_on','mock_off')+tuple(STG):
+    if e[0] in('hl','clear','wide','focus','mock_on','mock_off','ask','wait_on','wait_off')+tuple(STG):
         lab=' '.join(e).split(' @',1)[1] if e[0]=='hl' else '@'+e[0]
         evs.append(dict(kind=e[0],raw=raw(e),lab=lab,r=[round(float(v)*K) for v in e[2:6]] if e[0] in('hl','focus') else None))
 evs.sort(key=lambda x:x['raw'])
@@ -50,7 +50,12 @@ for lab,j,w in cfg['cues']:
     i=next((i for i,x in enumerate(evs) if i not in used and x['lab']==lab and x['raw']>=lo),None)
     if i is None: fails.append(f'단서 "{lab}"의 상자가 녹화에 없음'); continue
     used.append(i); cues.setdefault(j,[]).append((i,w,lab))
-holds={}; cuts=[]; busy=sorted(x['raw'] for x in evs)
+holds={}; cuts=[]; busy=sorted(x['raw'] for x in evs if x['kind'] not in('wait_on','wait_off'))
+# 어시스턴트의 응답 대기: 보낸 뒤 1초와 답이 끝나기 전 0.8초만 남기고 잘라 낸다(속도 변경 없음, 화면에 대기 생략 표지)
+won=[x['raw'] for x in evs if x['kind']=='wait_on']; woff=[x['raw'] for x in evs if x['kind']=='wait_off']
+for a,b in zip(won,woff):
+    if b-0.8-(a+1.0)>0.5: cuts.append((a+1.0,b-0.8))
+cuts.sort(); waits=list(cuts)
 def out(r): return r+sum(h for t,h in holds.items() if t<=r)-sum(min(b,r)-a for a,b in cuts if a<r)
 def idle_before(r):
     prev=max([t for t in busy if t<r-0.02]+[0]); a=max([prev+1.3]+[b for _,b in cuts]); return (a,r-0.05) if r-0.05-a>0.05 else None
@@ -95,9 +100,9 @@ for n,x in enumerate(evs):
 # 관문 5: 상자가 화면이 바뀐 뒤까지 남지 않는다
 clears=[out(x['raw']) for x in evs if x['kind']=='clear']
 for b in boxes: gate(not any(b['t']<c<b['t']+b['d']-0.02 for c in clears),f'상자가 화면 전환 뒤에도 남음 at {b["t"]:.1f}초')
-plan=dict(num=cfg['num'],title=cfg['title'],subtitle=cfg['subtitle'],chips=cfg['chips'],segs=segs,lines=L,cam=cam,boxes=boxes,mock=[mock[i:i+2] for i in range(0,len(mock),2)],total=round(total,2))
+plan=dict(skips=[round(out(a)-0.01,2) for a,_ in waits],num=cfg['num'],title=cfg['title'],subtitle=cfg['subtitle'],chips=cfg['chips'],segs=segs,lines=L,cam=cam,boxes=boxes,mock=[mock[i:i+2] for i in range(0,len(mock),2)],total=round(total,2))
 json.dump(plan,open(W+'/plan.json','w'),ensure_ascii=False,indent=1)
-rep=[f'장면 {cfg["num"]} 검증 — 길이 {total:.1f}초, 멈춤 {len(holds)}곳 {sum(holds.values()):.1f}초(최대 {max(holds.values() or [0]):.1f}), 잘라냄 {len(cuts)}곳 {sum(b-a for a,b in cuts):.1f}초']
+rep=[f'장면 {cfg["num"]} 검증 — 길이 {total:.1f}초, 멈춤 {len(holds)}곳 {sum(holds.values()):.1f}초(최대 {max(holds.values() or [0]):.1f}), 잘라냄 {len(cuts)}곳 {sum(b-a for a,b in cuts):.1f}초(응답 대기 {len(waits)}곳 {sum(b-a for a,b in waits):.1f}초)']
 rep+= [f'  {lab:24s} {d:+.2f}초' for lab,j,d in report]
 rep+= ['통과' if not fails else '불통과:']+['  - '+f for f in fails]
 open(W+'/verify.txt','w').write('\n'.join(rep)+'\n'); print('\n'.join(rep))
