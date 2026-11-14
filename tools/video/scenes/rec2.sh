@@ -34,7 +34,11 @@ at $(python3 -c "print($S8-1.4)"); scrollto "css:[data-tour=ai]" 16; foc "css:[d
 pt "사실" $C11; pt "추정" $C12; pt "미확인" $C13
 at $(python3 -c "print($S9-0.3)"); wide; top
 pt "승인" $C14; pt "보류" $C15; pt "반려" $C16
-at $(python3 -c "print($S9+6)")
+at $(python3 -c "print($S9+5)")
+stage ask
+clear; wide; ask "이 심사는 왜 내 몫이야?"
+pt "조회" $C18
+sleep 5
 stage approve
 at 0.2; tap @$(ref 'button "승인"') 450; sleep 0.9; foc "css:[role=dialog], dialog[open]"
 tap @$(ref 'combobox "분류"') 450; sleep .4; tap @$(ref 'option "정상"') 400; sleep .3
@@ -46,7 +50,7 @@ setrole 회계·자금
 pt "1,373,515"; sleep 0.6; pt "1,325,536"; sleep 0.6; pt "1,189,046"; sleep 0.6
 tap @$(ref '금강상사11') 450; sleep 2.0
 tap @$(ref 'button "지급"') 450; sleep .7; tap @$(last 'button "지급"') 400; sleep 1.5
-at $S12; log mock_on ""
+at $S14; log mock_on ""
 tap @$(ref 'button "시연"') 450; sleep 1.0; foc "h2:회신"
 tap @$(ref 'button "회신"') 450; sleep .7; tap @$(last 'button "회신"') 400; sleep 1.8
 A press Escape >/dev/null; log mock_off ""; wide; sleep 0.6
@@ -63,9 +67,9 @@ A click @$(ref 'button "내용"') >/dev/null; sleep 1; A mouse move 640 400 >/de
 recstart 2
 stage state
 at 0.3; foc "h2:대사"
-at $(python3 -c "print(max(0.5,$C20-0.3))"); pt "일치"
-at $(python3 -c "print($S14-1.2)"); tap @$(ref 'button "금강상사11 외 2"') 450; sleep 1.6; pt "정산"
-at $S15; tap @$(ref 'button "이력"') 450; sleep 1.0; foc "h2:이력"; pt "승인 · 영업임원"
-at $S16; clear; wide
-at $(python3 -c "print($S16+4.4)")
+at $(python3 -c "print(max(0.5,$C22-0.3))"); pt "일치"
+at $(python3 -c "print($S16-1.2)"); tap @$(ref 'button "금강상사11 외 2"') 450; sleep 1.6; pt "정산"
+at $S17; tap @$(ref 'button "이력"') 450; sleep 1.0; foc "h2:이력"; pt "승인 · 영업임원"
+at $S18; clear; wide
+at $(python3 -c "print($S18+4.4)")
 recstop 2
