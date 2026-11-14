@@ -49,7 +49,7 @@ const Lines = ({ list }: { list: string[] }) =>
   )
 
 /** 머리: AI 표지(누르면 실행 기록), 상태 Badge, 조사(내부 감시에게. 요청이 끝날 때까지 다시 눌리지 않는다). 대기인 보고는 AI가 쓰는 동안 몇 초마다 다시 읽는다 */
-function Head() {
+export function Head() {
   const d = useReport()
   const signal = useSignal()
   const bump = useSetAtom(tickAtom)
@@ -94,7 +94,7 @@ function Head() {
 }
 
 /** 사실 / 추정 / 미확인 / 의견·반론. 올라와 있는(검토·채택·불채택) 보고에만 내용이 있다 */
-function Body() {
+export function Body() {
   const d = useReport()
   const r = d?.report
   if (!d || !r || !r.facts.length) return null
@@ -145,7 +145,7 @@ function Body() {
 
 /** 채택 · 불채택: 같은 무게의 버튼(둘 다 secondary). 누르면 확인 창에서 사유(분류 · 메모)를 받는다 — 불채택은 분류 필수. 서버가 거절하면 그 낱말.
  * 결정이 남으면 결정 한 줄과, AI의 의견과 정황의 조치(그때까지 내린 것)를 이름표와 값으로 보인다 */
-function Decide() {
+export function Decide() {
   const d = useReport()
   const signal = useSignal()
   const [bad, setBad] = useState<string | null>(null)

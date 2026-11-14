@@ -7,7 +7,8 @@ import { Markdown } from '@astryxdesign/core/Markdown'
 import { Table, pixel, proportional } from '@astryxdesign/core/Table'
 import { Text } from '@astryxdesign/core/Text'
 import { useAtomValue, useSetAtom } from 'jotai'
-import { L } from '../../labels'
+import { DOCS, L } from '../../labels'
+import { fileLine } from '../../ui/Source'
 import { menuAtom, targetAtom, useData } from '../../state'
 import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
@@ -20,7 +21,9 @@ type Assume = { id: string; title: string; text: string; file: string; row: numb
 export type Data = { clauses: Clause[]; rules: Rule[]; assumes: Assume[] }
 
 const none = <Text color="secondary">{L.없음}</Text>
-export const where = (c: Clause) => `${c.file} ${c.first}–${c.last}${L.행}`
+export const where = (c: Clause) => fileLine(c.file, c.first, c.last)
+/** 화면에 보이는 위치: 문서 이름 · 행(파일 경로는 출처 설명 칸의 where에만) */
+export const place = (c: Clause) => `${DOCS[c.file] ?? L.원본} · ${c.first}–${c.last}${L.행}`
 
 /** 규정 전체의 읽기 */
 export const useRules = () => useData<Data>('/rules')
@@ -57,10 +60,11 @@ export function Versions() {
         idKey="id"
         density="balanced"
         columns={[
-          { key: 'name', header: L.규칙, width: proportional(2, { minWidth: 96 }), renderCell: (r) => <Text weight="semibold">{`${r.name} v${r.ver}`}</Text> },
+          { key: 'name', header: L.규칙, width: proportional(2, { minWidth: 96 }), renderCell: (r) => <Text weight="semibold">{r.name}</Text> },
+          { key: 'ver', header: L.버전, align: 'end', width: pixel(64), renderCell: (r) => <Text hasTabularNumbers>{r.ver}</Text> },
           { key: 'value', header: L.값, align: 'end', width: pixel(104), renderCell: (r) => <Text hasTabularNumbers className="whitespace-nowrap">{r.name === L.합산 ? `${L.일치} ${r.value}` : num(r.value)}</Text> },
           { key: 'since', header: L.시행, width: proportional(1, { minWidth: 80 }), renderCell: (r) => (r.since || r.until ? <Text hasTabularNumbers>{`${r.since ?? ''} ~ ${r.until ?? ''}`.trim()}</Text> : none) },
-          { key: 'prev', header: L.이전, width: proportional(1, { minWidth: 96 }), renderCell: (r) => (r.prev ? <Text>{`${r.prev.name} v${r.prev.ver}`}</Text> : none) },
+          { key: 'prev', header: L.이전, width: proportional(1, { minWidth: 96 }), renderCell: (r) => (r.prev ? <Text>{`${r.prev.name} ${L.버전} ${r.prev.ver}`}</Text> : none) },
           {
             key: 'source',
             header: L.출처,

@@ -61,7 +61,7 @@ export function Then() {
             rows={[
               [L.현재, L['귀속월의 식별자, 규칙 버전']],
               [L.구성, d.now.members.map((m) => m.name).join(' · ')],
-              [L.한도, [num(d.now.limit), rule && `${rule.name} v${rule.ver}`].filter(Boolean).join(' · ')],
+              [L.한도, [num(d.now.limit), rule && `${rule.name} ${L.버전} ${rule.ver}`].filter(Boolean).join(' · ')],
               [L.재검토, L['당시 영업지원, 현재 영업임원']],
             ]}
           />

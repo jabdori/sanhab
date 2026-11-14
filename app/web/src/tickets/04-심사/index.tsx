@@ -40,14 +40,9 @@ export function Members() {
             header: L.대리점,
             width: proportional(2, { minWidth: 100 }),
             renderCell: (p) => (
-              <HStack gap={2} vAlign="center">
-                <Link weight="semibold" onClick={() => setTarget({ kind: L.대리점, id: p.id })}>
-                  {p.name}
-                </Link>
-                <Text type="supporting" color="secondary">
-                  {p.id}
-                </Text>
-              </HStack>
+              <Link weight="semibold" onClick={() => setTarget({ kind: L.대리점, id: p.id })}>
+                {p.name}
+              </Link>
             ),
           },
           {
@@ -124,7 +119,7 @@ export function Rules() {
               </Link>
             ),
           },
-          { key: 'name', header: L.규칙, width: pixel(96), renderCell: (x) => <Text hasTabularNumbers>{`${x.name} v${x.ver}`}</Text> },
+          { key: 'name', header: L.규칙, width: pixel(96), renderCell: (x) => <Text>{x.name}</Text> },
           {
             key: 'source',
             header: L.출처,

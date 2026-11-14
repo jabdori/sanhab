@@ -50,7 +50,6 @@ export function Dealer() {
     <RecordPage
       title={v.name}
       meta={[
-        <Text type="supporting" color="secondary" hasTabularNumbers>{v.id}</Text>,
         rel && rel.group.length > 1 && <Meta icon={UserGroupIcon}>{rel.group.map((g) => g.name).join(' · ')}</Meta>,
       ]}
       actions={<Change onBad={setBad} />}

@@ -22,6 +22,10 @@ for (const f of readdirSync('src', { recursive: true })) {
     if (!fromTemplate && /#[0-9a-fA-F]{3,8}\b|[a-z]-\[[^\]]*[0-9#]|style=\{/.test(rest)) bad.push(`src/${f}:${i + 1} 색·크기는 theme.css의 이름만 쓴다`)
     if (f !== 'ui/status.ts' && COLOR.test(rest)) bad.push(`src/${f}:${i + 1} 색 이름은 ui/status.ts에서만 쓴다(tokens.md 색 표)`)
     if (!['ui/status.ts', 'ui/Mark.tsx'].includes(f) && /\bbadge\(/.test(rest)) bad.push(`src/${f}:${i + 1} 상태 표지는 ui/Mark의 State로(기본 상태는 그리지 않는다, tokens.md)`)
+    // 사람의 말(review.md 2-1): 버전 코드 `v1`을 붙이지 않는다, 파일 경로는 출처 칸에서만
+    if (/\bv\$\{/.test(rest)) bad.push(`src/${f}:${i + 1} 버전은 v1이 아니라 낱말로(버전 1), 의미 있는 곳에서만(review.md 2-1)`)
+    if (f !== 'ui/Source.tsx' && !/<Source\b/.test(rest) && /\{[^}]*\.file\}/.test(rest.replace(/\bfile=\{[^}]*\}/g, ''))) bad.push(`src/${f}:${i + 1} 파일 경로는 화면에 두지 않는다 — 출처 칸(ui/Source)에서만(review.md 2-1)`)
+    if (f !== 'ui/Source.tsx' && (/^\s*\{[a-zA-Z.?]*\.id\}\s*$/.test(rest) || />\{[a-zA-Z.?]*\.id\}</.test(rest))) bad.push(`src/${f}:${i + 1} 내부 식별자(D-011 …)를 글로 그리지 않는다 — 이름으로(review.md 2-1)`)
     if (/<Banner\b/.test(rest)) bad.push(`src/${f}:${i + 1} 상세 머리에 경고 띠를 두지 않는다(tokens.md — 칩 ⚑정황과 확인 창의 사유로)`)
     if (!fromTemplate && !CARD_OK.includes(f) && /<(Card|ClickableCard)\b/.test(rest)) bad.push(`src/${f}:${i + 1} Card는 숫자 타일 · 접속 · 조치 카드에만(tokens.md 면, Card soup 금지)`)
   })

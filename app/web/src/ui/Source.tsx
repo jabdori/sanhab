@@ -55,6 +55,9 @@ const ICON: Record<string, typeof SparklesIcon> = { [L.예시]: AcademicCapIcon,
  * 원본의 조용한 글자는 언제나 행 번호다: csv는 `row`(`7행`), 문서의 여러 행은 `place`(`41–45행`)를 준다. 표의 출처 열이나 숫자 줄 값 옆에 둔다(값의 칸 안에 섞지 않는다).
  * `tip`은 한 줄 설명의 뒷말(없으면 `of`). `side`는 설명 칸이 열리는 쪽
  */
+/** 출처 설명 칸의 위치 줄(파일 경로 · 행). 파일 경로는 이 칸에서만 화면에 나온다(review.md 2-1) */
+export const fileLine = (file: string, first: number, last: number) => `${file} ${first}–${last}${L.행}`
+
 export function Source({ kind, file, row, place, quiet, side, of, decision, line: at, tip, rows, children }: { kind: string; file?: string; row?: number; place?: string; quiet?: boolean; side?: 'right' | 'top'; of?: string; decision?: string; line?: number; tip?: string; rows?: [string, ReactNode][]; children?: ReactNode }) {
   const [open, setOpen] = useState(false)
   const [origin, setOrigin] = useState<Row>()

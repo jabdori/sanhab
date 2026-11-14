@@ -150,8 +150,8 @@ export function Read() {
                 </HStack>
               ),
             },
-            { key: 'read', header: L.판독, width: proportional(3, { minWidth: 96 }), renderCell: (r) => (r.read ? <Text hasTabularNumbers>{range(r.read)}</Text> : <Text color="secondary">{L.없음}</Text>) },
-            { key: 'reg', header: L.등록, width: proportional(3, { minWidth: 96 }), renderCell: (r) => (r.reg?.value ? <Text hasTabularNumbers>{range(r.reg.value)}</Text> : <Text color="secondary">{L.없음}</Text>) },
+            { key: 'read', header: L.판독, width: proportional(3, { minWidth: 96 }), renderCell: (r) => (r.read ? <Text hasTabularNumbers className="whitespace-nowrap">{range(r.read)}</Text> : <Text color="secondary">{L.없음}</Text>) },
+            { key: 'reg', header: L.등록, width: proportional(3, { minWidth: 96 }), renderCell: (r) => (r.reg?.value ? <Text hasTabularNumbers className="whitespace-nowrap">{range(r.reg.value)}</Text> : <Text color="secondary">{L.없음}</Text>) },
             // 비교가 모두 기본 상태(일치)면 칸째 두지 않는다
             ...(rows.some((r) => !plain(r.result)) ? [{ key: 'result', header: L.비교, width: pixel(80), renderCell: (r: Row) => <State word={r.result} /> }] : []),
             { key: 'source', header: L.출처, align: 'end', width: pixel(88), renderCell: (r) => <RegSource r={r} /> },
@@ -184,7 +184,7 @@ export function Tidy() {
               key: 'go',
               header: '',
               align: 'end',
-              width: pixel(32),
+              width: pixel(48),
               renderCell: (t) =>
                 t.words.length > 0 && (
                   <Link aria-label={t.item} onClick={() => pick(t.item)}>

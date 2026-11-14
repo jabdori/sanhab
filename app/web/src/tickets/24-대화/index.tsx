@@ -302,7 +302,7 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
                     <Icon icon={SparklesIcon} size="md" color="accent" />
                     <Text type="large" as="h2">{L.대화}</Text>
                   </HStack>
-                  {now && <Text type="display-3" as="h1">{named[key(now)] ?? now.id}</Text>}
+                  {now && named[key(now)] && <Text type="display-3" as="h1">{named[key(now)]}</Text>}
                 </VStack>
                 {now && (
                   <Grid columns={{ minWidth: 200 }} gap={3}>

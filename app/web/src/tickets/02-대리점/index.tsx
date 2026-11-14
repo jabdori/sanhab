@@ -27,15 +27,12 @@ export type Detail = {
 // 앱에서 사람이 넣은 변경(출처 시연)에 표지가 없는 것은 Source가 정한다(ui/Source.tsx 한 곳)
 const src = (f: From) => <Source kind={f.source} file={f.file} row={f.row} />
 
-/** 이름(누르면 열린다, 굵게) + 식별자(보조). 대리점을 가리키는 곳마다 같은 모양 */
-export const Dealer = ({ name, id, onOpen }: { name: string; id: string; onOpen: () => void }) => (
+/** 이름(누르면 열린다, 굵게). 대리점 번호(D-011)는 화면에 두지 않는다 — 원본의 식별자라 출처 설명 칸에서만(review.md 2-1) */
+export const Dealer = ({ name, onOpen }: { name: string; id?: string; onOpen: () => void }) => (
   <HStack gap={2} vAlign="center">
     <Link weight="semibold" onClick={onOpen}>
       {name}
     </Link>
-    <Text type="supporting" color="secondary">
-      {id}
-    </Text>
   </HStack>
 )
 

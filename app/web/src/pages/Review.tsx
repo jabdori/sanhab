@@ -126,7 +126,7 @@ function SignalReport({ id, name }: { id: string; name: string }) {
             <VStack gap={2}>
               {r.facts.map((f, i) => (
                 <HStack key={i} gap={2} vAlign="start">
-                  <Citation number={i + 1} variant="number" source={{ title: f.ref }} />
+                  <Citation number={i + 1} variant="number" source={{ title: f.text }} />
                   <Text>{f.text}</Text>
                 </HStack>
               ))}
