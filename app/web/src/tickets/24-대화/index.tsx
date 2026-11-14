@@ -11,7 +11,7 @@ import { List, ListItem } from '@astryxdesign/core/List'
 import { Badge } from '@astryxdesign/core/Badge'
 import { EmptyState } from '@astryxdesign/core/EmptyState'
 import { HStack, Layout, LayoutContent, LayoutHeader, StackItem, VStack } from '@astryxdesign/core/Layout'
-import { ChatComposer, ChatComposerDrawer, ChatComposerInput, ChatLayout, ChatMessage, ChatMessageBubble, ChatMessageList, ChatSystemMessage, ChatToolCalls } from '@astryxdesign/core/Chat'
+import { ChatComposer, ChatComposerDrawer, ChatComposerInput, ChatLayout, ChatMessage, ChatMessageBubble, ChatMessageList, ChatSystemMessage, ChatTokenizedText, ChatToolCalls } from '@astryxdesign/core/Chat'
 import { Avatar } from '@astryxdesign/core/Avatar'
 import { ClickableCard } from '@astryxdesign/core/ClickableCard'
 import { Grid } from '@astryxdesign/core/Grid'
@@ -247,12 +247,12 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
               onChange={setText}
               onSubmit={send}
               density="balanced"
-              placeholder={L.대화}
+              placeholder={L.질문}
               input={
                 <ChatComposerInput
                   handleRef={input}
                   label={L.대화}
-                  placeholder={L.대화}
+                  placeholder={L.질문}
                   maxRows={4}
                   // `@`: 문맥 밖의 기록을 이름으로 찾아 문맥 카드로 붙인다(입력에는 남기지 않는다)
                   triggers={[
@@ -322,6 +322,8 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
         >
           {messages.length > 0 || error ? (
           <ChatMessageList isStreaming={busy}>
+            {/* ai-chat: 맨 위 날짜 구분선 — 이 대화의 날짜(새 대화면 오늘) */}
+            <ChatSystemMessage variant="divider">{(list.find((x) => x.id === session.current)?.updated ?? new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' })).slice(0, 10)}</ChatSystemMessage>
             {messages.map((m) => {
               const reads = m.parts.flatMap((p) => (p.type === 'data-reads' ? p.data.names.map((name, i) => ({ name, go: p.data.go?.[i] ?? null })) : []))
               const ids = reads.map((r) => r.name)
@@ -345,7 +347,7 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
                   ) : null}
                   {body && (
                     <ChatMessageBubble variant={ai ? 'ghost' : undefined}>
-                      {ai ? <Markdown density="compact" isStreaming={busy} className="break-keep">{body}</Markdown> : <Text className="break-keep wrap-anywhere whitespace-pre-wrap">{body}</Text>}
+                      {ai ? <Markdown density="compact" isStreaming={busy} className="break-keep">{body}</Markdown> : <ChatTokenizedText>{body}</ChatTokenizedText>}
                     </ChatMessageBubble>
                   )}
                   {/* AI가 조회한 기록: 도구 호출 목록(ai-chat의 ChatToolCalls). 화면이 있는 기록은 줄 끝의 링크로 연다 */}

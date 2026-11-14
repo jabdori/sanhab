@@ -19,7 +19,6 @@ import { api, changedAtom, navAtom, store, targetAtom, useData } from '../state'
 import { Confirm } from '../ui/Confirm'
 import { grade } from '../ui/grade'
 import { Mark, State } from '../ui/Mark'
-import { Tiles } from '../ui/Record'
 import { dot, num, plain } from '../ui/status'
 
 export type Task = { id: string; kind: string; view: string; target: string; name?: string; ym?: string; total?: number | null; marks: string[]; role: string; pick: boolean; state?: string; pay?: string | null }
@@ -59,20 +58,6 @@ export function Work() {
   const can = (t: Task) => t.pick && mine.some((m) => m.id === t.id)
   const chosen = mine.filter((t) => can(t) && picked.has(t.target))
   const toggle = (ids: string[], on: boolean) => setPicked((p) => new Set([...p].filter((x) => !ids.includes(x)).concat(on ? ids : [])))
-  // 요약 타일: 담당 · 진행 · 정황(내 차례 가운데 정황이 걸린 것, 주의) · 금액(내 차례의 합)
-  // 요약 타일: 역할마다 의미 있는 것만 — 담당, 내 작업의 종류별 건수(지급은 지급 상태별), 정황이 걸린 건(주의), 금액(내 작업의 합), 진행(다른 역할에게 넘어간 것)
-  const count = (f: (t: Task) => boolean) => mine.filter(f).length
-  const pays = [L.대기, L.재심사, L.이체, L.완료].filter((p) => mine.some((t) => t.kind === L.지급 && t.pay === p))
-  const flagged = count((t) => t.marks.includes(L.정황) && t.kind !== L.정황)
-  const total = mine.reduce((n, t) => n + (t.total ?? 0), 0)
-  // 숫자 타일: 묶음 머리의 건수와 겹치는 종류별 수는 두지 않는다. 담당 · 지급 상태 · 정황 · 금액 · 진행만(한 줄)
-  const tiles: [string, string, 'warning' | undefined][] = [
-    [L.담당, String(mine.length), undefined],
-    ...pays.map((p): [string, string, 'warning' | undefined] => [`${L.지급} ${p}`, String(count((t) => t.kind === L.지급 && t.pay === p)), p === L.재심사 ? 'warning' : undefined]),
-    ...(flagged ? [[L.정황, String(flagged), 'warning'] as [string, string, 'warning']] : []),
-    ...(total ? [[L.금액, num(total), undefined] as [string, string, undefined]] : []),
-    ...(d?.going.length ? [[L.진행, String(d.going.length), undefined] as [string, string, undefined]] : []),
-  ]
   const open = (t: Task) => {
     // 앞 · 뒤와 n/전체는 그 줄이 든 묶음 안에서(추인끼리, 심사끼리)
     const g = groups.find((x) => x.items.some((i) => i.id === t.id))
@@ -191,13 +176,18 @@ export function Work() {
                 <SegmentedControlItem label={L.진행} value="going" />
               </SegmentedControl>
             </HStack>
-            <Search value={q} onChange={setQ} />
+            {/* table-grouped: 검색칸 옆에 걸러진 건수(PowerSearch의 resultCount 자리) */}
+            <HStack gap={2} vAlign="center">
+              <StackItem size="fill">
+                <Search value={q} onChange={setQ} />
+              </StackItem>
+              <Text type="supporting" color="secondary" hasTabularNumbers>{`${rows.length}${L.건}`}</Text>
+            </HStack>
           </VStack>
         </LayoutHeader>
       }
       content={
         <LayoutContent padding={0}>
-          {rows.length > 0 && <Tiles items={tiles.map(([name, value, tone]) => ({ name, value, dot: tone }))} />}
           {chosen.length > 0 && (
             <TableSelectionToolbar
               label={L.선택}
