@@ -33,13 +33,20 @@ const markSeen = (role: string) => {
   }
 }
 
+/** 밝힐 자리: 선택자에 걸린 요소들을 모두 감싸는 사각형(근거 표 + 관계 그림처럼 여러 영역을 함께 밝힐 때) */
+const bounds = (sel: string) => {
+  const rs = [...document.querySelectorAll(sel)].map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0)
+  if (!rs.length) return null
+  const [l, t, r, b] = [Math.min(...rs.map((x) => x.left)), Math.min(...rs.map((x) => x.top)), Math.max(...rs.map((x) => x.right)), Math.max(...rs.map((x) => x.bottom))]
+  return new DOMRect(l, t, r - l, b - t)
+}
+
 /** 선택자의 요소가 나타날 때까지 잠깐 기다린다(예시 기록을 연 직후). 없으면 null */
 const wait = (sel: string, ms = 3000) =>
-  new Promise<Element | null>((done) => {
+  new Promise<string | null>((done) => {
     const t0 = Date.now()
     const look = () => {
-      const el = document.querySelector(sel)
-      if (el && el.getBoundingClientRect().width > 0) return done(el)
+      if (bounds(sel)) return done(sel)
       if (Date.now() - t0 > ms) return done(null)
       setTimeout(look, 100)
     }
@@ -59,7 +66,7 @@ export function Tour() {
   const steps = (role && TOUR[role]) || []
   const ex = role ? EX[role] : undefined
   const [i, setI] = useState(0)
-  const [el, setEl] = useState<Element | null>(null)
+  const [el, setEl] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
   const hole = useRef<HTMLDivElement>(null)
   const card = useRef<HTMLDivElement>(null)
@@ -100,11 +107,11 @@ export function Tour() {
   }, [open, i])
 
   // 구멍(밝힌 자리)과 카드의 자리. 카드: 좁은 왼쪽 요소면 오른쪽에, 오른쪽 요소면 왼쪽에, 넓은 요소면 아래(모자라면 위). 꼬리는 요소 쪽 가장자리에
-  const place = (target: Element | null) => {
+  const place = (sel: string | null) => {
     const h = hole.current
     const c = card.current
-    if (!h || !target) return
-    const r = target.getBoundingClientRect()
+    const r = sel && bounds(sel)
+    if (!h || !r) return
     const set = (e: HTMLElement, k: string, v: number) => e.style.setProperty(k, `${Math.round(v)}px`)
     const pad = 6
     set(h, 'left', r.left - pad)

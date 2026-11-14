@@ -74,7 +74,8 @@ export const ASK: Record<string, string> = {
  */
 export type TourStep = { at: string; title: string; body: string; record?: boolean; stage?: number }
 
-const SIDE: TourStep = { at: 'div[aria-label="요약"]', record: true, title: '요약', body: 'AI가 정리한 보고를 봅니다' }
+// 요약 칸: 그 기록에 실제로 있는 것만 말한다(AI 보고는 심사 · 정황에만 있다)
+const SIDE_AI: TourStep = { at: 'div[aria-label="요약"]', record: true, title: '요약', body: 'AI가 정리한 보고를 봅니다' }
 const CHAT: TourStep = { at: 'div[aria-label="대화"]:not([role])', record: true, title: '대화', body: '이 기록에 대해 AI에게 묻습니다' }
 const DEMO: TourStep = { at: 'button[aria-label="시연"]', title: '시연', body: '날짜를 넘기거나 처음으로 되돌립니다' }
 const SUM: TourStep = { at: '[data-tour=tiles]', record: true, title: '합산', body: '관련 거래처까지 합친 금액과 한도를 비교합니다' }
@@ -84,29 +85,31 @@ export const TOUR: Record<string, TourStep[]> = {
     { at: '[data-tour=work] table', title: '작업', body: '내 차례의 심사입니다. 열어서 처리합니다' },
     { at: '[data-tour=actions]', record: true, title: '조치', body: '여기서 승인 · 반려 · 보류합니다' },
     SUM,
-    { at: '[data-tour=tiles]', record: true, stage: 1, title: '관련 거래처', body: '관련 거래처를 합치면 한도를 넘어 영업임원이 승인합니다' },
-    SIDE, CHAT, DEMO,
+    { at: '[data-region="가설"]', record: true, stage: 1, title: '정황', body: '정황이 맞으면 두 곳이 묶여 영업임원이 승인합니다' },
+    SIDE_AI, CHAT, DEMO,
   ],
   '내부 감시': [
     { at: '[data-tour=work] table', title: '작업', body: '판정할 정황입니다. 열어서 처리합니다' },
     { at: '[data-tour=actions]', record: true, title: '조치', body: '여기서 소명을 요청하거나 기각합니다' },
-    { at: '[data-tour=tiles]', record: true, title: '근거', body: '두 대리점이 같이 쓰는 식별자의 수입니다' },
-    { at: '[data-region="관계"]', record: true, title: '관계', body: '이름이 다른 두 대리점이 계좌 하나로 이어집니다' },
-    SIDE, CHAT, DEMO,
+    { at: '[data-tour=tiles]', record: true, title: '근거', body: '정황을 받치는 기록의 수입니다' },
+    { at: '[data-region="근거"], [data-region="관계"]', record: true, title: '관계', body: '회수금이 다른 대리점의 계좌로 이어진 기록을 봅니다' },
+    SIDE_AI, CHAT, DEMO,
   ],
   영업임원: [
     { at: '[data-tour=work] table', title: '작업', body: '내 승인이 필요한 심사와 추인입니다' },
     { at: '[data-tour=actions]', record: true, title: '조치', body: '여기서 추인하거나 거부합니다' },
     SUM,
     { at: '[data-region="재검토"]', record: true, title: '재검토', body: '당시 영업지원 전결로 나간 돈을 지금 바로잡습니다' },
-    SIDE, CHAT, DEMO,
+    { at: 'div[aria-label="요약"]', record: true, title: '요약', body: '이 추인의 승인권자와 구성을 봅니다' },
+    CHAT, DEMO,
   ],
   '회계·자금': [
     { at: '[data-tour=work] table', title: '작업', body: '보낼 지급입니다. 열어서 처리합니다' },
     { at: '[data-tour=actions]', record: true, title: '조치', body: '여기서 지급합니다' },
     { at: '[data-tour=tiles]', record: true, title: '금액', body: '지급 금액과 승인 때 본 합산 · 한도입니다' },
-    { at: '[data-region="재심사"]', record: true, stage: 1, title: '재심사', body: '관련 거래처가 밝혀져 지급이 멈췄습니다' },
-    SIDE, CHAT, DEMO,
+    { at: '[data-region="재심사"]', record: true, stage: 1, title: '재심사', body: '예시상사B와 계좌가 같아져 지급이 멈췄습니다' },
+    { at: 'div[aria-label="요약"]', record: true, title: '요약', body: '이 지급의 상태와 계좌를 봅니다' },
+    CHAT, DEMO,
   ],
 }
 

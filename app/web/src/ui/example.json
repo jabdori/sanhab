@@ -11,9 +11,7 @@
       {
        "id": "2026-06-X-A",
        "kind": "심사",
-       "marks": [
-        "정황"
-       ],
+       "marks": [],
        "name": "예시상사A",
        "pay": null,
        "pick": false,
@@ -95,11 +93,9 @@
       "holder": "영업지원",
       "id": "2026-06-X-A",
       "limit": 2000000,
-      "marks": [
-       "정황"
-      ],
+      "marks": [],
       "name": "예시상사A",
-      "source": "계산",
+      "source": "예시",
       "status": "대기",
       "total": 1200000,
       "ym": "2026-06",
@@ -134,21 +130,14 @@
       }
      ]
     },
+    "/reviews/2026-06-X-A/signals": [],
+    "/reviews/2026-06-X-A/hypo": [],
     "/reviews/2026-06-X-A/resubmit": {
      "can": false,
      "classes": [],
      "lines": []
     },
     "/reviews/2026-06-X-A/ratify": null,
-    "/reviews/2026-06-X-A/signals": [
-     {
-      "id": "계좌-X-A",
-      "kind": "계좌",
-      "name": "계좌 · 예시상사A",
-      "state": "접수"
-     }
-    ],
-    "/reviews/2026-06-X-A/hypo": [],
     "/signals/계좌-X-A/report": {
      "actions": [
       {
@@ -187,7 +176,15 @@
           true
          ],
          [
-          "의 계좌 등록 ",
+          "의 ",
+          false
+         ],
+         [
+          "2026-05-13",
+          true
+         ],
+         [
+          " 회수가 ",
           false
          ],
          [
@@ -195,12 +192,12 @@
           true
          ],
          [
-          "",
+          "에 들어갔다",
           false
          ]
         ],
         "ref": "ex-1",
-        "text": "예시상사A의 계좌 등록 예시은행 100-200-300"
+        "text": "예시상사A의 2026-05-13 회수가 예시은행 100-200-300에 들어갔다"
        },
        {
         "parts": [
@@ -264,7 +261,7 @@
        }
       ],
       "guess": [
-       "이름이 다른 두 대리점이 한 곳일 수 있다"
+       "두 대리점이 같은 계좌를 쓰는 사이일 수 있다"
       ],
       "id": "6s663bo5p036pv4nqg38",
       "model": "예시",
@@ -282,6 +279,75 @@
      "role": "내부 감시",
      "run": false,
      "trail": []
+    },
+    "/chat/sessions?of=심사/2026-06-X-A": {
+     "sessions": [
+      {
+       "id": "X-TALK-심사",
+       "title": "예시상사A · 2026-06",
+       "target": {
+        "kind": "심사",
+        "id": "2026-06-X-A"
+       },
+       "name": "예시상사A · 2026-06",
+       "count": 1,
+       "updated": "2026-07-01 09:00"
+      }
+     ]
+    },
+    "/chat/sessions/X-TALK-심사": {
+     "messages": [
+      {
+       "id": "xu",
+       "role": "user",
+       "parts": [
+        {
+         "type": "text",
+         "text": "예시상사A 승인해도 돼?"
+        }
+       ],
+       "metadata": {
+        "ctx": [
+         {
+          "kind": "심사",
+          "id": "2026-06-X-A",
+          "name": "예시상사A · 2026-06"
+         }
+        ]
+       }
+      },
+      {
+       "id": "xa",
+       "role": "assistant",
+       "parts": [
+        {
+         "type": "text",
+         "text": "판정 의견은 내지 않습니다. 사실과 규정만 정리합니다.\n\n- 예시상사A의 6월 지급은 1,200,000원으로, 혼자서는 한도 안입니다.\n- 예시상사A의 회수금이 예시상사B의 계좌(예시은행 100-200-300)로 들어간 정황이 있습니다. 두 곳은 대표자도 같습니다.\n- 정황이 맞으면 두 곳은 관련 거래처가 되고, 6월 합산은 2,300,000원으로 한도 2,000,000원을 넘습니다. 그래서 이 심사는 영업임원에게 넘어갔습니다."
+        },
+        {
+         "type": "data-reads",
+         "data": {
+          "names": [
+           "예시상사A · 2026-06",
+           "계좌 · 예시상사A",
+           "한도 v1"
+          ],
+          "go": [
+           {
+            "kind": "심사",
+            "id": "2026-06-X-A"
+           },
+           {
+            "kind": "정황",
+            "id": "계좌-X-A"
+           },
+           null
+          ]
+         }
+        }
+       ]
+      }
+     ]
     }
    },
    {
@@ -294,13 +360,13 @@
        "marks": [
         "정황"
        ],
-       "name": "예시상사A 외 1",
+       "name": "예시상사A",
        "pay": null,
        "pick": false,
        "role": "영업임원",
        "state": "대기",
        "target": "2026-06-X-A",
-       "total": 2300000,
+       "total": 1200000,
        "view": "심사",
        "ym": "2026-06"
       }
@@ -313,31 +379,11 @@
       {
        "id": "X-A",
        "name": "예시상사A",
-       "match": [
-        "대표자",
-        "계좌"
-       ],
+       "match": [],
        "pays": [
         {
          "amount": 1200000,
          "dealer": "X-A",
-         "source": "예시",
-         "file": null,
-         "row": null
-        }
-       ]
-      },
-      {
-       "id": "X-B",
-       "name": "예시상사B",
-       "match": [
-        "대표자",
-        "계좌"
-       ],
-       "pays": [
-        {
-         "amount": 1100000,
-         "dealer": "X-B",
          "source": "예시",
          "file": null,
          "row": null
@@ -352,53 +398,22 @@
         "name": "예시상사A"
        }
       ],
-      "lines": [
-       [
-        "X-A",
-        "person:`예시`"
-       ],
-       [
-        "X-B",
-        "person:`예시`"
-       ],
-       [
-        "X-A",
-        "account:`예시`"
-       ],
-       [
-        "X-B",
-        "account:`예시`"
-       ]
-      ],
-      "mid": [
-       {
-        "id": "account:`예시`",
-        "name": "예시은행 100-200-300"
-       },
-       {
-        "id": "person:`예시`",
-        "name": "예시대표"
-       }
-      ],
-      "right": [
-       {
-        "id": "X-B",
-        "name": "예시상사B"
-       }
-      ]
+      "lines": [],
+      "mid": [],
+      "right": []
      },
      "review": {
-      "approver": "영업임원",
+      "approver": "영업지원",
       "holder": "영업임원",
       "id": "2026-06-X-A",
       "limit": 2000000,
       "marks": [
        "정황"
       ],
-      "name": "예시상사A 외 1",
-      "source": "계산",
+      "name": "예시상사A",
+      "source": "예시",
       "status": "대기",
-      "total": 2300000,
+      "total": 1200000,
       "ym": "2026-06",
       "file": null,
       "row": null,
@@ -431,12 +446,6 @@
       }
      ]
     },
-    "/reviews/2026-06-X-A/resubmit": {
-     "can": false,
-     "classes": [],
-     "lines": []
-    },
-    "/reviews/2026-06-X-A/ratify": null,
     "/reviews/2026-06-X-A/signals": [
      {
       "id": "계좌-X-A",
@@ -445,7 +454,45 @@
       "state": "접수"
      }
     ],
-    "/reviews/2026-06-X-A/hypo": [],
+    "/reviews/2026-06-X-A/hypo": [
+     {
+      "adds": [
+       "계좌"
+      ],
+      "approver": [
+       "영업지원",
+       "영업임원"
+      ],
+      "group": [
+       1,
+       2
+      ],
+      "id": "계좌-X-A",
+      "match": [
+       {
+        "cur": [
+         "대표자"
+        ],
+        "dealer": "예시상사B",
+        "hyp": [
+         "대표자",
+         "계좌"
+        ],
+        "id": "X-B"
+       }
+      ],
+      "name": "계좌 · 예시상사A",
+      "source": "가정",
+      "target": "예시상사A",
+      "up": true
+     }
+    ],
+    "/reviews/2026-06-X-A/resubmit": {
+     "can": false,
+     "classes": [],
+     "lines": []
+    },
+    "/reviews/2026-06-X-A/ratify": null,
     "/signals/계좌-X-A/report": {
      "actions": [
       {
@@ -484,7 +531,15 @@
           true
          ],
          [
-          "의 계좌 등록 ",
+          "의 ",
+          false
+         ],
+         [
+          "2026-05-13",
+          true
+         ],
+         [
+          " 회수가 ",
           false
          ],
          [
@@ -492,12 +547,12 @@
           true
          ],
          [
-          "",
+          "에 들어갔다",
           false
          ]
         ],
         "ref": "ex-1",
-        "text": "예시상사A의 계좌 등록 예시은행 100-200-300"
+        "text": "예시상사A의 2026-05-13 회수가 예시은행 100-200-300에 들어갔다"
        },
        {
         "parts": [
@@ -561,7 +616,7 @@
        }
       ],
       "guess": [
-       "이름이 다른 두 대리점이 한 곳일 수 있다"
+       "두 대리점이 같은 계좌를 쓰는 사이일 수 있다"
       ],
       "id": "6s663bo5p036pv4nqg38",
       "model": "예시",
@@ -579,6 +634,75 @@
      "role": "내부 감시",
      "run": false,
      "trail": []
+    },
+    "/chat/sessions?of=심사/2026-06-X-A": {
+     "sessions": [
+      {
+       "id": "X-TALK-심사",
+       "title": "예시상사A · 2026-06",
+       "target": {
+        "kind": "심사",
+        "id": "2026-06-X-A"
+       },
+       "name": "예시상사A · 2026-06",
+       "count": 1,
+       "updated": "2026-07-01 09:00"
+      }
+     ]
+    },
+    "/chat/sessions/X-TALK-심사": {
+     "messages": [
+      {
+       "id": "xu",
+       "role": "user",
+       "parts": [
+        {
+         "type": "text",
+         "text": "예시상사A 승인해도 돼?"
+        }
+       ],
+       "metadata": {
+        "ctx": [
+         {
+          "kind": "심사",
+          "id": "2026-06-X-A",
+          "name": "예시상사A · 2026-06"
+         }
+        ]
+       }
+      },
+      {
+       "id": "xa",
+       "role": "assistant",
+       "parts": [
+        {
+         "type": "text",
+         "text": "판정 의견은 내지 않습니다. 사실과 규정만 정리합니다.\n\n- 예시상사A의 6월 지급은 1,200,000원으로, 혼자서는 한도 안입니다.\n- 예시상사A의 회수금이 예시상사B의 계좌(예시은행 100-200-300)로 들어간 정황이 있습니다. 두 곳은 대표자도 같습니다.\n- 정황이 맞으면 두 곳은 관련 거래처가 되고, 6월 합산은 2,300,000원으로 한도 2,000,000원을 넘습니다. 그래서 이 심사는 영업임원에게 넘어갔습니다."
+        },
+        {
+         "type": "data-reads",
+         "data": {
+          "names": [
+           "예시상사A · 2026-06",
+           "계좌 · 예시상사A",
+           "한도 v1"
+          ],
+          "go": [
+           {
+            "kind": "심사",
+            "id": "2026-06-X-A"
+           },
+           {
+            "kind": "정황",
+            "id": "계좌-X-A"
+           },
+           null
+          ]
+         }
+        }
+       ]
+      }
+     ]
     }
    }
   ]
@@ -631,8 +755,8 @@
      "delay": 30,
      "evidence": [
       {
-       "amount": null,
-       "at": null,
+       "amount": 3500000,
+       "at": "2026-05-13",
        "days": null,
        "dealer": {
         "id": "X-A",
@@ -640,7 +764,7 @@
        },
        "got": null,
        "id": "ex-1",
-       "item": "계좌",
+       "item": "회수",
        "known": null,
        "node": {
         "id": "account:`예시`",
@@ -675,29 +799,6 @@
        "source": "예시",
        "file": null,
        "row": null
-      },
-      {
-       "amount": null,
-       "at": null,
-       "days": null,
-       "dealer": {
-        "id": "X-B",
-        "name": "예시상사B"
-       },
-       "got": null,
-       "id": "ex-3",
-       "item": "대표자",
-       "known": null,
-       "node": {
-        "id": "person:`예시`",
-        "name": "예시대표"
-       },
-       "value": null,
-       "want": null,
-       "ym": null,
-       "source": "예시",
-       "file": null,
-       "row": null
       }
      ],
      "fresh": [],
@@ -707,7 +808,12 @@
       2000000
      ],
      "relation": {
-      "hints": [],
+      "hints": [
+       [
+        "X-A",
+        "account:`예시`"
+       ]
+      ],
       "left": [
        {
         "id": "X-A",
@@ -715,18 +821,6 @@
        }
       ],
       "lines": [
-       [
-        "X-A",
-        "person:`예시`"
-       ],
-       [
-        "X-B",
-        "person:`예시`"
-       ],
-       [
-        "X-A",
-        "account:`예시`"
-       ],
        [
         "X-B",
         "account:`예시`"
@@ -736,10 +830,6 @@
        {
         "id": "account:`예시`",
         "name": "예시은행 100-200-300"
-       },
-       {
-        "id": "person:`예시`",
-        "name": "예시대표"
        }
       ],
       "right": [
@@ -764,11 +854,41 @@
       "id": "계좌-X-A",
       "kind": "계좌",
       "name": "계좌 · 예시상사A",
-      "source": "계산",
+      "source": "예시",
       "state": "접수"
      }
     },
-    "/signals/계좌-X-A/hypo": null,
+    "/signals/계좌-X-A/hypo": {
+     "adds": [
+      "계좌"
+     ],
+     "approver": [
+      "영업지원",
+      "영업임원"
+     ],
+     "group": [
+      1,
+      2
+     ],
+     "id": "계좌-X-A",
+     "match": [
+      {
+       "cur": [
+        "대표자"
+       ],
+       "dealer": "예시상사B",
+       "hyp": [
+        "대표자",
+        "계좌"
+       ],
+       "id": "X-B"
+      }
+     ],
+     "name": "계좌 · 예시상사A",
+     "source": "가정",
+     "target": "예시상사A",
+     "up": true
+    },
     "/signals/계좌-X-A/clarifies": [],
     "/signals/계좌-X-A/report": {
      "actions": [
@@ -808,7 +928,15 @@
           true
          ],
          [
-          "의 계좌 등록 ",
+          "의 ",
+          false
+         ],
+         [
+          "2026-05-13",
+          true
+         ],
+         [
+          " 회수가 ",
           false
          ],
          [
@@ -816,12 +944,12 @@
           true
          ],
          [
-          "",
+          "에 들어갔다",
           false
          ]
         ],
         "ref": "ex-1",
-        "text": "예시상사A의 계좌 등록 예시은행 100-200-300"
+        "text": "예시상사A의 2026-05-13 회수가 예시은행 100-200-300에 들어갔다"
        },
        {
         "parts": [
@@ -885,7 +1013,7 @@
        }
       ],
       "guess": [
-       "이름이 다른 두 대리점이 한 곳일 수 있다"
+       "두 대리점이 같은 계좌를 쓰는 사이일 수 있다"
       ],
       "id": "6s663bo5p036pv4nqg38",
       "model": "예시",
@@ -903,6 +1031,72 @@
      "role": "내부 감시",
      "run": false,
      "trail": []
+    },
+    "/chat/sessions?of=정황/계좌-X-A": {
+     "sessions": [
+      {
+       "id": "X-TALK-정황",
+       "title": "계좌 · 예시상사A",
+       "target": {
+        "kind": "정황",
+        "id": "계좌-X-A"
+       },
+       "name": "계좌 · 예시상사A",
+       "count": 1,
+       "updated": "2026-07-01 09:00"
+      }
+     ]
+    },
+    "/chat/sessions/X-TALK-정황": {
+     "messages": [
+      {
+       "id": "xu",
+       "role": "user",
+       "parts": [
+        {
+         "type": "text",
+         "text": "두 곳이 관련됐다는 근거 정리해 줘"
+        }
+       ],
+       "metadata": {
+        "ctx": [
+         {
+          "kind": "정황",
+          "id": "계좌-X-A",
+          "name": "계좌 · 예시상사A"
+         }
+        ]
+       }
+      },
+      {
+       "id": "xa",
+       "role": "assistant",
+       "parts": [
+        {
+         "type": "text",
+         "text": "- 예시상사A의 2026-05-13 회수금이 예시상사B의 계좌(예시은행 100-200-300)로 들어갔습니다.\n- 두 곳의 대표자는 예시대표로 같습니다.\n- 지금 일치는 대표자 하나라 따로 심사하지만, 계좌까지 같다고 보면 일치가 둘이 되어 관련 거래처 기준(2개 이상)에 해당합니다.\n- 계좌 예금주는 확인되지 않았습니다. 대리점에 소명을 요청해 확인할 수 있습니다."
+        },
+        {
+         "type": "data-reads",
+         "data": {
+          "names": [
+           "계좌 · 예시상사A",
+           "예시상사A",
+           "예시상사B"
+          ],
+          "go": [
+           {
+            "kind": "정황",
+            "id": "계좌-X-A"
+           },
+           null,
+           null
+          ]
+         }
+        }
+       ]
+      }
+     ]
     }
    }
   ]
@@ -976,7 +1170,7 @@
        "재검토"
       ],
       "name": "예시상사A 외 1",
-      "source": "계산",
+      "source": "예시",
       "total": 2300000,
       "ym": "2026-05"
      },
@@ -1012,6 +1206,70 @@
      ],
      "role": "영업임원",
      "target": "2026-05-X-A"
+    },
+    "/chat/sessions?of=추인/2026-05-X-A": {
+     "sessions": [
+      {
+       "id": "X-TALK-추인",
+       "title": "예시상사A 외 1 · 2026-05",
+       "target": {
+        "kind": "추인",
+        "id": "2026-05-X-A"
+       },
+       "name": "예시상사A 외 1 · 2026-05",
+       "count": 1,
+       "updated": "2026-07-01 09:00"
+      }
+     ]
+    },
+    "/chat/sessions/X-TALK-추인": {
+     "messages": [
+      {
+       "id": "xu",
+       "role": "user",
+       "parts": [
+        {
+         "type": "text",
+         "text": "5월 지급이 왜 다시 올라왔어?"
+        }
+       ],
+       "metadata": {
+        "ctx": [
+         {
+          "kind": "추인",
+          "id": "2026-05-X-A",
+          "name": "예시상사A 외 1 · 2026-05"
+         }
+        ]
+       }
+      },
+      {
+       "id": "xa",
+       "role": "assistant",
+       "parts": [
+        {
+         "type": "text",
+         "text": "- 5월에 예시상사A 1,200,000원과 예시상사B 1,100,000원이 각각 영업지원 전결로 지급됐습니다.\n- 그 뒤 두 곳이 관련 거래처로 확정되어 5월 합산은 2,300,000원이 되었고, 한도 2,000,000원을 넘습니다.\n- 당시 승인권자(영업지원)와 지금 승인권자(영업임원)가 달라져 추인 대상이 되었습니다. 결정은 영업임원이 합니다."
+        },
+        {
+         "type": "data-reads",
+         "data": {
+          "names": [
+           "예시상사A 외 1 · 2026-05",
+           "한도 v1"
+          ],
+          "go": [
+           {
+            "kind": "추인",
+            "id": "2026-05-X-A"
+           },
+           null
+          ]
+         }
+        }
+       ]
+      }
+     ]
     }
    }
   ]
@@ -1125,7 +1383,7 @@
       "limit": 2000000,
       "marks": [],
       "name": "예시상사A",
-      "source": "계산",
+      "source": "예시",
       "status": "승인",
       "total": 1200000,
       "ym": "2026-06",
@@ -1157,6 +1415,70 @@
        "title": "판매장려금 지급 한도",
        "value": 2,
        "ver": 1
+      }
+     ]
+    },
+    "/chat/sessions?of=지급/X-PAY": {
+     "sessions": [
+      {
+       "id": "X-TALK-지급",
+       "title": "예시상사A · 2026-06",
+       "target": {
+        "kind": "지급",
+        "id": "X-PAY"
+       },
+       "name": "예시상사A · 2026-06",
+       "count": 1,
+       "updated": "2026-07-01 09:00"
+      }
+     ]
+    },
+    "/chat/sessions/X-TALK-지급": {
+     "messages": [
+      {
+       "id": "xu",
+       "role": "user",
+       "parts": [
+        {
+         "type": "text",
+         "text": "이 지급 왜 멈췄어?"
+        }
+       ],
+       "metadata": {
+        "ctx": [
+         {
+          "kind": "지급",
+          "id": "X-PAY",
+          "name": "예시상사A · 2026-06"
+         }
+        ]
+       }
+      },
+      {
+       "id": "xa",
+       "role": "assistant",
+       "parts": [
+        {
+         "type": "text",
+         "text": "- 예시상사A의 계좌가 2026-06-01부터 예시은행 100-200-300으로 바뀌었고, 이 계좌는 예시상사B의 계좌와 같습니다.\n- 두 곳은 대표자도 같아 일치가 둘이 되었고, 관련 거래처로 묶였습니다.\n- 묶인 6월 합산이 2,300,000원이라 승인권자가 달라질 수 있어, 새 심사(예시상사A 외 1)가 끝날 때까지 지급하지 않습니다."
+        },
+        {
+         "type": "data-reads",
+         "data": {
+          "names": [
+           "예시상사A · 2026-06",
+           "예시상사A 외 1 · 2026-06"
+          ],
+          "go": [
+           {
+            "kind": "지급",
+            "id": "X-PAY"
+           },
+           null
+          ]
+         }
+        }
+       ]
       }
      ]
     }
@@ -1229,7 +1551,10 @@
     "/pays/X-PAY/redo": {
      "redo": {
       "at": "2026-07-01",
-      "back": null,
+      "back": {
+       "id": "2026-06-X-AB",
+       "name": "예시상사A 외 1 · 2026-06"
+      },
       "cause": {
        "at": "2026-07-01",
        "dealer": "예시상사A",
@@ -1284,7 +1609,7 @@
        "재심사"
       ],
       "name": "예시상사A",
-      "source": "계산",
+      "source": "예시",
       "status": "승인",
       "total": 1200000,
       "ym": "2026-06",
@@ -1316,6 +1641,70 @@
        "title": "판매장려금 지급 한도",
        "value": 2,
        "ver": 1
+      }
+     ]
+    },
+    "/chat/sessions?of=지급/X-PAY": {
+     "sessions": [
+      {
+       "id": "X-TALK-지급",
+       "title": "예시상사A · 2026-06",
+       "target": {
+        "kind": "지급",
+        "id": "X-PAY"
+       },
+       "name": "예시상사A · 2026-06",
+       "count": 1,
+       "updated": "2026-07-01 09:00"
+      }
+     ]
+    },
+    "/chat/sessions/X-TALK-지급": {
+     "messages": [
+      {
+       "id": "xu",
+       "role": "user",
+       "parts": [
+        {
+         "type": "text",
+         "text": "이 지급 왜 멈췄어?"
+        }
+       ],
+       "metadata": {
+        "ctx": [
+         {
+          "kind": "지급",
+          "id": "X-PAY",
+          "name": "예시상사A · 2026-06"
+         }
+        ]
+       }
+      },
+      {
+       "id": "xa",
+       "role": "assistant",
+       "parts": [
+        {
+         "type": "text",
+         "text": "- 예시상사A의 계좌가 2026-06-01부터 예시은행 100-200-300으로 바뀌었고, 이 계좌는 예시상사B의 계좌와 같습니다.\n- 두 곳은 대표자도 같아 일치가 둘이 되었고, 관련 거래처로 묶였습니다.\n- 묶인 6월 합산이 2,300,000원이라 승인권자가 달라질 수 있어, 새 심사(예시상사A 외 1)가 끝날 때까지 지급하지 않습니다."
+        },
+        {
+         "type": "data-reads",
+         "data": {
+          "names": [
+           "예시상사A · 2026-06",
+           "예시상사A 외 1 · 2026-06"
+          ],
+          "go": [
+           {
+            "kind": "지급",
+            "id": "X-PAY"
+           },
+           null
+          ]
+         }
+        }
+       ]
       }
      ]
     }
