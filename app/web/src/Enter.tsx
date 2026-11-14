@@ -1,4 +1,4 @@
-// 접속: astryx login-card 템플릿 꼴. 가운데에 앱 아이콘 · 이름, 그 아래 Card 하나 — 패스워드 → (맞으면) 같은 Card에서 역할 고르기.
+// astryx template: login-card — 접속. 가운데에 앱 아이콘 · 이름, 그 아래 Card 하나(머리 Heading 2) — 패스워드 → (맞으면) 같은 Card에서 역할 고르기(로그인 카드의 보조 단추 줄 꼴)
 import { Button } from '@astryxdesign/core/Button'
 import { Card } from '@astryxdesign/core/Card'
 import { Center } from '@astryxdesign/core/Center'
@@ -25,7 +25,9 @@ export function Enter() {
       <VStack gap={4} hAlign="center" width="100%" maxWidth={400}>
         <VStack gap={2} hAlign="center">
           <Icon icon={BanknotesIcon} size="lg" />
-          <Heading level={1}>{APP}</Heading>
+          <Text type="body" weight="bold" size="lg">
+            {APP}
+          </Text>
         </VStack>
         <Card padding={8} width="100%">
           {roles.length === 0 ? (
@@ -39,6 +41,9 @@ export function Enter() {
               }}
             >
               <VStack gap={4} hAlign="stretch">
+                <VStack gap={1} hAlign="center">
+                  <Heading level={2}>{L.접속}</Heading>
+                </VStack>
                 <TextInput
                   type="password"
                   label={L['접속 패스워드']}
@@ -58,13 +63,15 @@ export function Enter() {
               </VStack>
             </form>
           ) : (
-            <VStack gap={3} hAlign="stretch">
-              <Text type="supporting" color="secondary">
-                {L.역할}
-              </Text>
-              {roles.map((r) => (
-                <Button key={r.role} label={r.role} size="lg" width="100%" onClick={() => setRole(r.role)} />
-              ))}
+            <VStack gap={4} hAlign="stretch">
+              <VStack gap={1} hAlign="center">
+                <Heading level={2}>{L.역할}</Heading>
+              </VStack>
+              <VStack gap={3} hAlign="stretch">
+                {roles.map((r) => (
+                  <Button key={r.role} label={r.role} variant="secondary" size="lg" onClick={() => setRole(r.role)} />
+                ))}
+              </VStack>
             </VStack>
           )}
         </Card>
