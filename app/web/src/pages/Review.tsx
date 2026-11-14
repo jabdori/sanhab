@@ -16,6 +16,7 @@ import { L } from '../labels'
 import { api, changedAtom, store, targetAtom, useData } from '../state'
 import { Empty } from '../ui/Empty'
 import { Mark, State } from '../ui/Mark'
+import { AiCard } from '../ui/AiCard'
 import { Act, Meta, RecordPage, Tiles, byGrade } from '../ui/Record'
 import { Region } from '../ui/Region'
 import { Source } from '../ui/Source'
@@ -110,16 +111,15 @@ function SignalReport({ id, name }: { id: string; name: string }) {
     </List>
   )
   return (
-    <VStack gap={2}>
-      <HStack gap={2} vAlign="center" wrap="wrap">
-        <StackItem size="fill">
-          <Link weight="semibold" onClick={() => setTarget({ kind: L.정황, id })}>
-            {name}
-          </Link>
-        </StackItem>
-        <State word={r?.state ?? L.대기} />
-        <Source kind={L.AI} tip={r?.model ?? undefined} rows={[[L.모델, r?.model ?? L.없음], [L.날짜, r?.at ?? L.없음], [L.조회, String(r?.reads ?? L.없음)]]} />
-      </HStack>
+    <AiCard
+      title={<Link onClick={() => setTarget({ kind: L.정황, id })}>{name}</Link>}
+      aside={
+        <HStack gap={2} vAlign="center">
+          <State word={r?.state ?? L.대기} />
+          <Source kind={L.AI} tip={r?.model ?? undefined} rows={[[L.모델, r?.model ?? L.없음], [L.날짜, r?.at ?? L.없음], [L.조회, String(r?.reads ?? L.없음)]]} />
+        </HStack>
+      }
+    >
       {r && r.facts.length > 0 && (
         <MetadataList columns="single" label={{ position: 'top' }}>
           <MetadataListItem label={L.사실}>
@@ -136,16 +136,16 @@ function SignalReport({ id, name }: { id: string; name: string }) {
           {r.unknown.length > 0 && <MetadataListItem label={L.미확인}>{lines(r.unknown)}</MetadataListItem>}
         </MetadataList>
       )}
-    </VStack>
+    </AiCard>
   )
 }
 
-/** 레일의 AI 보고: 이 심사에 걸린 정황마다 그 보고. 정황이 없으면 없음 */
+/** AI 보고: 이 심사에 걸린 정황마다 그 보고 카드(정황 영역 바로 아래, D63). 정황이 없으면 없음 */
 export function Reports() {
   const r = useReview()?.review
   const list = useData<{ id: string; name: string }[]>(r?.marks.includes(L.정황) ? `/reviews/${r.id}/signals` : null)
   if (r?.marks.includes(L.정황) && !list) return null // 읽는 중에는 비운다(없음이 깜박이지 않게)
-  if (!r?.marks.includes(L.정황) || !list?.length) return <Empty />
+  if (!r?.marks.includes(L.정황) || !list?.length) return null
   return (
     <VStack gap={4}>
       {list.map((s) => (
@@ -194,6 +194,7 @@ export function Review() {
               <Links />
               <Rules />
               <Flags />
+              <Reports />
               <OfReview />
             </>
           ),

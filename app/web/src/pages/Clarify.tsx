@@ -1,3 +1,7 @@
+import { AiCard } from '../ui/AiCard'
+import { Tidy } from '../tickets/19-서류'
+import { Unknown } from '../tickets/20-소명'
+import { useVerdict } from '../tickets/20-소명/verdict'
 import { FlagIcon } from '@heroicons/react/24/outline'
 import { Icon } from '@astryxdesign/core/Icon'
 import { Token } from '@astryxdesign/core/Token'
@@ -37,6 +41,29 @@ function Send({ d, onBad }: { d: Data; onBad: (word: string | null) => void }) {
   )
 }
 
+
+/** 서류의 AI 정리 카드(판독 영역 바로 아래, D63) + 미확인(코드가 찾은 것이라 사실 영역). 서류가 없으면 없음 */
+function ClarifyAi() {
+  const docs = useDocs()
+  if (!docs?.docs.length) return null
+  return (
+    <>
+      <AiCard title={`${L.AI} ${L.정리}`}>
+        <Tidy />
+      </AiCard>
+      <UnknownRegion />
+    </>
+  )
+}
+function UnknownRegion() {
+  const v = useVerdict()
+  if (!v?.unknown.length) return null
+  return (
+    <Region title={L.미확인}>
+      <Unknown />
+    </Region>
+  )
+}
 
 export function Clarify() {
   const d = useClarify()
@@ -93,6 +120,7 @@ export function Clarify() {
               <Letter />
               <Docs />
               <Read />
+              <ClarifyAi />
               <OriginalDoc />
               <Upload />
               <Excluded />

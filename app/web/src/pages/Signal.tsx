@@ -1,3 +1,6 @@
+import { AiCard } from '../ui/AiCard'
+import { AiReport } from '../tickets/17-보고'
+import { useReport } from '../tickets/17-보고/report'
 // 정황 기록: 머리(← 작업 · n/전체 / 정황 이름 / 메타 한 줄 / 페이지 조치 / 탭) → 본문(근거 · 관계 · 가설 · 소명 영역) → 오른쪽 레일(AI 보고 · 요약).
 // 요청 · 기각은 내부 감시의 페이지 조치(누르면 확인 창에서 사유). AI 보고는 이 정황을 판단하는 가장 큰 재료라 레일에서 처음부터 펼쳐 둔다.
 import { HStack } from '@astryxdesign/core/Layout'
@@ -54,6 +57,17 @@ function SignalTiles({ d }: { d: Data }) {
 }
 
 
+/** 이 정황의 AI 보고 카드(관계 영역 바로 아래, D63). 보고가 없으면 없음 */
+function SignalAi() {
+  const d = useReport()
+  if (!d) return null
+  return (
+    <AiCard title={`${L.AI} ${L.보고}`}>
+      <AiReport />
+    </AiCard>
+  )
+}
+
 export function Signal() {
   const d = useSignal()
   const [bad, setBad] = useState<{ id: string; word: string } | null>(null)
@@ -88,6 +102,7 @@ export function Signal() {
               <SignalTiles d={d} />
               <Evidence />
               <Links />
+              <SignalAi />
               <OfSignal />
               <Of />
             </>

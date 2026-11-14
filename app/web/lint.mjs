@@ -7,7 +7,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 // 색(tokens.md "색 — 의미가 있을 때만"): 색 이름은 ui/status.ts에서만. 다른 파일은 그 파일이 낸 값(badge · dot · fail · caution · meter)을 넘긴다
 const COLOR = /\b(variant|color|status)=(\{[^}]*)?["'](red|orange|yellow|green|teal|cyan|blue|purple|pink|success|warning|error|info)["']/
 // Card(tokens.md "면"): 숫자 타일(ui/Record의 Tiles), 접속 카드, 대화 속 조치 카드, 경위 그림의 칸, 안내 카드에만. 영역마다 Card를 씌우지 않는다(Card soup)
-const CARD_OK = ['ui/Record.tsx', 'Enter.tsx', 'tickets/25-카드/index.tsx', 'tickets/16-경위/index.tsx', 'ui/Tour.tsx']
+const CARD_OK = ['ui/Record.tsx', 'Enter.tsx', 'tickets/25-카드/index.tsx', 'tickets/16-경위/index.tsx', 'ui/Tour.tsx', 'ui/AiCard.tsx']
 const bad = []
 for (const f of readdirSync('src', { recursive: true })) {
   if (!/\.tsx?$/.test(f) || f === 'labels.ts') continue

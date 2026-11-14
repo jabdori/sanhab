@@ -21,7 +21,7 @@ import { plain } from './status'
 import { fail } from './status'
 import { L } from '../labels'
 import { menuAtom, navAtom, paneAtom, sideAtom, targetAtom, useData } from '../state'
-import { AiBody } from '../AiPanel'
+import { useMediaQuery } from '@astryxdesign/core/hooks'
 import { type Draft, Reason, blank, ready, sent } from './Reason'
 import { Confirm } from './Confirm'
 import { grade } from './grade'
@@ -140,7 +140,18 @@ export type RecordTab = { value: string; label: string; body: ReactNode }
 export function RecordPage({ title, meta, actions, bad, tabs, props = [] }: { title: string; meta: ReactNode[]; actions?: ReactNode; bad?: string | null; tabs: RecordTab[]; props?: [string, ReactNode][] }) {
   const [tab, setTab] = useState(tabs[0]?.value)
   const [side, setSide] = useAtom(sideAtom)
+  // detail-page의 isNarrow: 좁으면 오른쪽 칸 대신 요약을 본문 맨 위로(요약이 먼저 — checkout-wizard처럼). 대화 칸까지 있어 기준은 1440
+  const narrow = useMediaQuery('(max-width: 1439px)')
   const body = (tabs.find((t) => t.value === tab) ?? tabs[0])?.body
+  const summary = props.length > 0 && (
+    <MetadataList columns={narrow ? 'multi' : undefined}>
+      {props.map(([k, v]) => (
+        <MetadataListItem key={k} label={k}>
+          {v}
+        </MetadataListItem>
+      ))}
+    </MetadataList>
+  )
   return (
     <Layout
       height="fill"
@@ -183,8 +194,8 @@ export function RecordPage({ title, meta, actions, bad, tabs, props = [] }: { ti
                     ))}
                   </TabList>
                 </StackItem>
-                {/* 보조 칸(요약 · AI 보고 · 대화)을 펴고 접는다(work-item-detail의 Hide details) */}
-                <Button label={L.요약} variant="ghost" size="md" isIconOnly icon={<Icon icon={ViewColumnsIcon} size="sm" />} onClick={() => setSide(!side)} />
+                {/* 오른쪽 칸(요약)을 펴고 접는다(detail-page의 Hide panel). 좁은 화면에는 칸이 없다 */}
+                {!narrow && props.length > 0 && <Button label={L.요약} variant="ghost" size="md" isIconOnly icon={<Icon icon={ViewColumnsIcon} size="sm" />} onClick={() => setSide(!side)} />}
               </HStack>
             )}
           </VStack>
@@ -193,27 +204,25 @@ export function RecordPage({ title, meta, actions, bad, tabs, props = [] }: { ti
       content={
         // detail-page: 본문은 Section(카드)이 gap 4로 쌓인다
         <LayoutContent role="main">
-          <VStack gap={4}>{body}</VStack>
+          <VStack gap={4}>
+            {/* 좁은 화면: 요약을 본문 맨 위 Section으로(여러 열) */}
+            {narrow && summary && (
+              <Section data-tour="props">
+                <VStack gap={4}>
+                  <Heading level={2}>{L.요약}</Heading>
+                  {summary}
+                </VStack>
+              </Section>
+            )}
+            {body}
+          </VStack>
         </LayoutContent>
       }
       end={
-        side && (
-          // 보조 칸(work-item-detail의 Details 레일): 접고 펴는 영역이 위에서 아래로 이어진다 — 요약 → AI 보고 → 대화. 칸 전체가 하나로 스크롤된다
+        !narrow && side && summary && (
+          // 오른쪽 칸(detail-page의 RightPanel): 요약 하나. AI 보고는 다룬 사실 영역 바로 아래 카드로(D63)
           <LayoutPanel width={320} padding={4} role="complementary" isScrollable label={L.요약}>
-            <VStack gap={4}>
-              {props.length > 0 && (
-                <Fold title={L.요약}>
-                  <MetadataList>
-                    {props.map(([k, v]) => (
-                      <MetadataListItem key={k} label={k}>
-                        {v}
-                      </MetadataListItem>
-                    ))}
-                  </MetadataList>
-                </Fold>
-              )}
-              <AiFold />
-            </VStack>
+            <Fold title={L.요약}>{summary}</Fold>
           </LayoutPanel>
         )
       }
@@ -238,14 +247,3 @@ function Fold({ title, icon, children }: { title: string; icon?: typeof Sparkles
     </Collapsible>
   )
 }
-
-/** AI 보고 영역: AI가 쓴 것이 있을 때만 */
-function AiFold() {
-  const body = AiBody()
-  return body ? (
-    <Fold title={`${L.AI} ${L.보고}`} icon={SparklesIcon}>
-      {body}
-    </Fold>
-  ) : null
-}
-

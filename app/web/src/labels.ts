@@ -52,7 +52,7 @@ const words = [
   '해제',
   '사유 필수',
   '이미지',
-  '안내', '다음', '끝', '스킵', '예시', '도움말', '열기', '질문', '건', '판매장려금', '낱말',
+  '안내', '다음', '끝', '스킵', '예시', '도움말', '열기', '질문', '건', '판정은 사람', '판매장려금', '낱말',
   // A: 정황·보고·소명·발송·서류
   // B: 지급·대사·재심사·추인·재검토
   // C: 대리점·관련자·변경·규정·모의·접속
@@ -75,7 +75,7 @@ export const ASK: Record<string, string> = {
 export type TourStep = { at: string; title: string; body: string; record?: boolean; stage?: number }
 
 // 요약 칸: 그 기록에 실제로 있는 것만 말한다(AI 보고는 심사 · 정황에만 있다)
-const SIDE_AI: TourStep = { at: 'div[aria-label="요약"]', record: true, title: '요약', body: 'AI가 정리한 보고를 봅니다' }
+const SIDE_AI: TourStep = { at: '[data-tour=ai]', record: true, title: 'AI 보고', body: 'AI가 정리한 보고를 봅니다' }
 const CHAT: TourStep = { at: 'div[aria-label="대화"]:not([role])', record: true, title: '대화', body: '이 기록에 대해 AI에게 묻습니다' }
 const DEMO: TourStep = { at: 'button[aria-label="시연"]', record: true, title: '시연', body: '날짜를 넘기거나 처음으로 되돌립니다' }
 const SUM: TourStep = { at: '[data-tour=tiles]', record: true, title: '합산', body: '관련 거래처까지 합친 금액과 한도를 비교합니다' }
@@ -100,7 +100,7 @@ export const TOUR: Record<string, TourStep[]> = {
     { at: '[data-tour=actions]', record: true, title: '조치', body: '여기서 추인하거나 거부합니다' },
     SUM,
     { at: '[data-region="재검토"]', record: true, title: '재검토', body: '당시 영업지원 전결로 나간 돈을 지금 바로잡습니다' },
-    { at: 'div[aria-label="요약"]', record: true, title: '요약', body: '이 추인의 승인권자와 구성을 봅니다' },
+    { at: 'div[aria-label="요약"], [data-tour=props]', record: true, title: '요약', body: '이 추인의 승인권자와 구성을 봅니다' },
     CHAT, DEMO,
   ],
   '회계·자금': [
@@ -108,7 +108,7 @@ export const TOUR: Record<string, TourStep[]> = {
     { at: '[data-tour=actions]', record: true, title: '조치', body: '여기서 지급합니다' },
     { at: '[data-tour=tiles]', record: true, title: '금액', body: '지급 금액과 승인 때 본 합산 · 한도입니다' },
     { at: '[data-region="재심사"]', record: true, stage: 1, title: '재심사', body: '계좌가 바뀌어 예시상사A 외 1로 묶여 지급이 멈췄습니다' },
-    { at: 'div[aria-label="요약"]', record: true, title: '요약', body: '이 지급의 상태와 계좌를 봅니다' },
+    { at: 'div[aria-label="요약"], [data-tour=props]', record: true, title: '요약', body: '이 지급의 상태와 계좌를 봅니다' },
     CHAT, DEMO,
   ],
 }
