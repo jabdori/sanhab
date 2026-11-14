@@ -74,8 +74,10 @@ for lab,j,d in report: gate(abs(d)<=TOL,f'싱크 어긋남: "{lab}"(대본 {j}�
 # 관문 3: 멈춤 길이, 속도
 for t,h in holds.items(): gate(h<=MAXHOLD,f'화면 멈춤 {h:.1f}초(>{MAXHOLD}) at {out(t):.1f}초 — 녹화 동작을 대본 쪽으로 당길 것')
 # 관문 4: 자막 글(면책 · 개발용 표기)
-BAN=re.compile(r'판정은 사람|참고용|근거 기반|AI는 판정하지|fixture|css:|data-tour|\b[A-Z]{1,3}-\d{2,}\b|\bv\d+\b|\.md\b')
-for t in cfg['lines']: gate(not BAN.search(t),f'대본에 금지 표기: {t}')
+# 보는 사람이 식별할 수 없는 표기: 면책 문구, 개발용 표기, 영문자+숫자 번호(W07 · S12 · t19 · D-011), 버전 표기
+BAN=re.compile(r'판정은 사람|참고용|근거 기반|AI는 판정하지|fixture|css:|data-tour|(?<![A-Za-z가-힣])[A-Za-z]{1,3}-?\d{1,4}(?![A-Za-z가-힣])|\bv\d+\b|\.md\b')
+for t in cfg['lines']+[cfg['title'],cfg['subtitle']]+cfg['chips']+[n for _,n in cfg['stages']]:
+    gate(not BAN.search(t),f'화면 · 해설 글에 금지 표기: {t}')
 segs=[]
 for k,nk in zip(STG,STG[1:]+['END']):
     a=out(SM.get(k,0)); b=out(SM[nk]) if nk!='END' else total
