@@ -34,11 +34,11 @@ role_quiet(){ local cur; cur=$(curRole); [ "$cur" = "$1" ] && return; A click @$
 typeslow(){ wait; log clear ""; A keyboard type "$1" >/dev/null; }
 reset_demo(){ wait; A press Escape >/dev/null; A press Escape >/dev/null; local c; c=$(last 'button "취소"'); [ -n "$c" ] && A click @$c >/dev/null; sleep .5; A click @$(ref 'button "시연"') >/dev/null; sleep 1; A click @$(last 'button "초기화"') >/dev/null; sleep 1; A click @$(last 'button "초기화"') >/dev/null; sleep 6; A press Escape >/dev/null; sleep 1; }
 # 녹화 시작 전 확인: 1280×720 · 1.5배, 네 역할 안내를 본 것으로(온보딩이 찍히지 않게)
-prep(){ A set viewport 1280 720 1.5 >/dev/null
+prep(){ A set viewport 1280 720 3 >/dev/null
   A eval 'for (const r of ["영업지원","영업임원","내부 감시","회계·자금"]) localStorage.setItem("tour:"+r,"1"); 1' >/dev/null
   local ok; ok=$(A eval '["영업지원","영업임원","내부 감시","회계·자금"].every(r=>localStorage.getItem("tour:"+r)==="1")' | tr -d '"')
   local nc; nc=$(ref 'button "새 대화"'); [ -n "$nc" ] && A click @$nc >/dev/null; sleep 0.5   # 대화 칸은 빈 새 대화로
-  echo "prep $(now) tour=$ok viewport=1280x720x1.5" >> $MARKS; }
+  echo "prep $(now) tour=$ok viewport=1280x720x3" >> $MARKS; }
 recstart(){ A record start $W/clip$1.mp4 --cursor >/dev/null 2>&1; echo "rec$1 $(now)" >> $MARKS; sleep 0.5; }
 recstop(){ wait; echo "end$1 $(now)" >> $MARKS; A record stop >/dev/null 2>&1; }
 # 접속(서버를 다시 띄우면 토큰이 바뀐다): 패스워드는 .env에서 읽어 입력만 하고 출력하지 않는다

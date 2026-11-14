@@ -10,7 +10,9 @@ def gate(ok,msg):
     if not ok: fails.append(msg)
 # 관문 1: 녹화 준비(1.5배, 온보딩 꺼 둠)
 pr=[e for e in ev if e[0]=='prep']
-gate(pr and 'tour=true' in pr[-1] and 'viewport=1280x720x1.5' in pr[-1],'준비: 안내 꺼 둠 · 1280×720×1.5 기록 없음')
+gate(pr and 'tour=true' in pr[-1] and 'viewport=1280x720x3' in pr[-1],'준비: 안내 꺼 둠 · 1280×720×3 기록 없음')
+FPS=30
+def dims(f): return subprocess.check_output(['ffprobe','-v','error','-select_streams','v','-show_entries','stream=width,height,r_frame_rate','-of','csv=p=0',f]).decode().strip()
 gate(not [e for e in ev if e[0]=='miss'],'녹화 중 못 찾은 상자: '+', '.join(' '.join(e).split('@',1)[1] for e in ev if e[0]=='miss'))
 V=json.load(open(W+'/voice.json'))
 gate(V['lines']==cfg['lines'],'음성이 지금 대본으로 만든 것이 아님(tts.py 다시)')
@@ -107,12 +109,15 @@ rep+= [f'  {lab:24s} {d:+.2f}초' for lab,j,d in report]
 rep+= ['통과' if not fails else '불통과:']+['  - '+f for f in fails]
 open(W+'/verify.txt','w').write('\n'.join(rep)+'\n'); print('\n'.join(rep))
 if fails: sys.exit(2)
-# 영상: 클립을 잇고, 잘라낸 구간을 빼고, 멈춤을 넣는다
+# 영상: 프레임 번호로 정확히 — 클립을 잇고, 잘라낸 구간을 빼고, 멈춤은 그 프레임을 늘린다(이음매에서 프레임이 빠지거나 겹치지 않게). 4K 그대로 한 번만 압축
+for c in clips: gate(dims(f'{W}/clip{c}.mp4')=='3840,2160,30/1',f'원본 해상도 · 프레임: clip{c} {dims(f"{W}/clip{c}.mp4")} (3840,2160,30/1이어야)')
+if fails:
+    open(W+'/verify.txt','a').write('불통과(원본):\n'+'\n'.join('  - '+f for f in fails)+'\n'); print('\n'.join(fails)); sys.exit(2)
 keep=[];x=0
 for c0,c1 in cuts: keep.append((x,c0)); x=c1
 keep.append((x,END))
 srcs=[(i,base[n],base[n]+end[n]-rec[n]) for i,n in enumerate(clips)]
-f=[];n=0;hp=sorted(holds)
+f=[];n=0;hp=sorted(holds);made=0
 for k0,k1 in keep:
     bounds=[k0]+[t for t in hp if k0<t<k1]+[k1]
     for i in range(len(bounds)-1):
@@ -120,11 +125,13 @@ for k0,k1 in keep:
         for si,lo,hi in srcs:
             x0,x1=max(a,lo),min(b,hi)
             if x1-x0>0.005:
-                hh=h if x1==b else 0
-                f.append(f"[{si}:v]trim={x0-lo:.3f}:{x1-lo:.3f},setpts=PTS-STARTPTS,fps=30"+(f",tpad=stop_mode=clone:stop_duration={hh:.3f}" if hh>0.005 else "")+f"[v{n}]"); n+=1
-f.append(''.join(f'[v{i}]' for i in range(n))+f'concat=n={n}:v=1:a=0[o]')
+                f0,f1=round((x0-lo)*FPS),round((x1-lo)*FPS); hh=round(h*FPS) if x1==b else 0
+                if f1<=f0 and hh==0: continue
+                f1=max(f1,f0+1)
+                f.append(f"[{si}:v]trim=start_frame={f0}:end_frame={f1},setpts=N/{FPS}/TB"+(f",tpad=stop_mode=clone:stop={hh}" if hh>0 else "")+f"[v{n}]"); n+=1; made+=(f1-f0)+hh
+f.append(''.join(f'[v{i}]' for i in range(n))+f'concat=n={n}:v=1:a=0,fps={FPS}[o]')
 ins=sum((['-i',f'{W}/clip{c}.mp4'] for c in clips),[])
-subprocess.run(['ffmpeg','-loglevel','error','-y',*ins,'-filter_complex',';'.join(f),'-map','[o]','-c:v','libx264','-pix_fmt','yuv420p','-crf','16',W+'/edit.mp4'],check=True)
+subprocess.run(['ffmpeg','-loglevel','error','-y',*ins,'-filter_complex',';'.join(f),'-map','[o]','-c:v','libx264','-preset','medium','-crf','12','-pix_fmt','yuv420p','-r',str(FPS),W+'/edit.mp4'],check=True)
 ins=[];g=[]
 for i,(j,st) in enumerate(place):
     ch=chunk[j]; ins+=['-i',f"{W}/{PA[ch['para']]['file']}"]; ms=int(st*1000)

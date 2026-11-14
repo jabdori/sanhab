@@ -10,8 +10,11 @@ python3 $T/build.py $CFG $W || { echo "✗ 장면 $N 검증 불통과 — $W/ver
 python3 $T/compose.py $W $HF
 cp $W/edit.mp4 $HF/assets/scene.mp4
 ( cd $HF && npx --yes hyperframes@0.9.46 lint 2>&1 | grep -qE '^◇  0 error' ) || { echo "✗ hyperframes lint 오류"; exit 3; }
-( cd $HF && npx --yes hyperframes@0.9.46 render -o $W/overlay.mp4 2>&1 | grep -qE 'Render complete' ) || { echo "✗ 렌더 실패"; exit 4; }
+( cd $HF && npx --yes hyperframes@0.9.46 render --quality delivery -o $W/overlay.mp4 2>&1 | grep -qE 'Render complete' ) || { echo "✗ 렌더 실패"; exit 4; }
 ffmpeg -loglevel error -y -i $W/overlay.mp4 -i $W/voice.wav -map 0:v -map 1:a -c:v copy -c:a aac -b:a 192k -shortest $W/scene$N.mp4
 want=$(python3 -c "import json;print(json.load(open('$W/plan.json'))['total'])"); got=$(ffprobe -v error -show_entries format=duration -of csv=p=0 $W/scene$N.mp4)
 python3 -c "import sys;sys.exit(0 if abs($want-$got)<0.2 else 1)" || { echo "✗ 길이 다름 $want vs $got"; exit 5; }
+# 관문: 출력은 2560×1440 · 정확히 30fps, 프레임 수 = 길이 × 30(빠지거나 겹친 프레임 없음)
+read wh fr nf < <(ffprobe -v error -select_streams v -count_frames -show_entries stream=width,height,r_frame_rate,nb_read_frames -of csv=p=0 $W/scene$N.mp4 | awk -F, '{print $1"x"$2, $3, $4}')
+python3 -c "import sys;sys.exit(0 if '$wh'=='2560x1440' and '$fr'=='30/1' and abs($nf-round($want*30))<=2 else 1)" || { echo "✗ 출력 $wh $fr 프레임 $nf (기대 $(python3 -c "print(round($want*30))"))"; exit 6; }
 echo "✓ 장면 $N → $W/scene$N.mp4 (${got}초)"; cat $W/verify.txt | head -1
