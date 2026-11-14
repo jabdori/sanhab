@@ -80,8 +80,8 @@ DEFINE FUNCTION fn::evidence($e: record) -> object {
         ELSE IF $t = 'recon' THEN { item: '대사', dealer: ($e.payout->payout_of->dealer)[0], ym: $e.payout.ym, value: array::join($e.diff, ' · '),
             want: { amount: $e.amount, accounts: $e.accounts },
             -- 회신의 계좌가 누구의 등록 계좌인지(없으면 등록되지 않은 계좌) — 감사인이 "돈이 어디로 갔나"를 바로 보게
-            got: { amount: $e.reply.amount, account: $e.reply.account, owner: (SELECT VALUE in.name FROM acct WHERE out.value = $e.reply.account AND excluded = false)[0] } }
-        ELSE IF $t = 'review' THEN { item: '심사', ym: $e.ym, amount: $e.total, value: $e.name }
+            got: { amount: $e.reply.amount, account: $e.reply.account, owner: array::join(array::distinct((SELECT VALUE in.name FROM acct WHERE out.value = $e.reply.account AND excluded = false AND (until = NONE OR until > fn::today()))), ' · ') } }
+        ELSE IF $t = 'review' THEN { item: $e.name, ym: $e.ym, amount: $e.total }
         ELSE { item: $t } END;
     RETURN {
         id: <string> $e, item: $v.item, at: $v.at, ym: $v.ym, amount: $v.amount, value: $v.value, want: $v.want, got: $v.got,

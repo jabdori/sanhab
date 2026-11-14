@@ -71,6 +71,9 @@ export function Tour() {
   const [ready, setReady] = useState(false)
   const hole = useRef<HTMLDivElement>(null)
   const card = useRef<HTMLDivElement>(null)
+  // 안내를 열기 전에 보던 기록(끝나면 거기로 돌아간다)
+  const before = useRef<Target | null>(null)
+  const beforeMenu = useRef(MENUS[0] as (typeof MENUS)[number])
 
   // 이 역할로 처음 들어오면 저절로 연다
   useEffect(() => {
@@ -79,6 +82,8 @@ export function Tour() {
   useEffect(() => {
     if (open) {
       setI(0)
+      before.current = store.get(targetAtom)
+      beforeMenu.current = store.get(menuAtom)
       // 예시 기록은 작업에서 연 것으로(돌아가기 줄이 직전 메뉴로 남지 않게)
       store.set(menuAtom, MENUS[0])
       if (role) markSeen(role)
@@ -167,7 +172,8 @@ export function Tour() {
     setEl(null)
     setReady(false)
     setExample(null)
-    setTarget(null)
+    store.set(menuAtom, beforeMenu.current)
+    setTarget(before.current)
   }
   // 안내 중에는 뒤 화면(앱 틀) 전체를 키보드로도 닿지 않게(inert). 안내는 틀 밖, 테마 안에 따로 그린다(테마의 색 이름을 그대로 쓰게)
   useEffect(() => {

@@ -85,6 +85,8 @@ export function Signal() {
         [L.종류, s.kind === L.추인 ? L.거부 : s.kind],
         [L.대리점, dealers],
         [k, <HStack gap={2} vAlign="center"><Text>{v}</Text>{src}</HStack>],
+        // 거부된 추인의 정황: 그 거부(누가 · 사유 · 날짜)
+        ...(d.refused ? [[L.거부, [d.refused.role, d.refused.reason?.class, d.refused.reason?.memo, d.refused.at].filter(Boolean).join(' · ')] as [string, ReactNode]] : []),
         // 다시 올라온 정황(D57): 앞선 기각과 그 사유를 함께 보인다(시나리오 4의 4)
         ...d.history.filter((h) => h.kind === L.기각).slice(-1).map((h): [string, ReactNode] => [L.기각, [h.reason?.class, h.reason?.memo, h.at].filter(Boolean).join(' · ')]),
       ]}

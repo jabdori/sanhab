@@ -15,7 +15,7 @@ import { atom } from 'jotai'
 import { useState } from 'react'
 import { L } from '../labels'
 import { Search, hit } from '../ui/Search'
-import { api, changedAtom, navAtom, store, targetAtom, useData } from '../state'
+import { api, changedAtom, navAtom, paneAtom, store, targetAtom, useData } from '../state'
 import { Confirm } from '../ui/Confirm'
 import { grade } from '../ui/grade'
 import { Mark, State } from '../ui/Mark'
@@ -63,6 +63,8 @@ export function Work() {
     const g = groups.find((x) => x.items.some((i) => i.id === t.id))
     setNav((g?.items ?? rows).map((r) => ({ kind: r.view, id: r.target })))
     setTarget({ kind: t.view, id: t.target })
+    // 목록에서 기록을 열면 목록 칸은 접힌 채(본문이 좁아지지 않게 — 펴는 것은 기록 머리의 목록 단추)
+    store.set(paneAtom, false)
   }
   // 표(table-grouped): 종류의 묶음마다 머리(접힘 · 건수), 줄 = 고르기 · 주의 점 · 대상 · 종류 · 귀속월 · 금액 · 담당 · 표시 · 상태
   type Row = Task & Record<string, unknown>

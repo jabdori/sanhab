@@ -55,11 +55,12 @@ export const signalDot = (state: string): Tone => (state === L.해소 || state =
 /** 한도 대비 비율: 한도를 조금 넘으면 100%로 반올림되지 않게 소수 한 자리(2,007,205 → 100.4%) */
 export const pct = (total: number, limit: number) => {
   const p = (total / limit) * 100
-  return `${p > 100 && Math.round(p) <= 100 ? (Math.floor(p * 10) / 10).toFixed(1) : Math.round(p)}%`
+  // 넘은 것은 올림(2,007,205 → 100.4%, 100.04% → 100.1%) — 반올림이나 버림으로 100%가 되지 않게
+  return `${p > 100 && Math.round(p) <= 100 ? (Math.ceil(p * 10) / 10).toFixed(1) : Math.round(p)}%`
 }
 
 /** 금액의 표기: 천 단위 쉼표("원"은 붙이지 않는다) */
 export const num = (n: number) => n.toLocaleString('ko-KR')
 
-/** 줄을 바꾸지 않는 붙임표(2026‑06이 `2026-` / `06`으로 꺾이지 않게) — 좁은 칸의 이름에 */
+/** 줄을 바꾸지 않는 붙임표(2026‑06이 `2026-` / `06`으로 꺾이지 않게) — 좁은 칸의 제목 · 이름에만. 계좌 같은 데이터 값에는 쓰지 않는다(복사하면 다른 글자가 된다 — whitespace-nowrap으로) */
 export const nb = (s: string) => s.replace(/-/g, '\u2011')

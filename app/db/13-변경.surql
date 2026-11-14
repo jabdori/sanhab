@@ -72,9 +72,9 @@ DEFINE FUNCTION OVERWRITE fn::evidence($e: record) -> object {
         ELSE IF $t = 'payout' THEN { item: '지급', dealer: ($e->payout_of->dealer)[0], ym: $e.ym, amount: $e.amount }
         ELSE IF $t INSIDE ['rep', 'addr', 'acct'] THEN { item: { rep: '대표자', addr: '주소', acct: '계좌' }[$t], dealer: $e.in, node: $e.out }
         ELSE IF $t = 'recon' THEN { item: '대사', dealer: ($e.payout->payout_of->dealer)[0], ym: $e.payout.ym, value: array::join($e.diff, ' · '),
-            want: { amount: $e.amount, accounts: $e.accounts }, got: { amount: $e.reply.amount, account: $e.reply.account, owner: (SELECT VALUE in.name FROM acct WHERE out.value = $e.reply.account AND excluded = false)[0] } }
+            want: { amount: $e.amount, accounts: $e.accounts }, got: { amount: $e.reply.amount, account: $e.reply.account, owner: array::join(array::distinct((SELECT VALUE in.name FROM acct WHERE out.value = $e.reply.account AND excluded = false AND (until = NONE OR until > fn::today()))), ' · ') } }
         ELSE IF $t = 'incident' THEN { item: $e.kind, dealer: $e.dealer, at: time::format($e.since, '%Y-%m-%d'), node: (SELECT VALUE out FROM rep, addr, acct WHERE incident = $e)[0], value: $e.item }
-        ELSE IF $t = 'review' THEN { item: '심사', ym: $e.ym, amount: $e.total, value: $e.name }
+        ELSE IF $t = 'review' THEN { item: $e.name, ym: $e.ym, amount: $e.total }
         ELSE { item: $t } END;
     RETURN {
         id: <string> $e, item: $v.item, at: $v.at, ym: $v.ym, amount: $v.amount, value: $v.value, want: $v.want, got: $v.got,

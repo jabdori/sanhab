@@ -181,7 +181,7 @@ export function Review() {
         [L.담당, v.status === L.반려 ? L.영업지원 : v.holder ?? v.approver],
         // 반려 · 보류의 사유는 받는 사람이 내용에서 바로 본다(이력 탭까지 가지 않게)
         ...r.history.filter((h) => h.kind === v.status && (h.kind === L.반려 || h.kind === L.보류)).slice(-1).map((h): [string, ReactNode] => [L.사유, [h.reason?.class, h.reason?.memo].filter(Boolean).join(' · ') || L.없음]),
-        [L.승인권자, v.holder && v.holder !== v.approver ? <HStack gap={2} vAlign="center"><Text>{v.holder}</Text><Mark>{L.가설}</Mark></HStack> : v.approver],
+        [L.승인권자, v.holder && v.holder !== v.approver ? <HStack gap={2} vAlign="center"><Text>{v.holder}</Text><Mark>{v.marks.includes(L.이탈) ? L.이탈 : L.가설}</Mark></HStack> : v.approver],
         [L.귀속월, v.ym],
         [L.구성, r.members.map((m) => m.name).join(' · ')],
       ]}

@@ -43,6 +43,8 @@ export type Signal = {
   /** 지금 역할이 할 수 있는 조치(요청 · 기각). reason은 사유가 필수인지 */
   actions: { kind: string; reason: boolean; classes: string[] }[]
   history: Decision[]
+  /** 거부된 추인의 정황: 그 거부 */
+  refused?: { role: string; at: string; reason: { class?: string; memo?: string } | null } | null
 }
 
 const signalAtom = atom(async (get) => {

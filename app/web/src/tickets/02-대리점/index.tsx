@@ -61,7 +61,7 @@ export function RegisteredRegion() {
             width: proportional(2, { minWidth: 96 }),
             renderCell: (r) => (
               <VStack gap={0}>
-                <Text hasTabularNumbers>{r.value}</Text>
+                <Text hasTabularNumbers className="whitespace-nowrap">{r.value}</Text>
                 {r.same && (
                   <Text type="supporting" color="secondary">
                     {L.동일인} {r.same}

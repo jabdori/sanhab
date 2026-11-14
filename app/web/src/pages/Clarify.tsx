@@ -69,6 +69,7 @@ function UnknownRegion() {
 export function Clarify() {
   const d = useClarify()
   const docs = useDocs()
+  const vd = useVerdict()
   const [bad, setBad] = useState<{ id: string; word: string } | null>(null)
   if (!d) return null
   const c = d.clarify
@@ -114,7 +115,8 @@ export function Clarify() {
                   // 기한(발송일 아래). 기한의 길이는 가정(D32). 발송 전에는 기한이 없으니 타일도 없다
                   ...(read
                     ? [
-                        { name: L.누락, value: docs?.docs.at(-1)?.counts[L.누락] ?? 0, aside: <Source kind={L.계산} tip={L.누락} rows={[[L.누락, docs?.docs.at(-1)?.counts[L.누락] ?? 0]]} /> },
+                        // 누락 = 판독 표의 빠진 항목 + 요청한 종류인데 받지 못한 서류(D65)
+                        { name: L.누락, value: (docs?.docs.at(-1)?.counts[L.누락] ?? 0) + (vd?.lacking?.length ?? 0), aside: <Source kind={L.계산} tip={L.누락} rows={[[L.누락, docs?.docs.at(-1)?.counts[L.누락] ?? 0], [L.서류, (vd?.lacking ?? []).join(' · ') || L.없음]]} /> },
                         { name: L.불일치, value: docs?.docs.at(-1)?.counts[L.불일치] ?? 0, aside: <Source kind={L.계산} tip={L.불일치} rows={[[L.불일치, docs?.docs.at(-1)?.counts[L.불일치] ?? 0]]} /> },
                       ]
                     : []),

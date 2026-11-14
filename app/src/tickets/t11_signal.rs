@@ -81,6 +81,8 @@ async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
             delay: duration::days(fn::delay()),
             actions: IF fn::rulable($s) THEN ['요청', '기각'].map(|$k| { kind: $k, reason: $k = '기각', classes: fn::ruling_classes($k) }) ELSE [] END,
             history: (SELECT kind, role, time::format(at, '%Y-%m-%d') AS at, reason, source, stamp FROM ruling WHERE signal = $s ORDER BY stamp),
+            -- 거부된 추인의 정황(D52): 그 거부(누가 · 언제 · 사유) — 내부 감시가 정황에서 바로 본다
+            refused: IF $s.kind = '추인' THEN (SELECT role, time::format(at, '%Y-%m-%d') AS at, reason FROM decision WHERE review INSIDE $s.evidence AND kind = '거부' ORDER BY stamp DESC LIMIT 1)[0] END,
         };", json!({ "id": id })).await?;
     if r["signal"].is_null() {
         return Err(err(StatusCode::NOT_FOUND, "없음"));

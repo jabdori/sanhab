@@ -32,7 +32,8 @@ export function PayTiles() {
         ...(r
           ? [
               {
-                name: L.합산,
+                // 재심사 중이면 이 합산은 앞선 승인 때의 것이다(지금 합산은 새 심사에)
+                name: pay.state === L.재심사 ? `${L.당시} ${L.합산}` : L.합산,
                 value: num(r.total),
                 below: r.limit ? <ProgressBar label={L.한도} isLabelHidden value={Math.min(r.total, r.limit)} max={r.limit} variant={meter(over)} hasValueLabel formatValueLabel={() => pct(r.total, r.limit!)} /> : undefined,
               },
