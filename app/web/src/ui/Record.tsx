@@ -7,7 +7,6 @@ import { Grid } from '@astryxdesign/core/Grid'
 import { Icon } from '@astryxdesign/core/Icon'
 import { HStack, Layout, LayoutContent, LayoutHeader, LayoutPanel, Section, StackItem, VStack } from '@astryxdesign/core/Layout'
 import { Collapsible } from '@astryxdesign/core/Collapsible'
-import { List, ListItem } from '@astryxdesign/core/List'
 import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
 import { StatusDot } from '@astryxdesign/core/StatusDot'
 import { Token } from '@astryxdesign/core/Token'
@@ -19,7 +18,7 @@ import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { Fragment, type ReactNode, useState } from 'react'
 import { fail } from './status'
 import { L } from '../labels'
-import { menuAtom, navAtom, paneAtom, sideAtom, talkAtom, targetAtom, useData } from '../state'
+import { menuAtom, navAtom, paneAtom, sideAtom, targetAtom, useData } from '../state'
 import { AiBody } from '../AiPanel'
 import { type Draft, Reason, blank, ready, sent } from './Reason'
 import { Confirm } from './Confirm'
@@ -206,7 +205,6 @@ export function RecordPage({ title, meta, actions, bad, tabs, props = [] }: { ti
                 </Fold>
               )}
               <AiFold />
-              <Talks />
             </VStack>
           </LayoutPanel>
         )
@@ -244,19 +242,3 @@ function AiFold() {
   ) : null
 }
 
-/** 이 기록을 다룬 대화(D61의 선 about을 거꾸로): 누르면 오른쪽 대화 칸에 그 대화가 열린다 */
-function Talks() {
-  const target = useAtomValue(targetAtom)
-  const setTalk = useSetAtom(talkAtom)
-  const list = useData<{ sessions: { id: string; title: string; updated: string }[] }>(target ? `/chat/sessions?of=${encodeURIComponent(`${target.kind}/${target.id}`)}` : null)
-  if (!list?.sessions.length) return null
-  return (
-    <Fold title={`${L.대화} ${list.sessions.length}`}>
-      <List density="compact">
-        {list.sessions.map((x) => (
-          <ListItem key={x.id} label={x.title || L.대화} description={x.updated} onClick={() => setTalk({ id: x.id, n: Date.now() })} />
-        ))}
-      </List>
-    </Fold>
-  )
-}

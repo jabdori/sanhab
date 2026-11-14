@@ -21,8 +21,6 @@ export const navAtom = atom<Target[]>([])
 export const paneAtom = atom(false)
 /** 보조 칸: 기록 화면 오른쪽(속성 · AI 보고 · 대화). 열린 채 시작한다 */
 export const sideAtom = atom(true)
-/** 대화 칸에서 열 대화(보조 칸의 대화 목록에서 고른 것). n이 바뀌면 그 대화를 연다 */
-export const talkAtom = atom<{ id: string; n: number } | null>(null)
 /** 조치(POST)가 끝날 때마다 오른다. useData가 이것을 보고 다시 읽는다 */
 export const changedAtom = atom(0)
 

@@ -118,11 +118,15 @@ export function Tour() {
     const r = sel && bounds(sel)
     if (!h || !r) return
     const set = (e: HTMLElement, k: string, v: number) => e.style.setProperty(k, `${Math.round(v)}px`)
+    // 링은 화면 안쪽에 둔다(영역이 화면 끝에 붙어도 네 변이 다 보이게)
     const pad = 6
-    set(h, 'left', r.left - pad)
-    set(h, 'top', r.top - pad)
-    set(h, 'width', r.width + pad * 2)
-    set(h, 'height', r.height + pad * 2)
+    const edge = 4
+    const [hl, ht] = [Math.max(edge, r.left - pad), Math.max(edge, r.top - pad)]
+    const [hr, hb] = [Math.min(innerWidth - edge, r.right + pad), Math.min(innerHeight - edge, r.bottom + pad)]
+    set(h, 'left', hl)
+    set(h, 'top', ht)
+    set(h, 'width', hr - hl)
+    set(h, 'height', hb - ht)
     if (!c) return
     const [cw, ch, gap] = [c.offsetWidth, c.offsetHeight, 16]
     let side: 'left' | 'right' | 'top' | 'bottom'

@@ -21,6 +21,7 @@ import { DefaultChatTransport, type UIMessage } from 'ai'
 import { useAtomValue } from 'jotai'
 import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog'
 import { Markdown } from '@astryxdesign/core/Markdown'
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl'
 import { IconButton } from '@astryxdesign/core/IconButton'
 import { AtSymbolIcon, BanknotesIcon, BookOpenIcon, BuildingStorefrontIcon, ClipboardDocumentCheckIcon, ClockIcon, DocumentCheckIcon, DocumentTextIcon, FlagIcon, ArrowPathIcon, PencilSquareIcon, PlusIcon } from '@heroicons/react/24/outline'
 import { DropdownMenu } from '@astryxdesign/core/DropdownMenu'
@@ -30,7 +31,7 @@ import type { SearchableItem } from '@astryxdesign/core/Typeahead'
 import { useEffect, useRef, useState } from 'react'
 import { ASK, L } from '../../labels'
 import { State } from '../../ui/Mark'
-import { api, changedAtom, exampleAtom, roleAtom, rolesAtom, store, talkAtom, targetAtom, useData, type Target } from '../../state'
+import { api, changedAtom, exampleAtom, roleAtom, rolesAtom, store, targetAtom, useData, type Target } from '../../state'
 import { fail } from '../../ui/status'
 import { Card as ActionCard, type CardData } from '../25-카드'
 
@@ -70,11 +71,14 @@ type Sess = { id: string; title: string; target: Target | null; name: string | n
 /** 저장할 말: 파일 파트(data URL)는 빼고 */
 const lean = (ms: Talk[]) => ms.map((m) => ({ ...m, parts: m.parts.filter((p) => p.type !== 'file') }))
 
-function Panel({ sid, initial, list, onPick }: { sid: string | null; initial: Talk[]; list: Sess[]; onPick: (id: string) => void }) {
+/** here: 지금 연 기록을 다룬 대화(기록을 열지 않았으면 null). 대화 목록 창은 이것(`기록`)부터 보이고 `전체`로 바꾼다 — 지난 대화의 입구는 이 창 하나 */
+function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initial: Talk[]; list: Sess[]; here: Sess[] | null; onPick: (id: string) => void }) {
   const target = useAtomValue(targetAtom)
   // 이 대화의 id: 새 대화면 첫 말을 보낼 때 서버에 만든다(만든 뒤에도 칸은 그대로 — 다시 그리지 않는다)
   const session = useRef<string | null>(sid)
   const [history, setHistory] = useState(false)
+  const [scope, setScope] = useState<'here' | 'all'>(here ? 'here' : 'all')
+  const past = scope === 'here' && here ? here : list
   const [follow, setFollow] = useState(true)
   const [pinned, setPinned] = useState<Target[]>([])
   const [text, setText] = useState('')
@@ -202,9 +206,15 @@ function Panel({ sid, initial, list, onPick }: { sid: string | null; initial: Ta
           </HStack>
           <Dialog isOpen={history} onOpenChange={setHistory} width={480}>
             <DialogHeader title={`${L.대화} ${L.목록}`} onOpenChange={setHistory} />
-            {list.length ? (
+            {here && (
+              <SegmentedControl label={`${L.대화} ${L.목록}`} value={scope} onChange={(v) => setScope(v as typeof scope)} size="sm">
+                <SegmentedControlItem label={L.기록} value="here" />
+                <SegmentedControlItem label={L.전체} value="all" />
+              </SegmentedControl>
+            )}
+            {past.length ? (
               <List hasDividers>
-                {list.map((x) => (
+                {past.map((x) => (
                   <ListItem
                     key={x.id}
                     label={x.title || L.대화}
@@ -402,23 +412,16 @@ function For({ target }: { target: Target | null }) {
   const all = useData<{ sessions: Sess[] }>(`/chat/sessions?n=${open?.n ?? 0}`)
   const of = useData<{ sessions: Sess[] }>(target ? `/chat/sessions?of=${encodeURIComponent(key(target))}` : null)
   const pick = (id: string) => setOpen((o) => ({ sid: id || null, n: (o?.n ?? 0) + 1 }))
-  // 보조 칸의 대화 목록에서 고른 대화를 연다
-  const talk = useAtomValue(talkAtom)
-  const [seen, setSeen] = useState(talk?.n)
-  if (talk && talk.n !== seen) {
-    setSeen(talk.n)
-    pick(talk.id)
-  }
   if (!all || (target && !of)) return null
   if (!open) {
     setOpen({ sid: (target ? of!.sessions : all.sessions)[0]?.id ?? null, n: 0 })
     return null
   }
-  return <Load key={open.n} sid={open.sid} list={all.sessions} onPick={pick} />
+  return <Load key={open.n} sid={open.sid} list={all.sessions} here={target ? of!.sessions : null} onPick={pick} />
 }
 
-function Load({ sid, list, onPick }: { sid: string | null; list: Sess[]; onPick: (id: string) => void }) {
+function Load({ sid, list, here, onPick }: { sid: string | null; list: Sess[]; here: Sess[] | null; onPick: (id: string) => void }) {
   const got = useData<{ messages: Talk[] }>(sid ? `/chat/sessions/${sid}` : null)
   if (sid && !got) return null
-  return <Panel sid={sid} initial={got?.messages ?? []} list={list} onPick={onPick} />
+  return <Panel sid={sid} initial={got?.messages ?? []} list={list} here={here} onPick={onPick} />
 }
