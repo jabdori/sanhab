@@ -21,7 +21,7 @@ export function Rule() {
       actions={<Simulate target={clause.title} onBad={setBad} />}
       props={[
         // 위치는 문서 이름 · 행. 누르면 원본(파일 경로 · 해시는 설명 칸에)
-        [L.위치, <Source kind={clause.source} tip={clause.title} place={place(clause)} rows={[[L.위치, where(clause)], [L.해시, clause.sha]]} />],
+        [L.위치, <Source kind={clause.source} tip={clause.title} place={place(clause)} plain rows={[[L.위치, where(clause)], [L.해시, clause.sha]]} />],
         [L.규칙, rules.map((x) => x.name).join(' · ') || L.없음],
       ]}
       bad={bad}

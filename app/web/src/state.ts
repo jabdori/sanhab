@@ -31,7 +31,7 @@ export const store = getDefaultStore()
  * 값이 null이면 `없음`(404)처럼, 목록에 없는 경로는 PASS만 서버에서 읽고 나머지는 `없음`. 조치(POST)는 실행하지 않는다
  */
 export const exampleAtom = atom<Record<string, unknown> | null>(null)
-const PASS = ['/state', '/chat/sessions?n=', '/change', '/mock', '/rules', '/samples']
+const PASS = ['/state','/change', '/mock', '/rules', '/samples']
 const none = () => Object.assign(new Error(L.없음), { status: 404, data: null })
 function example<T>(ex: Record<string, unknown>, raw: string): T {
   // 예시의 경로는 풀어 쓴 꼴(`/signals/계좌-X-A`)이다 — 화면은 id를 인코딩해 부른다

@@ -58,7 +58,7 @@ const ICON: Record<string, typeof SparklesIcon> = { [L.예시]: AcademicCapIcon,
 /** 출처 설명 칸의 위치 줄(파일 경로 · 행). 파일 경로는 이 칸에서만 화면에 나온다(review.md 2-1) */
 export const fileLine = (file: string, first: number, last: number) => `${file} ${first}–${last}${L.행}`
 
-export function Source({ kind, file, row, place, quiet, side, of, decision, line: at, tip, rows, children }: { kind: string; file?: string; row?: number; place?: string; quiet?: boolean; side?: 'right' | 'top'; of?: string; decision?: string; line?: number; tip?: string; rows?: [string, ReactNode][]; children?: ReactNode }) {
+export function Source({ kind, file, row, place, quiet, plain, side, of, decision, line: at, tip, rows, children }: { kind: string; file?: string; row?: number; place?: string; quiet?: boolean; plain?: boolean; side?: 'right' | 'top'; of?: string; decision?: string; line?: number; tip?: string; rows?: [string, ReactNode][]; children?: ReactNode }) {
   const [open, setOpen] = useState(false)
   const [origin, setOrigin] = useState<Row>()
   const [spec, setSpec] = useState<Spec | null>()
@@ -105,7 +105,7 @@ export function Source({ kind, file, row, place, quiet, side, of, decision, line
   )
   const trigger = isOrigin || quiet ? (
     // 원본은 표지 없이 조용한 행 번호(보조 색 Link)
-    <Link type="supporting" color="secondary" onClick={() => {}}>
+    <Link type={plain ? undefined : 'supporting'} color="secondary" onClick={() => {}}>
       {file && row ? `${row}${L.행}` : (place ?? L.원본)}
     </Link>
   ) : (

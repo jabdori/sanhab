@@ -69,8 +69,9 @@ export function Versions() {
           { key: 'name', header: L.규칙, width: proportional(2, { minWidth: 96 }), renderCell: (r) => <Text weight="semibold">{r.name}</Text> },
           { key: 'ver', header: L.버전, align: 'end', width: pixel(64), renderCell: (r) => <Text hasTabularNumbers>{r.ver}</Text> },
           { key: 'value', header: L.값, align: 'end', width: pixel(104), renderCell: (r) => <Text hasTabularNumbers maxLines={1}>{r.name === L.합산 ? `${L.일치} ${r.value}` : num(r.value)}</Text> },
-          { key: 'since', header: L.시행, width: proportional(1, { minWidth: 80 }), renderCell: (r) => (r.since || r.until ? <Text hasTabularNumbers>{`${r.since ?? ''} ~ ${r.until ?? ''}`.trim()}</Text> : none) },
-          { key: 'prev', header: L.이전, width: proportional(1, { minWidth: 96 }), renderCell: (r) => (r.prev ? <Text>{`${r.prev.name} ${L.버전} ${r.prev.ver}`}</Text> : none) },
+          // 값이 하나도 없는 칸은 두지 않는다(시행 · 이전은 규칙이 바뀐 적이 있을 때만)
+          ...(rules.some((r) => r.since || r.until) ? [{ key: 'since', header: L.시행, width: proportional(1, { minWidth: 80 }), renderCell: (r: Rule) => (r.since || r.until ? <Text hasTabularNumbers>{`${r.since ?? ''} ~ ${r.until ?? ''}`.trim()}</Text> : none) }] : []),
+          ...(rules.some((r) => r.prev) ? [{ key: 'prev', header: L.이전, width: proportional(1, { minWidth: 96 }), renderCell: (r: Rule) => (r.prev ? <Text>{`${r.prev.name} ${L.버전} ${r.prev.ver}`}</Text> : none) }] : []),
           {
             key: 'source',
             header: L.출처,

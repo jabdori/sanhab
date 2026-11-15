@@ -1,6 +1,7 @@
 // astryx block: DrawerScrim — 막지 않는 서랍(hasScrim={false}): 뒤 화면이 그대로 눌린다
 import { Drawer, DrawerHeader } from '@astryxdesign/core/Drawer'
-import { HStack, Layout, LayoutContent, VStack } from '@astryxdesign/core/Layout'
+import { HStack, Layout, LayoutContent, Section, VStack } from '@astryxdesign/core/Layout'
+import { Heading } from '@astryxdesign/core/Text'
 import { NumberInput } from '@astryxdesign/core/NumberInput'
 import { useSetAtom } from 'jotai'
 import { useState } from 'react'
@@ -11,13 +12,12 @@ import { IntakeSamples } from './tickets/20-소명'
 import { api, targetAtom, useData } from './state'
 import { useAtomValue } from 'jotai'
 import { Confirm } from './ui/Confirm'
-import { Region } from './ui/Region'
 
 /** 시연 서랍(astryx Drawer, 막지 않음 hasScrim={false}): 메뉴 바닥의 `시연`이 연다. 시연 조작을 하며 뒤 화면의 변화를 같이 본다. 제품이 아닌 시연 조작만 모은다 */
 export function DemoDrawer({ isOpen, onOpenChange }: { isOpen: boolean; onOpenChange: (open: boolean) => void }) {
   return (
     <Drawer isOpen={isOpen} onOpenChange={onOpenChange} label={L.시연} width={360} hasScrim={false}>
-      <Layout header={<DrawerHeader title={L.시연} onOpenChange={onOpenChange} />} content={<LayoutContent><Demo /></LayoutContent>} />
+      <Layout header={<DrawerHeader title={L.시연} onOpenChange={onOpenChange} hasDivider />} content={<LayoutContent><Demo /></LayoutContent>} />
     </Drawer>
   )
 }
@@ -31,6 +31,16 @@ const START = '2026-07-01'
 /** YYYY-MM-DD에 날수를 더한다(UTC로 계산해 시간대에 흔들리지 않게) */
 const plus = (day: string, n: number) => new Date(Date.parse(`${day}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10)
 
+/** 서랍의 섹션: 서랍 제목(h2)보다 한 단계 낮은 제목(h3) 아래 조작 */
+const Part = ({ title, children }: { title: string; children: React.ReactNode }) => (
+  <Section>
+    <VStack gap={3}>
+      <Heading level={3}>{title}</Heading>
+      {children}
+    </VStack>
+  </Section>
+)
+
 function Demo() {
   const setTarget = useSetAtom(targetAtom)
   const today = useData<{ today: string }>('/state')?.today ?? START
@@ -40,15 +50,15 @@ function Demo() {
   const [days, setDays] = useState<number | null>(15)
   const ok = days !== null && Number.isInteger(days) && days >= 1 && days <= 365
   return (
-    <VStack gap={4}>
-      <Region title={L.날짜}>
+    <VStack gap={6}>
+      <Part title={L.날짜}>
         <HStack gap={2} vAlign="end">
           <NumberInput label={L.일} isLabelHidden value={days} onChange={setDays} min={1} max={365} isIntegerOnly units={L.일} width={120} />
           <Confirm label={L.넘기기} title={`${L.넘기기} ${days ?? ''}${L.일}`} rows={[[L.날짜, `${today} → ${ok ? plus(today, days) : ''}`]]} isDisabled={!ok} onConfirm={() => api('/advance', { days }).catch(() => {})} />
         </HStack>
-      </Region>
+      </Part>
       {Extra && <Extra />}
-      <Region title={L.초기화}>
+      <Part title={L.초기화}>
         <HStack>
           <Confirm
             label={L.초기화}
@@ -61,7 +71,7 @@ function Demo() {
             onConfirm={() => api('/reset', {}).then(() => setTarget(null), () => {})}
           />
         </HStack>
-      </Region>
+      </Part>
     </VStack>
   )
 }

@@ -2,10 +2,8 @@
 // 작업: astryx table-grouped 템플릿 꼴. 머리(제목 / 전체·담당·진행 / 검색) → 숫자 타일(dashboard-alert-rail의 KPI) → 종류별 묶음(접힘 · 건수)이 있는 표.
 // 줄을 누르면 기록 화면이 열린다(오른쪽은 AI 구역). 심사 묶음은 체크로 골라 선택 띠에서 한꺼번에 승인한다.
 import { Badge } from '@astryxdesign/core/Badge'
-import { Button } from '@astryxdesign/core/Button'
 import { CheckboxInput } from '@astryxdesign/core/CheckboxInput'
 import { StatusDot } from '@astryxdesign/core/StatusDot'
-import { EmptyState } from '@astryxdesign/core/EmptyState'
 import { Center } from '@astryxdesign/core/Center'
 import { HStack, Layout, LayoutContent, LayoutHeader, StackItem, VStack } from '@astryxdesign/core/Layout'
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl'
@@ -15,6 +13,7 @@ import { useAtom, useSetAtom } from 'jotai'
 import { atom } from 'jotai'
 import { useState } from 'react'
 import { L } from '../labels'
+import { NoResult } from '../ui/Empty'
 import { Search, hit } from '../ui/Search'
 import { api, changedAtom, navAtom, paneAtom, store, targetAtom, useData } from '../state'
 import { Confirm } from '../ui/Confirm'
@@ -205,7 +204,7 @@ export function Work() {
             />
           )}
           {d && !groups.length ? (
-            <EmptyState title={L.없음} description={q.trim()} actions={<Button label={L.초기화} variant="secondary" onClick={() => setQ('')} />} />
+            <NoResult query={q} onClear={() => setQ('')} />
           ) : (
             <Table<Row> data={grouped.data} columns={shown} idKey={grouped.idKey} density="balanced" dividers="rows" textOverflow="truncate" hasHover plugins={{ grouped: grouped.plugin, open: openRow }} />
           )}
