@@ -35,7 +35,7 @@ import { AtSymbolIcon, BanknotesIcon, BookOpenIcon, BuildingStorefrontIcon, Clip
 import type { ChatComposerInputHandle } from '@astryxdesign/core/Chat'
 import type { SearchableItem } from '@astryxdesign/core/Typeahead'
 import { useEffect, useRef, useState } from 'react'
-import { ASK, L } from '../../labels'
+import { ASK, ASK_ANY, L } from '../../labels'
 import { State } from '../../ui/Mark'
 import { api, changedAtom, exampleAtom, menuAtom, roleAtom, rolesAtom, store, targetAtom, useData, type Target } from '../../state'
 import { fail, nb } from '../../ui/status'
@@ -221,11 +221,10 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
             <StackItem size="fill">
               <VStack gap={0}>
                 <Heading level={3}>{L.대화}</Heading>
-                {title && (
-                  <Text type="supporting" color="secondary" maxLines={1}>
-                    {title}
-                  </Text>
-                )}
+                {/* 제목 줄 높이는 대화가 없어도 같게 — 첫 질문이 없으면 새 대화 */}
+                <Text type="supporting" color="secondary" maxLines={1}>
+                  {title || `${L.새} ${L.대화}`}
+                </Text>
               </VStack>
             </StackItem>
             <IconButton label={`${L.대화} ${L.목록}`} tooltip={`${L.대화} ${L.목록}`} variant="ghost" size="sm" icon={<Icon icon={ClockIcon} size="sm" />} onClick={() => setHistory(true)} />
@@ -336,11 +335,11 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
             />
           }
           emptyState={
-            // ai-chat-landing에서 벗어남(components.md): 인사와 큰 제목은 두지 않는다 — 지금 화면은 입력창의 문맥 카드가 보인다. 제안은 연 기록이 있을 때만
-            now ? (
+            // ai-chat-landing에서 벗어남(components.md): 인사와 큰 제목은 두지 않는다 — 지금 화면은 입력창의 문맥 카드가 보인다. 제안 카드만 — 연 기록이 있으면 그 기록 이야기, 없으면 일반 제안
+            (
               <Section variant="transparent" padding={4}>
                 <Grid columns={{ minWidth: 200 }} gap={3}>
-                  {Object.entries(ASK).map(([name, prompt]) => (
+                  {Object.entries(now ? ASK : ASK_ANY).map(([name, prompt]) => (
                     <ClickableCard key={name} label={name} padding={3} variant="muted" isDisabled={busy} onClick={() => applySuggestion(prompt)}>
                       <VStack gap={0.5}>
                         <Heading level={4}>{name}</Heading>
@@ -350,7 +349,7 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
                   ))}
                 </Grid>
               </Section>
-            ) : null
+            )
           }
         >
           {messages.length > 0 || error ? (

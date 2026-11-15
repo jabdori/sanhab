@@ -23,11 +23,16 @@
   --font-family-heading: var(--font-family-body);
 }
 
-/* 한글 줄바꿈: 앱 전체에서 어절 단위로 끊고(keep-all — 한 글자만 다음 줄로 넘어가지 않게), 줄보다 긴 숫자 · 영문 · 경로는 아무 데서나 끊는다(anywhere).
-   화면마다 className(break-keep · wrap-anywhere)을 달지 않는다. astryx Text는 스스로 overflow-wrap: break-word를 둬 긴 낱말이 넘치지 않는다 */
+/* 한글 줄바꿈: 앱 전체에서 어절 단위로 끊고(keep-all — 낱말 중간에서 끊기지 않게), 줄보다 긴 숫자 · 영문 · 경로만 넘치기 직전에 끊는다(break-word).
+   astryx 부품 일부(ChatMessageBubble: word-break: break-word, 투어 · 팝오버: layer reset의 word-break: normal)가 자기 클래스로 이 값을 덮어
+   body 상속만으로는 한글이 음절마다 끊긴다 → 클래스가 달린 모든 요소에도 같은 값을 건다([class]로 부품 클래스 한 개보다 앞선다) */
+body,
+body [class] {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
 body {
   background: var(--color-background-body);
   color: var(--color-text-primary);
-  word-break: keep-all;
-  overflow-wrap: anywhere;
 }
