@@ -21,6 +21,8 @@ const ACTS: [(&str, &[&str]); 4] = [("심사", &["승인", "보류", "반려"]),
 
 /// 그 대상에 그 조치를 지금 이 세션(역할)이 할 수 있는지 물어 카드를 만든다. 못 하면 거절의 낱말(대상 · 권한 · 상태 · 분류)
 pub(super) async fn make(me: &Db, kind: &str, id: &str, action: &str, class: Option<&str>, memo: Option<&str>) -> Result<J, String> {
+    // 모델은 읽은 그대로 `review:⟨2026-06-D-001⟩`이나 백틱을 붙여 넘기기도 한다 — 테이블 머리와 감싼 기호를 걷어 id만 쓴다
+    let id = id.rsplit_once(':').map_or(id, |(_, r)| r).trim_matches(|c| matches!(c, '`' | '⟨' | '⟩' | ' ' | '\'' | '"'));
     if !ACTS.iter().any(|(k, a)| *k == kind && a.contains(&action)) || id.is_empty() { return Err("대상".into()); }
     // 사유가 필수이면(`must`) 카드는 사유가 비어도 그려지고, 사람이 채워야 실행이 눌린다
     let (sql, path) = match kind {
