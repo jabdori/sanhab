@@ -38,7 +38,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ASK, ASK_ANY, L } from '../../labels'
 import { State } from '../../ui/Mark'
 import { api, changedAtom, exampleAtom, menuAtom, roleAtom, rolesAtom, store, targetAtom, useData, type Target } from '../../state'
-import { fail, nb } from '../../ui/status'
+import { fail, nb, kind } from '../../ui/status'
 import { Card as ActionCard, Surface, type A2ui, type CardData } from '../25-카드'
 
 /** 답에 붙는 조회한 기록(서버가 `data-reads`로 보낸다). go는 이름과 같은 순서의 여는 길(열 화면이 없는 기록은 null) */
@@ -56,8 +56,11 @@ const took = (ms?: number | null) => (ms == null ? undefined : ms < 1000 ? `${ms
 const key = (t: Target) => `${t.kind}/${t.id}`
 const same = (a: Target, b: Target) => a.kind === b.kind && a.id === b.id
 /** 기록 종류의 아이콘(문맥 카드) */
-const KIND_ICON: Record<string, typeof FlagIcon> = { [L.심사]: ClipboardDocumentCheckIcon, [L.정황]: FlagIcon, [L.소명]: DocumentTextIcon, [L.대리점]: BuildingStorefrontIcon, [L.지급]: BanknotesIcon, [L.추인]: ArrowPathIcon, [L.규정]: BookOpenIcon, [L.작업]: InboxIcon }
-const kindIcon = (k: string) => <Icon icon={KIND_ICON[k] ?? DocumentTextIcon} size="sm" />
+// 기록 종류의 아이콘과 색은 ui/status.ts 한 곳(작업 목록 · 기록 머리와 같은 색)
+const kindIcon = (k: string, size: 'sm' | 'md' = 'sm') => {
+  const c = kind(k)
+  return <Icon icon={c?.icon ?? DocumentTextIcon} size={size} color={c?.color} />
+}
 /** `@`로 붙일 기록 찾기(서버 /chat/find — 문맥 밖의 기록도 이름으로 찾는다) */
 const records = {
   // 찾기 목록은 여섯 줄까지(입력창 위 칸에 다 들어가 마지막 줄이 잘리지 않게. 더 좁히려면 이름을 더 친다)
@@ -331,7 +334,7 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
                     {/* 지금 보는 화면: 종류 아이콘 · 이름 · 종류. 빼면 이번 말에서 빠지고, 화면을 옮기면 다시 따라온다 */}
                     {(now || view) && (
                         <HStack gap={2} vAlign="center">
-                          <Icon icon={KIND_ICON[now ? now.kind : (view ?? '')] ?? DocumentTextIcon} size="md" />
+                          {kindIcon(now ? now.kind : (view ?? ''), 'md')}
                           <StackItem size="fill">
                             <VStack gap={0}>
                               <Text weight="semibold" maxLines={1}>{now ? named[key(now)] ?? now.id : view}</Text>
