@@ -1,4 +1,4 @@
-# 시연 영상 녹화 도우미. 장면 녹화 스크립트가 source 한다. 좌표는 CSS px(영상은 ×1.5).
+# 시연 영상 녹화 도우미. 장면 녹화 스크립트가 source 한다. 좌표는 CSS px(영상은 ×3).
 # 규칙(하네스 tools/video/README.md): 상자(hl)는 커서가 움직이기 시작할 때 이름표와 함께 기록, 화면이 바뀌는 동작은 먼저 clear.
 : "${W:?장면 작업 폴더 W 필요}"
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -33,14 +33,16 @@ setrole(){ wait; local cur; cur=$(curRole); [ "$cur" = "$1" ] && return; A mouse
 role_quiet(){ local cur; cur=$(curRole); [ "$cur" = "$1" ] && return; A click @$(ref "button \"$cur\"") >/dev/null; sleep .6; A click @$(ref 'combobox "역할"') >/dev/null; sleep .5; A click @$(ref "option \"$1\"") >/dev/null; sleep 3; }
 typeslow(){ wait; log clear ""; A keyboard type "$1" >/dev/null; }
 reset_demo(){ wait; A press Escape >/dev/null; A press Escape >/dev/null; local c; c=$(last 'button "취소"'); [ -n "$c" ] && A click @$c >/dev/null; sleep .5; A click @$(ref 'button "시연"') >/dev/null; sleep 1; A click @$(last 'button "초기화"') >/dev/null; sleep 1; A click @$(last 'button "초기화"') >/dev/null; sleep 6; A press Escape >/dev/null; sleep 1; }
-# 녹화 시작 전 확인: 1280×720 · 1.5배, 네 역할 안내를 본 것으로(온보딩이 찍히지 않게)
+# 녹화 시작 전 확인: 1280×720 · 3배, 네 역할 안내를 본 것으로(온보딩이 찍히지 않게)
 prep(){ A set viewport 1280 720 3 >/dev/null
   A eval 'for (const r of ["영업지원","영업임원","내부 감시","회계·자금"]) localStorage.setItem("tour:"+r,"1"); 1' >/dev/null
   local ok; ok=$(A eval '["영업지원","영업임원","내부 감시","회계·자금"].every(r=>localStorage.getItem("tour:"+r)==="1")' | tr -d '"')
   local nc; nc=$(ref 'button "새 대화"'); [ -n "$nc" ] && A click @$nc >/dev/null; sleep 0.5   # 대화 칸은 빈 새 대화로
   echo "prep $(now) tour=$ok viewport=1280x720x3" >> $MARKS; }
-recstart(){ A record start $W/clip$1.mp4 --cursor >/dev/null 2>&1; echo "rec$1 $(now)" >> $MARKS; sleep 0.5; }
-recstop(){ wait; echo "end$1 $(now)" >> $MARKS; A record stop >/dev/null 2>&1; }
+# 녹화: agent-browser 녹화기는 커서를 페이지에 그리는 데만 쓴다(그 영상은 1280×720을 키운 것이라 버린다). 화면은 cdp-rec.mjs가 배율 3 스크린샷으로 찍는다
+recstart(){ rm -rf $W/frames$1; A record start $W/cursor$1.mp4 --cursor >/dev/null 2>&1; ( node $HERE/cdp-rec.mjs "$(A get cdp-url)" $W/frames$1 > /dev/null & echo $! > $W/grab.pid ); sleep 1; echo "rec$1 $(now)" >> $MARKS; sleep 0.5; }
+recstop(){ wait; echo "end$1 $(now)" >> $MARKS; sleep 0.3; kill -TERM $(cat $W/grab.pid); while kill -0 $(cat $W/grab.pid) 2>/dev/null; do sleep 0.2; done; A record stop >/dev/null 2>&1; rm -f $W/cursor$1.mp4
+  python3 $HERE/stitch.py $W/frames$1 $(grep "^rec$1 " $MARKS | cut -d' ' -f2) $(grep "^end$1 " $MARKS | cut -d' ' -f2) $W/clip$1.mp4 && rm -rf $W/frames$1; }
 # 접속(서버를 다시 띄우면 토큰이 바뀐다): 패스워드는 .env에서 읽어 입력만 하고 출력하지 않는다
 login(){ local p; p=$(grep '^DEMO_PASS=' "$HERE/../../.env" | cut -d= -f2- | tr -d '"'); A open http://localhost:3100 >/dev/null 2>&1; sleep 3
   [ -n "$(ref textbox)" ] || return 0; A fill @$(ref textbox) "$p" >/dev/null; A click @$(ref 'button "접속"') >/dev/null; sleep 3; A click @$(ref "button \"${1:-영업지원}\"") >/dev/null; sleep 3; }

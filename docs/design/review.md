@@ -54,7 +54,7 @@
 
 ## 4. is-my-code-good (Full product review)
 `npx astryx docs is-my-code-good --full`의 루브릭을 화면마다 돌린다: App fit · Astryx components · Icons · Styling · Layout · Images · Code health. 항목마다 good / needs work / not inspected와 근거(파일:줄 또는 화면 파일). 확인하지 못한 것은 not inspected로 남긴다.
-- 기계 검사(`cargo run -- check`는 DB를 초기화하므로 **앱이 쓰지 않는 별도 DB**로 돌린다): `npm run build`(lint — 낱말 · 직접 값 · `style=` · Card 허용 파일 · 색 이름은 `ui/status.ts`만 — 와 tsc), `cargo test`, `cargo run -- check`.
+- 기계 검사(`cargo run -- check`는 DB에 시험 대화를 남기므로 **앱이 쓰지 않는 별도 DB**로 돌린다: `SURREAL_DB=w07check cargo run -- check`): `npm run build`(lint — 낱말 · 직접 값 · `style=` · Card 허용 파일 · 색 이름은 `ui/status.ts`만 — 와 tsc), `cargo test`, `cargo run -- check`.
 
 ## 5. 시나리오 (네 역할, 1280 · 1440)
 `docs/user-scenarios.md`의 시나리오 1~6을 영업지원 · 영업임원 · 내부 감시 · 회계·자금으로 실제로 눌러 가며 따라간다(확인 창 · 일괄 승인 · 발송 · 서류 · 보완 · 인정 · 지급 · 모의 회신 · 변경 · 추인 · 모의). 단계마다 찍는다(`시나리오-단계-역할.png`).

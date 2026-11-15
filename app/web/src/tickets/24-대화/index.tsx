@@ -14,13 +14,11 @@ import { Badge } from '@astryxdesign/core/Badge'
 import { EmptyState } from '@astryxdesign/core/EmptyState'
 import { HStack, Layout, LayoutContent, LayoutHeader, StackItem, VStack } from '@astryxdesign/core/Layout'
 import { ChatComposer, ChatComposerDrawer, ChatComposerInput, ChatLayout, ChatMessage, ChatMessageBubble, ChatMessageList, ChatSystemMessage, ChatTokenizedText, ChatToolCalls } from '@astryxdesign/core/Chat'
-import { Avatar } from '@astryxdesign/core/Avatar'
 import { ClickableCard } from '@astryxdesign/core/ClickableCard'
 import { Grid } from '@astryxdesign/core/Grid'
 import { Icon } from '@astryxdesign/core/Icon'
 import { Heading } from '@astryxdesign/core/Text'
 import { DocumentArrowUpIcon, InboxIcon, PaperClipIcon, SparklesIcon, XMarkIcon } from '@heroicons/react/24/outline'
-import { Card } from '@astryxdesign/core/Card'
 import { Text } from '@astryxdesign/core/Text'
 import { Section } from '@astryxdesign/core/Section'
 import { Token } from '@astryxdesign/core/Token'
@@ -289,7 +287,6 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
                     <VStack gap={2}>
                     {/* 지금 보는 화면: 종류 아이콘 · 이름 · 종류. 빼면 이번 말에서 빠지고, 화면을 옮기면 다시 따라온다 */}
                     {(now || view) && (
-                      <Card padding={2} variant="muted">
                         <HStack gap={2} vAlign="center">
                           <Icon icon={KIND_ICON[now ? now.kind : (view ?? '')] ?? DocumentTextIcon} size="md" />
                           <StackItem size="fill">
@@ -300,7 +297,6 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
                           </StackItem>
                           <IconButton label={L.빼기} tooltip={L.빼기} variant="ghost" size="sm" icon={<Icon icon={XMarkIcon} size="sm" />} onClick={() => setFollow(false)} />
                         </HStack>
-                      </Card>
                     )}
                     {(pinned.length > 0 || file) && (
                     <HStack gap={1} vAlign="center" wrap="wrap">
@@ -356,7 +352,7 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
               if (empty && !(busy && m === messages.at(-1))) return null
               if (empty)
                 return (
-                  <ChatMessage key={m.id} sender="assistant" avatar={<Avatar name={L.AI} size="md" />}>
+                  <ChatMessage key={m.id} sender="assistant" avatar={AI_MARK}>
                     <ChatToolCalls calls={[{ key: 'wait', name: L.응답, status: 'running' }]} />
                   </ChatMessage>
                 )
@@ -364,7 +360,7 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
                 <ChatMessage
                   key={m.id}
                   sender={ai ? 'assistant' : 'user'}
-                  avatar={ai ? <Avatar name={L.AI} size="md" /> : null}
+                  avatar={ai ? AI_MARK : null}
                 >
                   {/* 보낸 말에 붙었던 문맥과 서류(카드 그대로 남는다) */}
                   {!ai && (m.metadata?.ctx?.length || m.parts.some((p) => p.type === 'file')) ? (
@@ -410,7 +406,7 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
               )
             })}
             {busy && messages.at(-1)?.role === 'user' && (
-              <ChatMessage sender="assistant" avatar={<Avatar name={L.AI} size="md" />}>
+              <ChatMessage sender="assistant" avatar={AI_MARK}>
                 <ChatToolCalls calls={[{ key: 'wait', name: L.응답, status: 'running' }]} />
               </ChatMessage>
             )}
@@ -442,6 +438,9 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
     />
   )
 }
+
+// AI의 말 표지: AI 카드와 같은 반짝이 아이콘(이름 첫 글자 아바타는 뜻이 없다)
+const AI_MARK = <Icon icon={SparklesIcon} size="md" color="accent" />
 
 /**
  * 대화 칸(astryx ai-chat 템플릿의 대화 열): 모든 화면의 오른쪽 끝에 붙고 입력창이 늘 보인다.
