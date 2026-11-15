@@ -1,6 +1,6 @@
 // 대리점 기록: astryx detail-page 템플릿 꼴(ui/Record). 머리(← 대리점 / 이름 / 식별자 · 그룹 · 출처 / 변경) → 내용(타일 · 등록 · 관계 · 지급 · 서류 · 접수) · 이력 → 레일(요약).
 import { Text } from '@astryxdesign/core/Text'
-import { UserGroupIcon } from '@heroicons/react/24/outline'
+import { BuildingStorefrontIcon } from '@heroicons/react/24/outline'
 import { useState } from 'react'
 import { L } from '../labels'
 import { useData } from '../state'
@@ -53,7 +53,7 @@ export function Dealer() {
     <RecordPage
       title={v.name}
       meta={[
-        rel && rel.group.length > 1 && <Meta icon={UserGroupIcon}>{`${rel.group.length}${L.곳}`}</Meta>,
+        rel && rel.group.length > 1 && <Meta icon={BuildingStorefrontIcon}>{`${rel.group.length}${L.곳}`}</Meta>,
       ]}
       actions={<Change onBad={setBad} />}
       // 보조 칸의 요약: 지금 유효한 등록값(대표자 · 주소 · 계좌)과 그룹

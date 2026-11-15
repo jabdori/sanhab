@@ -95,7 +95,7 @@ export function Work() {
             </HStack>
           )}
           {/* 묶음의 기록 종류(색 면 타일, ui/status.ts의 kind) */}
-          {rows.find((t) => groupOf(t) === k) && <Kind of={rows.find((t) => groupOf(t) === k)!.view} size="sm" />}
+          {rows.find((t) => groupOf(t) === k) && <Kind of={rows.find((t) => groupOf(t) === k)!.view} />}
           <Text type="body" weight="bold">
             {k}
           </Text>

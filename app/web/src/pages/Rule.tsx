@@ -1,6 +1,5 @@
 import { Source } from '../ui/Source'
 // 규정 기록: astryx detail-page 템플릿 꼴(ui/Record). 머리(← 규정 / 조항 / 위치 · 출처 / 모의) → 탭 내용(모의 결과 · 조항 · 규칙) | 가정(가정 · 쓰임).
-import { DocumentTextIcon } from '@heroicons/react/24/outline'
 import { useState } from 'react'
 import { L } from '../labels'
 import { Pending } from '../ui/Pending'

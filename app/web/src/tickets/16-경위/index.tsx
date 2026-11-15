@@ -50,7 +50,7 @@ export function Step({ icon, title, text, at, now, onClick }: { icon: typeof Use
   )
   return (
     <HStack gap={3} vAlign="start">
-      <Icon icon={icon} size="md" color="secondary" />
+      <Icon icon={icon} size="sm" color="secondary" />
       <StackItem size="fill">
         <VStack gap={2}>
           {onClick ? (

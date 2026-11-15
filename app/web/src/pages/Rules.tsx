@@ -7,7 +7,6 @@ import { Heading, Text } from '@astryxdesign/core/Text'
 import { useSetAtom } from 'jotai'
 import { useState } from 'react'
 import { L } from '../labels'
-import { Kind } from '../ui/Mark'
 import { NoResult } from '../ui/Empty'
 import { Search, hit } from '../ui/Search'
 import { Rule } from './Rule'
@@ -57,12 +56,7 @@ export function Rules() {
       header={
         <LayoutHeader hasDivider padding={4}>
           <VStack gap={4}>
-            <HStack gap={3} vAlign="center">
-              <Kind of={L.규정} size="lg" />
-              <StackItem size="fill">
-                <Heading level={1}>{L.규정}</Heading>
-              </StackItem>
-            </HStack>
+            <Heading level={1}>{L.규정}</Heading>
             {/* 작업 목록과 같은 꼴: 검색칸 옆에 걸러진 건수 */}
             <HStack gap={2} vAlign="center">
               <StackItem size="fill">

@@ -1,7 +1,7 @@
 // 낱말 → astryx 색 변형의 대응은 이 파일 한 곳에만 둔다(tokens.md의 "색"). 다른 파일은 색 이름을 쓰지 않는다(lint가 막는다).
 // 색의 수준은 astryx 템플릿(work-item-detail · table-grouped · dashboard-progress · ai-chat-landing): 상태(완료 success · 진행 중 accent · 멈춤 warning · 아님 error),
 // 범주 표시(Token 색), 기록 종류의 아이콘 색, 결과 자리의 CheckCircle success. AI가 쓴 글에는 칠하지 않는다.
-import { AcademicCapIcon, InboxStackIcon, ScaleIcon, ShareIcon, ArrowRightStartOnRectangleIcon, ArrowPathIcon, BanknotesIcon, BookOpenIcon, BuildingStorefrontIcon, ChatBubbleLeftRightIcon, CheckBadgeIcon, CheckIcon, DocumentMagnifyingGlassIcon, FlagIcon, NoSymbolIcon, PlusCircleIcon, StopIcon } from '@heroicons/react/24/outline'
+import { InboxStackIcon, ScaleIcon, ShareIcon, BanknotesIcon, BookOpenIcon, BuildingStorefrontIcon, ChatBubbleLeftRightIcon, CheckBadgeIcon, DocumentMagnifyingGlassIcon, FlagIcon } from '@heroicons/react/24/outline'
 import { L } from '../labels'
 
 type Tone = 'neutral' | 'accent' | 'success' | 'warning' | 'error'
@@ -37,29 +37,12 @@ export const caution = 'warning' as const
 /** 한도 대비 막대: 넘으면 오류, 아니면 테마의 강조색 */
 export const meter = (over: boolean) => (over ? ('error' as const) : ('accent' as const))
 
-/** 표시 → 아이콘. 정황만 주의(warning Badge), 나머지는 Token — 범주 색(work-item-detail의 라벨 Token)은 COLOR, 없으면 기본 */
-const ICON: Record<string, typeof FlagIcon> = {
-  [L.정황]: FlagIcon,
-  [L.가설]: FlagIcon,
-  [L.재검토]: ArrowPathIcon,
-  [L.재심사]: ArrowPathIcon,
-  [L.추인]: CheckIcon,
-  [L.정산]: CheckIcon,
-  [L.거부]: NoSymbolIcon,
-  [L.종결]: StopIcon,
-  // 재접수 뒤에 붙은 근거(정황의 깃발과 겹치지 않게)
-  [L.새]: PlusCircleIcon,
-  // D64: 등록 변경으로 그룹에서 빠진 심사(영업임원 승인으로 올라감)
-  [L.이탈]: ArrowRightStartOnRectangleIcon,
-  // 안내의 예시 기록(ui/example.json)
-  [L.예시]: AcademicCapIcon,
-}
-/** 범주 표시의 Token 색: 다시 보는 것(재심사 · 재검토) purple, 추인 green, 가설 orange. 종결 · 정산 · 거부 · 새 · 이탈 · 예시는 기본 */
+/** 표시 → 색. 정황만 주의(warning Badge), 나머지는 범주 색(work-item-detail의 라벨 — Badge 색 변형): 다시 보는 것(재심사 · 재검토) purple, 추인 green, 가설 orange. 종결 · 정산 · 거부 · 새 · 이탈 · 예시는 중립. 글자만(아이콘 없음) */
 const COLOR: Record<string, 'purple' | 'green' | 'orange'> = { [L.재심사]: 'purple', [L.재검토]: 'purple', [L.추인]: 'green', [L.가설]: 'orange' }
-export const mark = (m: string) => ({ icon: ICON[m] ?? FlagIcon, caution: m === L.정황, color: COLOR[m] ?? ('default' as const) })
+export const mark = (m: string) => ({ caution: m === L.정황, color: COLOR[m] ?? ('neutral' as const) })
 
-/** 기록 종류 → 아이콘과 그 색. 옅은 같은 색 면의 타일(Card 색 변형)에 담아(work-item-detail의 첨부 타일 꼴) 색이 면으로 보이게 — ui/Mark의 Kind.
- *  작업 목록 묶음 머리 · 대리점/규정 목록 제목 · 기록 머리 · 대화의 문맥 카드 · 붙인 기록 칩이 같은 대응을 쓴다 */
+/** 기록 종류 → 아이콘과 그 색. 카드 · 항목 첫머리는 옅은 같은 색 면의 타일(Card 색 변형, 28px)에, 글 줄 안(기록 머리 메타 줄)은 색 16px 선 아이콘 + 글자 — ui/Mark의 Kind.
+ *  작업 목록 묶음 머리 · 기록 머리 · 대화의 문맥 카드 · 붙인 기록 칩이 같은 대응을 쓴다 */
 type Hue = 'blue' | 'orange' | 'cyan' | 'teal' | 'green' | 'purple' | 'pink' | 'gray'
 const KIND: Record<string, { icon: typeof FlagIcon; color: Hue }> = {
   [L.심사]: { icon: DocumentMagnifyingGlassIcon, color: 'blue' },

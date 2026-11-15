@@ -20,7 +20,7 @@
 | 상태 | `Badge`(머리 · 요약 · 표의 상태 칸), `StatusDot`(목록 줄) | 완료 쪽(승인 · 완료 · 인정 · 채택 · 해소 · 정산 · 추인 · 성공) → success, **진행 중**(요청 · 검토 · 진행 · 이체 — 사람 · AI · 은행이 움직이는 중) → 남색(StatusDot `accent`, Badge `blue`), 멈춤(보류 · 보완 · 재심사 · 미응답) → warning, 아님(반려 · 불채택 · 불인정 · 불일치 · 실패 · 오류 · 누락 · 거부) → error, 기본 상태(대기 · 일치 · 접수)는 표지 없음 |
 | 줄의 주의 단계 | `StatusDot`(table-grouped 첫 칸) | 정황이 걸림 → warning, 반려 · 재심사 → error, 진행 중 → accent, 그 밖 neutral |
 | 표시(범주) | 정황은 `Badge` warning + 깃발, 나머지는 `Token` 색(work-item-detail의 라벨 Token) | 재심사 · 재검토 → purple, 추인 → green, 가설 → orange, 종결 · 정산 · 거부 · 새 · 이탈 · 예시 → 기본 |
-| 기록 종류 | **옅은 색 면의 아이콘 타일**(work-item-detail 첨부 타일 꼴: 면 · 모서리 · 가운데 아이콘) — `ui/Mark`의 `Kind`. 면은 `Card variant=<색>`(`--color-background-<색>`, astryx가 범주용이라 한 색 변형), 아이콘은 같은 색 `Icon`. 템플릿의 `AspectRatio xstyle`은 StyleX 컴파일이 없어 못 쓰고 className은 doctor가 막아 Card 변형으로 | 심사 blue(문서 돋보기) · 정황 orange(깃발) · 소명 cyan(말풍선) · 지급 teal(지폐) · 추인 green(배지 체크) · 대리점 purple(상점) · 규정 gray(책). 대화 제안 주제: 작업 blue(받은 편지함) · 관계 pink(공유) · 한도 teal(저울). 크기는 위계대로: 대리점/규정 목록 제목 옆 lg 36 > 기록 머리 메타 줄 맨 앞(타일 + 종류) · 대화 문맥 카드 · 빈 대화 제안 카드 md 32 > 작업 목록 묶음 머리 sm 28 > 대화의 기록 칩(Token 아이콘) xsm 20 |
+| 기록 종류 | **카드 · 항목 첫머리는 옅은 색 면의 아이콘 타일, 글 줄 안은 색 선 아이콘 + 글자**(work-item-detail 첨부 타일 꼴: 면 · 모서리 · 가운데 아이콘) — `ui/Mark`의 `Kind`. 면은 `Card variant=<색>`(`--color-background-<색>`, astryx가 범주용이라 한 색 변형), 아이콘은 같은 색 `Icon`. 템플릿의 `AspectRatio xstyle`은 StyleX 컴파일이 없어 못 쓰고 className은 doctor가 막아 Card 변형으로 | 심사 blue(문서 돋보기) · 정황 orange(깃발) · 소명 cyan(말풍선) · 지급 teal(지폐) · 추인 green(배지 체크) · 대리점 purple(상점) · 규정 gray(책). 대화 제안 주제: 작업 blue(받은 편지함) · 관계 pink(공유) · 한도 teal(저울). 타일은 카드 · 항목 첫머리에만 28px 한 크기(아래 아이콘 절) |
 | 결과 자리의 완료 | `Icon CheckCircle color=success`(dashboard-progress) — `ui/Mark`의 `Done` | 대사 결과 `일치`(영역 제목 옆 아이콘 + 글자, 표의 비교 칸 아이콘), 서류 비교 `일치`(아이콘) |
 | 진척 | `ProgressBar` | 합산 대비 한도 → accent(남색), 넘으면 error(`meter`) |
 | 출처 표지 · 규칙 버전 · 일치 종류(대표자 · 주소 · 계좌) | 아이콘 + 보조 글자, `Token` 기본 | 색 없음 |
@@ -34,6 +34,13 @@
 - 정황이 걸린 심사에 큰 경고 띠(Banner)를 두지 않는다: 머리 칩 `⚑ 정황`과 확인 창의 사유 필수로 충분하다(템플릿도 상세 머리에 경고 띠가 없다).
 - 다른 파일은 색 이름(`color="red"`, `variant="warning"` …)을 쓰지 않고 `ui/status.ts`가 낸 값(`badge` · `tone` · `dot` · `mark` · `kind` · `done` · `fail` · `caution` · `meter`)을 넘긴다(`npm run lint`가 막는다). 테마의 강조색 `accent`는 낱말의 대응이 아니라 막지 않는다.
 - 글자는 검정(primary)과 보조(secondary), 링크 · 강조 아이콘의 남색뿐이다.
+
+## 아이콘
+템플릿(detail-page 메타 줄 · ai-chat-landing 제안 카드)대로 자리마다 한 꼴이다(유저 결정 2026-11-15). 크기는 sm(16px)과 타일 sm(28px) 둘뿐 — `Icon size`의 md · lg와 직접 정한 크기를 쓰지 않는다(왼쪽 메뉴 · 로그인 · 빈 화면 부품의 템플릿 값은 예외).
+1. **글 줄 안**(기록 머리 메타 줄 · 표 칸 · 요약 · 이력 · 경위): 선 아이콘 16px(`Icon size="sm"`) + 글자. 종류 아이콘만 종류 색(`ui/status.ts`의 `kind`, `Kind label`), 나머지(사람 · 대리점 · 날짜 …)는 `secondary` 회색.
+2. **상태 · 표시**(정황 · 재검토 · 추인 · 가설 · 승인 …): `Badge` 글자만 — 알약 안에 아이콘을 넣지 않는다(`ui/Mark`의 `State` · `Mark`). 색 대응은 위 색 표 그대로.
+3. **카드 · 항목 첫머리**(작업 목록 묶음 머리 · 대화 제안 카드): 색 타일 한 크기 28px(`Kind`). 기록 머리 · 대리점/규정 목록 제목에는 타일을 두지 않는다 — 제목은 글, 머리의 종류는 규칙 1.
+같은 뜻에는 같은 아이콘: 정황 = 깃발, 대리점(여러 곳 포함) = 가게, 사람 = 사람, 심사 · 지급 · 추인 · 소명 · 규정 = `kind`의 아이콘.
 
 ## 예외
 | 예외 | 어디 | 근거 |
