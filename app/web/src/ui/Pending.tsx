@@ -17,11 +17,15 @@ const Lines = () => (
   </VStack>
 )
 
-/** 권한 밖(403): 그 사람에게 없는 기록이라 오류 · 없음을 남기지 않고 아무것도 그리지 않는다(역할 이름이 아니라 서버의 권한 결과로) */
-export const denied = (of: Load<unknown> | Load<unknown>[]) => (Array.isArray(of) ? of : [of]).some((l) => l.error?.status === 403)
+/** 권한 밖: 서버는 그 역할이 볼 수 없는 기록을 403 또는 404(`없음`)로 돌려준다(5단계 — DB가 select를 막아 없는 것과 같다).
+ *  기록 안의 영역은 오류 · 없음을 남기지 않고 아무것도 그리지 않는다(역할 이름이 아니라 서버의 결과로) */
+export const denied = (of: Load<unknown> | Load<unknown>[]) => (Array.isArray(of) ? of : [of]).some((l) => l.error?.status === 403 || l.error?.status === 404)
+
+const all404 = (of: Load<unknown> | Load<unknown>[]) => (Array.isArray(of) ? of : [of]).some((l) => l.error?.status === 404)
 
 export function Pending({ of, page = false }: { of: Load<unknown> | Load<unknown>[]; page?: boolean }) {
-  if (denied(of)) return null
+  // 화면 전체(page)가 없는 기록이면 `없음`을 보인다 — 영역만 숨긴다
+  if (denied(of) && !(page && all404(of))) return null
   const all = Array.isArray(of) ? of : [of]
   // 서버 내부 오류(5xx)의 말은 DB · 코드의 문장이라 화면에 두지 않는다(review.md 2-1 개발용 표기) — 4xx의 말(권한 · 대상 …)은 낱말이라 보인다
   const error = all.find((l) => l.error)?.error
