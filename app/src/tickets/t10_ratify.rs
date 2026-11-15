@@ -128,6 +128,12 @@ pub async fn check(c: &Check) -> Result<()> {
 
     // 재검토 15건은 영업임원의 담당에 추인 작업 5건으로 올라온다(D50: 그룹 × 귀속월). 금액은 현재 계산의 합산
     let mine = tasks(exec, "mine", "추인").await?;
+    // 5단계: 추인은 영업임원 · 내부 감시만 읽는다
+    c.sees("SELECT id FROM ratify", [false, true, true, false]).await?;
+    let one = q1(&c.db, "RETURN record::id((SELECT VALUE id FROM ratify LIMIT 1)[0]);", json!({})).await?;
+    for (role, code) in [(support, 404), ("회계·자금", 404), (exec, 200)] {
+        ensure!(c.call(Some(c.token(role)), "GET", &format!("/api/ratifies/{}", one.as_str().unwrap_or_default()), None).await?.0 == code, "{role}의 추인 상세");
+    }
     for (ym, total) in months {
         let id = format!("{ym}-D-011");
         let t = mine.iter().find(|t| t["target"] == id.as_str()).cloned().unwrap_or_default();
@@ -152,7 +158,9 @@ pub async fn check(c: &Check) -> Result<()> {
     let act = json!([{ "kind": "추인", "reason": true, "classes": ["정상", "미인지", "기타"], "seq": 4 }, { "kind": "거부", "reason": true, "classes": ["정황", "기타"], "seq": 5 }]);
     ensure!(first["actions"] == act && c.get(exec, "/api/reviews/2026-01-D-024").await?["actions"] == act, "영업임원의 조치 {}", first["actions"]);
     for role in [support, audit, "회계·자금"] {
-        ensure!(bundle(role, "2026-01-D-011").await?["actions"] == json!([]) && decide(role, "2026-01-D-011", "추인", json!({ "class": "정상" })).await? == "권한", "{role}의 추인");
+        // 5단계: 영업지원 · 회계·자금은 추인을 읽지 못한다(404)
+        let seen = if role == audit { bundle(role, "2026-01-D-011").await?["actions"] == json!([]) } else { c.call(Some(c.token(role)), "GET", "/api/ratifies/2026-01-D-011", None).await?.0 == 404 };
+        ensure!(seen && decide(role, "2026-01-D-011", "추인", json!({ "class": "정상" })).await? == "권한", "{role}의 추인");
     }
     // 사유 없이는 추인되지 않는다. 재검토가 아닌 승인은 추인할 수 없고, 추인 전에는 종결할 수 없다
     for reason in [J::Null, json!({ "class": "경미" }), json!({ "class": "기타" })] {

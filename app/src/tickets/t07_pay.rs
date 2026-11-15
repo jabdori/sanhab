@@ -63,6 +63,11 @@ pub async fn seed(_: &Db) -> Result<()> {
 pub async fn check(c: &Check) -> Result<()> {
     let (support, exec, acct) = ("영업지원", "영업임원", "회계·자금");
     let rows = |v: &J| v.as_array().cloned().unwrap_or_default();
+    // 5단계: 지급 · 대사 — 영업지원은 지급의 상태만(입금 기록 ×), 회계·자금은 승인된 심사만
+    c.sees("SELECT id FROM payout", [true; 4]).await?;
+    c.sees("SELECT id FROM deposit", [false, true, true, true]).await?;
+    c.sees("SELECT id FROM review WHERE status != '승인'", [true, true, true, false]).await?;
+    ensure!(c.call(Some(c.token(acct)), "GET", "/api/reviews/2026-06-D-001", None).await?.0 == 404 && c.call(Some(c.token(support)), "GET", "/api/reviews/2026-06-D-001", None).await?.0 == 200, "회계·자금의 대기 심사");
     // 승인에는 사유를 적는다(박상현 그룹에는 정황이 걸려 있어 사유가 필수다 — 11)
     let approve = async |role: &str, id: &str| c.post(role, "/api/decide", json!({ "ids": [id], "kind": "승인", "reason": { "class": "경미" } })).await;
     let pay = async |role: &str, id: &str| c.post(role, "/api/pay", json!({ "id": id })).await;

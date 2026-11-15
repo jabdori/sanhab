@@ -3,7 +3,7 @@
 -- 소명은 코드(root)와 이벤트만 쓴다. 역할이 쓰는 것은 발송 표시(dispatch) 하나뿐이고, 영업지원만 만들 수 있다.
 
 -- 소명(선 16: 누가 낸 소명인지 · 선 17: 무엇에 대한 소명인지. 지금은 정황). 19(서류 접수)·20(인정·불인정·보완)이 state와 서류를 이어 간다
-DEFINE TABLE clarify SCHEMAFULL PERMISSIONS FOR select FULL;
+DEFINE TABLE clarify SCHEMAFULL PERMISSIONS FOR select WHERE fn::sees() != '회계·자금';   -- 5단계
 DEFINE FIELD signal ON clarify TYPE record<signal>;                   -- 선 17
 DEFINE FIELD dealer ON clarify TYPE record<dealer>;                   -- 선 16: 정황의 대상(첫 대리점)
 DEFINE FIELD name ON clarify TYPE string;                             -- 작업 목록의 "대상"(정황의 이름)
@@ -35,7 +35,7 @@ DEFINE FUNCTION fn::sendable($c: record<clarify>) -> bool {
 DEFINE FUNCTION fn::term() -> duration { RETURN 14d; } PERMISSIONS FULL;
 
 -- 발송 표시: 영업지원이 요청서를 보냈다고 남긴 것. 만들기만 하고 고치거나 지우지 못한다. 누가·언제는 DB가 채운다. 소명 하나에 한 번뿐
-DEFINE TABLE dispatch SCHEMAFULL PERMISSIONS FOR select FULL FOR create WHERE fn::sendable(clarify);
+DEFINE TABLE dispatch SCHEMAFULL PERMISSIONS FOR select WHERE fn::sees() != '회계·자금' FOR create WHERE fn::sendable(clarify);
 DEFINE FIELD clarify ON dispatch TYPE record<clarify>;
 DEFINE FIELD body ON dispatch TYPE option<string> ASSERT $value = NONE OR string::len($value) <= 2000;
 DEFINE FIELD docs ON dispatch TYPE array<array<string>>;

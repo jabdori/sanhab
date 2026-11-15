@@ -11,6 +11,9 @@ DEFINE FUNCTION fn::today() -> datetime { RETURN meta:v.today; } PERMISSIONS FUL
 DEFINE TABLE staff SCHEMAFULL PERMISSIONS FOR select WHERE id = $auth.id;
 DEFINE FIELD role ON staff TYPE string ASSERT $value IN ['영업지원', '영업임원', '내부 감시', '회계·자금'];
 DEFINE FIELD pass ON staff TYPE string;
+-- 5단계(역할별 읽기 범위): 읽는 범위의 역할. 사람은 자기 역할, AI 계정(17)은 대신 읽는 역할이다(쓰기 권한은 role이 정하므로 AI는 쓰지 못한다)
+DEFINE FIELD sees ON staff TYPE option<string>;
+DEFINE FUNCTION fn::sees() -> string { RETURN $auth.sees ?? $auth.role ?? ''; } PERMISSIONS FULL;
 DEFINE ACCESS staff ON DATABASE TYPE RECORD
   SIGNIN (SELECT * FROM staff WHERE id = type::record('staff', $user) AND crypto::argon2::compare(pass, $pass))
   DURATION FOR TOKEN 12h, FOR SESSION 12h;

@@ -81,7 +81,7 @@ pub async fn check(c: &Check) -> Result<()> {
     // 넘긴 뒤의 입력은 그 날짜로 기록된다(발송하지 않았던 소명을 지금 발송하면 오늘부터 14일)
     ensure!(c.post(support, "/api/send", json!({ "id": &unsent })).await?.0 == 200, "늦은 발송");
     let d = c.get(support, &format!("/api/clarifies/{unsent}")).await?;
-    ensure!(d["sent"] == "2026-07-16" && d["due"] == "2026-07-30" && d["history"][1]["at"] == "2026-07-16", "넘긴 뒤의 기록 {d}");
+    ensure!(d["sent"] == "2026-07-16" && d["due"] == "2026-07-30" && d["history"][0]["kind"] == "발송" && d["history"][0]["at"] == "2026-07-16", "넘긴 뒤의 기록 {d}");   // 5단계: 영업지원에게는 정황의 결정(요청) 줄이 없다
     // 다시 넘겨도 이미 미응답인 소명은 건드리지 않고 작업도 하나뿐이다
     let (_, r) = adv(support, json!(1)).await?;
     ensure!(r == json!({ "today": "2026-07-17", "lapsed": [] }) && n("RETURN count(SELECT id FROM task WHERE kind = '미응답');").await? == 1, "다시 넘김 {r}");

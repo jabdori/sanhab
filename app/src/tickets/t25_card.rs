@@ -320,7 +320,8 @@ pub async fn check(c: &Check) -> Result<()> {
             && k["ym"] == "2026-06" && k["state"] == "대기" && k["dealer"].as_str().is_some_and(|n| !n.is_empty() && !n.contains("2026-06") && !n.contains(" · ")), "승인 카드의 내용 {k}");
         for role in [exec, audit, acct] {
             let (cards, text) = ask(role, &format!("카드|심사|{one}|승인")).await?;
-            ensure!(cards.is_empty() && text.contains("카드를 내지 않는다: 권한"), "{role}에게는 카드가 없다 {cards:?} {text}");
+            // 5단계: 회계·자금은 대기 심사를 읽지 못해 대상
+            ensure!(cards.is_empty() && text.contains(if role == acct { "카드를 내지 않는다: 대상" } else { "카드를 내지 않는다: 권한" }), "{role}에게는 카드가 없다 {cards:?} {text}");
         }
         ensure!(counts().await? == before, "카드를 그리는 것이 기록을 바꿨다");
 

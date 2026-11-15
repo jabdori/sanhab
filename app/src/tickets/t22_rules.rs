@@ -141,7 +141,9 @@ pub async fn check(c: &Check) -> Result<()> {
     // 규정은 네 역할 모두에게 같게 보인다
     let d = c.get("영업임원", "/api/rules").await?;
     for role in ["영업지원", "내부 감시", "회계·자금"] {
-        ensure!(c.get(role, "/api/rules").await? == d, "{role}의 규정");
+        // 5단계: 조항 · 규칙은 같다. 가정의 예(`assumes[].used[].id`)는 그 역할이 읽을 수 있는 기록일 때만 있다
+        let g = c.get(role, "/api/rules").await?;
+        ensure!(g["clauses"] == d["clauses"] && g["rules"] == d["rules"] && g["synths"] == d["synths"] && rows(&g["assumes"]).len() == rows(&d["assumes"]).len(), "{role}의 규정");
     }
 
     // 조항: 규정 문서의 41~45행 원문 그대로, 출처 원본

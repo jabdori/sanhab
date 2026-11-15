@@ -100,3 +100,7 @@ pub async fn q(db: &Db, sql: &str, vars: Json) -> Result<Vec<Json>> {
 pub async fn q1(db: &Db, sql: &str, vars: Json) -> Result<Json> {
     Ok(q(db, sql, vars).await?.pop().unwrap_or(Json::Null))
 }
+/// 5단계: 그 세션이 그 기록을 볼 수 있는지(권한이 없으면 DB는 오류가 아니라 빈 결과를 준다)
+pub async fn visible(db: &Db, tb: &str, id: &str) -> bool {
+    q1(db, "RETURN count(SELECT id FROM type::record($tb, $id)) > 0;", json!({ "tb": tb, "id": id })).await.is_ok_and(|v| v == true)
+}

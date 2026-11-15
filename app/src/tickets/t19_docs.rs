@@ -260,6 +260,7 @@ fn rows(ws: &[J], tidy: &[J], reg: &HashMap<&str, J>) -> Vec<J> {
 /// 소명의 서류 화면: 지금 역할이 올릴 수 있는지(`can`), 받는 종류와 크기, 서류마다 판독 낱말·정리·값 표·누락과 불일치의 수.
 /// 등록 값: 임차인은 소명한 대리점의 이름, 주소는 상대 대리점(정황의 두 번째 대리점)의 지금 주소(원본의 선), 호실은 상대 대리점의 호실(시연, `ROOMS`). 기간은 등록 값이 없다
 pub(super) async fn list(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
+    if !crate::db::visible(&me.db, "clarify", &id).await { return Err(err(StatusCode::NOT_FOUND, "없음")) }   // 5단계
     let c = q1(&db, "
         LET $c = type::record('clarify', $id);
         LET $o = fn::pair($c)[1];
@@ -440,7 +441,9 @@ pub async fn check(c: &Check) -> Result<()> {
     }
     ensure!(up(support, "x", "a.png", png, "image/png").await? == (400, json!({ "error": "대상" })), "없는 소명");
     for role in [exec, audit, acct] {
-        ensure!(up(role, &one, "a.png", png, "image/png").await? == (403, json!({ "error": "권한" })), "{role}의 접수");
+        // 5단계: 회계·자금은 소명을 읽지 못해 없는 소명(대상)이다
+        let want = if role == acct { (400, json!({ "error": "대상" })) } else { (403, json!({ "error": "권한" })) };
+        ensure!(up(role, &one, "a.png", png, "image/png").await? == want, "{role}의 접수 → {:?}", up(role, &one, "a.png", png, "image/png").await?);
     }
     // DB를 직접 써도: 다른 역할은 서류를 만들지 못하고, 영업지원이 판독·정리를 지어 넣어도 비어 있다
     for role in [exec, audit, acct] {

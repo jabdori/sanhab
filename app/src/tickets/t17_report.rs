@@ -48,16 +48,25 @@ pub fn ai_pass() -> String {
 }
 /// AI의 토큰은 받아 두고 다시 쓴다(일꾼이 몇 초마다 부른다 — 부를 때마다 로그인·인증하면 세션이 쌓이고 느리다).
 /// 다시 적재해 토큰이 무효가 되면 인증이 실패하므로 그때 새로 받는다
-static AI_TOKEN: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+static AI_TOKEN: std::sync::Mutex<Option<std::collections::HashMap<String, String>>> = std::sync::Mutex::new(None);
+/// 보고(조사 · 대화로 남기기)를 쓰는 AI: 내부 감시의 읽기 범위(5단계)
 pub(super) async fn ai_session(db: &Db) -> Result<Db> {
-    let held = AI_TOKEN.lock().unwrap().clone();
+    ai_as(db, "ai").await
+}
+/// 5단계: 역할마다의 AI 계정(읽기 전용, 그 역할과 같은 읽기 범위). 대화의 `read_db`는 묻는 사람의 역할로 읽는다
+pub(super) fn ai_user(role: &str) -> &'static str {
+    AI_USERS.iter().find(|(u, r)| *u != "ai" && *r == role).map_or("ai_none", |(u, _)| u)
+}
+const AI_USERS: [(&str, &str); 5] = [("ai", "내부 감시"), ("ai_support", "영업지원"), ("ai_exec", "영업임원"), ("ai_audit", "내부 감시"), ("ai_acct", "회계·자금")];
+pub(super) async fn ai_as(db: &Db, user: &str) -> Result<Db> {
+    let held = AI_TOKEN.lock().unwrap().as_ref().and_then(|m| m.get(user).cloned());
     if let Some(t) = held {
         if let Ok(s) = as_user(db, &t).await {
             return Ok(s);
         }
     }
-    let t = signin(db, "ai", &ai_pass()).await?;
-    *AI_TOKEN.lock().unwrap() = Some(t.clone());
+    let t = signin(db, user, &ai_pass()).await?;
+    AI_TOKEN.lock().unwrap().get_or_insert_with(Default::default).insert(user.into(), t.clone());
     as_user(db, &t).await
 }
 
@@ -453,7 +462,7 @@ async fn adopt(Extension(me): Extension<Me>, Body(b): Body) -> R {
 }
 
 pub async fn seed(db: &Db) -> Result<()> {
-    q(db, "CREATE staff:ai SET role = 'AI', pass = crypto::argon2::generate($pass);", json!({ "pass": ai_pass() })).await?;
+    q(db, "FOR $u IN $users { CREATE type::record('staff', $u[0]) SET role = 'AI', sees = $u[1], pass = crypto::argon2::generate($pass); };", json!({ "pass": ai_pass(), "users": AI_USERS })).await?;
     Ok(())
 }
 
@@ -504,7 +513,7 @@ pub async fn check(c: &Check) -> Result<()> {
     // 검사가 실패해도 다음 티켓의 검사가 이 모델을 물려받지 않게 한다
     let res = async {
         // 접속은 네 역할뿐이다(AI의 접속 계정은 화면에 나오지 않는다)
-        ensure!(c.get(audit, "/api/state").await?["role"] == audit && q1(&c.db, "RETURN (SELECT VALUE role FROM staff WHERE role = 'AI');", json!({})).await? == json!(["AI"]), "AI의 계정");
+        ensure!(c.get(audit, "/api/state").await?["role"] == audit && q1(&c.db, "RETURN (SELECT VALUE [record::id(id), sees] FROM staff WHERE role = 'AI' ORDER BY id);", json!({})).await? == json!([["ai", "내부 감시"], ["ai_acct", "회계·자금"], ["ai_audit", "내부 감시"], ["ai_exec", "영업임원"], ["ai_support", "영업지원"]]), "AI의 계정");
         let (code, r) = c.call(None, "POST", "/api/enter", Some(json!({ "pass": crate::demo_pass() }))).await?;
         ensure!(code == 200 && rows(&r["roles"]).len() == 4, "접속의 역할 {r}");
 
@@ -512,7 +521,7 @@ pub async fn check(c: &Check) -> Result<()> {
         let d = report(audit, bank).await?;
         ensure!(d["report"].is_null() && d["run"] == true && d["actions"] == json!([]) && d["opened"] == true, "만들기 전 {d}");
         let r404 = c.call(Some(c.token(audit)), "GET", "/api/signals/없음/report", None).await?;
-        ensure!(report(support, bank).await?["run"] == false && r404.0 == 404, "만들기 전의 다른 역할 {r404:?}");
+        ensure!(report("영업임원", bank).await?["run"] == false && r404.0 == 404, "만들기 전의 다른 역할 {r404:?}");
         // 조사의 거절: 없는 정황은 대상, 내부 감시가 아니면 권한, 틀린 본문은 대상. AI는 불리지 않았다
         ensure!(investigate(audit, "없음").await?.0 == "대상" && investigate(support, bank).await?.0 == "권한" && investigate(exec, "없음").await?.0 == "대상", "조사의 거절");
         ensure!(c.raw(audit, "/api/investigate", "{", Some("application/json")).await? == (400, json!({ "error": "대상" })) && calls() == 0, "틀린 본문");
@@ -548,7 +557,9 @@ pub async fn check(c: &Check) -> Result<()> {
         // 채택·불채택: 내부 감시만. 정황의 조치와 따로 남고, 같은 보고의 두 번째 결정은 상태다
         let id = rid(&d);
         for role in [support, exec, acct] {
-            ensure!(adopt(role, &id, "채택", J::Null).await? == "권한" && report(role, bank).await?["actions"] == json!([]), "{role}의 채택");
+            // 5단계: 영업지원 · 회계·자금은 보고를 읽지 못해 대상(보고 화면 404)
+            let ok = if role == exec { adopt(role, &id, "채택", J::Null).await? == "권한" && report(role, bank).await?["actions"] == json!([]) } else { adopt(role, &id, "채택", J::Null).await? == "대상" && c.call(Some(c.token(role)), "GET", &format!("/api/signals/{bank}/report"), None).await?.0 == 404 };
+            ensure!(ok, "{role}의 채택");
         }
         ensure!(adopt(audit, "없음", "채택", J::Null).await? == "대상" && adopt(audit, &id, "승인", J::Null).await? == "대상", "없는 대상");
         for reason in [J::Null, json!({}), json!({ "class": "정상" }), json!({ "class": "기타" }), json!({ "class": "기타", "memo": " " })] {

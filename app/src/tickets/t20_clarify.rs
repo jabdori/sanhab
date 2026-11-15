@@ -38,6 +38,7 @@ fn item(tb: &str) -> &'static str {
 /// `can`(지금 역할이 정할 수 있는지)과 `actions`(조치와 사유의 분류), `span`(인정하면 효력이 미치는 기간 — 가장 나중 서류의 정리. 없으면 null = 제한 없음),
 /// `lines`(인정하면 제외될 선), `excluded`(이 소명이 이미 제외한 선과 그 기간), `unknown`(가장 나중 서류에서 서류만으로 가를 수 없는 항목: 누락, 호실까지 같아 추가 확인)
 async fn detail(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
+    if !crate::db::visible(&me.db, "clarify", &id).await { return Err(err(StatusCode::NOT_FOUND, "없음")) }   // 5단계
     let r = q1(&db, "
         LET $c = type::record('clarify', $id);
         LET $s = fn::span($c);
@@ -253,7 +254,8 @@ pub async fn check(c: &Check) -> Result<()> {
     let (code, r) = c.post(exec, "/api/verdict", json!({ "id": x, "kind": "인정", "reason": { "class": "입증" } })).await?;
     ensure!((code, r) == (403, json!({ "error": "권한" })), "영업임원의 결과");
     for role in [support, acct] {
-        ensure!(verdict(role, &x, "인정", json!({ "class": "입증" })).await? == "권한", "{role}의 결과");
+        // 5단계: 회계·자금은 소명을 읽지 못해 없는 소명(대상)이다
+        ensure!(verdict(role, &x, "인정", json!({ "class": "입증" })).await? == if role == acct { "대상" } else { "권한" }, "{role}의 결과");
     }
     ensure!(verdict(audit, "x", "인정", json!({ "class": "입증" })).await? == "대상" && verdict(audit, &x, "승인", json!({ "class": "입증" })).await? == "대상", "대상");
     ensure!(c.raw(audit, "/api/verdict", "글", None).await? == (400, json!({ "error": "대상" })) && c.post(audit, "/api/verdict", json!({ "id": 5, "kind": "인정" })).await?.1 == json!({ "error": "대상" }), "꼴이 틀린 본문");
@@ -295,7 +297,8 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(shape().await? == before && c.get(audit, &format!("/api/clarifies/{three}/verdict")).await?["can"] == false, "보완하는 동안 관련자로 계속 본다");
     ensure!(tasks(exec, "going", "심사").await?.iter().any(|t| t["target"] == "2026-06-D-011"), "보완은 결과가 아니라 보류한 작업이 돌아오지 않는다");
     let kinds: Vec<String> = rows(&d["history"]).iter().map(|h| h["kind"].as_str().unwrap_or("").to_string()).collect();
-    ensure!(kinds == ["요청", "발송", "보완"] && d["history"][2]["reason"] == json!({ "class": "누락", "memo": "호실이 빠졌다" }) && d["history"][2]["role"] == audit, "이력 {}", d["history"]);
+    // 5단계: 영업지원에게는 정황의 결정(요청) 줄이 없다
+    ensure!(kinds == ["발송", "보완"] && d["history"][1]["reason"] == json!({ "class": "누락", "memo": "호실이 빠졌다" }) && d["history"][1]["role"] == audit, "이력 {}", d["history"]);
     // 18: 보완 뒤의 초안은 다시 쓰고, 정황의 근거(종류 · 상대 대리점 · 겹친 식별자)와 보완 사유를 담는다
     ensure!(super::t18_send::draft(&c.db, &three, None).await?, "보완 뒤의 초안");   // 이 검사 내내 고정 응답(USE = fixture)
     let t = c.get(support, &format!("/api/clarifies/{three}")).await?["draft"]["text"].as_str().unwrap_or_default().to_string();

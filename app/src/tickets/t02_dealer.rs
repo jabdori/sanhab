@@ -3,7 +3,7 @@
 use crate::check::Check;
 use crate::db::{Db, as_user, q, q1};
 use crate::{Me, R, err, orig};
-use anyhow::{Result, ensure};
+use anyhow::{Context, Result, ensure};
 use axum::extract::{Path, Query};
 use axum::http::StatusCode;
 use axum::routing::get;
@@ -183,7 +183,14 @@ pub async fn check(c: &Check) -> Result<()> {
 
     // 모든 역할이 같은 것을 읽고, 어느 역할도 원본에서 온 기록을 고치지 못한다(권한은 DB가 강제)
     for (_, r) in crate::tickets::ROLES {
-        ensure!(c.get(r, "/api/dealers/D-034").await? == d, "{r}의 상세");
+        // 5단계: 회계·자금은 승인되지 않은 심사를 읽지 못해 그 지급의 심사 칸이 비고, 나머지는 같다
+        let mut got = c.get(r, "/api/dealers/D-034").await?;
+        if r == "회계·자금" {
+            let (mine, all) = (got["payouts"].as_array_mut().context("지급")?, d["payouts"].as_array().context("지급")?);
+            ensure!(mine.len() == all.len(), "{r}의 지급 심사");
+            for (p, o) in mine.iter_mut().zip(all) { if p["review"].is_null() { p["review"] = o["review"].clone(); } }
+        }
+        ensure!(got == d, "{r}의 상세");
         let s = as_user(&c.db, c.token(r)).await?;
         q(&s, "UPDATE dealer:`D-034` SET name = 'x'; UPDATE rep SET via = '신고'; DELETE payout; CREATE person:x SET name = 'x', same = 'x', source = 'x';", json!({})).await.ok();
     }

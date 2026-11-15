@@ -97,7 +97,9 @@ pub async fn check(c: &mut Check) -> Result<()> {
     let line = rows(&c.get(acct, "/api/dealers/D-034").await?["payouts"]).into_iter().find(|p| p["ym"] == "2026-06").unwrap_or_default();
     ensure!(line["state"] == "재심사" && line["state_source"] == "계산" && line["status"] == "미지급", "대리점 상세의 지급 줄 {line}");
     // 사유: 변경이 원인이다(경위 16이 지급 → 앞선 승인 → 변경으로 거슬러 오른다)
-    let r = c.get(acct, &format!("/api/pays/{pay}/redo")).await?;
+    // 5단계: 지금 든 새 심사(대기)는 회계·자금이 읽지 못해 비고, 영업임원에게는 보인다
+    ensure!(c.get(acct, &format!("/api/pays/{pay}/redo")).await?["redo"]["now"].is_null(), "회계·자금의 지금 든 심사");
+    let r = c.get("영업임원", &format!("/api/pays/{pay}/redo")).await?;
     ensure!(r["redo"]["now"]["name"].as_str().is_some_and(|n| n.starts_with("한라인상사34 외 1")), "지금 든 심사 {r}");
     let mut r = r;
     if let Some(o) = r["redo"].as_object_mut() { o.remove("now"); }
@@ -179,7 +181,7 @@ pub async fn check(c: &mut Check) -> Result<()> {
         RELATE deposit:`본보기`->deposit_into->$a SET source = '시연';
         fn::signal('계좌', '본보기', '대성상사1', [dealer:`D-001`, dealer:`D-006`], [deposit:`본보기`], '시연');", json!({})).await?;
     super::t04_review::recalc(&c.db).await?;
-    ensure!(c.get(support, "/api/signals/계좌-본보기/hypo").await?["up"] == true, "가설에서 올라간다");
+    ensure!(c.get("내부 감시", "/api/signals/계좌-본보기/hypo").await?["up"] == true, "가설에서 올라간다");
     ensure!(q1(&c.db, "RETURN count(SELECT id FROM review WHERE raised);", json!({})).await? == 1, "올라간 심사");
     ensure!(pay_of(c, "대륙상사6").await?.1 == "대기" && redos(c).await? == 0, "정황만으로 재심사");
     ensure!(!has(&c.get(support, "/api/reviews/2026-06-D-006").await?["review"]["marks"], "재심사"), "정황만으로 승인이 효력을 잃음");

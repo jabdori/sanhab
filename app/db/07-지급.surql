@@ -14,7 +14,7 @@ DEFINE FUNCTION fn::payable($p: record<payout>) -> bool {
 } PERMISSIONS FULL;
 
 -- 지급 표시: 회계·자금이 지급했다고 남긴 것. 만들기만 하고 고치거나 지우지 못한다. 누가·언제는 DB가 채운다. 지급 하나에 한 번뿐
-DEFINE TABLE remit SCHEMAFULL PERMISSIONS FOR select FULL FOR create WHERE fn::payable(payout);
+DEFINE TABLE remit SCHEMAFULL PERMISSIONS FOR select WHERE fn::sees() != '영업지원' FOR create WHERE fn::payable(payout);
 DEFINE FIELD payout ON remit TYPE record<payout>;
 DEFINE FIELD by ON remit TYPE option<record<staff>> VALUE $auth.id;
 DEFINE FIELD role ON remit TYPE string VALUE $auth.role ?? $value;

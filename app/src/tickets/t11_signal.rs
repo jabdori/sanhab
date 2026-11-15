@@ -168,6 +168,13 @@ pub async fn check(c: &Check) -> Result<()> {
     };
     let ids = async |kind: &str| q1(&c.db, "RETURN (SELECT VALUE record::id(id) FROM signal WHERE kind = $kind ORDER BY id);", json!({ "kind": kind })).await;
     let (bank, name, near) = ("계좌-D-024", "동명-박준호", "근접-D-011");
+    // 5단계: 정황 · 판정은 영업임원 · 내부 감시만 읽는다(DB의 권한). 화면 API도 그 사람의 세션으로 읽어 없는 것(404)과 같다
+    c.sees("SELECT id FROM signal", [false, true, true, false]).await?;
+    for (role, code) in [("영업지원", 404), ("회계·자금", 404), ("영업임원", 200), (audit, 200)] {
+        ensure!(c.call(Some(c.token(role)), "GET", &format!("/api/signals/{bank}"), None).await?.0 == code, "{role}의 정황 상세");
+        ensure!(c.call(Some(c.token(role)), "GET", &format!("/api/signals/{bank}/hypo"), None).await?.0 == code, "{role}의 정황 가설");
+        ensure!(c.call(Some(c.token(role)), "GET", &format!("/api/signals/{bank}/report"), None).await?.0 == code, "{role}의 보고");
+    }
     let (file_d, file_p, file_a) = ("01_corevia/financials/fin_collection_history_cv.csv", "01_corevia/sales/sales_rebate_payment_cv.csv", "01_corevia/master/m_agency_cv.csv");
 
     // 코드가 원본 전체에서 찾은 세 종류는 이것뿐이다. 같은 대상의 같은 종류는 하나: 계좌 1(회수 2건), 동명 1, 근접 1(지급 2건).
@@ -264,8 +271,10 @@ pub async fn check(c: &Check) -> Result<()> {
     let d = signal(audit, name).await?;
     ensure!(d["actions"] == json!([{ "kind": "요청", "reason": false, "classes": ["기타"] }, { "kind": "기각", "reason": true, "classes": ["부족", "정상", "기타"] }]) && d["history"] == json!([]) && d["role"] == audit, "내부 감시의 조치 {}", d["actions"]);
     for role in [support, exec, acct] {
-        ensure!(signal(role, name).await?["actions"] == json!([]), "{role}에게 조치가 보임");
-        ensure!(rule(role, name, "기각", json!({ "class": "부족" })).await? == "권한" && rule(role, name, "요청", J::Null).await? == "권한", "{role}의 조치");
+        // 5단계: 영업지원 · 회계·자금은 정황을 읽지 못해 없는 정황(404, 조치는 대상)이다
+        let (seen, word) = if role == exec { (signal(role, name).await?["actions"] == json!([]), "권한") } else { (c.call(Some(c.token(role)), "GET", &format!("/api/signals/{name}"), None).await?.0 == 404, "대상") };
+        ensure!(seen, "{role}에게 조치가 보임");
+        ensure!(rule(role, name, "기각", json!({ "class": "부족" })).await? == word && rule(role, name, "요청", J::Null).await? == word, "{role}의 조치");
         // 화면을 거치지 않고 DB에 직접 써도 마찬가지다
         let s = as_user(&c.db, c.token(role)).await?;
         for sql in ["CREATE ruling SET signal = signal:`동명-박준호`, kind = '기각', reason = { class: '부족' };", "UPDATE signal SET state = '기각';", "DELETE signal; DELETE task WHERE kind = '정황';", "RETURN fn::signal('기타', 'x', 'x', [], [], '시연');"] {

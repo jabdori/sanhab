@@ -8,11 +8,11 @@ DEFINE FIELD OVERWRITE role ON staff TYPE string ASSERT $value IN ['영업지원
 -- 보고: 대상(정황 …)마다, 입력(대상의 종류·대리점·근거 기록과 그 값)마다 하나. 새 근거가 오면 입력이 달라져 새 보고가 만들어지고 이전 보고는 기록으로 남는다(D39)
 -- 사실은 기록을 가리키기만 한다(선 21): ref는 가리킨 기록, text는 값 자리({dealer} {at} …)만 있는 틀이고 값은 보일 때 코드가 그 기록에서 읽는다
 DEFINE TABLE report SCHEMAFULL PERMISSIONS
-    FOR select FULL
-    FOR create WHERE $auth.role = 'AI' AND state = '대기'
+    FOR select WHERE fn::sees() INSIDE ['영업임원', '내부 감시']
+    FOR create WHERE $auth.id = staff:ai AND state = '대기'
     -- AI가 쓰는 보고의 상태는 대기·오류·검토뿐이다(채택·불채택은 내부 감시의 결정이 남길 때만). 검토로 올리려면 사실이 하나 이상이고 가리킨 기록이 모두 있어야 한다(없는 기록을 가리킨 보고는 올라가지 못한다).
     -- 수정 권한은 고치기 전과 뒤의 기록에 모두 적용되고, 고치기 전이 대기였는지는 아래 이벤트가 본다
-    FOR update WHERE $auth.role = 'AI' AND state INSIDE ['대기', '오류', '검토']
+    FOR update WHERE $auth.id = staff:ai AND state INSIDE ['대기', '오류', '검토']
         AND (state != '검토' OR (array::len(facts) > 0 AND facts.all(|$f| $f.ref.id != NONE)));
 DEFINE FIELD target ON report TYPE record;                    -- 선 20: 보고 → 대상(지금은 정황. 소명·사건은 그 티켓이 같은 필드를 쓴다)
 DEFINE FIELD input ON report TYPE string;                     -- 입력의 해시. 같은 입력에는 저장된 보고를 쓴다
@@ -61,7 +61,7 @@ DEFINE FUNCTION fn::adoption_classes($kind: string) -> array<string> {
 -- 채택·불채택: 내부 감시가 남긴다. 만들기만 하고 고치거나 지우지 못한다. 누가·언제는 DB가 채운다(선 29)
 -- opinion은 그 보고의 AI 의견이 고른 조치, acted는 그때까지 내부 감시가 정황에 내린 조치이고, same은 둘이 같은지다(조치가 아직 없으면 비어 있다)
 DEFINE TABLE adoption SCHEMAFULL PERMISSIONS
-    FOR select FULL
+    FOR select WHERE fn::sees() INSIDE ['영업임원', '내부 감시']
     FOR create WHERE fn::adoptable(report) AND kind INSIDE ['채택', '불채택'] AND fn::reason(kind = '불채택', fn::adoption_classes(kind), reason);
 DEFINE FIELD report ON adoption TYPE record<report>;
 DEFINE FIELD kind ON adoption TYPE string;

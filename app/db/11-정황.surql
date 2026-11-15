@@ -2,7 +2,7 @@
 -- 정황은 코드(root)와 이벤트만 쓴다. 역할이 쓰는 것은 정황의 결정(ruling) 하나뿐이고, 내부 감시만 만들 수 있다.
 
 -- 정황: 같은 대상의 같은 종류는 하나다(id = `종류-대상의 id`). 근거가 더 나오면 같은 기록에 붙는다
-DEFINE TABLE signal SCHEMAFULL PERMISSIONS FOR select FULL;
+DEFINE TABLE signal SCHEMAFULL PERMISSIONS FOR select WHERE fn::sees() INSIDE ['영업임원', '내부 감시'];   -- 5단계
 DEFINE FIELD kind ON signal TYPE string ASSERT $value IN ['계좌', '동명', '근접', '지연', '대사', '추인', '기타'];   -- 종류(추인은 D52: 거부된 추인)
 DEFINE FIELD name ON signal TYPE string;                      -- 제목과 작업 목록의 "대상"(계좌 · 성일상사24)
 DEFINE FIELD dealers ON signal TYPE array<record<dealer>>;    -- 선 14: 정황 → 대리점. 첫 번째가 대상이다
@@ -52,7 +52,7 @@ DEFINE FUNCTION fn::ruling_classes($kind: string) -> array<string> {
 
 -- 정황의 결정: 내부 감시가 요청 또는 기각을 고른 것. 만들기만 하고 고치거나 지우지 못한다. 누가·언제는 DB가 채운다
 DEFINE TABLE ruling SCHEMAFULL PERMISSIONS
-    FOR select FULL
+    FOR select WHERE fn::sees() INSIDE ['영업임원', '내부 감시']
     FOR create WHERE fn::rulable(signal) AND kind INSIDE ['요청', '기각'] AND fn::reason(kind = '기각', fn::ruling_classes(kind), reason);
 DEFINE FIELD signal ON ruling TYPE record<signal>;
 DEFINE FIELD kind ON ruling TYPE string;

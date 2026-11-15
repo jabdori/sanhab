@@ -104,7 +104,7 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(state(support, group).await?["can"] == true && state(exec, group).await?["can"] == false && review(exec, group).await?["actions"] == json!([]), "재상신할 수 있는 역할");
 
     // 재상신은 영업지원만. 없는 심사·틀린 꼴은 대상
-    ensure!(again(exec, group).await? == "권한" && again(acct, group).await? == "권한" && again(support, "2026-06-D-999").await? == "대상", "재상신의 거절");
+    ensure!(again(exec, group).await? == "권한" && again(acct, group).await? == "대상" && again(support, "2026-06-D-999").await? == "대상", "재상신의 거절");
     ensure!(c.post(support, "/api/resubmit", json!({ "id": 1 })).await? == (400, json!({ "error": "대상" })) && c.raw(support, "/api/resubmit", "", None).await? == (400, json!({ "error": "대상" })), "틀린 본문");
     ensure!(again(support, one).await? == "상태", "반려되지 않은 심사의 재상신");
     // 재상신에도 사유의 분류가 필수다(D55): 없거나, 재상신의 분류(서류·금액·소명·기타)가 아니거나, 메모가 빈 기타는 거절되고 심사는 반려 그대로다

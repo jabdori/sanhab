@@ -89,6 +89,23 @@ impl Check {
         Ok(r)
     }
 
+    /// 5단계: 그 역할의 DB 세션으로 읽은 결과(마지막 문장). 권한이 없으면 DB는 빈 결과를 준다
+    pub async fn read_as(&self, role: &str, sql: &str) -> Result<J> {
+        let s = crate::db::as_user(&self.db, self.token(role)).await?;
+        crate::db::q1(&s, sql, json!({})).await
+    }
+
+    /// 5단계: 역할마다 그 테이블을 읽을 수 있는지. `want`는 ROLES 순서(영업지원, 영업임원, 내부 감시, 회계·자금). root로 하나 이상 있어야 한다
+    pub async fn sees(&self, sql: &str, want: [bool; 4]) -> Result<()> {
+        let all = crate::db::q1(&self.db, &format!("RETURN count({sql});"), json!({})).await?;
+        ensure!(all.as_i64().unwrap_or(0) > 0, "root의 {sql} → {all}");
+        for ((_, role), w) in crate::tickets::ROLES.iter().zip(want) {
+            let n = self.read_as(role, &format!("RETURN count({sql});")).await?;
+            ensure!((n.as_i64().unwrap_or(0) > 0) == w, "{role}의 {sql} → {n}");
+        }
+        Ok(())
+    }
+
     /// 역할로 조치. 거절도 검사할 수 있게 상태 코드를 함께 준다
     pub async fn post(&self, role: &str, path: &str, body: J) -> Result<(u16, J)> {
         self.call(Some(self.token(role)), "POST", path, Some(body)).await.with_context(|| format!("POST {path}"))

@@ -193,7 +193,10 @@ async fn sweep_with(db: &Db, key: Option<&str>) -> Result<()> {
 /// 소명 상세. 가운데: 소명(`clarify`: 이름, 상태, 대리점, 정황), 일치 종류(`kinds`)와 서류 목록(`docs`: `[종류, 서류]`. 발송했으면 그때의 것), 발송한 날(`sent`)과 기한(`due`), 발송한 요청서의 글(`body`).
 /// 오른쪽: 요청서 초안(`draft`: 값 자리를 채운 글과 모델. 없으면 AI가 아직 쓰지 못했다), 지금 역할이 발송할 수 있는지(`can`), 담당하는 역할(`role`), 이력(`history`: 요청, 발송). 없는 소명은 404
 async fn detail(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
-    let Some((c, ks, docs)) = row(&db, &id).await.map_err(|_| err(StatusCode::NOT_FOUND, "없음"))? else { return Err(err(StatusCode::NOT_FOUND, "없음")) };
+    // 5단계: 볼 수 없는 소명은 404, 정황 칸을 볼 수 없는 역할(영업지원)에게는 정황을 내지 않는다
+    if !crate::db::visible(&me.db, "clarify", &id).await { return Err(err(StatusCode::NOT_FOUND, "없음")) }
+    let hide = q1(&me.db, "RETURN type::record('clarify', $id).signal = NONE;", json!({ "id": id })).await? == true;
+    let Some((mut c, ks, docs)) = row(&db, &id).await.map_err(|_| err(StatusCode::NOT_FOUND, "없음"))? else { return Err(err(StatusCode::NOT_FOUND, "없음")) };
     let r = q1(&me.db, "
         LET $c = type::record('clarify', $id);
         RETURN {
@@ -204,6 +207,7 @@ async fn detail(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<M
                 (SELECT kind, role, time::format(at, '%Y-%m-%d') AS at, reason, source, <string> stamp AS stamp FROM verdict WHERE clarify = $c),
                 IF $c.pair != NONE THEN (SELECT '접수' AS kind, role, time::format(at, '%Y-%m-%d') AS at, NONE AS reason, source, <string> stamp AS stamp FROM doc WHERE clarify = $c ORDER BY stamp LIMIT 1) ELSE [] END),   -- 20(D59): 대리점이 먼저 낸 소명은 처음 서류를 받은 것이 접수   -- 20: 소명의 결과(인정·불인정·보완)
         };", json!({ "id": id })).await?;
+    if hide { c["signal"] = J::Null; }
     // 일어난 순서(보완 뒤에 다시 발송하면 줄이 섞이므로 시각으로 맞춘다)
     let mut r = r;
     if let Some(h) = r["history"].as_array_mut() {
@@ -311,7 +315,7 @@ pub async fn check(c: &Check) -> Result<()> {
 
     // 기각은 소명을 만들지 않는다. 영업지원은 요청할 수 없다
     ensure!(rule(name, "기각").await?.0 == 200 && count().await? == json!([0, 0, 0]), "기각");
-    ensure!(c.post(support, "/api/rule", json!({ "id": bank, "kind": "요청" })).await?.0 == 403 && count().await? == json!([0, 0, 0]), "영업지원의 요청");
+    ensure!(c.post(support, "/api/rule", json!({ "id": bank, "kind": "요청" })).await?.0 == 400 && count().await? == json!([0, 0, 0]), "영업지원의 요청");
 
     // 요청: 소명 1(상태 요청, 서류 목록과 기한 없음), 영업지원의 담당에 발송 작업 1. 내부 감시는 진행, 영업임원·회계는 보지 못한다
     ensure!(rule(bank, "요청").await?.0 == 200 && count().await? == json!([1, 0, 1]), "요청");
@@ -320,8 +324,12 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(t.len() == 1 && t[0]["view"] == "소명" && t[0]["target"] == cid.as_str() && t[0]["name"] == "계좌 · 성일상사24" && t[0]["role"] == support, "발송 작업 {t:?}");
     ensure!(tasks(audit, "going").await?.len() == 1 && tasks(audit, "mine").await?.is_empty() && tasks(exec, "mine").await?.is_empty() && tasks(acct, "going").await?.is_empty(), "다른 역할의 작업");
     let d = c.get(support, &format!("/api/clarifies/{cid}")).await?;
-    ensure!(d["clarify"] == json!({ "id": cid, "name": "계좌 · 성일상사24", "state": "요청", "source": "계산", "dealer": { "id": "D-024", "name": "성일상사24" },
-        "signal": { "id": bank, "kind": "계좌", "name": "계좌 · 성일상사24", "state": "요청" } }), "소명 {}", d["clarify"]);
+    // 5단계: 영업지원은 소명의 요청 정보만(정황 칸 ×), 회계·자금은 소명 ×. 내부 감시에게는 정황이 보인다
+    ensure!(d["clarify"] == json!({ "id": cid, "name": "계좌 · 성일상사24", "state": "요청", "source": "계산", "dealer": { "id": "D-024", "name": "성일상사24" }, "signal": null }), "소명 {}", d["clarify"]);
+    ensure!(c.get(audit, &format!("/api/clarifies/{cid}")).await?["clarify"]["signal"] == json!({ "id": bank, "kind": "계좌", "name": "계좌 · 성일상사24", "state": "요청" }), "내부 감시의 소명");
+    ensure!(c.read_as(support, &format!("RETURN [clarify:`{cid}`.signal, clarify:`{cid}`.state];")).await? == json!([null, "요청"]), "영업지원의 소명 읽기");
+    ensure!(c.call(Some(c.token(acct)), "GET", &format!("/api/clarifies/{cid}"), None).await?.0 == 404, "회계·자금의 소명");
+    c.sees("SELECT id FROM clarify", [true, true, true, false]).await?;
     ensure!(d["sent"].is_null() && d["due"].is_null() && d["body"].is_null() && d["draft"].is_null() && d["can"] == true && d["role"] == support, "발송 전 {d}");
     // 서류 목록: 계좌 정황은 계좌의 서류(통장 사본, 예금주 확인서)
     ensure!(d["kinds"] == json!(["계좌"]) && d["docs"] == json!([["계좌", "통장 사본"], ["계좌", "예금주 확인서"]]), "서류 목록 {} {}", d["kinds"], d["docs"]);
@@ -329,7 +337,7 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(c.get(audit, &format!("/api/signals/{bank}/clarifies")).await? == json!([{ "id": cid, "name": "계좌 · 성일상사24", "state": "요청" }]), "정황의 소명");
     ensure!(c.call(Some(c.token(support)), "GET", "/api/clarifies/x", None).await?.0 == 404, "없는 소명");
     // 조치는 영업지원에게만 보인다
-    for role in [exec, audit, acct] {
+    for role in [exec, audit] {   // 5단계: 회계·자금은 소명을 읽지 못한다(404, 위)
         ensure!(c.get(role, &format!("/api/clarifies/{cid}")).await?["can"] == false, "{role}에게 조치가 보임");
     }
 
@@ -353,7 +361,8 @@ pub async fn check(c: &Check) -> Result<()> {
     // AI가 멈춰 있어도 목록만으로 발송할 수 있다(글 없이). 다른 역할은 발송할 수 없고, 꼴이 틀린 요청은 대상이다
     ensure!(draft_calls() == base + 3, "발송이 AI를 부름");
     for role in [exec, audit, acct] {
-        ensure!(send(role, &cid, json!({})).await? == (403, json!({ "error": "권한" })), "{role}의 발송");
+        // 5단계: 회계·자금은 소명을 읽지 못해 대상
+        ensure!(send(role, &cid, json!({})).await? == if role == acct { (400, json!({ "error": "대상" })) } else { (403, json!({ "error": "권한" })) }, "{role}의 발송 {:?}", send(role, &cid, json!({})).await?);
     }
     ensure!(send(support, "x", json!({})).await? == (400, json!({ "error": "대상" })), "없는 소명");
     for body in [json!({ "id": 5 }), json!({ "id": "" }), json!([]), json!({ "id": cid, "body": 5 }), json!({ "id": cid, "body": ["x"] }), json!({ "id": cid, "body": "가".repeat(CUT + 1) })] {
@@ -379,6 +388,9 @@ pub async fn check(c: &Check) -> Result<()> {
     let d = c.get(support, &format!("/api/clarifies/{cid}")).await?;
     ensure!(d["sent"] == "2026-07-01" && d["due"] == "2026-07-15" && d["body"].is_null() && d["clarify"]["state"] == "요청" && d["can"] == false, "발송 뒤 {d}");
     ensure!(d["docs"] == json!([["계좌", "통장 사본"], ["계좌", "예금주 확인서"]]), "발송한 목록 {}", d["docs"]);
+    // 5단계: 정황의 결정(요청) 줄은 내부 감시에게만 — 영업지원에게는 발송 한 줄
+    ensure!(d["history"].as_array().is_some_and(|h| h.len() == 1) && d["history"][0]["kind"] == "발송", "영업지원의 이력 {}", d["history"]);
+    let d = c.get(audit, &format!("/api/clarifies/{cid}")).await?;
     ensure!(d["history"].as_array().is_some_and(|h| h.len() == 2) && d["history"][0]["kind"] == "요청" && d["history"][0]["role"] == audit && d["history"][1]["kind"] == "발송" && d["history"][1]["role"] == support && d["history"][1]["at"] == "2026-07-01", "이력 {}", d["history"]);
     ensure!(q1(&c.db, "RETURN (SELECT VALUE by FROM dispatch)[0] = staff:support;", json!({})).await? == true, "발송한 직원");
     ensure!(tasks(support, "mine").await?.is_empty() && tasks(support, "going").await?.is_empty() && count().await? == json!([1, 1, 1]), "발송 뒤의 작업");

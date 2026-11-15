@@ -8,7 +8,7 @@ DEFINE FUNCTION fn::uploadable($c: record<clarify>) -> bool {
 } PERMISSIONS FULL;
 
 -- 서류(선 18: 소명 → 서류). 원본은 data(base64)에 있다 — 목록을 읽을 때는 data를 고르지 않는다
-DEFINE TABLE doc SCHEMAFULL PERMISSIONS FOR select FULL FOR create WHERE fn::uploadable(clarify);
+DEFINE TABLE doc SCHEMAFULL PERMISSIONS FOR select WHERE fn::sees() != '회계·자금' FOR create WHERE fn::uploadable(clarify);
 DEFINE FIELD clarify ON doc TYPE record<clarify>;
 DEFINE FIELD name ON doc TYPE string ASSERT string::len($value) > 0 AND string::len($value) <= 200;
 DEFINE FIELD mime ON doc TYPE string ASSERT $value IN ['image/png', 'image/jpeg', 'application/pdf'];

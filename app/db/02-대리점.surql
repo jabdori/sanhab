@@ -71,7 +71,7 @@ DEFINE FIELD file ON payout TYPE option<record<origin>>;
 DEFINE FIELD row ON payout TYPE option<int>;
 
 -- 회수: 대금을 받은 기록 한 건
-DEFINE TABLE deposit SCHEMAFULL PERMISSIONS FOR select FULL;
+DEFINE TABLE deposit SCHEMAFULL PERMISSIONS FOR select WHERE fn::sees() != '영업지원';
 DEFINE FIELD date ON deposit TYPE datetime;
 DEFINE FIELD amount ON deposit TYPE int;
 DEFINE FIELD ar ON deposit TYPE option<string>;
@@ -80,8 +80,8 @@ DEFINE FIELD file ON deposit TYPE option<record<origin>>;
 DEFINE FIELD row ON deposit TYPE option<int>;
 
 -- 선 4~6: 회수 → 대리점, 회수 → 계좌, 지급 → 대리점
-DEFINE TABLE deposit_of TYPE RELATION IN deposit OUT dealer SCHEMAFULL PERMISSIONS FOR select FULL;
-DEFINE TABLE deposit_into TYPE RELATION IN deposit OUT account SCHEMAFULL PERMISSIONS FOR select FULL;
+DEFINE TABLE deposit_of TYPE RELATION IN deposit OUT dealer SCHEMAFULL PERMISSIONS FOR select WHERE fn::sees() != '영업지원';
+DEFINE TABLE deposit_into TYPE RELATION IN deposit OUT account SCHEMAFULL PERMISSIONS FOR select WHERE fn::sees() != '영업지원';
 DEFINE TABLE payout_of TYPE RELATION IN payout OUT dealer SCHEMAFULL PERMISSIONS FOR select FULL;
 DEFINE FIELD source ON deposit_of TYPE string;
 DEFINE FIELD source ON deposit_into TYPE string;

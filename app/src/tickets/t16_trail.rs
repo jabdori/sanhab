@@ -218,7 +218,8 @@ pub async fn check(c: &mut Check) -> Result<()> {
 
     // 1~3: 주소 변경(변경일 2월 1일, 인지일 7월 1일). 지급의 경위는 승인 → 변경 → 재심사 → 새 심사
     ensure!(c.post(support, "/api/change", json!({ "id": "D-034", "item": "주소", "value": "고양시 중앙로 128", "since": "2026-02-01" })).await?.0 == 200, "변경");
-    let t = c.get(acct, &format!("/api/trail/pay/{pay}")).await?;
+    // 5단계: 대기인 새 심사는 회계·자금이 읽지 못한다 — 경위는 영업임원으로 본다
+    let t = c.get("영업임원", &format!("/api/trail/pay/{pay}")).await?;
     let (ok, inc, redo, next) = (node(&t, "승인"), node(&t, "변경"), node(&t, "재심사"), node(&t, "심사"));
     // 합쳐진 새 심사(영업임원의 담당에서 기다린다)가 결과 쪽 끝에 이어진다
     ensure!(kinds(&t) == ["승인", "변경", "재심사", "심사"] && t["now"] == redo["key"] && next["go"]["id"] == merged && next["at"].is_null(), "지급의 경위 {t}");
@@ -249,7 +250,7 @@ pub async fn check(c: &mut Check) -> Result<()> {
     ensure!(rows(&t["nodes"]).iter().filter(|n| n["kind"] == "재검토").all(|n| n["at"] == "2026-07-01" && n["go"]["kind"] == "심사"), "재검토의 칸");
     // 과거의 승인(한 건)에서 열어도 같은 사슬이고 지금 대상은 그 재검토의 칸이다
     let first = s(&rows(&t["nodes"]).iter().find(|n| n["kind"] == "재검토").cloned().unwrap_or_default()["go"]["id"]);
-    let u = c.get(support, &format!("/api/trail/review/{first}")).await?;
+    let u = c.get(exec, &format!("/api/trail/review/{first}")).await?;   // 5단계: 영업지원은 추인 · 재검토의 칸을 읽지 못한다
     ensure!(u["nodes"] == t["nodes"] && u["now"] == format!("r:{first}").as_str(), "재검토에서 연 경위 {u}");
 
     // 영업임원이 추인하면 결정의 칸이 사람과 사유를 달고 이어진다. 내부 감시의 종결이 그 뒤에 이어진다

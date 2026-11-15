@@ -5,9 +5,9 @@
 //! 자동 검사는 OpenAI를 부르지 않는다: 모델 이름이 `fixture`로 시작하면 고정한 답을 쓰고(`fixture-down` 응답 없음, `fixture-slow` 느리게 흐름), 키는 인자로 받는다.
 use super::t25_card::{card_tool, draw, make as make_card, show_tool};
 use super::t26_chatdoc::{Up, distinct, doc_tool, files_of, hand};
-use super::t17_report::{USE, ai_session, ask, basis, model, read_db, read_tool, settle, verify};
+use super::t17_report::{USE, ai_as, ai_session, ai_user, ask, basis, model, read_db, read_tool, settle, verify};
 use crate::check::Check;
-use crate::db::{Db, q1};
+use crate::db::{Db, q, q1};
 use crate::orig::sha;
 use crate::{ApiError, Me, R, err, refuse, Body};
 use aisdk::core::utils::step_count_is;
@@ -526,10 +526,10 @@ async fn save_session(Extension(me): Extension<Me>, State(db): State<Arc<Db>>, a
 
 /// 문맥 칩의 이름: `?items=[{ kind, id }]` → `{ names: [이름|null] }`. 화면이 제목 줄에 보이는 이름과 같다(정황 · 대리점 · 소명은 name, 심사는 `이름 · 귀속월`, 지급은 `대리점 · 귀속월`, 조항은 title).
 /// 모르는 종류나 없는 기록은 null(화면은 id를 보인다). 읽기 한 번이다
-async fn names(State(db): State<Arc<Db>>, Query(q): Query<HashMap<String, String>>) -> R {
+async fn names(Extension(me): Extension<Me>, Query(q): Query<HashMap<String, String>>) -> R {
     let items: Vec<J> = serde_json::from_str::<Vec<J>>(q.get("items").map_or("[]", String::as_str)).map_err(|_| refuse("대상"))?;
     let recs: Vec<Rec> = items.iter().map(rec).collect::<Option<_>>().filter(|r: &Vec<Rec>| r.len() <= ATTACH + 1).ok_or_else(|| refuse("대상"))?;
-    Ok(Json(json!({ "names": names_of(&db, &recs).await.map_err(|_| refuse("대상"))? })))
+    Ok(Json(json!({ "names": names_of(&me.db, &recs).await.map_err(|_| refuse("대상"))? })))
 }
 /// 화면의 기록들의 이름(모르는 종류나 없는 기록은 None, 기록은 있고 이름이 없으면 빈 글)
 async fn names_of(db: &Db, recs: &[Rec]) -> Result<Vec<Option<String>>> {
@@ -558,10 +558,11 @@ pub(super) async fn named(db: &Db, ids: &[String]) -> Vec<Option<(String, J)>> {
 /// 답을 조각으로 흘린다. 프록시가 모아 두지 않게 하는 머리글을 둔다(AXHub는 웹소켓이 없어 이 응답 본문이 길이다)
 async fn chat(Extension(me): Extension<Me>, State(db): State<Arc<Db>>, Body(b): Body) -> Result<Response, ApiError> {
     let a = parse(&b, true)?;
-    let ai = ai_session(&db).await.map_err(|_| err(StatusCode::SERVICE_UNAVAILABLE, "대기"))?;
-    // 문맥과 붙임은 있는 기록이어야 한다
+    // 5단계: AI는 묻는 사람의 역할과 같은 읽기 범위의 계정으로 읽는다
+    let ai = ai_as(&db, ai_user(&me.role)).await.map_err(|_| err(StatusCode::SERVICE_UNAVAILABLE, "대기"))?;
+    // 문맥과 붙임은 그 사람이 볼 수 있는 기록이어야 한다
     let recs: Vec<Rec> = a.target.iter().chain(&a.attach).cloned().collect();
-    let got = names_of(&db, &recs).await.map_err(|_| refuse("대상"))?;
+    let got = names_of(&me.db, &recs).await.map_err(|_| refuse("대상"))?;
     if got.iter().any(Option::is_none) { return Err(refuse("대상")); }
     let names: HashMap<String, String> = recs.iter().zip(got).map(|(r, n)| (format!("{}/{}", r.kind, r.id), n.unwrap_or_default())).collect();
     let m = model();
@@ -580,9 +581,11 @@ async fn chat(Extension(me): Extension<Me>, State(db): State<Arc<Db>>, Body(b): 
 /// 보고로 남기기: `{ messages, target, attach }`. 대상은 정황이다(열어 둔 정황, 없으면 붙인 정황). AI가 대화를 17의 보고 꼴로 정리하고, 17의 검증을 통과해야만 저장한다
 /// (꼴 · 값 · 기록이 틀리면 400 `오류`, AI가 응답하지 않으면 503 `대기`. 어느 쪽이든 아무것도 저장하지 않는다). 모든 역할이 남길 수 있고 채택은 내부 감시가 한다.
 /// 같은 정황의 보고로 17의 보고 칸에 가장 새것으로 올라온다 → `{ id, state }`
-async fn keep(State(db): State<Arc<Db>>, Body(b): Body) -> R {
+async fn keep(Extension(me): Extension<Me>, State(db): State<Arc<Db>>, Body(b): Body) -> R {
     let a = parse(&b, false).and_then(|a| if a.talk.iter().any(|(r, _)| r == "assistant") { Ok(a) } else { Err(refuse("대상")) })?;
     let signal = a.target.iter().chain(&a.attach).find(|r| r.kind == "정황").ok_or_else(|| refuse("대상"))?;
+    // 5단계: 그 사람이 볼 수 없는 정황(영업지원 · 회계·자금)이면 대상
+    if basis(&me.db, &signal.id).await.ok().flatten().is_none() { return Err(refuse("대상")); }
     let Some(base) = basis(&db, &signal.id).await.map_err(|_| refuse("대상"))? else { return Err(refuse("대상")) };
     let basis_hash = sha(&base.to_string());
     let (model, ai) = ( model(), ai_session(&db).await.map_err(|_| err(StatusCode::SERVICE_UNAVAILABLE, "대기"))?);
@@ -716,7 +719,9 @@ pub async fn check(c: &Check) -> Result<()> {
         }
 
         // 문맥은 끌 수 있고, 붙인 기록이 따라온다. 판정을 묻는 말에는 사실과 규정을 답하고 판정 의견을 내지 않는다
-        let (_, _, body) = stream(support, json!({ "messages": [say("이 지급을 승인해도 되나?")], "target": null, "attach": [{ "kind": "정황", "id": "계좌-D-024" }, { "kind": "지급", "id": "RB-00001" }] })).await?;
+        // 5단계: 영업지원은 정황을 붙일 수 없다(볼 수 없는 기록 — 대상)
+        ensure!(stream(support, json!({ "messages": [say("이 지급을 승인해도 되나?")], "target": null, "attach": [{ "kind": "정황", "id": "계좌-D-024" }] })).await?.0 == 400, "영업지원이 붙인 정황");
+        let (_, _, body) = stream(audit, json!({ "messages": [say("이 지급을 승인해도 되나?")], "target": null, "attach": [{ "kind": "정황", "id": "계좌-D-024" }, { "kind": "지급", "id": "RB-00001" }] })).await?;
         let text = said(&events(&body).0);
         ensure!(text.contains("정황 계좌 · 성일상사24") && text.contains("지급 대성상사1 · ") && !text.contains("테이블") && !text.contains("D-024"), "끈 문맥과 붙임 {text}");
         ensure!(text.starts_with("조회한 기록: ") && !["판정 의견", "결정은 사람", "승인하세요", "승인해도 된다", "승인해도 됩니다", "반려하세요", "기각하세요"].iter().any(|w| text.contains(w)), "판정 의견 {text}");
@@ -740,6 +745,16 @@ pub async fn check(c: &Check) -> Result<()> {
         ensure!(!slow.is_finished() && t0.elapsed() < Duration::from_millis(1500) && state["role"] == audit && listing.is_array(), "열려 있는 응답이 다른 요청을 막았다 {:?}", t0.elapsed());
         ensure!(said(&events(&slow.await??).0).contains("조회한 기록"), "느린 답");
 
+        // 5단계: 대화의 AI는 묻는 사람의 역할과 같은 범위로 읽는다(역할별 AI 계정). 쓰기는 어느 계정도 되지 않는다
+        for ((_, role), see) in crate::tickets::ROLES.iter().zip([[false, false], [true, true], [true, true], [false, false]]) {
+            let s = ai_as(&c.db, ai_user(role)).await?;
+            let got: Vec<bool> = futures::future::join_all(["SELECT id FROM signal", "SELECT id FROM ratify"].map(|t| read_db(&s, t))).await.iter().map(|o| o != "[[]]").collect();
+            ensure!(got == see, "{role}의 AI 읽기 {got:?}");
+            ensure!(q1(&s, "RETURN count(SELECT id FROM dealer);", json!({})).await? == json!(50), "{role}의 AI 대리점");
+            ensure!(q(&s, "CREATE report SET target = signal:x, input = 'x', model = 'x';", json!({})).await.map_or(true, |v| v.iter().all(|r| r.as_array().is_some_and(|a| a.is_empty()))), "{role}의 AI 쓰기");
+        }
+        let (code, _) = c.post(support, "/api/chat/report", json!({ "messages": [say("정황"), bot("답")], "target": { "kind": "정황", "id": "계좌-D-024" } })).await?;
+        ensure!(code == 400, "영업지원이 볼 수 없는 정황의 보고 {code}");
         // 키 없이 실제 모델 이름이면 부르지 않고 오류 낱말(키는 인자다. OpenAI를 부르지 않는다)
         let ai = ai_session(&c.db).await?;
         let (ev, _) = (talk("gpt-검사".into(), None, ai.clone(), ai.clone(), SYSTEM.into(), vec![], vec![("user".into(), "안녕".into())], vec![]).collect::<Vec<_>>().await, ());
@@ -749,7 +764,7 @@ pub async fn check(c: &Check) -> Result<()> {
         // 대화가 길어져도(말 25개) 마지막 20개만 쓰고 거절하지 않는다
         let long: Vec<J> = (0..25).map(|i| if i % 2 == 0 { say("묻는다") } else { bot("답한다") }).collect();
         ensure!(stream(audit, json!({ "messages": long })).await?.0 == 200, "긴 대화");
-        ensure!(c.post(support, "/api/chat/report", json!({ "messages": long.iter().take(24).collect::<Vec<_>>(), "target": { "kind": "정황", "id": "계좌-D-024" } })).await?.0 == 200, "긴 대화의 보고");
+        ensure!(c.post("영업임원", "/api/chat/report", json!({ "messages": long.iter().take(24).collect::<Vec<_>>(), "target": { "kind": "정황", "id": "계좌-D-024" } })).await?.0 == 200, "긴 대화의 보고");
         // 추인(묶음)도 문맥이 된다: 이름은 `이름 · 귀속월`, 이름이 없는 기록은 거절하지 않는다
         q1(&c.db, "CREATE ratify:t24 SET ym = '2026-01', name = '금강상사11 외 2', members = [], reviews = [], total = 0, limit = 0, approver = '영업임원', source = '시연';", json!({})).await?;
         let (code, _, body) = stream(audit, json!({ "messages": [say("안녕")], "target": { "kind": "추인", "id": "t24" } })).await?;
@@ -766,12 +781,12 @@ pub async fn check(c: &Check) -> Result<()> {
         let talked = json!([say("이 정황을 알려 줘"), bot("계좌가 같다")]);
         let before_keep = counts().await?;
         for body in [json!({ "messages": talked }), json!({ "messages": talked, "target": { "kind": "대리점", "id": "D-011" } }), json!({ "messages": [say("a")], "target": { "kind": "정황", "id": bank } }), json!({ "messages": talked, "target": { "kind": "정황", "id": "없음" } })] {
-            let (code, r) = keep(support, body.clone()).await?;
+            let (code, r) = keep("영업임원", body.clone()).await?;
             ensure!(word(code, &r)? == "대상", "보고의 대상 {body} → {code} {r}");
         }
         ensure!(counts().await? == before_keep, "거절한 보고가 남았다");
         // 검증을 통과하면 보고(검토)로 저장되고 17의 보고 칸에 올라온다. 근거 기록을 가리킨 사실이 있고 내부 감시가 채택할 수 있다
-        let (code, r) = keep(support, json!({ "messages": talked, "target": { "kind": "정황", "id": bank } })).await?;
+        let (code, r) = keep("영업임원", json!({ "messages": talked, "target": { "kind": "정황", "id": bank } })).await?;
         let nrep = || q1(&c.db, "RETURN count(SELECT id FROM report WHERE target = signal:`계좌-D-024`);", json!({}));
         ensure!(code == 200 && r["state"] == "검토" && r["id"].is_string(), "보고 {code} {r}");
         let d = c.get(audit, &format!("/api/signals/{bank}/report")).await?;

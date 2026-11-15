@@ -22,7 +22,7 @@ DEFINE FIELD until ON rule TYPE option<datetime>;      -- 다음 버전의 시�
 DEFINE FIELD source ON rule TYPE string;
 
 -- 심사: 한 그룹의 한 귀속월. 승인 전에는 코드가 다시 계산할 때마다 구성이 그룹을 따라 바뀌고, 승인하면 fixed가 찍혀 더는 바뀌지 않는다(D36)
-DEFINE TABLE review SCHEMAFULL PERMISSIONS FOR select FULL;
+DEFINE TABLE review SCHEMAFULL PERMISSIONS FOR select WHERE fn::sees() != '회계·자금' OR status = '승인';   -- 5단계: 회계·자금은 승인된 심사만
 DEFINE FIELD ym ON review TYPE string;                 -- 귀속월
 DEFINE FIELD name ON review TYPE string;               -- 목록과 제목에 보일 이름(금강상사11 외 2)
 DEFINE FIELD members ON review TYPE array<record<dealer>>;   -- 선 10: 심사 → 대리점(구성)

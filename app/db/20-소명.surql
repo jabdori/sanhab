@@ -15,7 +15,7 @@ DEFINE FIELD ex_to ON acct TYPE option<datetime>;
 DEFINE FIELD excused ON acct TYPE option<record<clarify>>;
 
 -- 대리점이 먼저 낸 소명(D59): 정황 없이 열린다. 소명한 대리점(dealer)과 상대(pair의 둘째), 일치 종류(kind). 정황에서 시작한 소명은 둘 다 비어 있다
-DEFINE FIELD OVERWRITE signal ON clarify TYPE option<record<signal>>;
+DEFINE FIELD OVERWRITE signal ON clarify TYPE option<record<signal>> PERMISSIONS FOR select WHERE fn::sees() INSIDE ['영업임원', '내부 감시'];   -- 5단계: 영업지원에게 정황 근거 ×
 DEFINE FIELD pair ON clarify TYPE option<array<record<dealer>>>;
 DEFINE FIELD kind ON clarify TYPE option<string> ASSERT $value = NONE OR $value IN ['대표자', '주소', '계좌'];
 -- 소명의 두 대리점(소명한 쪽이 먼저): 대리점이 낸 소명은 pair, 정황에서 시작한 소명은 그 정황의 대리점들
@@ -56,7 +56,7 @@ DEFINE FUNCTION fn::decidable($c: record<clarify>) -> bool {
 } PERMISSIONS FULL;
 
 -- 결과(선 19: 소명 → 직원). 만들기만 하고 고치거나 지우지 못한다. 누가·언제·효력 기간은 DB가 채운다(보낸 값은 쓰이지 않는다)
-DEFINE TABLE verdict SCHEMAFULL PERMISSIONS FOR select FULL
+DEFINE TABLE verdict SCHEMAFULL PERMISSIONS FOR select WHERE fn::sees() != '회계·자금'   -- 5단계: 영업지원은 보완 사유로 서류를 다시 받는다
     FOR create WHERE fn::decidable(clarify) AND kind INSIDE ['인정', '불인정', '보완'] AND fn::reason(true, fn::verdict_classes(kind), reason);
 DEFINE FIELD clarify ON verdict TYPE record<clarify>;
 DEFINE FIELD kind ON verdict TYPE string ASSERT $value IN ['인정', '불인정', '보완'];

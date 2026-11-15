@@ -4,7 +4,7 @@
 
 -- 추인 작업의 대상: 한 그룹의 한 귀속월에서 재검토인 과거의 승인들. 코드(root)와 이벤트만 쓴다.
 -- 영업임원이 결정하기 전에는 재검토 표시를 다시 맞출 때마다(09의 remark) 다시 만들어지고, 추인하거나 거부하면 그때의 값으로 남는다(fixed)
-DEFINE TABLE ratify SCHEMAFULL PERMISSIONS FOR select FULL;
+DEFINE TABLE ratify SCHEMAFULL PERMISSIONS FOR select WHERE fn::sees() INSIDE ['영업임원', '내부 감시'];   -- 5단계
 DEFINE FIELD ym ON ratify TYPE string;
 DEFINE FIELD name ON ratify TYPE string;                          -- 현재 구성의 이름(금강상사11 외 2)
 DEFINE FIELD members ON ratify TYPE array<record<dealer>>;        -- 현재 계산의 구성

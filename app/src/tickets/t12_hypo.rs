@@ -5,9 +5,10 @@ use super::t03_related::{ITEMS, Link, groups, links, matches};
 use super::t04_review::compute;
 use crate::check::Check;
 use crate::db::{Db, as_user, q, q1};
-use crate::{R, err};
+use crate::{Me, R, err};
 use anyhow::{Result, ensure};
 use axum::extract::{Path, State};
+use axum::Extension;
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
@@ -97,15 +98,18 @@ pub fn routes() -> Router<std::sync::Arc<Db>> {
 }
 
 /// 정황의 가설: `analyze`의 결과에서 심사마다의 값을 뺀 것
-async fn of_signal(State(db): State<std::sync::Arc<Db>>, Path(id): Path<String>) -> R {
+async fn of_signal(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
+    // 5단계: 볼 수 없는 정황은 없는 것과 같다(계산은 서버가 root로 한다)
+    if !crate::db::visible(&me.db, "signal", &id).await { return Err(err(StatusCode::NOT_FOUND, "없음")) }
     let Some(mut a) = analyze(&db, &id).await? else { return Err(err(StatusCode::NOT_FOUND, "없음")) };
     a.as_object_mut().map(|o| o.remove("reviews"));
     Ok(Json(a))
 }
 
 /// 심사의 가설: 그 심사의 구성원에 걸린 열린 정황마다, 그 심사의 그룹과 승인권자로 본 가설. 굳은 심사는 비어 있다
-async fn of_review(State(db): State<std::sync::Arc<Db>>, Path(id): Path<String>) -> R {
-    let ids = q1(&db, "
+async fn of_review(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
+    // 5단계: 정황 목록은 그 사람의 세션으로 읽는다(영업지원 · 회계·자금은 빈 목록)
+    let ids = q1(&me.db, "
         LET $r = type::record('review', $id);
         RETURN IF $r.fixed = NONE THEN (SELECT VALUE record::id(id) FROM signal WHERE state INSIDE ['접수', '요청'] AND dealers ANYINSIDE ($r.members ?? []) ORDER BY id) ELSE [] END;", json!({ "id": id })).await?;
     let mut out = vec![];
@@ -144,7 +148,9 @@ pub async fn seed(_: &Db) -> Result<()> {
 pub async fn check(c: &Check) -> Result<()> {
     let (support, exec, audit) = ("영업지원", "영업임원", "내부 감시");
     let rows = |v: &J| v.as_array().cloned().unwrap_or_default();
-    let hypo = async |path: &str| c.get(support, path).await;
+    // 5단계: 가설은 정황의 계산이라 영업임원 · 내부 감시만 본다(영업지원은 정황 404, 심사의 가설은 빈 목록)
+    ensure!(c.call(Some(c.token(support)), "GET", "/api/signals/계좌-D-024/hypo", None).await?.0 == 404, "영업지원의 정황 가설");
+    let hypo = async |path: &str| c.get("내부 감시", path).await;
     let (bank, name, near) = ("계좌-D-024", "동명-박준호", "근접-D-011");
     let (group, r34, plain) = ("2026-06-D-011", "2026-06-D-034", "2026-06-D-001");
 

@@ -13,7 +13,7 @@ DEFINE FUNCTION fn::repliable($p: record<payout>) -> bool {
 } PERMISSIONS FULL;
 
 -- 은행 회신: 은행이 알려 준 실제 지급 결과. 만들기만 하고 고치거나 지우지 못한다. 누가·언제는 DB가 채운다
-DEFINE TABLE reply SCHEMAFULL PERMISSIONS FOR select FULL FOR create WHERE fn::repliable(payout);
+DEFINE TABLE reply SCHEMAFULL PERMISSIONS FOR select WHERE fn::sees() != '영업지원' FOR create WHERE fn::repliable(payout);
 DEFINE FIELD payout ON reply TYPE record<payout>;
 DEFINE FIELD amount ON reply TYPE int ASSERT $value >= 1;               -- 지급 금액(0원인 이체는 없다)
 DEFINE FIELD account ON reply TYPE string ASSERT string::len($value) > 0;  -- 수취 계좌
@@ -26,7 +26,7 @@ DEFINE FIELD source ON reply TYPE string VALUE IF $auth.id THEN '시연' ELSE $v
 
 -- 대사: 성공한 회신을 승인된 금액·등록된 계좌와 맞춰 본 결과. 맞춰 본 값은 그때의 것으로 굳혀 둔다.
 -- 불일치도 여기에 기록으로 남는다. 정황(11)은 `DEFINE EVENT … ON recon WHEN $event = 'CREATE' AND $after.verdict = '불일치'`로 잇는다
-DEFINE TABLE recon SCHEMAFULL PERMISSIONS FOR select FULL;
+DEFINE TABLE recon SCHEMAFULL PERMISSIONS FOR select WHERE fn::sees() != '영업지원';
 DEFINE FIELD payout ON recon TYPE record<payout>;
 DEFINE FIELD reply ON recon TYPE record<reply>;
 DEFINE FIELD review ON recon TYPE option<record<review>>;   -- 그 지급을 승인한 심사

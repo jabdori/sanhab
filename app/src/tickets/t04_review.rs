@@ -318,7 +318,8 @@ pub async fn check(c: &Check) -> Result<()> {
     // 권한은 DB가 강제한다: 승인권자가 아닌 역할의 요청은 거절되고 아무것도 바뀌지 않는다
     ensure!(approve(support, &[group]).await?.0 == 403, "영업지원이 한도를 넘는 심사를 승인");
     for role in [exec, "내부 감시", "회계·자금"] {
-        ensure!(approve(role, &[one]).await?.0 == 403, "{role}이 영업지원의 심사를 승인");
+        // 5단계: 회계·자금은 승인되지 않은 심사를 읽지 못해 없는 심사(대상, 400)로 거절된다
+        ensure!(approve(role, &[one]).await?.0 == if role == "회계·자금" { 400 } else { 403 }, "{role}이 영업지원의 심사를 승인");
     }
     // 화면을 거치지 않고 DB에 직접 써도 마찬가지다: 심사·작업·조치·규칙을 고칠 수 없고, 남의 이름으로 결정을 만들 수 없다
     let s = as_user(&c.db, c.token(support)).await?;
