@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { AiCard } from '../ui/AiCard'
-import { Tidy } from '../tickets/19-서류'
+import { Tidy, TidyHead } from '../tickets/19-서류'
 import { Unknown } from '../tickets/20-소명'
 import { useVerdict } from '../tickets/20-소명/verdict'
 import { FlagIcon } from '@heroicons/react/24/outline'
@@ -9,7 +9,6 @@ import { Token } from '@astryxdesign/core/Token'
 // 소명 기록: 머리(← 작업 · n/전체 / 소명 이름 / 칩: 상태 · 대리점 · 정황 / 페이지 조치 / 탭) → 본문(숫자 타일 · 요청서 · 서류 · 원본 · 판독 · 접수 · 제외). AI 보고는 오른쪽 AI 구역.
 // 페이지 조치: 영업지원은 발송(요청서를 고쳐), 내부 감시는 서류가 접수된 뒤 인정 · 불인정 · 보완. 모두 누르면 확인 창.
 import { HStack } from '@astryxdesign/core/Layout'
-import { Link } from '@astryxdesign/core/Link'
 import { Text } from '@astryxdesign/core/Text'
 import { BuildingStorefrontIcon } from '@heroicons/react/24/outline'
 import { useAtomValue } from 'jotai'
@@ -27,7 +26,7 @@ import { OriginalDoc, Read, Upload } from '../tickets/19-서류'
 import { useDocs } from '../tickets/19-서류/docs'
 import { Excluded, Verdicts } from '../tickets/20-소명'
 
-/** 발송(영업지원, 주 버튼): 고친 요청서(없으면 AI 초안, 글 없이 목록만으로도 된다)를 보낸다. 되돌릴 수 없어 확인 창을 거친다 */
+/** 발송(영업지원, 주 버튼): 고친 요청서(없으면 AI 초안)를 보낸다. 글이 없으면(초안이 아직 오지 않았고 직접 쓰지도 않았으면) 눌리지 않는다. 되돌릴 수 없어 확인 창을 거친다 */
 function Send({ d, onBad }: { d: Data; onBad: (word: string | null) => void }) {
   const typed = useAtomValue(letterAtom)
   const body = (typed ?? d.draft?.text ?? '').trim()
@@ -37,7 +36,7 @@ function Send({ d, onBad }: { d: Data; onBad: (word: string | null) => void }) {
       kind={L.발송}
       target={d.clarify.dealer.name}
       rows={rows}
-      isDisabled={!d.docs.length && !body}
+      isDisabled={!body}
       send={() => (onBad(null), api('/send', { id: d.clarify.id, body: body || undefined }).catch((e: Error) => (onBad(e.message), store.set(changedAtom, (n) => n + 1))))}
     />
   )
@@ -51,7 +50,7 @@ function ClarifyAi() {
   if (!docs?.docs.length) return null
   return (
     <>
-      <AiCard title={`${L.AI} ${L.정리}`}>
+      <AiCard title={L.정리} aside={<TidyHead />}>
         <Tidy />
       </AiCard>
       <UnknownRegion />
@@ -100,7 +99,7 @@ export function Clarify() {
         [L.대리점, c.dealer.name],
         ...(c.signal ? [[L.정황, c.signal.name] as [string, string]] : []),
         // 보완의 사유는 서류를 다시 받을 영업지원이 내용에서 바로 본다
-        ...d.history.filter((h) => h.kind === L.보완).slice(-1).map((h): [string, ReactNode] => [L.보완, [h.reason?.class, h.reason?.memo].filter(Boolean).join(' · ') || L.없음]),
+        ...d.history.filter((h) => h.kind === L.보완).slice(-1).flatMap((h): [string, ReactNode][] => [[L.보완, h.reason?.class ?? L.없음], ...(h.reason?.memo ? [[L.메모, h.reason.memo] as [string, ReactNode]] : [])]),
         [L.발송, d.sent ?? L.없음],
         [L.기한, d.due ? <HStack gap={2} vAlign="center"><Text>{d.due}</Text><Source kind={L.가정} of={L.기한} rows={[[L.발송, d.sent ?? L.없음], [L.기한, d.due]]} /></HStack> : L.없음],
       ]}

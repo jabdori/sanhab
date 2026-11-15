@@ -26,9 +26,12 @@ export type Task = { id: string; kind: string; view: string; target: string; nam
 const GROUPS: string[][] = [[L.추인, L.종결], [L.정황], [L.발송, L.소명, L.미응답], [L.지급, L.대사], [L.재상신, L.심사]]
 const order = (a: Task, b: Task) => (a.ym ?? '9').localeCompare(b.ym ?? '9') || (a.name ?? '').localeCompare(b.name ?? '', 'ko', { numeric: true })
 
+/** 작업 목록의 순서(묶음 → 귀속월 → 이름). 목록 칸(Pane)과 n/전체도 이 순서 */
+export const sortTasks = (ts: Task[]) => GROUPS.flatMap((kinds) => ts.filter((t) => kinds.includes(t.kind)).sort(order))
+
 /** 안내가 열어 볼 첫 작업: 목록과 같은 순서에서 정황이 걸린 것이 먼저(설명할 거리가 많다) */
 export const firstTask = (mine: Task[]) => {
-  const sorted = GROUPS.flatMap((kinds) => mine.filter((t) => kinds.includes(t.kind)).sort(order))
+  const sorted = sortTasks(mine)
   return sorted.find((t) => t.marks.includes(L.정황)) ?? sorted[0]
 }
 

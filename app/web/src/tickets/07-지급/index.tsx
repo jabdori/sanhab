@@ -11,7 +11,6 @@ import { Table } from '@astryxdesign/core/Table'
 import { Pending } from '../../ui/Pending'
 import { Region } from '../../ui/Region'
 import type { Review } from '../04-심사/review'
-import { Empty } from '../../ui/Empty'
 import { Act } from '../../ui/Record'
 import { Source } from '../../ui/Source'
 import { Tiles } from '../../ui/Record'
@@ -80,11 +79,12 @@ export function PayActions({ onBad }: { onBad: (word: string | null) => void }) 
     <HStack gap={2}>
       <Act
         kind={L.지급}
-        target={p.pay.name}
+        target={p.pay.dealer}
+        // 값 하나에 사실 하나(review.md 2-1): 귀속월 · 금액, 계좌는 줄마다
         rows={[
-          [L.금액, num(p.pay.amount)],
-          [L.계좌, p.accounts.map((a) => a.value).join(' · ') || L.없음],
           [L.귀속월, p.pay.ym],
+          [L.금액, num(p.pay.amount)],
+          ...(p.accounts.length ? p.accounts.map((a): [string, string] => [L.계좌, a.value]) : [[L.계좌, L.없음] as [string, string]]),
         ]}
         send={() => (onBad(null), api('/pay', { id: p.pay.id }).catch((e: Error) => (onBad(e.message), store.set(changedAtom, (n) => n + 1))))}
       />

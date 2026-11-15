@@ -100,7 +100,8 @@ export function Verdicts({ onBad }: { onBad: (word: string | null) => void }) {
           classes={a.classes}
           must
           target={c.clarify.dealer.name}
-          rows={a.kind === L.인정 ? [[L.제외, v.lines.length ? v.lines.map((l) => `${l.item} ${l.value}`).join(' · ') : L['제외 없음']], [L.기간, span(v.span?.[0], v.span?.[1]) ?? L.미상]] : undefined}
+          // 값 하나에 사실 하나(review.md 2-1): 제외하는 값은 항목을 이름표로 줄마다
+          rows={a.kind === L.인정 ? [...(v.lines.length ? v.lines.map((l): [string, string] => [l.item, l.value]) : [[L.제외, L['제외 없음']] as [string, string]]), [L.기간, span(v.span?.[0], v.span?.[1]) ?? L.미상]] : undefined}
           send={(reason) => go(a.kind, reason)}
         />
       ))}

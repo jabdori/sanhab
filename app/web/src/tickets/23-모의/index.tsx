@@ -46,7 +46,8 @@ export function Simulate({ target, onBad }: { target: string; onBad: (word: stri
     <Confirm
       label={L.모의}
       variant={grade(L.모의)}
-      title={`${L.모의} · ${target}`}
+      title={L.모의}
+      rows={[[L.규정, target]]}
       canConfirm={!!won && won >= 1 && won <= MAX}
       onConfirm={() => {
         onBad(null)
@@ -112,7 +113,8 @@ export function Result() {
                 </Link>
               ),
             },
-            { key: 'ym', header: L.귀속월, width: pixel(76), renderCell: (x) => <Text hasTabularNumbers>{x.ym}</Text> },
+            // 귀속월은 한 줄(`2026-` / `01`로 꺾이지 않게) — 폭은 머리글 `귀속월`과 값 `2026-01`이 들어가는 만큼
+            { key: 'ym', header: L.귀속월, width: pixel(96), renderCell: (x) => <Text hasTabularNumbers textWrap="nowrap">{x.ym}</Text> },
             { key: 'total', header: L.합산, align: 'end', width: pixel(100), renderCell: (x) => <Text weight="semibold" hasTabularNumbers>{num(x.total)}</Text> },
             { key: 'now', header: L.현재, width: pixel(96), renderCell: (x) => <Text color="secondary">{x.approver[0]}</Text> },
             { key: 'mock', header: L.모의, width: pixel(96), renderCell: (x) => <Text weight="semibold">{x.approver[1]}</Text> },

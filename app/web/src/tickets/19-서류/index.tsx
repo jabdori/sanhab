@@ -3,7 +3,6 @@
 // 판독이나 정리가 아직 없으면(멈춰 있으면) 원본만 보이고 값은 없음이다. 그동안 몇 초마다 다시 읽는다.
 import { Badge } from '@astryxdesign/core/Badge'
 import { Spinner } from '@astryxdesign/core/Spinner'
-import { Button } from '@astryxdesign/core/Button'
 import { FileInput } from '@astryxdesign/core/FileInput'
 import { HStack, VStack } from '@astryxdesign/core/Layout'
 import { Link } from '@astryxdesign/core/Link'
@@ -18,7 +17,7 @@ import { L } from '../../labels'
 import { menuAtom, targetAtom, useData } from '../../state'
 import { Empty } from '../../ui/Empty'
 import { Pending } from '../../ui/Pending'
-import { Region } from '../../ui/Region'
+import { Region, reveal } from '../../ui/Region'
 import { Source } from '../../ui/Source'
 import { Confirm } from '../../ui/Confirm'
 import { fail, plain } from '../../ui/status'
@@ -75,6 +74,8 @@ function Original({ d }: { d: Doc }) {
             width={w!.box[2] - w!.box[0]}
             height={w!.box[3] - w!.box[1]}
             vectorEffect="non-scaling-stroke"
+            // AI 정리의 연결(↗)이 이 상자를 찾아 간다(ui/Region의 reveal)
+            data-ref={`${L.이미지}:${item}`}
             onClick={() => pick(item)}
             className={`cursor-pointer stroke-2 ${item === picked ? 'fill-yellow-subtle/60 stroke-primary' : 'fill-transparent stroke-border'}`}
           >
@@ -106,7 +107,7 @@ function Aside() {
       <Text type="supporting" color="secondary">{d.name}</Text>
       {/* 시연 서랍에서 넣은 서류는 가상 입력(A05 §6) */}
       {/* 시연용으로 만든 서류(내용이 시연 서류와 같다)는 어느 길로 올렸든 합성 — 사람이 올린 실제 파일에는 표지가 없다 */}
-      {d.sample && <Source kind={L.합성} tip={L.서류} rows={[[L.종류, L.서류], [L.대상, d.name], [L.이유, L.시연]]} />}
+      {d.sample && <Source kind={L.합성} tip={L.서류} rows={[[L.종류, L.서류], [L.서류, d.name], [L.이유, L.시연]]} />}
       {all.docs.length > 1 && all.docs.map((x, i) => <ToggleButton key={x.id} label={String(i + 1)} size="sm" isPressed={i === at} onPressedChange={() => setSee(i)} />)}
     </>
   )
@@ -137,7 +138,7 @@ export function Read() {
   if (!all?.docs.length || !d || !rows.length) return null
   return (
     // 판독은 글자 인식(AI)이 읽은 값이다: AI 표지는 이 영역에
-    <Region title={L.판독} aside={<Source kind={L.AI} tip={L.판독} rows={[[L.접수, [d.role, d.at].join(' · ')], [L.판독, d.read_model ?? L.없음]]} />}>
+    <Region title={L.판독} aside={<Source kind={L.AI} tip={L.판독} rows={[[L.접수, d.at], [L.역할, d.role], [L.판독, d.read_model ?? L.없음]]} />}>
       <Table<Row>
           data={rows}
           idKey="item"
@@ -168,17 +169,25 @@ export function Read() {
   )
 }
 
-/** 레일 "AI 정리"의 몸통: 항목마다 값과 연결(↗ — 누르면 본문의 판독 줄과 원본의 위치가 강조된다). 정리가 없으면 대기 */
+/** AI 정리 카드의 머리 오른쪽(정황의 보고 카드와 같은 자리): AI 표지(모델), 정리가 아직 없으면 도는 표지 */
+export function TidyHead() {
+  const d = useDoc()
+  if (!d) return null
+  return (
+    <HStack gap={2} vAlign="center">
+      <Source kind={L.AI} rows={[[L.모델, d.tidy_model ?? L.없음]]} />
+      {!d.tidy && <Spinner size="sm" aria-label={L.대기} />}
+    </HStack>
+  )
+}
+
+/** AI 정리 카드의 몸통: 항목마다 값과 연결(↗ — 누르면 원본 이미지의 그 위치로 가서 위치 상자와 판독 줄이 강조된다). 정리가 없으면 비어 있다(머리의 도는 표지) */
 export function Tidy() {
   const d = useDoc()
   const all = useDocs()
   if (!d) return all.data ? <Empty /> : <Pending of={all} />
   return (
-    <VStack gap={2}>
-      <HStack gap={2} vAlign="center">
-        <Source kind={L.AI} rows={[[L.모델, d.tidy_model ?? L.없음]]} />
-        {!d.tidy && <Spinner size="sm" aria-label={L.대기} />}
-      </HStack>
+    <>
       {d.tidy && (
         <Table<Tidy>
           data={d.tidy as Tidy[]}
@@ -194,7 +203,7 @@ export function Tidy() {
               width: pixel(48),
               renderCell: (t) =>
                 t.words.length > 0 && (
-                  <Link aria-label={t.item} onClick={() => pick(t.item)}>
+                  <Link aria-label={t.item} onClick={() => (pick(t.item), reveal(L.이미지, `${L.이미지}:${t.item}`))}>
                     ↗
                   </Link>
                 ),
@@ -202,7 +211,7 @@ export function Tidy() {
           ]}
         />
       )}
-    </VStack>
+    </>
   )
 }
 

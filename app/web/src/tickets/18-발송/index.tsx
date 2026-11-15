@@ -3,14 +3,11 @@
 import { Spinner } from '@astryxdesign/core/Spinner'
 import { HStack } from '@astryxdesign/core/Layout'
 import { Link } from '@astryxdesign/core/Link'
-import { List, ListItem } from '@astryxdesign/core/List'
 import { Table, proportional } from '@astryxdesign/core/Table'
 import { Text } from '@astryxdesign/core/Text'
 import { TextArea } from '@astryxdesign/core/TextArea'
 import { atom, useAtom, useSetAtom } from 'jotai'
 import { useEffect } from 'react'
-import { Icon } from '@astryxdesign/core/Icon'
-import { UserCircleIcon } from '@heroicons/react/24/outline'
 import { State } from '../../ui/Mark'
 import { L } from '../../labels'
 import { targetAtom, useData } from '../../state'
@@ -20,11 +17,13 @@ import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
 import { useSignal } from '../11-정황/signal'
 import { tickAtom, useClarify } from './clarify'
+import { Steps } from '../16-경위'
 
 /** 영업지원이 고친 요청서(null이면 AI 초안 그대로). 다른 소명을 열면 비운다 */
 export const letterAtom = atom<string | null>(null)
 
-/** 요청서 영역: 영업지원이 발송할 수 있으면 AI 초안을 고치는 글 칸, 아니면 발송한 요청서. 초안이 아직 없으면 대기 Badge(몇 초마다 다시 읽는다) — 글 없이 목록만으로도 발송한다 */
+/** 요청서 영역: 영업지원이 발송할 수 있으면 AI 초안을 고치는 글 칸, 아니면 발송한 요청서(보낸 뒤에도 영역은 남는다 — 글 없이 보낸 옛 소명은 없음).
+ * 초안이 아직 없으면 도는 표지(몇 초마다 다시 읽는다). 초안이 오거나 직접 쓸 때까지 발송은 눌리지 않는다(pages/Clarify의 Send) */
 export function Letter() {
   const q = useClarify()
   const d = q.data
@@ -41,8 +40,8 @@ export function Letter() {
     return () => clearInterval(t)
   }, [waiting, bump])
   if (!d) return <Region title={L.요청서}><Pending of={q} /></Region>
-  // 요청서가 없고 쓸 수도 없으면(발송 전의 내부 감시) 영역이 없다
-  if (!d.can && !d.body) return null
+  // 발송 전이고 쓸 수도 없으면(발송 전의 내부 감시) 영역이 없다
+  if (!d.can && !d.body && !d.sent) return null
   return (
     <Region
       title={L.요청서}
@@ -56,7 +55,7 @@ export function Letter() {
       {d.can ? (
         <TextArea label={L.요청서} isLabelHidden rows={6} width="100%" value={typed ?? d.draft?.text ?? ''} onChange={setTyped} />
       ) : (
-        <Text>{d.body}</Text>
+        d.body ? <Text>{d.body}</Text> : <Text color="secondary">{L.없음}</Text>
       )}
     </Region>
   )
@@ -88,26 +87,12 @@ export function Docs() {
   )
 }
 
-/** 이력: 요청(내부 감시), 발송(영업지원), 접수, 결과를 일어난 순서대로. 역할의 Avatar · 낱말 · 역할 / 사유 / 날짜 */
+/** 이력: 요청(내부 감시), 발송(영업지원), 접수, 결과를 일어난 순서대로. 모든 기록 화면과 같은 꼴(16-경위의 Steps) — 낱말 · 역할 / 사유 / 날짜 */
 export function ClarifyHistory() {
   const q = useClarify()
   const d = q.data
   if (!d) return <Pending of={q} />
-  if (!d.history.length) return <Empty />
-  return (
-    <List density="spacious">
-      {d.history.map((h, i) => (
-        <ListItem
-          key={i}
-          align="start"
-          startContent={<Icon icon={UserCircleIcon} size="md" color="secondary" />}
-          label={`${h.kind} · ${h.role}`}
-          description={[h.reason?.class, h.reason?.memo].filter(Boolean).join(' · ') || undefined}
-          endContent={h.at ? <Text type="supporting" color="secondary" hasTabularNumbers>{h.at}</Text> : <Text type="supporting" color="secondary">{L.미상}</Text>}
-        />
-      ))}
-    </List>
-  )
+  return <Steps list={d.history.map((h) => ({ title: `${h.kind} · ${h.role}`, text: [h.reason?.class, h.reason?.memo].filter(Boolean).join(' · '), at: h.at }))} />
 }
 
 /** 정황 기록의 "소명": 그 정황에서 열린 소명. 누르면 그 소명이 열린다. 없으면 보이지 않는다 */

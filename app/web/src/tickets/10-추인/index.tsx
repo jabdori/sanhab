@@ -4,27 +4,24 @@
 import { Badge } from '@astryxdesign/core/Badge'
 import { HStack } from '@astryxdesign/core/Layout'
 import { Link } from '@astryxdesign/core/Link'
-import { List, ListItem } from '@astryxdesign/core/List'
 import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
 import { ProgressBar } from '@astryxdesign/core/ProgressBar'
 import { Table, pixel, proportional } from '@astryxdesign/core/Table'
 import { Text } from '@astryxdesign/core/Text'
 import { useSetAtom } from 'jotai'
 import { useEffect, useState } from 'react'
-import { Icon } from '@astryxdesign/core/Icon'
-import { UserCircleIcon, UserIcon } from '@heroicons/react/24/outline'
 import { L } from '../../labels'
 import { api, changedAtom, store, targetAtom } from '../../state'
 import { Compare } from '../../ui/Compare'
-import { Empty } from '../../ui/Empty'
 import { Mark } from '../../ui/Mark'
 import { Pending } from '../../ui/Pending'
 import { Act, byGrade, Tiles } from '../../ui/Record'
 import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
-import { fail, meter, num, pct } from '../../ui/status'
+import { meter, num, pct } from '../../ui/status'
 import { Line } from '../04-심사'
 import { sharedLoad } from '../load'
+import { Steps, why } from '../16-경위'
 import { type Decision, useReview } from '../04-심사/review'
 
 export type Bundle = {
@@ -149,11 +146,16 @@ export function Past() {
   )
 }
 
+/** 이견이 남았고 아직 종결되지 않았는가: 머리의 상태(이견 Badge)와 조치가 이것을 본다 */
+export const dissent = (b: Bundle) => b.history.some((h) => h.kind === L.이견) && !b.ratify.marks.includes(L.종결)
+
 /** 페이지 조치: 지금 역할이 할 수 있는 것만(추인 / 거부 · 종결 · 이견). 보조가 앞, 주 버튼이 맨 끝. 서버가 거절하면 `onBad`로 그 낱말 */
 export function RatifyActions({ onBad }: { onBad: (word: string | null) => void }) {
   const b = useBundle().data
+  // 이견을 남긴 뒤에는 종결만 남는다(같은 이견을 되풀이하지 않는다 — 서버는 막지 않는다)
+  const acts = b ? b.actions.filter((a) => !(a.kind === L.이견 && dissent(b))) : []
   // 지금 역할이 할 수 있는 조치가 없으면(종결 · 차례가 아님) 조치 자리를 두지 않는다
-  if (!b || !b.actions.length) return null
+  if (!b || !acts.length) return null
   const r = b.ratify
   const rows: [string, string][] = [[L.귀속월, r.ym], [L.합산, num(r.total)]]
   const fail = (e: Error) => {
@@ -162,7 +164,7 @@ export function RatifyActions({ onBad }: { onBad: (word: string | null) => void 
   }
   return (
     <HStack gap={2}>
-      {byGrade(b.actions).map((a) => (
+      {byGrade(acts).map((a) => (
         <Act key={a.kind} kind={a.kind} classes={a.classes} must={a.reason} target={r.name} rows={rows}
           send={(reason) => (onBad(null), api('/decide', { ids: [b.target], kind: a.kind, reason: reason ?? undefined }).catch(fail))}
         />
@@ -187,26 +189,12 @@ export function RatifySummary() {
   )
 }
 
-/** 이력: 역할의 Avatar · 결정(굵게) / 사유의 분류 · 메모 / 날짜 */
+/** 이력: 모든 기록 화면과 같은 꼴(16-경위의 Steps) — 결정 · 역할 / 사유의 분류 · 메모 / 날짜 */
 export function RatifyHistory() {
   const q = useBundle()
   const b = q.data
   if (!b) return <Pending of={q} />
-  if (!b.history.length) return <Empty />
-  return (
-    <List density="spacious">
-      {b.history.map((d, i) => (
-        <ListItem
-          key={i}
-          align="start"
-          startContent={<Icon icon={UserCircleIcon} size="md" color="secondary" />}
-          label={[d.kind, d.role].join(' · ')}
-          description={[d.reason?.class ?? `${L.사유} ${L.없음}`, d.reason?.memo, d.source === L.원본 ? L.원본 : null].filter(Boolean).join(' · ')}
-          endContent={d.at ? <Text type="supporting" color="secondary" hasTabularNumbers>{d.at}</Text> : <Text type="supporting" color="secondary">{L.미상}</Text>}
-        />
-      ))}
-    </List>
-  )
+  return <Steps list={b.history.map((d) => ({ title: `${d.kind} · ${d.role}`, text: why(d), at: d.at }))} />
 }
 
 /** 한 건 화면의 조치 자리: 이 심사가 든 묶음으로 가는 길. 추인·거부·종결·이견은 묶음에서 한다(D50) */
@@ -223,13 +211,13 @@ export function useWay() {
   return b
 }
 
-/** 추인 묶음으로 가는 링크(표시 + 이름 · 귀속월) */
+/** 추인 묶음으로 가는 링크(표시 + 묶음 이름 — 귀속월은 심사와 같아 되풀이하지 않는다) */
 export function Way({ b }: { b: { id: string; name: string; ym: string } }) {
   return (
     <HStack gap={2} vAlign="center">
       <Mark>{L.추인}</Mark>
       <Link onClick={() => store.set(targetAtom, { kind: L.추인, id: b.id })}>
-        {b.name} · {b.ym}
+        {b.name}
       </Link>
     </HStack>
   )

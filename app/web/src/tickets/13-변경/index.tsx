@@ -2,21 +2,17 @@
 // 인지일(시스템의 오늘)·경로(신고)·출처(시연)는 서버가 찍는다. 되돌리기 어려운 조치라 확인 창을 거치고, 보낸 뒤 새 값을 받을 때까지는 다시 눌리지 않는다.
 import { DateInput } from '@astryxdesign/core/DateInput'
 import { VStack } from '@astryxdesign/core/Layout'
-import { List, ListItem } from '@astryxdesign/core/List'
 import { RadioList, RadioListItem } from '@astryxdesign/core/RadioList'
-import { Text } from '@astryxdesign/core/Text'
 import { TextInput } from '@astryxdesign/core/TextInput'
 import { useAtomValue } from 'jotai'
 import { type ComponentProps, useState } from 'react'
-import { Icon } from '@astryxdesign/core/Icon'
-import { UserCircleIcon } from '@heroicons/react/24/outline'
 import { L } from '../../labels'
 import { api, targetAtom, useData, useLoad } from '../../state'
 import { Confirm } from '../../ui/Confirm'
-import { Empty } from '../../ui/Empty'
 import { grade } from '../../ui/grade'
 import { Pending } from '../../ui/Pending'
 import { useDetail } from '../02-대리점'
+import { Steps } from '../16-경위'
 
 const ITEMS = [L.대표자, L.주소, L.계좌] as const
 
@@ -79,26 +75,12 @@ export function Change({ onBad }: { onBad: (word: string | null) => void }) {
 
 type Changed = { kind: string; role: string; at: string; item: string; value: string; since: string }
 
-/** 이력: 그 대리점에 들어온 변경을 일어난 순서대로. 06의 이력과 같은 꼴 — 역할의 Avatar · `변경 · 역할` / `항목 값 · 변경일 날짜` / 날짜 */
+/** 이력: 그 대리점에 들어온 변경을 일어난 순서대로. 모든 기록 화면과 같은 꼴(16-경위의 Steps) — `변경 · 역할` / `항목 값 · 변경일 날짜` / 날짜 */
 export function History() {
   const target = useAtomValue(targetAtom)
   const q = useLoad<Changed[]>(target && `/dealers/${target.id}/changes`)
   const h = q.data
   if (!h) return <Pending of={q} />
-  if (!h.length) return <Empty />
-  return (
-    <List density="spacious">
-      {h.map((x, i) => (
-        <ListItem
-          key={i}
-          align="start"
-          startContent={<Icon icon={UserCircleIcon} size="md" color="secondary" />}
-          label={[x.kind, x.role].join(' · ')}
-          description={`${x.item} ${x.value} · ${L.변경일} ${x.since}`}
-          endContent={x.at ? <Text type="supporting" color="secondary" hasTabularNumbers>{x.at}</Text> : <Text type="supporting" color="secondary">{L.미상}</Text>}
-        />
-      ))}
-    </List>
-  )
+  return <Steps list={h.map((x) => ({ title: `${x.kind} · ${x.role}`, text: `${x.item} ${x.value} · ${L.변경일} ${x.since}`, at: x.at }))} />
 }
 

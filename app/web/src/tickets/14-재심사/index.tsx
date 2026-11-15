@@ -1,7 +1,6 @@
 // 14 재심사: 지급 기록의 "재심사" 영역. 지급이 재심사가 된 까닭(변경: 누가·언제·무엇을)과 앞선 승인, 다시 승인한 심사.
 // 재심사가 된 적 없는 지급에는 영역이 없다. 앞선 승인에는 04의 심사 기록이 표시 재심사를 보인다(Mark).
 import { Link } from '@astryxdesign/core/Link'
-import { VStack } from '@astryxdesign/core/Layout'
 import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
 import { Text } from '@astryxdesign/core/Text'
 import { useSetAtom } from 'jotai'
@@ -33,23 +32,27 @@ export function Why() {
   return (
     <Region title={L.재심사}>
       <MetadataList columns="single" label={{ position: 'start', width: 72 }}>
+        {/* 값 하나에 사실 하나(review.md 2-1): 재심사를 부른 변경(받은 날 · 대리점 · 항목의 새 값 · 변경일), 앞선 승인(그 심사 · 승인권자 · 날짜) */}
         {cause && (
-          <MetadataListItem label={L.변경}>
-            <VStack gap={0.5}>
-              <Text hasTabularNumbers>{[cause.role, cause.at].join(' · ')}</Text>
-              <Text type="supporting" color="secondary" hasTabularNumbers>
-                {`${cause.dealer} · ${cause.item} ${cause.value} · ${L.변경일} ${cause.since}`}
-              </Text>
-            </VStack>
+          <>
+            <MetadataListItem label={L.변경}>
+              <Text hasTabularNumbers>{cause.at}</Text>
+            </MetadataListItem>
+            <MetadataListItem label={L.역할}>{cause.role}</MetadataListItem>
+            <MetadataListItem label={L.대리점}>{cause.dealer}</MetadataListItem>
+            <MetadataListItem label={cause.item}>{cause.value}</MetadataListItem>
+            <MetadataListItem label={L.변경일}>
+              <Text hasTabularNumbers>{cause.since}</Text>
+            </MetadataListItem>
+          </>
+        )}
+        <MetadataListItem label={L.승인}>{open(was)}</MetadataListItem>
+        <MetadataListItem label={L.승인권자}>{was.approver ?? L.미상}</MetadataListItem>
+        {was.at && (
+          <MetadataListItem label={L.날짜}>
+            <Text hasTabularNumbers>{was.at}</Text>
           </MetadataListItem>
         )}
-        {/* 앞선 승인: 누가 · 언제, 그 심사(누르면 열린다) */}
-        <MetadataListItem label={L.승인}>
-          <VStack gap={0.5}>
-            <Text hasTabularNumbers>{[was.approver, was.at].filter(Boolean).join(' · ')}</Text>
-            {open(was)}
-          </VStack>
-        </MetadataListItem>
         {(back ?? now) && <MetadataListItem label={L.심사}>{open((back ?? now)!)}</MetadataListItem>}
       </MetadataList>
     </Region>

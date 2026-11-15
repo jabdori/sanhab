@@ -1,9 +1,7 @@
 // astryx template: detail-page
 // 심사 기록: astryx detail-page 템플릿에서 출발한 화면. 머리(← 작업 · n/전체 · 앞 뒤 / 제목 / 메타 한 줄 / 페이지 조치 / 탭) → 본문(바탕 위의 카드들) → 오른쪽 레일(요약 · AI 보고 카드).
 // 좁으면(본문이 레일과 나란히 설 수 없으면) 레일이 본문 아래로 간다. 조치는 누를 때 확인 창에서 사유(분류 · 메모)를 받는다.
-import { Badge } from '@astryxdesign/core/Badge'
-import { Icon } from '@astryxdesign/core/Icon'
-import { HStack, Section, StackItem, VStack } from '@astryxdesign/core/Layout'
+import { HStack, VStack } from '@astryxdesign/core/Layout'
 import { ProgressBar } from '@astryxdesign/core/ProgressBar'
 import { Text } from '@astryxdesign/core/Text'
 import { BuildingStorefrontIcon, UserIcon } from '@heroicons/react/24/outline'
@@ -16,7 +14,7 @@ import { Pending } from '../ui/Pending'
 import { Act, Meta, RecordPage, Tiles, byGrade } from '../ui/Record'
 import { Region } from '../ui/Region'
 import { Source } from '../ui/Source'
-import { caution, fail, meter, num, pct, plain } from '../ui/status'
+import { meter, num, pct, plain } from '../ui/status'
 import { Links, Members, Rules } from '../tickets/04-심사'
 import { type Review as Data, bundled, useReview, useReviewLoad } from '../tickets/04-심사/review'
 import { History, type Resubmit, useResubmit } from '../tickets/06-반려'
@@ -36,7 +34,7 @@ function Actions({ r, s, onBad }: { r: Data; s: Resubmit | null; onBad: (word: s
   }
   const go = (path: string, body: object) => (onBad(null), api(path, body).catch(fail))
   const v = r.review
-  const rows: [string, string][] = [[L.귀속월, v.ym], [L.합산, num(v.total)]]
+  const rows: [string, string][] = [[L.귀속월, v.ym], [L.상태, v.status], [L.합산, num(v.total)]]
   // 할 수 있는 조치가 없으면 버튼 자리에 누가 정하는지(components.md: 권한이 없으면 버튼 대신 승인권자)
   if (!r.actions.some((a) => !bundled.includes(a.kind)) && !s?.can && !v.fixed)
     return (
@@ -141,8 +139,8 @@ export function Review() {
         <State word={v.status} />,
         <Meta icon={UserIcon}>{v.holder ?? v.approver}</Meta>,
         <Meta icon={BuildingStorefrontIcon}>{`${data.members.length}${L.곳}`}</Meta>,
-        ...v.marks.map((m) => <Mark>{m}</Mark>),
-        // 이 심사가 든 추인 묶음(10): 있으면 그리로 가는 링크
+        // 추인 묶음(10)이 있으면 그 표시는 묶음으로 가는 링크(Way)가 맡는다 — 같은 `추인`을 두 번 두지 않는다
+        ...v.marks.filter((m) => !(way && m === L.추인)).map((m) => <Mark>{m}</Mark>),
         ...(way ? [<Way b={way} />] : []),
       ]}
       actions={<Actions r={data} s={s} onBad={(word) => setBad(word ? { id: v.id, word } : null)} />}
@@ -153,7 +151,8 @@ export function Review() {
         // 반려 뒤의 차례는 영업지원(재상신) — 담당은 지금 할 사람
         [L.담당, v.status === L.반려 ? L.영업지원 : v.holder ?? v.approver],
         // 반려 · 보류의 사유는 받는 사람이 내용에서 바로 본다(이력 탭까지 가지 않게)
-        ...data.history.filter((h) => h.kind === v.status && (h.kind === L.반려 || h.kind === L.보류)).slice(-1).map((h): [string, ReactNode] => [L.사유, [h.reason?.class, h.reason?.memo].filter(Boolean).join(' · ') || L.없음]),
+        // 값 하나에 사실 하나(review.md 2-1): 사유의 분류와 메모를 줄마다
+        ...data.history.filter((h) => h.kind === v.status && (h.kind === L.반려 || h.kind === L.보류)).slice(-1).flatMap((h): [string, ReactNode][] => [[L.사유, h.reason?.class ?? L.없음], ...(h.reason?.memo ? [[L.메모, h.reason.memo] as [string, ReactNode]] : [])]),
         [L.승인권자, v.holder && v.holder !== v.approver ? <HStack gap={2} vAlign="center"><Text>{v.holder}</Text><Mark>{v.marks.includes(L.이탈) ? L.이탈 : L.가설}</Mark></HStack> : v.approver],
         [L.귀속월, v.ym],
         [L.구성, data.members.map((m) => m.name).join(' · ')],

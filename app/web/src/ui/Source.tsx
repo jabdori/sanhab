@@ -92,8 +92,9 @@ export function Source({ kind, file, row, place, quiet, plain, side, of, decisio
       {spec && <Decision s={spec} />}
       {rows && (
         <MetadataList label={{ width: 72 }}>
-          {rows.map(([k, v]) => (
-            <MetadataListItem key={k} label={k}>
+          {/* 같은 이름표가 여러 줄일 수 있다(계좌 여럿 — 값 하나에 사실 하나) */}
+          {rows.map(([k, v], i) => (
+            <MetadataListItem key={i} label={k}>
               {v}
             </MetadataListItem>
           ))}

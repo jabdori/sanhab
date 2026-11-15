@@ -1,25 +1,22 @@
 // 08 대사: 지급 기록의 "대사" 영역(승인 / 회신 / 비교, 지급 시도마다 줄)과 이력(지급 표시와 회신을 일어난 순서대로). 은행 회신 입력은 시연 서랍(slot 'demo').
 // 회신은 사람이 넣은 것(출처 시연), 비교는 코드가 맞춰 본 것(출처 계산)이다.
 import { HStack } from '@astryxdesign/core/Layout'
-import { List, ListItem } from '@astryxdesign/core/List'
 import { RadioList, RadioListItem } from '@astryxdesign/core/RadioList'
 import { Table, pixel, proportional } from '@astryxdesign/core/Table'
 import { Text } from '@astryxdesign/core/Text'
 import { TextInput } from '@astryxdesign/core/TextInput'
 import { useState } from 'react'
-import { Icon } from '@astryxdesign/core/Icon'
-import { UserCircleIcon } from '@heroicons/react/24/outline'
 import { State } from '../../ui/Mark'
 import { L } from '../../labels'
 import { api, changedAtom, store, targetAtom } from '../../state'
 import { Confirm } from '../../ui/Confirm'
-import { Empty } from '../../ui/Empty'
 import { grade } from '../../ui/grade'
 import { Region } from '../../ui/Region'
 import { Pending } from '../../ui/Pending'
 import { Source } from '../../ui/Source'
 import { sharedLoad } from '../load'
 import { num, plain } from '../../ui/status'
+import { Steps } from '../16-경위'
 
 type Recon = {
   id: string
@@ -86,8 +83,10 @@ export function Recon() {
               tip={L.회신}
               rows={[
                 [L.종류, L.회신],
-                [L.대상, d.name],
-                [L.값, [num(last.amount), last.account, last.result].join(' · ')],
+                [L.지급, d.name],
+                [L.금액, num(last.amount)],
+                [L.계좌, last.account],
+                [L.결과, last.result],
                 [L.역할, last.role],
                 [L.날짜, last.at],
                 [L.이유, L.시연],
@@ -154,8 +153,9 @@ function Form({ d }: { d: Recon }) {
         <Confirm
           label={L.회신}
           variant={grade(L.회신)}
-          title={`${L.회신} ${d.name}`}
+          title={L.회신}
           rows={[
+            [L.지급, d.name],
             [L.금액, ok ? num(won) : ''],
             [L.계좌, account.trim()],
             [L.결과, result],
@@ -184,25 +184,11 @@ export function Reply() {
   ) : null
 }
 
-/** 이력: 지급 표시와 회신을 일어난 순서대로. 역할의 Avatar · 낱말(지급 / 회신) / 결과 · 역할 / 날짜 */
+/** 이력: 지급 표시와 회신을 일어난 순서대로. 모든 기록 화면과 같은 꼴(16-경위의 Steps) — 낱말 · 역할 / 결과 / 날짜 */
 export function History() {
   const q = useRecon()
   const d = q.data
   if (!d) return <Pending of={q} />
-  if (!d.lines.length) return <Empty />
-  return (
-    <List density="spacious">
-      {d.lines.map((r, i) => (
-        <ListItem
-          key={i}
-          align="start"
-          startContent={<Icon icon={UserCircleIcon} size="md" color="secondary" />}
-          label={[r.kind, r.role].join(' · ')}
-          description={r.result ?? undefined}
-          endContent={<Text type="supporting" color="secondary" hasTabularNumbers>{r.at}</Text>}
-        />
-      ))}
-    </List>
-  )
+  return <Steps list={d.lines.map((r) => ({ title: `${r.kind} · ${r.role}`, text: r.result ?? undefined, at: r.at }))} />
 }
 

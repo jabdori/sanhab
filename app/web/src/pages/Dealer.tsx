@@ -1,5 +1,4 @@
 // 대리점 기록: astryx detail-page 템플릿 꼴(ui/Record). 머리(← 대리점 / 이름 / 식별자 · 그룹 · 출처 / 변경) → 내용(타일 · 등록 · 관계 · 지급 · 서류 · 접수) · 이력 → 레일(요약).
-import { HStack } from '@astryxdesign/core/Layout'
 import { Text } from '@astryxdesign/core/Text'
 import { UserGroupIcon } from '@heroicons/react/24/outline'
 import { useState } from 'react'

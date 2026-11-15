@@ -7,7 +7,7 @@ import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { FlagIcon } from '@heroicons/react/24/outline'
 import { L } from './labels'
 import { menuAtom, navAtom, targetAtom, useData, type Target } from './state'
-import type { Task } from './pages/Work'
+import { type Task, sortTasks } from './pages/Work'
 import { num } from './ui/status'
 import { useRules } from './tickets/22-규정'
 
@@ -22,7 +22,8 @@ export function Pane() {
   const rules = useRules().data
   const items: Item[] =
     menu === L.작업
-      ? (tasks?.mine ?? []).map((t) => ({
+      ? // 작업 목록 · n/전체와 같은 순서(pages/Work의 sortTasks)
+        sortTasks(tasks?.mine ?? []).map((t) => ({
           go: { kind: t.view, id: t.target },
           label: t.name ?? t.target,
           description: [t.kind, t.ym, t.total != null ? num(t.total) : null].filter(Boolean).join(' · '),

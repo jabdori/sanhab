@@ -26,3 +26,12 @@ export const Region = ({ title, aside, actions, children }: { title: string; asi
       </VStack>
     </Section>
   )
+
+/**
+ * 연결(↗)이 가리킨 곳으로 간다: `data-ref`가 `ref`인 줄이 있으면 그 줄, 없으면(표에 없는 사실 · 그림의 위치) 제목이 `region`인 영역을 화면 가운데로.
+ * 강조는 부르는 쪽이 한다(근거 표의 화살표 · 원본의 위치 상자)
+ */
+export function reveal(region: string, ref?: string) {
+  const row = ref ? document.querySelector(`[data-ref="${CSS.escape(ref)}"]`) : null
+  ;(row ?? document.querySelector(`[data-region="${CSS.escape(region)}"]`))?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+}

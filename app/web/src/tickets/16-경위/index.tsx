@@ -74,6 +74,22 @@ export function Step({ icon, title, text, at, now, onClick }: { icon: typeof Use
   )
 }
 
+/** 이력 줄의 설명: 사유의 분류(없으면 `사유 없음`) · 메모 · 원본(원본에서 온 과거 결정) */
+export const why = (d: { reason?: { class?: string; memo?: string } | null; source?: string }) =>
+  [d.reason?.class ?? `${L.사유} ${L.없음}`, d.reason?.memo, d.source === L.원본 ? L.원본 : null].filter(Boolean).join(' · ')
+
+/** 이력(모든 기록 화면이 같은 꼴 — 심사 · 정황 · 소명 · 지급 · 추인 · 대리점): Step의 목록. 줄마다 결정 · 역할(제목) / 사유 · 메모(설명) / 날짜(없으면 미상). 비면 없음 */
+export const Steps = ({ list }: { list: { title: string; text?: string; at?: string | null }[] }) =>
+  list.length ? (
+    <VStack gap={4}>
+      {list.map((x, i) => (
+        <Step key={i} icon={UserCircleIcon} title={x.title} text={x.text || undefined} at={x.at ?? L.미상} />
+      ))}
+    </VStack>
+  ) : (
+    <Empty />
+  )
+
 /** 시간 순 목록(detail-page의 TimelineSection 꼴, 기록 화면의 경위 탭): 종류 · 대상 / 사람(역할) · 사유 / 날짜. 누르면 그 대상으로 */
 export function Timeline() {
   const q = useTrailLoad()
@@ -130,7 +146,7 @@ export function Picture() {
   const q = useTrailLoad()
   const setTarget = useSetAtom(targetAtom)
   // 경위가 없으면 그림 영역을 두지 않는다(없음은 시간 순 목록 한 곳에만)
-  if (!q.data) return q.loading || q.error ? <Pending of={q} /> : null
+  if (!q.data) return q.loading && !q.error ? <Pending of={q} /> : null
   const d = q.data
   const col = depths(d)
   const on = trunk(d)

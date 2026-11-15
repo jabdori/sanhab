@@ -2,13 +2,10 @@
 // 06 반려: 반려된 심사의 재상신(조치는 pages/Review의 페이지 조치, 사유는 그 확인 창)과 이력(결정과 재상신을 일어난 순서대로).
 import { atom, useAtomValue } from 'jotai'
 import { unwrap } from 'jotai/utils'
-import { VStack } from '@astryxdesign/core/Layout'
-import { UserCircleIcon } from '@heroicons/react/24/outline'
 import { L } from '../../labels'
 import { type ApiError, type Load, api, changedAtom, roleAtom, targetAtom } from '../../state'
-import { Empty } from '../../ui/Empty'
 import { Pending } from '../../ui/Pending'
-import { Step } from '../16-경위'
+import { Steps, why } from '../16-경위'
 import type { Decision } from '../04-심사/review'
 
 /** can: 지금 역할이 재상신할 수 있는지. classes: 재상신의 사유에 고를 수 있는 분류. lines: 결정과 재상신 */
@@ -39,19 +36,14 @@ export const useResubmit = () => useResubmitLoad().data ?? null
 export function History() {
   const q = useResubmitLoad()
   if (!q.data) return <Pending of={q} />
-  if (!q.data.lines.length) return <Empty />
   return (
-    <VStack gap={4}>
-      {q.data.lines.map((d, i) => (
-        <Step
-          key={i}
-          icon={UserCircleIcon}
-          // 그룹이 바뀌어 옮겨 온 옛 심사의 줄(13, D56)은 그 심사의 이름을 앞에 단다
-          title={[d.was, d.kind, d.role].filter(Boolean).join(' · ')}
-          text={[d.reason?.class ?? `${L.사유} ${L.없음}`, d.reason?.memo, d.source === L.원본 ? L.원본 : null].filter(Boolean).join(' · ')}
-          at={d.at ?? L.미상}
-        />
-      ))}
-    </VStack>
+    <Steps
+      list={q.data.lines.map((d) => ({
+        // 그룹이 바뀌어 옮겨 온 옛 심사의 줄(13, D56)은 그 심사의 이름을 앞에 단다
+        title: [d.was, d.kind, d.role].filter(Boolean).join(' · '),
+        text: why(d),
+        at: d.at,
+      }))}
+    />
   )
 }

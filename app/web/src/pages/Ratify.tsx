@@ -3,11 +3,11 @@
 import { BuildingStorefrontIcon, UserIcon } from '@heroicons/react/24/outline'
 import { useState } from 'react'
 import { L } from '../labels'
-import { Mark } from '../ui/Mark'
+import { Mark, State } from '../ui/Mark'
 import { Meta, RecordPage } from '../ui/Record'
 import { Pending } from '../ui/Pending'
 import { Region } from '../ui/Region'
-import { Again, Past, RatifyActions, RatifyHistory, RatifyTiles, useBundle } from '../tickets/10-추인'
+import { Again, Past, RatifyActions, RatifyHistory, RatifyTiles, dissent, useBundle } from '../tickets/10-추인'
 import { Picture, Timeline } from '../tickets/16-경위'
 
 export function Ratify() {
@@ -20,6 +20,8 @@ export function Ratify() {
     <RecordPage
       title={`${r.name} · ${r.ym}`}
       meta={[
+        // 묶음에는 상태가 없다: 이견이 남아 종결을 기다리면 그것이 상태(Badge)
+        ...(dissent(b) ? [<State word={L.이견} />] : []),
         ...r.marks.map((m) => <Mark>{m}</Mark>),
         <Meta icon={UserIcon}>{r.approver}</Meta>,
         <Meta icon={BuildingStorefrontIcon}>{`${b.members.length}${L.곳}`}</Meta>,

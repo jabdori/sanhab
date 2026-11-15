@@ -36,11 +36,11 @@ export type Docs = { can: boolean; kinds: string[]; max: number; docs: Doc[] }
 export const tickAtom = atom(0)
 /** 고른 서류(번호). null이면 가장 나중 것 */
 export const seeAtom = atom<number | null>(null)
-/** 강조하는 항목(값의 줄 ↔ 원본의 위치). 1.2초 뒤 사라진다 */
+/** 강조하는 항목(값의 줄 ↔ 원본의 위치). 2.4초 뒤 사라진다(화면이 그리로 가는 동안에도 보이게) */
 export const pickAtom = atom<string | null>(null)
 export function pick(item: string) {
   store.set(pickAtom, item)
-  setTimeout(() => store.get(pickAtom) === item && store.set(pickAtom, null), 1200)
+  setTimeout(() => store.get(pickAtom) === item && store.set(pickAtom, null), 2400)
 }
 
 export const useDocs = sharedLoad<Docs>((get) => {

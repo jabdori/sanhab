@@ -8,6 +8,7 @@ import { Collapsible } from '@astryxdesign/core/Collapsible'
 import { HStack, StackItem, VStack } from '@astryxdesign/core/Layout'
 import { Link } from '@astryxdesign/core/Link'
 import { List, ListItem } from '@astryxdesign/core/List'
+import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
 import { Text } from '@astryxdesign/core/Text'
 import { useSetAtom } from 'jotai'
 import { type ReactNode, useEffect, useState } from 'react'
@@ -16,16 +17,17 @@ import { L } from '../../labels'
 import { api, store } from '../../state'
 import { Empty } from '../../ui/Empty'
 import { Act } from '../../ui/Record'
+import { reveal } from '../../ui/Region'
 import { Source } from '../../ui/Source'
 import { fail } from '../../ui/status'
-import { Line } from '../04-심사'
 import { type Signal, markAtom } from '../11-정황/signal'
 import { type Report, tickAtom } from './report'
 
-/** 근거 연결: 누르면 본문 근거 표의 그 줄이 1.2초 동안 강조된다 */
+/** 근거 연결: 누르면 본문 근거 표의 그 줄로 가서 2.4초 동안 강조한다. 표에 없는 사실이면 근거 영역으로 */
 function show(ref: string) {
+  reveal(L.근거, ref)
   store.set(markAtom, ref)
-  setTimeout(() => store.get(markAtom) === ref && store.set(markAtom, null), 1200)
+  setTimeout(() => store.get(markAtom) === ref && store.set(markAtom, null), 2400)
 }
 
 const Part = ({ name, children }: { name: string; children: ReactNode }) => (
@@ -156,26 +158,33 @@ function Adopt({ d, signal }: { d: Report; signal: Signal }) {
   return (
     <HStack gap={2} vAlign="center" wrap="wrap">
       {d.actions.map((a) => (
-        <Act key={a.kind} kind={a.kind} classes={a.classes} must={a.reason} target={signal.signal.name} send={(reason) => (setBad(null), api('/adopt', { id, kind: a.kind, reason: reason ?? undefined }).catch((e: Error) => setBad(e.message)))} />
+        <Act key={a.kind} kind={a.kind} classes={a.classes} must={a.reason} target={signal.signal.dealers.length === 1 ? signal.signal.dealers[0].name : undefined} rows={[[L.종류, signal.signal.kind], ...signal.signal.dealers.filter(() => signal.signal.dealers.length > 1).map((x): [string, string] => [L.대리점, x.name])]} send={(reason) => (setBad(null), api('/adopt', { id, kind: a.kind, reason: reason ?? undefined }).catch((e: Error) => setBad(e.message)))} />
       ))}
       {bad && <Badge variant={fail} label={bad} />}
     </HStack>
   )
 }
 
-/** 남은 결정: 결정 한 줄과, AI의 의견과 정황의 조치(그때까지 내린 것)를 이름표와 값으로 보인다 */
+/** 남은 결정(채택 · 불채택): 이름표-값 줄 — 결정 · 역할 · 날짜 · 사유 · 메모, 의견(AI 의견이 고른 조치) · 조치(그때까지 정황에 내린 조치)(값 하나에 사실 하나, review.md 2-1) */
 export function Decide({ d }: { d: Report }) {
   const x = d.decision
   if (!d.report || !x) return null
+  const rows: [string, string | null | undefined][] = [
+    [L.결정, x.kind],
+    [L.역할, x.role],
+    [L.날짜, x.at ?? L.미상],
+    [L.사유, x.reason?.class ?? L.없음],
+    [L.메모, x.reason?.memo],
+    [L.의견, x.opinion ?? L.없음],
+    [L.조치, x.acted ?? L.없음],
+  ]
   return (
-    <VStack gap={1}>
-      <Line d={x} />
-      <HStack gap={2} vAlign="center" wrap="wrap">
-        <Text type="supporting" color="secondary">{L.의견}</Text>
-        <Text weight="medium">{x.opinion ?? L.없음}</Text>
-        <Text type="supporting" color="secondary">{L.조치}</Text>
-        <Text weight="medium">{x.acted ?? L.없음}</Text>
-      </HStack>
-    </VStack>
+    <MetadataList columns="single" label={{ position: 'start', width: 96 }}>
+      {rows.filter(([, v]) => v).map(([k, v]) => (
+        <MetadataListItem key={k} label={k}>
+          <Text hasTabularNumbers>{v}</Text>
+        </MetadataListItem>
+      ))}
+    </MetadataList>
   )
 }

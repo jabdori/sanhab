@@ -75,14 +75,17 @@ export function Tiles({ items }: { items: TileItem[] }) {
       <MetadataList>
         {items.map((t) => (
           <MetadataListItem key={t.name} label={t.name}>
-            <HStack gap={2} vAlign="center">
+            {/* MetadataList는 이름표와 값을 글자 기준선으로 맞춘다: 막대 · 출처 표지가 없는 줄에 빈 칸(StackItem)을 앞에 두면 기준선이 그 빈 칸의 바닥이 되어 값이 내려간다(줄 간격이 줄마다 달라짐) — 없으면 빈 칸 없이 오른쪽 맞춤 */}
+            <HStack gap={2} vAlign="center" hAlign="end">
               {t.dot && <StatusDot variant={t.dot} label={t.name} />}
-              <StackItem size="fill">
-                <VStack gap={1}>
-                  {t.below}
-                  {t.aside}
-                </VStack>
-              </StackItem>
+              {(t.below || t.aside) && (
+                <StackItem size="fill">
+                  <VStack gap={1}>
+                    {t.below}
+                    {t.aside}
+                  </VStack>
+                </StackItem>
+              )}
               {typeof t.value === 'string' || typeof t.value === 'number' ? (
                 <Text type="body" weight="bold" hasTabularNumbers textWrap="nowrap">
                   {t.value}
@@ -100,9 +103,9 @@ export function Tiles({ items }: { items: TileItem[] }) {
 
 /**
  * 페이지 조치 하나: 누르면 확인 창. 분류(classes)가 있으면 창에서 사유를 고르고(must면 고를 때까지 실행이 눌리지 않는다). `send`에 사유(없으면 null)가 간다.
- * 확인 창의 제목은 `조치 · 대상`, 몸통은 `rows`(무엇이 어떻게 바뀌는지)
+ * 확인 창의 제목은 `조치 · 대리점`(target — 대리점이나 그룹의 이름 하나. 여럿이면 비우고 rows에 줄마다), 몸통은 `rows`(무엇이 어떻게 바뀌는지 — 귀속월 · 상태 · 금액 …, 값 하나에 사실 하나 review.md 2-1)
  */
-export function Act({ kind, classes = [], must = false, target, rows, send, isDisabled, children }: { kind: string; classes?: string[]; must?: boolean; target: string; rows?: [string, string][]; send: (reason: object | null) => Promise<unknown>; isDisabled?: boolean; children?: ReactNode }) {
+export function Act({ kind, classes = [], must = false, target, rows, send, isDisabled, children }: { kind: string; classes?: string[]; must?: boolean; target?: string; rows?: [string, string][]; send: (reason: object | null) => Promise<unknown>; isDisabled?: boolean; children?: ReactNode }) {
   const [draft, setDraft] = useState<Draft>(blank)
   // 사유를 고르거나 값을 넣는 창만 Dialog form, 나머지는 AlertDialog(ui/Confirm)
   const input = (classes.length > 0 || children) && (
@@ -112,7 +115,7 @@ export function Act({ kind, classes = [], must = false, target, rows, send, isDi
     </>
   )
   return (
-    <Confirm label={kind} variant={grade(kind)} title={`${kind} · ${target}`} rows={rows} canConfirm={ready(kind, must, draft)} isDisabled={isDisabled}
+    <Confirm label={kind} variant={grade(kind)} title={target ? `${kind} · ${target}` : kind} rows={rows} canConfirm={ready(kind, must, draft)} isDisabled={isDisabled}
       onConfirm={() => send(sent(draft)).finally(() => setDraft(blank))}
     >
       {input || undefined}

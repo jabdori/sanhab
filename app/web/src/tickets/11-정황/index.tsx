@@ -9,7 +9,7 @@ import { Table, pixel, proportional } from '@astryxdesign/core/Table'
 import { Text } from '@astryxdesign/core/Text'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { Icon } from '@astryxdesign/core/Icon'
-import { ArrowRightIcon, UserCircleIcon } from '@heroicons/react/24/outline'
+import { ArrowRightIcon } from '@heroicons/react/24/outline'
 import { L } from '../../labels'
 import { targetAtom, useLoad } from '../../state'
 import { Empty } from '../../ui/Empty'
@@ -20,14 +20,14 @@ import { Relation } from '../../ui/Relation'
 import { DECISION, Source } from '../../ui/Source'
 import { caution, num, signalDot } from '../../ui/status'
 import { useReview } from '../04-심사/review'
-import { Step } from '../16-경위'
+import { Steps, why } from '../16-경위'
 import { useReport } from '../17-보고/report'
 import { type Evidence as Ev, markAtom, useSignalLoad } from './signal'
 
 type Row = Ev & Record<string, unknown>
 
 /** 근거 표: 정황이 가리키는 기록마다 한 줄 — 무엇, 언제 또는 어느 대리점, 값(식별자 · 금액 · 대사에서 맞지 않은 항목), 출처.
- * 근거 연결(17 보고의 사실 ↗)이 가리킨 줄은 첫 칸 앞에 강조색 화살표 아이콘을 1.2초 보인다 — astryx Table에 줄 강조가 없어 칸 안에서 보인다(theme.css의 `.mark`를 쓰지 않는다).
+ * 근거 연결(17 보고의 사실 ↗)이 가리킨 줄로 화면이 가고, 그 줄은 첫 칸 앞에 강조색 화살표 아이콘을 2.4초 보인다 — astryx Table에 줄 강조가 없어 칸 안에서 보인다(theme.css의 `.mark`를 쓰지 않는다).
  * 날짜(귀속월)와 대리점은 뜻이 다르니 열을 나누고, 한쪽이 아예 없으면 그 열을 두지 않는다 */
 export function Evidence() {
   const q = useSignalLoad()
@@ -51,10 +51,11 @@ export function Evidence() {
           columns={[
             {
               key: 'item',
-              header: L.근거,
+              // 영역 제목이 이미 `근거`라 열은 항목(무엇의 기록인지). data-ref: 보고의 근거 연결(↗)이 이 줄을 찾아 간다(ui/Region의 reveal)
+              header: L.항목,
               width: pixel(112),
               renderCell: (e) => (
-                <HStack gap={2} vAlign="center">
+                <HStack gap={2} vAlign="center" data-ref={e.id}>
                   {e.id === picked && <Icon icon={ArrowRightIcon} size="sm" color="accent" />}
                   <Text weight="semibold" textWrap="nowrap">{e.item}</Text>
                   {d.fresh.includes(e.id) && <Mark>{L.새}</Mark>}
@@ -73,7 +74,7 @@ export function Evidence() {
                         <HStack gap={2} vAlign="center" wrap="wrap">
                           <Text hasTabularNumbers>{`${L.변경일} ${e.at}`}</Text>
                           <Text color="secondary" hasTabularNumbers>{`${L.인지일} ${e.known}`}</Text>
-                          <Badge variant={caution} label={`${e.days}${L.일}`} />
+                          <Badge variant={caution} label={`${L.지연} ${e.days}${L.일}`} />
                           <Source kind={L.계산} tip={`${L.지연} ${e.days}${L.일}`} rows={[[L.지연, `${e.days}${L.일}`]]} />
                         </HStack>
                       ) : dated(e) ? (
@@ -115,7 +116,7 @@ export function Evidence() {
                   file={e.file ?? undefined}
                   row={e.row ?? undefined}
                   tip={e.value ?? undefined}
-                  rows={e.want && e.got ? [[L.승인, [num(e.want.amount), ...e.want.accounts].join(' · ')], [L.회신, [num(e.got.amount), e.got.account].join(' · ')], [L.비교, e.value ?? '']] : undefined}
+                  rows={e.want && e.got ? [[L.승인, num(e.want.amount)], ...e.want.accounts.map((a): [string, string] => [L.계좌, a]), [L.회신, num(e.got.amount)], [L.계좌, e.got.account], [L.비교, e.value ?? '']] : undefined}
                 />
               ),
             },
@@ -143,20 +144,7 @@ export function History() {
   if (!q.data) return <Pending of={q} />
   const d = q.data
   const all = [...d.history.map((h) => ({ ...h, stamp: (h as { stamp?: string }).stamp ?? '' })), ...(r?.trail ?? [])].sort((a, b) => a.stamp.localeCompare(b.stamp))
-  if (!all.length) return <Empty />
-  return (
-    <VStack gap={4}>
-      {all.map((h, i) => (
-        <Step
-          key={i}
-          icon={UserCircleIcon}
-          title={`${h.kind} · ${h.role}`}
-          text={[h.reason?.class ?? `${L.사유} ${L.없음}`, h.reason?.memo, h.source === L.원본 ? L.원본 : null].filter(Boolean).join(' · ')}
-          at={h.at ?? L.미상}
-        />
-      ))}
-    </VStack>
-  )
+  return <Steps list={all.map((h) => ({ title: `${h.kind} · ${h.role}`, text: why(h), at: h.at }))} />
 }
 
 /** 심사 상세의 "정황": 그 심사의 구성원에 걸린 정황. 누르면 그 정황이 열린다. 표시가 붙은 심사에만 보인다 */
