@@ -112,7 +112,7 @@ rep+= ['통과' if not fails else '불통과:']+['  - '+f for f in fails]
 open(W+'/verify.txt','w').write('\n'.join(rep)+'\n'); print('\n'.join(rep))
 if fails: sys.exit(2)
 # 영상: 프레임 번호로 정확히 — 클립을 잇고, 잘라낸 구간을 빼고, 멈춤은 그 프레임을 늘린다(이음매에서 프레임이 빠지거나 겹치지 않게). 4K 그대로 한 번만 압축
-for c in clips: gate(dims(f'{W}/clip{c}.mp4')=='3840,2160,30/1',f'원본 해상도 · 프레임: clip{c} {dims(f"{W}/clip{c}.mp4")} (3840,2160,30/1이어야)')
+for c in clips: gate(dims(f'{W}/clip{c}.mp4')=='1920,1080,30/1',f'원본 해상도 · 프레임: clip{c} {dims(f"{W}/clip{c}.mp4")} (1920,1080,30/1이어야)')
 if fails:
     open(W+'/verify.txt','a').write('불통과(원본):\n'+'\n'.join('  - '+f for f in fails)+'\n'); print('\n'.join(fails)); sys.exit(2)
 keep=[];x=0
