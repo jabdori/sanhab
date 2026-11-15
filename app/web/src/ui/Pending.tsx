@@ -19,11 +19,12 @@ const Lines = () => (
 
 export function Pending({ of, page = false }: { of: Load<unknown> | Load<unknown>[]; page?: boolean }) {
   const all = Array.isArray(of) ? of : [of]
+  // 서버 내부 오류(5xx)의 말은 DB · 코드의 문장이라 화면에 두지 않는다(review.md 2-1 개발용 표기) — 4xx의 말(권한 · 대상 …)은 낱말이라 보인다
   const error = all.find((l) => l.error)?.error
   if (!error && !all.some((l) => l.loading)) return null
   // 없는 기록(404)은 `없음`, 그 밖의 실패는 `오류` + 서버의 말
   const body = error ? (
-    error.status === 404 ? <EmptyState title={L.없음} isCompact={!page} /> : <EmptyState title={L.오류} description={error.message} isCompact={!page} />
+    error.status === 404 ? <EmptyState title={L.없음} isCompact={!page} /> : <EmptyState title={L.오류} description={(error.status ?? 500) < 500 ? error.message : undefined} isCompact={!page} />
   ) : (
     <Lines />
   )

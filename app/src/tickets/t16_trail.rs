@@ -51,7 +51,7 @@ async fn pay(db: &Db, id: &str) -> Result<Option<(Vec<J>, Vec<J>, String)>> {
         RETURN IF $p = NONE OR $was = NONE THEN NONE ELSE {{
             pay: {{ id: record::id($p.id), name: $p.name, ym: $p.ym, at: IF $r != NONE THEN time::format($r.at, '%Y-%m-%d') ELSE (SELECT VALUE time::format(at, '%Y-%m-%d') FROM remit WHERE payout = $p.id ORDER BY stamp DESC LIMIT 1)[0] END, redo: $r != NONE }},
             was: {{ id: record::id($was), name: $was.name, ym: $was.ym,
-                ok: (SELECT role, reason, time::format(at, '%Y-%m-%d') AS at FROM decision WHERE review = $was AND kind = '승인' AND was = NONE ORDER BY stamp DESC LIMIT 1)[0] }},
+                ok: (SELECT role, reason, IF at THEN time::format(at, '%Y-%m-%d') END AS at FROM decision WHERE review = $was AND kind = '승인' AND was = NONE ORDER BY stamp DESC LIMIT 1)[0] }},
             cause: {CAUSE},
             new: IF $new THEN {{ id: record::id($new), name: $new.name, ym: $new.ym }} END,
         }} END;"), json!({ "id": id })).await?;
@@ -86,7 +86,7 @@ async fn ratify(db: &Db, id: &str) -> Result<Option<(Vec<J>, Vec<J>, String)>> {
             b: {{ id: record::id($b.id), name: $b.name, ym: $b.ym }},
             cause: {CAUSE},
             reviews: $b.reviews.map(|$r| {{ id: record::id($r), name: $r.name, ym: $r.ym }}),
-            decisions: (SELECT kind, role, reason, time::format(at, '%Y-%m-%d') AS at FROM decision WHERE review = $b.reviews[0] AND kind INSIDE ['추인', '거부', '종결', '이견'] ORDER BY stamp),
+            decisions: (SELECT kind, role, reason, IF at THEN time::format(at, '%Y-%m-%d') END AS at FROM decision WHERE review = $b.reviews[0] AND kind INSIDE ['추인', '거부', '종결', '이견'] ORDER BY stamp),
         }} END;"), json!({ "id": id })).await?;
     if r.is_null() {
         return Ok(None);
@@ -187,6 +187,9 @@ pub async fn check(c: &mut Check) -> Result<()> {
     ensure!(t["for"] == json!(["ratify", old]) && t["now"].is_string() && rows(&t["nodes"]).iter().all(|n| ["key", "kind", "name", "at", "who", "go"].iter().all(|k| n.get(*k).is_some()) && n["go"]["kind"].is_string() && n["go"]["id"].is_string()) && rows(&t["edges"]).iter().all(|e| e[0].is_string() && e[1].is_string()), "응답의 꼴 {t}");
     ensure!(kinds(&t) == ["재검토", "재검토", "재검토", "작업"] && t["now"] == format!("b:{old}").as_str() && rows(&t["nodes"]).iter().all(|n| n["at"].is_null()), "원본의 추인 경위 {t}");
     ensure!(edges(&t).len() == 3 && edges(&t).iter().all(|(_, to)| *to == format!("b:{old}")), "원본의 선");
+    // 원본의 승인(날짜 없음)이 든 심사의 경위도 열린다 — 날짜가 없는 결정을 날짜로 바꾸다 500이 나던 것
+    let o = c.call(Some(c.token(exec)), "GET", "/api/trail/review/2026-01-D-004", None).await?;
+    ensure!(o.0 == 200 || o.0 == 404, "날짜 없는 원본 승인의 심사 경위 {o:?}");
     // 없는 대상, 거슬러 오를 것이 없는 대상, 모르는 종류는 없음
     ensure!(missing(c, "/api/trail/pay/없음").await? && missing(c, "/api/trail/ratify/없음").await? && missing(c, "/api/trail/review/없음").await? && missing(c, "/api/trail/x/1").await?, "없는 대상");
     let w = c.call(Some(c.token(exec)), "GET", &format!("/api/trail/review/{r34}"), None).await?;
