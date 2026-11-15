@@ -45,7 +45,7 @@ export function Dealers() {
         <LayoutHeader hasDivider padding={4}>
           <VStack gap={4}>
             <HStack gap={3} vAlign="center">
-              <Kind of={L.대리점} />
+              <Kind of={L.대리점} size="lg" />
               <StackItem size="fill">
                 <Heading level={1}>{L.대리점}</Heading>
               </StackItem>

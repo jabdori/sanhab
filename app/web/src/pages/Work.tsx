@@ -94,8 +94,8 @@ export function Work() {
               <CheckboxInput label={L.전체} isLabelHidden size="sm" value={pickable.every((t) => picked.has(t.target))} onChange={(on) => toggle(pickable.map((t) => t.target), on)} />
             </HStack>
           )}
-          {/* 묶음의 기록 종류(색 아이콘, ui/status.ts의 kind) */}
-          {rows.find((t) => groupOf(t) === k) && <Kind of={rows.find((t) => groupOf(t) === k)!.view} />}
+          {/* 묶음의 기록 종류(색 면 타일, ui/status.ts의 kind) */}
+          {rows.find((t) => groupOf(t) === k) && <Kind of={rows.find((t) => groupOf(t) === k)!.view} size="sm" />}
           <Text type="body" weight="bold">
             {k}
           </Text>

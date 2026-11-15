@@ -9,7 +9,7 @@
 
 ## 면
 - **흰 면 하나.** 본문 바탕은 흰색이다. 영역은 `Section`과 `Divider`, 표의 줄(row)로 나눈다. 바탕색을 바꿔 영역을 나누지 않는다.
-- **Card는 숫자 타일(KPI)과 홀로 뜬 것(접속 카드, 대화 속 조치 카드)에만.** 영역마다 Card를 씌우지 않는다(astryx `layout/structure`의 Card soup 금지).
+- **Card는 숫자 타일(KPI)과 홀로 뜬 것(접속 카드, 대화 속 조치 카드), 기록 종류 타일(Card 색 변형을 아이콘의 면으로 — 아래 색 표)에만.** 영역마다 Card를 씌우지 않는다(astryx `layout/structure`의 Card soup 금지).
 - 회색 면은 표의 **묶음 머리**(table-grouped의 group header)와 astryx 부품이 스스로 쓰는 곳(SegmentedControl, 메뉴의 고른 줄 등)뿐이다.
 
 ## 색 — 템플릿의 수준으로
@@ -20,7 +20,7 @@
 | 상태 | `Badge`(머리 · 요약 · 표의 상태 칸), `StatusDot`(목록 줄) | 완료 쪽(승인 · 완료 · 인정 · 채택 · 해소 · 정산 · 추인 · 성공) → success, **진행 중**(요청 · 검토 · 진행 · 이체 — 사람 · AI · 은행이 움직이는 중) → 남색(StatusDot `accent`, Badge `blue`), 멈춤(보류 · 보완 · 재심사 · 미응답) → warning, 아님(반려 · 불채택 · 불인정 · 불일치 · 실패 · 오류 · 누락 · 거부) → error, 기본 상태(대기 · 일치 · 접수)는 표지 없음 |
 | 줄의 주의 단계 | `StatusDot`(table-grouped 첫 칸) | 정황이 걸림 → warning, 반려 · 재심사 → error, 진행 중 → accent, 그 밖 neutral |
 | 표시(범주) | 정황은 `Badge` warning + 깃발, 나머지는 `Token` 색(work-item-detail의 라벨 Token) | 재심사 · 재검토 → purple, 추인 → green, 가설 → orange, 종결 · 정산 · 거부 · 새 · 이탈 · 예시 → 기본 |
-| 기록 종류 | `Icon color`(ai-chat-landing의 색 아이콘) — `ui/Mark`의 `Kind` | 심사 blue(문서 돋보기) · 정황 orange(깃발) · 소명 cyan(말풍선) · 지급 teal(지폐) · 추인 green(배지 체크) · 대리점 purple(상점) · 규정 gray(책). 작업 목록 묶음 머리 · 대리점/규정 목록 제목 · 기록 머리 메타 줄 맨 앞(아이콘 + 종류) |
+| 기록 종류 | **옅은 색 면의 아이콘 타일**(work-item-detail 첨부 타일 꼴: 면 · 모서리 · 가운데 아이콘) — `ui/Mark`의 `Kind`. 면은 `Card variant=<색>`(`--color-background-<색>`, astryx가 범주용이라 한 색 변형), 아이콘은 같은 색 `Icon`. 템플릿의 `AspectRatio xstyle`은 StyleX 컴파일이 없어 못 쓰고 className은 doctor가 막아 Card 변형으로 | 심사 blue(문서 돋보기) · 정황 orange(깃발) · 소명 cyan(말풍선) · 지급 teal(지폐) · 추인 green(배지 체크) · 대리점 purple(상점) · 규정 gray(책). 대화 제안 주제: 작업 blue(받은 편지함) · 관계 pink(공유) · 한도 teal(저울). 크기는 위계대로: 대리점/규정 목록 제목 옆 lg 36 > 기록 머리 메타 줄 맨 앞(타일 + 종류) · 대화 문맥 카드 · 빈 대화 제안 카드 md 32 > 작업 목록 묶음 머리 sm 28 > 대화의 기록 칩(Token 아이콘) xsm 20 |
 | 결과 자리의 완료 | `Icon CheckCircle color=success`(dashboard-progress) — `ui/Mark`의 `Done` | 대사 결과 `일치`(영역 제목 옆 아이콘 + 글자, 표의 비교 칸 아이콘), 서류 비교 `일치`(아이콘) |
 | 진척 | `ProgressBar` | 합산 대비 한도 → accent(남색), 넘으면 error(`meter`) |
 | 출처 표지 · 규칙 버전 · 일치 종류(대표자 · 주소 · 계좌) | 아이콘 + 보조 글자, `Token` 기본 | 색 없음 |

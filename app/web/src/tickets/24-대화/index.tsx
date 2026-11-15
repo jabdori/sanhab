@@ -36,7 +36,7 @@ import type { ChatComposerInputHandle } from '@astryxdesign/core/Chat'
 import type { SearchableItem } from '@astryxdesign/core/Typeahead'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ASK, ASK_ANY, L } from '../../labels'
-import { State } from '../../ui/Mark'
+import { Kind, State } from '../../ui/Mark'
 import { api, changedAtom, exampleAtom, menuAtom, roleAtom, rolesAtom, store, targetAtom, useData, type Target } from '../../state'
 import { fail, nb, kind } from '../../ui/status'
 import { Card as ActionCard, Surface, type A2ui, type CardData } from '../25-카드'
@@ -55,12 +55,8 @@ const took = (ms?: number | null) => (ms == null ? undefined : ms < 1000 ? `${ms
 /** 칩에 보이는 이름. 아직 받지 못했거나 모르면 id */
 const key = (t: Target) => `${t.kind}/${t.id}`
 const same = (a: Target, b: Target) => a.kind === b.kind && a.id === b.id
-/** 기록 종류의 아이콘(문맥 카드) */
-// 기록 종류의 아이콘과 색은 ui/status.ts 한 곳(작업 목록 · 기록 머리와 같은 색)
-const kindIcon = (k: string, size: 'sm' | 'md' = 'sm') => {
-  const c = kind(k)
-  return <Icon icon={c?.icon ?? DocumentTextIcon} size={size} color={c?.color} />
-}
+/** 기록 종류의 색 면 타일(ui/Mark의 Kind — 작업 목록 · 기록 머리와 같은 색). 문맥 카드는 md, 칩은 xsm. 모르는 종류는 문서 아이콘 */
+const kindIcon = (k: string, size: 'xsm' | 'md' = 'xsm') => (kind(k) ? <Kind of={k} size={size} /> : <Icon icon={DocumentTextIcon} size={size === 'md' ? 'md' : 'sm'} />)
 /** `@`로 붙일 기록 찾기(서버 /chat/find — 문맥 밖의 기록도 이름으로 찾는다) */
 const records = {
   // 찾기 목록은 여섯 줄까지(입력창 위 칸에 다 들어가 마지막 줄이 잘리지 않게. 더 좁히려면 이름을 더 친다)
@@ -373,10 +369,16 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
                 <Grid columns={{ minWidth: 200 }} gap={3}>
                   {Object.entries(now ? ASK : ASK_ANY).map(([name, prompt]) => (
                     <ClickableCard key={name} label={name} padding={3} variant="muted" isDisabled={busy} onClick={() => applySuggestion(prompt)}>
-                      <VStack gap={0.5}>
-                        <Heading level={4}>{name}</Heading>
-                        <Text type="supporting" color="secondary">{prompt}</Text>
-                      </VStack>
+                      {/* 주제의 색 면 타일(work-item-detail 첨부 카드의 타일 꼴, 색은 ui/status.ts의 kind) */}
+                      <HStack gap={4} vAlign="center">
+                        <Kind of={name} />
+                        <StackItem size="fill">
+                          <VStack gap={0.5}>
+                            <Heading level={4}>{name}</Heading>
+                            <Text type="supporting" color="secondary">{prompt}</Text>
+                          </VStack>
+                        </StackItem>
+                      </HStack>
                     </ClickableCard>
                   ))}
                 </Grid>

@@ -58,7 +58,7 @@ export function Rules() {
         <LayoutHeader hasDivider padding={4}>
           <VStack gap={4}>
             <HStack gap={3} vAlign="center">
-              <Kind of={L.규정} />
+              <Kind of={L.규정} size="lg" />
               <StackItem size="fill">
                 <Heading level={1}>{L.규정}</Heading>
               </StackItem>

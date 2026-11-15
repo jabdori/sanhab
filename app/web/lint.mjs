@@ -7,8 +7,8 @@ import { readdirSync, readFileSync } from 'node:fs'
 // 색(tokens.md "색"): 상태 · 범주 · 기록 종류 · 완료의 색 이름은 ui/status.ts에서만. 다른 파일은 그 파일이 낸 값(badge · tone · dot · mark · kind · done · fail · caution · meter)을 넘긴다.
 // accent(테마의 강조색 — AI 표지, 고른 줄의 화살표)는 낱말의 대응이 아니라 막지 않는다
 const COLOR = /\b(variant|color|status)=(\{[^}]*)?["'](red|orange|yellow|green|teal|cyan|blue|purple|pink|success|warning|error|info)["']/
-// Card(tokens.md "면"): 접속 카드, 빈 대화의 제안 카드(ai-chat-landing), 대화 속 조치 카드, 경위 그림의 칸, AI 보고 카드에만. 영역마다 Card를 씌우지 않는다(Card soup)
-const CARD_OK = ['Enter.tsx', 'tickets/24-대화/index.tsx', 'tickets/25-카드/index.tsx', 'tickets/16-경위/index.tsx', 'ui/AiCard.tsx']
+// Card(tokens.md "면"): 접속 카드, 빈 대화의 제안 카드(ai-chat-landing), 대화 속 조치 카드, 경위 그림의 칸, AI 보고 카드, 기록 종류 타일(ui/Mark의 Kind — Card 색 변형을 면으로)에만. 영역마다 Card를 씌우지 않는다(Card soup)
+const CARD_OK = ['Enter.tsx', 'ui/Mark.tsx', 'tickets/24-대화/index.tsx', 'tickets/25-카드/index.tsx', 'tickets/16-경위/index.tsx', 'ui/AiCard.tsx']
 const bad = []
 for (const f of readdirSync('src', { recursive: true })) {
   if (!/\.tsx?$/.test(f) || f === 'labels.ts') continue
