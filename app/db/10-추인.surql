@@ -17,6 +17,7 @@ DEFINE FIELD fixed ON ratify TYPE option<datetime>;               -- 영업임�
 DEFINE FIELD busy ON ratify TYPE option<bool>;                    -- 결정을 묶음의 나머지에 남기는 동안
 DEFINE FIELD source ON ratify TYPE string;
 
+-- 이견은 표시를 남기지 않으므로 한 심사에 한 번만 남길 수 있게 결정을 센다(이견 뒤 이견은 상태로 거절).
 -- 조치에 "심사에 이 표시 가운데 하나가 있으면 할 수 없다"를 더한다(추인하거나 거부한 심사를 다시 추인·거부하지 못하고, 종결된 심사에는 더 할 것이 없다)
 DEFINE FIELD without ON act TYPE array<string> DEFAULT [];
 DEFINE FUNCTION OVERWRITE fn::can($kind: string, $review: record<review>) -> bool {
@@ -24,7 +25,8 @@ DEFINE FUNCTION OVERWRITE fn::can($kind: string, $review: record<review>) -> boo
     RETURN $a.states CONTAINS $review.status
         AND ($a.who = $auth.role OR ($a.who = '승인권자' AND $review.approver = $auth.role))
         AND ($a.mark = NONE OR $review.marks CONTAINS $a.mark)
-        AND !(($a.without ?? []) ANYINSIDE $review.marks);
+        AND !(($a.without ?? []) ANYINSIDE $review.marks)
+        AND !($kind = '이견' AND count(SELECT id FROM decision WHERE review = $review AND kind = '이견') > 0);
 } PERMISSIONS FULL;
 
 -- 추인·거부·종결·이견 가운데 하나가 한 심사에 내려지면: 같은 묶음의 나머지 심사에도 같은 결정을 남긴다(추인 한 번이 그 달의 승인 모두에 남는다, D50).

@@ -195,12 +195,14 @@ pub async fn check(c: &Check) -> Result<()> {
         ensure!(decide(audit, "2026-01-D-011", kind, json!({ "class": "기타", "memo": "뒤집기" })).await? != "", "내부 감시의 {kind}");
     }
     ensure!(decide(exec, "2026-01-D-011", "종결", J::Null).await? == "권한" && decide(support, "2026-01-D-011", "이견", json!({ "class": "소명" })).await? == "권한", "다른 역할의 종결");
-    // 이견: 사유가 없으면 거절. 남기면 세 건 모두에 남고 종결 표시는 붙지 않으며 종결 작업은 진행에 놓인다. 뒤에 종결할 수 있다
+    // 이견: 사유가 없으면 거절. 남기면 세 건 모두에 남고 종결 표시는 붙지 않으며 종결 작업은 진행에 놓인다. 뒤에는 종결만 남는다
     ensure!(decide(audit, "2026-01-D-011", "이견", J::Null).await? == "사유" && decide(audit, "2026-01-D-011", "이견", json!({ "class": "근거", "memo": "사유 보완" })).await? == "", "이견");
     let b = bundle(audit, "2026-01-D-011").await?;
-    ensure!(b["ratify"]["marks"] == json!(["재검토", "추인"]) && kinds(&b) == ["종결", "이견"] && rows(&b["history"]).len() == 2 && b["history"][1]["reason"] == json!({ "class": "근거", "memo": "사유 보완" }), "이견 뒤 {b}");
+    ensure!(b["ratify"]["marks"] == json!(["재검토", "추인"]) && kinds(&b) == ["종결"] && rows(&b["history"]).len() == 2 && b["history"][1]["reason"] == json!({ "class": "근거", "memo": "사유 보완" }), "이견 뒤 {b}");
     ensure!(q1(&c.db, "RETURN count(SELECT id FROM decision WHERE kind = '이견');", json!({})).await? == 3 && review("2026-01-D-037").await?["review"]["status"] == "승인", "이견의 결정");
     ensure!(tasks(audit, "mine", "종결").await?.is_empty() && tasks(audit, "going", "종결").await?.len() == 1 && tasks(exec, "going", "종결").await?.len() == 1, "이견 뒤의 종결 작업");
+    // 이견 뒤 이견은 상태로 거절(서버도 막는다. 화면은 단추를 숨긴다)
+    ensure!(decide(audit, "2026-01-D-011", "이견", json!({ "class": "소명" })).await? == "상태" && q1(&c.db, "RETURN count(SELECT id FROM decision WHERE kind = '이견');", json!({})).await? == 3, "이견 뒤 이견");
     // 종결: 사유 없이도 된다. 세 건 모두에 종결 표시가 붙고 종결 작업이 끝난다. 그 뒤에는 조치가 없다
     ensure!(decide(audit, "2026-01-D-037", "종결", J::Null).await? == "", "종결");
     for d in group {

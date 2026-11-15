@@ -16,7 +16,8 @@ DEFINE FUNCTION OVERWRITE fn::can($kind: string, $review: record<review>) -> boo
     RETURN $a.states CONTAINS $review.status
         AND ($a.who = $auth.role OR ($a.who = '승인권자' AND fn::holder($review) = $auth.role))
         AND ($a.mark = NONE OR $review.marks CONTAINS $a.mark)
-        AND !(($a.without ?? []) ANYINSIDE $review.marks);
+        AND !(($a.without ?? []) ANYINSIDE $review.marks)
+        AND !($kind = '이견' AND count(SELECT id FROM decision WHERE review = $review AND kind = '이견') > 0);
 } PERMISSIONS FULL;
 
 DEFINE FUNCTION OVERWRITE fn::refusal($kind: string, $review: record<review>, $reason: option<object>) -> option<string> {
