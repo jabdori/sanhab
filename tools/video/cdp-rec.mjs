@@ -20,7 +20,7 @@ let on = true
 let n = 0
 process.on('SIGTERM', () => { on = false })
 console.log('rec started')
-await Promise.all([0, 1, 2, 3].map(async () => {
+await Promise.all([0, 1].map(async () => {
   while (on) {
     const t0 = Date.now() / 1000
     const r = await call('Page.captureScreenshot', { format: 'jpeg', quality: 92, optimizeForSpeed: true, clip: { x: 0, y: 0, width: 1280, height: 720, scale: 3 } })
