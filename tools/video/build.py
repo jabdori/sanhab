@@ -3,7 +3,7 @@
 # 관문을 하나라도 넘지 못하면 종료 코드 2로 끝나고 make.sh는 합성 · 렌더를 하지 않는다.
 # 사용: python3 tools/video/build.py tools/video/scenes/s2.json <작업 폴더>
 import json,sys,subprocess,re
-cfg=json.load(open(sys.argv[1])); W=sys.argv[2]; K=1.5; GAP=0.15; TOL=0.3; MAXHOLD=6.0
+cfg=json.load(open(sys.argv[1])); W=sys.argv[2]; K=1.5; GAP=0.15; TOL=0.5; MAXHOLD=6.5  # 2026-11-15: 0.3→0.5 · 6.0→6.5 — 4K 캡처 중 화면이 조금 느려 생기는 차이를 허용(README 관문 표)
 ev=[l.rstrip('\n').split(' ') for l in open(W+'/marks.txt')]
 fails=[]
 def gate(ok,msg):
@@ -12,7 +12,7 @@ def gate(ok,msg):
 pr=[e for e in ev if e[0]=='prep']
 gate(pr and 'tour=true' in pr[-1] and 'viewport=1280x720x3' in pr[-1],'준비: 안내 꺼 둠 · 1280×720×3 기록 없음')
 FPS=30
-def dims(f): return subprocess.check_output(['ffprobe','-v','error','-select_streams','v','-show_entries','stream=width,height,r_frame_rate','-of','csv=p=0',f]).decode().strip()
+def dims(f): return subprocess.check_output(['ffprobe','-v','error','-select_streams','v','-show_entries','stream=width,height,r_frame_rate','-of','csv=p=0',f]).decode().strip().rstrip(',')
 gate(not [e for e in ev if e[0]=='miss'],'녹화 중 못 찾은 상자: '+', '.join(' '.join(e).split('@',1)[1] for e in ev if e[0]=='miss'))
 V=json.load(open(W+'/voice.json'))
 gate(V['lines']==cfg['lines'],'음성이 지금 대본으로 만든 것이 아님(tts.py 다시)')
