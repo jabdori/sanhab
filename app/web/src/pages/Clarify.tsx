@@ -38,7 +38,8 @@ function Send({ d, onBad }: { d: Data; onBad: (word: string | null) => void }) {
       target={d.clarify.dealer.name}
       rows={rows}
       isDisabled={!body}
-      send={() => (onBad(null), api('/send', { id: d.clarify.id, body: body || undefined }).catch((e: Error) => (onBad(e.message), store.set(changedAtom, (n) => n + 1))))}
+      // 확인 창이 열린 채 글이 비워져도(창 뒤의 칸) 초안으로 대신 나가지 않는다
+      send={() => !body ? Promise.resolve(onBad(L.대상)) : (onBad(null), api('/send', { id: d.clarify.id, body }).catch((e: Error) => (onBad(e.message), store.set(changedAtom, (n) => n + 1))))}
     />
   )
 }

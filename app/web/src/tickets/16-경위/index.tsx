@@ -195,8 +195,8 @@ export function Picture() {
           })}
           {d.nodes.map((n) => (
             <foreignObject key={n.key} x={pos[n.key].x} y={pos[n.key].y} width={W} height={H}>
-              {/* 칸: 지금 대상은 muted 카드, 줄기 밖의 칸은 투명 카드(흐리게) */}
-              <ClickableCard label={n.name} onClick={() => setTarget(n.go)} variant={n.key === d.now ? 'muted' : on.has(n.key) ? 'default' : 'transparent'} padding={2} height="100%" aria-current={n.key === d.now || undefined}>
+              {/* 칸: 모든 칸이 카드(같은 꼴): 지금 대상은 muted, 나머지는 default. 줄기 밖은 글자색만 흐리게 */}
+              <ClickableCard label={n.name} onClick={() => setTarget(n.go)} variant={n.key === d.now ? 'muted' : 'default'} padding={2} height="100%" aria-current={n.key === d.now || undefined}>
                 <VStack gap={0.5}>
                   {/* 종류 · 날짜는 한 줄씩(좁은 칸에서 `재심사`가 꺾이지 않게) */}
                   <Text weight="semibold" color={on.has(n.key) ? 'primary' : 'secondary'} textWrap="nowrap">

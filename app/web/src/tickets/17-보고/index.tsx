@@ -71,7 +71,7 @@ export function Head({ d, signal }: { d: Report; signal: Signal }) {
   const r = d.report
   return (
     <HStack gap={2} vAlign="center" wrap="wrap">
-      <Source kind={L.AI} tip={r?.model ?? undefined} rows={[[L.모델, r?.model ?? L.없음], [L.날짜, r?.at ?? L.없음], [L.조회, String(r?.reads ?? L.없음)]]} />
+      <Source kind={L.AI} tip={L.보고} rows={[[L.모델, r?.model ?? L.없음], [L.날짜, r?.at ?? L.없음], [L.조회, String(r?.reads ?? L.없음)]]} />
       <StackItem size="fill">
         <State word={r?.state ?? L.대기} />
       </StackItem>

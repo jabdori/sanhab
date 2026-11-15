@@ -157,9 +157,9 @@ export function Work() {
     {
       key: 'marks',
       header: L.표시,
-      width: proportional(1, { minWidth: 96 }),
+      width: proportional(1, { minWidth: 136 }),
       renderCell: (t) => (
-        <HStack gap={1} vAlign="center">
+        <HStack gap={1} vAlign="center" wrap="nowrap">
           {t.marks.map((m) => (
             <Mark key={m}>{m}</Mark>
           ))}

@@ -97,7 +97,7 @@ function SignalReport({ id, name, many }: { id: string; name: string; many: bool
       title={many ? name : undefined}
       aside={
         <HStack gap={2} vAlign="center">
-          <Source kind={L.AI} tip={r?.model ?? undefined} rows={[[L.모델, r?.model ?? L.없음], [L.날짜, r?.at ?? L.없음], [L.조회, String(r?.reads ?? L.없음)]]} />
+          <Source kind={L.AI} tip={L.보고} rows={[[L.모델, r?.model ?? L.없음], [L.날짜, r?.at ?? L.없음], [L.조회, String(r?.reads ?? L.없음)]]} />
           <State word={r?.state ?? L.대기} />
         </HStack>
       }

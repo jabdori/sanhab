@@ -216,7 +216,8 @@ async fn send(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<Me>
     let id = b["id"].as_str().filter(|i| !i.is_empty()).ok_or_else(bad)?;
     let text = match &b["body"] {
         J::Null => None,
-        J::String(t) => Some(t.trim().to_string()).filter(|t| !t.is_empty()),
+        // 글을 적어 보냈는데 빈 글이면 초안으로 대신하지 않는다(보내는 글은 화면에 보인 글)
+        J::String(t) => Some(Some(t.trim().to_string()).filter(|t| !t.is_empty()).ok_or_else(bad)?),
         _ => return Err(bad()),
     };
     if text.as_ref().is_some_and(|t| t.chars().count() > CUT) {

@@ -44,7 +44,7 @@ const ICON: Record<string, typeof SparklesIcon> = { [L.예시]: AcademicCapIcon,
 
 /**
  * 출처 표지. **원본이 아닌 값에만** 작은 표지(Token)가 붙는다: 계산 · 가정 · 합성 · AI · 모의.
- * 머물거나 초점을 주면 한 줄(`가정 D30 · 지연`), 누르면 설명 칸이 열린다.
+ * 머물거나 초점을 주면 한 줄(`가정 · 지연`, 번호 · 모델 없이), 누르면 설명 칸이 열린다.
  * - 원본: 표지가 없다. `file`·`row`가 있으면 조용한 행 번호(`7행`)만 남아 누르면 원본 파일의 그 행이 열린다. children만 있으면 조용한 `원본`이 그 내용을 연다
  * - 가정·합성: `of`(값의 낱말)로 결정 번호를 찾아 그 결정의 제목·본문·스펙의 줄·쓰임을 보인다. children은 그 아래에 붙는다
  * - 그 밖: `rows`(이름표와 값의 줄 — 계산이면 `[[L.합산, L['귀속월 지급의 합, 반려 제외']]]`)가 설명이다. 줄로 쓸 수 없는 글(조항의 원문)만 children에
@@ -68,6 +68,8 @@ export function Source({ kind, file, row, place, quiet, plain, side, of, decisio
   const isOrigin = name === L.원본
   if (isOrigin && !(file && row) && !children && !rows) return null
   const line = isOrigin && file && row ? `${L.원본} · ${DOCS[file] ?? L.원본} ${row}${L.행}` : [[name, id].filter(Boolean).join(' '), tip ?? of].filter(Boolean).join(' · ')
+  // 머무는 말풍선은 종류 + 무엇(`가정 · 근접`). 결정 번호 · 모델은 눌러 연 설명 칸 안에서만(review.md 2-1)
+  const hint = isOrigin ? line : [name, tip ?? of].filter(Boolean).join(' · ')
   // 열기 전에 내용을 받아 둔다(빈 칸이 먼저 열렸다 채워지지 않게)
   const toggle = (next: boolean) => {
     if (!next) return setOpen(false)
@@ -118,7 +120,7 @@ export function Source({ kind, file, row, place, quiet, plain, side, of, decisio
   )
   return (
     <Popover content={content} label={line} isOpen={open} onOpenChange={toggle} width={400} placement={side === 'right' ? 'end' : side === 'top' ? 'above' : 'below'}>
-      <Tooltip content={line} placement="below" hasHoverIndication={false}>
+      <Tooltip content={hint} placement="below" hasHoverIndication={false}>
         {trigger}
       </Tooltip>
     </Popover>
