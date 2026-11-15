@@ -1,6 +1,5 @@
-// astryx template: table-page — 대리점 목록. 문서 머리(제목 · 사실 묶음) → 검색(오른쪽 300) → 표. 벗어난 곳은 docs/design/components.md
-import { HStack, Layout, LayoutContent, StackItem, VStack } from '@astryxdesign/core/Layout'
-import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
+// astryx template: table-grouped(작업 목록과 같은 목록 꼴) — 대리점 목록. 문서 머리(제목 · 사실 묶음) → 검색(오른쪽 300) → 표. 벗어난 곳은 docs/design/components.md
+import { HStack, Layout, LayoutContent, LayoutHeader, StackItem, VStack } from '@astryxdesign/core/Layout'
 import { Table, type TableColumn, type TablePlugin, proportional } from '@astryxdesign/core/Table'
 import { Heading, Text } from '@astryxdesign/core/Text'
 import { useSetAtom } from 'jotai'
@@ -9,7 +8,6 @@ import { L } from '../labels'
 import { NoResult } from '../ui/Empty'
 import { Search, hit } from '../ui/Search'
 import { navAtom, targetAtom, useData } from '../state'
-import { flushEdges } from '../ui/Flush'
 import { Dealer, type Row } from '../tickets/02-대리점'
 
 /** 표의 줄: 등록값(여러 개일 수 있다)은 한 줄로 이어 검색과 표시에 같이 쓴다 */
@@ -42,39 +40,31 @@ export function Dealers() {
   return (
     <Layout
       height="fill"
-      contentWidth={960}
+      header={
+        <LayoutHeader hasDivider padding={4}>
+          <VStack gap={4}>
+            <HStack gap={3} vAlign="center">
+              <StackItem size="fill">
+                <Heading level={1}>{L.대리점}</Heading>
+              </StackItem>
+            </HStack>
+            {/* 작업 목록과 같은 꼴: 검색칸 옆에 걸러진 건수 */}
+            <HStack gap={2} vAlign="center">
+              <StackItem size="fill">
+                <Search value={q} onChange={setQ} />
+              </StackItem>
+              <Text type="supporting" color="secondary" hasTabularNumbers>{`${visible.length}${L.건}`}</Text>
+            </HStack>
+          </VStack>
+        </LayoutHeader>
+      }
       content={
         <LayoutContent role="main" padding={0}>
-          <VStack padding={4} gap={8}>
-            {/* table-page: 문서의 제목과 사실 묶음은 본문의 머리(스크롤과 함께 지나간다) */}
-            <VStack gap={6} paddingBlockEnd={4}>
-              <HStack gap={3} vAlign="center" wrap="wrap">
-                <StackItem size="fill">
-                  <Heading level={1}>{L.대리점}</Heading>
-                </StackItem>
-              </HStack>
-              <MetadataList columns="multi" orientation="vertical" label={{ position: 'top' }}>
-                <MetadataListItem label={L.대리점}>
-                  <Text hasTabularNumbers>{`${rows.length}${L.곳}`}</Text>
-                </MetadataListItem>
-                {q.trim() && (
-                  <MetadataListItem label={L.결과}>
-                    <Text hasTabularNumbers>{`${visible.length}${L.건}`}</Text>
-                  </MetadataListItem>
-                )}
-              </MetadataList>
-            </VStack>
-            <HStack gap={3} vAlign="center" hAlign="end" wrap="wrap">
-              <VStack width={300}>
-                <Search value={q} onChange={setQ} />
-              </VStack>
-            </HStack>
-            {list && !visible.length ? (
-              <NoResult query={q} onClear={() => setQ('')} />
-            ) : (
-              <Table<Line> data={visible} columns={columns} idKey="id" density="balanced" dividers="none" hasHover textOverflow="truncate" plugins={{ open: openRow, flush: flushEdges<Line>() }} />
-            )}
-          </VStack>
+          {list && !visible.length ? (
+            <NoResult query={q} onClear={() => setQ('')} />
+          ) : (
+            <Table<Line> data={visible} columns={columns} idKey="id" density="balanced" dividers="rows" hasHover textOverflow="truncate" plugins={{ open: openRow }} />
+          )}
         </LayoutContent>
       }
     />

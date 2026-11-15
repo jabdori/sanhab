@@ -89,7 +89,7 @@ export function Versions() {
   )
 }
 
-/** 가정: 표 전체가 가정이라 줄마다 표지를 달지 않는다. 번호(조용한 출처)를 누르면 설명 칸, 쓰임을 누르면 그 기록 */
+/** 가정: 표 전체가 가정이라 줄마다 표지를 달지 않는다. 출처 표지를 누르면 설명 칸(번호는 거기에만), 쓰임을 누르면 그 기록 */
 export function Assumes() {
   const q = useClause()
   const c = q.data
@@ -104,7 +104,6 @@ export function Assumes() {
         idKey="id"
         density="balanced"
         columns={[
-          { key: 'id', header: L.번호, width: pixel(72), renderCell: (a) => <Source kind={a.source} decision={a.id} line={a.row} tip={a.title} quiet place={a.id} /> },
           { key: 'title', header: L.가정, width: proportional(3, { minWidth: 160 }), renderCell: (a) => <Text weight="semibold">{a.title}</Text> },
           {
             key: 'used',
@@ -133,6 +132,8 @@ export function Assumes() {
                 none
               ),
           },
+          // 결정 번호는 표에 두지 않는다(review.md 2-1): 출처 표지를 누르면 설명 칸에 번호
+          { key: 'source', header: L.출처, align: 'end', width: pixel(96), renderCell: (a) => <Source kind={a.source} decision={a.id} line={a.row} tip={a.title} /> },
         ]}
       />
     </Region>

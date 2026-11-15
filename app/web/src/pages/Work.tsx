@@ -35,6 +35,16 @@ export const firstTask = (mine: Task[]) => {
 /** 결정을 보낸다. 거절되어도 목록을 다시 읽어 지금 할 수 있는 것을 보인다 */
 const decide = (ids: string[]) => api('/decide', { ids, kind: L.승인 }).catch(() => store.set(changedAtom, (n) => n + 1))
 
+/** 일괄 승인 창의 줄: 건수 하나, 이어서 대리점마다 금액 하나(귀속월이 모두 같으면 한 줄로 따로, 다르면 이름표에) */
+const pickRows = (ts: Task[]): [string, string][] => {
+  const yms = new Set(ts.map((t) => t.ym))
+  return [
+    [L.대상, `${ts.length}${L.건}`],
+    ...(yms.size === 1 ? ([[L.귀속월, [...yms][0] ?? '']] as [string, string][]) : []),
+    ...ts.map((t): [string, string] => [yms.size === 1 ? (t.name ?? t.target) : `${t.name ?? t.target} ${t.ym ?? ''}`.trim(), t.total != null ? num(t.total) : '']),
+  ]
+}
+
 export function Work() {
   const d = useData<{ mine: Task[]; going: Task[] }>('/tasks')
   const [scope, setScope] = useAtom(scopeAtom)
@@ -192,7 +202,7 @@ export function Work() {
               renderSelectionLabel={(n) => `${L.선택} ${n}`}
               clearLabel={L.해제}
               startContent={
-                <Confirm label={L.승인} variant={grade(L.승인)} title={`${L.승인} ${chosen.length}`} rows={[[L.대상, chosen.map((t) => t.name).join(' · ')]]}
+                <Confirm label={L.승인} variant={grade(L.승인)} title={`${L.승인} ${chosen.length}`} rows={pickRows(chosen)}
                   onConfirm={() => decide(chosen.map((t) => t.target)).then(() => setPicked(new Set()))}
                 />
               }
