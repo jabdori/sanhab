@@ -6,7 +6,7 @@ VOICE=cfg.get('voice','EXAVITQu4vr4xnSDxMaL'); MODEL=cfg.get('model','eleven_v4'
 L=cfg['lines']; G=cfg['groups']; texts=[' '.join(L[j] for j in g) for g in G]
 os.makedirs(W+'/para',exist_ok=True); out=[]; prev=[]
 for gi,g in enumerate(G):
-    body={'text':texts[gi],'model_id':MODEL,'language_code':'ko','previous_text':texts[gi-1] if gi else '','next_text':texts[gi+1] if gi+1<len(texts) else ''}
+    body={'text':texts[gi],'model_id':MODEL,'language_code':'ko','previous_text':texts[gi-1] if gi else '','next_text':texts[gi+1] if gi+1<len(texts) else '','voice_settings':{'speed':float(__import__('os').environ.get('TTS_SPEED','1.15'))}}
     if prev: body['previous_request_ids']=prev[-3:]
     r=urllib.request.Request(f'https://api.elevenlabs.io/v1/text-to-speech/{VOICE}/with-timestamps?output_format=mp3_44100_128',data=json.dumps(body).encode(),headers={'xi-api-key':k,'Content-Type':'application/json'})
     x=urllib.request.urlopen(r,timeout=180); rid=x.headers.get('request-id'); d=json.load(x)
