@@ -77,7 +77,8 @@ for j in range(len(L)):
     place.append((j,round(st,3))); L[j]['start']=round(st+ch['lead'],2); L[j]['dur']=round(ch['speak'],2); prev=st+ch['cut1']-ch['cut0']
 total=max(out(END),prev+0.6); tail=total-out(END)
 # 관문 2: 말과 상자
-for lab,j,d in report: gate(abs(d)<=TOL,f'싱크 어긋남: "{lab}"(대본 {j}행) {d:+.2f}초')
+LOOSE=cfg.get('loose',{})  # 장면 설정에서 단서별 허용치(처리 시간이 정해진 화면 동작 — README 관문 표)
+for lab,j,d in report: gate(abs(d)<=LOOSE.get(lab,TOL),f'싱크 어긋남: "{lab}"(대본 {j}행) {d:+.2f}초')
 # 관문 3: 멈춤 길이, 속도
 for t,h in holds.items(): gate(h<=MAXHOLD,f'화면 멈춤 {h:.1f}초(>{MAXHOLD}) at {out(t):.1f}초 — 녹화 동작을 대본 쪽으로 당길 것')
 # 관문 4: 자막 글(면책 · 개발용 표기)
