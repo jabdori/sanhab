@@ -79,9 +79,10 @@ function SignalAi({ s }: { s: Data }) {
         <Pending of={q} />
       ) : (
         <>
+          {/* 남은 결정(채택 · 불채택)은 머리의 상태 Badge 바로 아래 이름표-값 줄 */}
+          <ReportDecide d={d} />
           {/* AI가 응답하지 않았으면 빈 카드 대신 그렇다고 적는다(조사를 다시 누를 수 있다) */}
           {d.report?.state === L.오류 && !d.report.facts?.length ? <Text color="secondary">{L['AI 응답 없음']}</Text> : <ReportBody d={d} signal={s} />}
-          <ReportDecide d={d} />
         </>
       )}
     </AiCard>

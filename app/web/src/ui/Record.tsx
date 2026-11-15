@@ -14,7 +14,7 @@ import { Heading, Text } from '@astryxdesign/core/Text'
 import { ArrowLeftIcon, QueueListIcon, ViewColumnsIcon } from '@heroicons/react/24/outline'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { isValidElement, type ReactNode, useState } from 'react'
-import { Mark, State } from './Mark'
+import { Kind, Mark, State } from './Mark'
 import { fail, plain } from './status'
 import { L } from '../labels'
 import { backAtom, menuAtom, navAtom, paneAtom, sideAtom, stepAtom, targetAtom, useData } from '../state'
@@ -147,11 +147,12 @@ export type RecordTab = { value: string; label: string; body: ReactNode }
 export function RecordPage({ title, meta, actions, bad, tabs, props = [] }: { title: string; meta: ReactNode[]; actions?: ReactNode; bad?: string | null; tabs: RecordTab[]; props?: [string, ReactNode][] }) {
   const [tab, setTab] = useState(tabs[0]?.value)
   const [side, setSide] = useAtom(sideAtom)
+  const target = useAtomValue(targetAtom)
   // detail-page의 isNarrow. 대화 칸(360)까지 있어 기준은 1024가 아니라 1440(D63)
   const narrow = useMediaQuery('(max-width: 1439px)')
-  // 칩 순서는 한 규칙: 상태 Badge → 표시(Mark) → 사람 · 구성 · 링크. 기본 상태의 State는 걸러진다
-  const rank = (f: ReactNode) => (isValidElement(f) ? (f.type === State ? 0 : f.type === Mark ? 1 : 2) : 2)
-  const metaLine = meta.filter((f) => f && !(isValidElement<{ word?: string | null }>(f) && f.type === State && plain(f.props.word))).sort((a, b) => rank(a) - rank(b))
+  // 칩 순서는 한 규칙: 기록 종류(색 아이콘 + 글자) → 상태 Badge → 표시(Mark) → 사람 · 구성 · 링크. 기본 상태의 State는 걸러진다
+  const rank = (f: ReactNode) => (isValidElement(f) ? (f.type === Kind ? -1 : f.type === State ? 0 : f.type === Mark ? 1 : 2) : 2)
+  const metaLine = [target && <Kind key="kind" of={target.kind} label />, ...meta].filter((f) => f && !(isValidElement<{ word?: string | null }>(f) && f.type === State && plain(f.props.word))).sort((a, b) => rank(a) - rank(b))
   const body = (tabs.find((t) => t.value === tab) ?? tabs[0])?.body
   const summary = props.length > 0 && (
     <MetadataList columns={narrow ? 'multi' : undefined}>

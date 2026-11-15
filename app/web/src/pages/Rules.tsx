@@ -7,6 +7,7 @@ import { Heading, Text } from '@astryxdesign/core/Text'
 import { useSetAtom } from 'jotai'
 import { useState } from 'react'
 import { L } from '../labels'
+import { Kind } from '../ui/Mark'
 import { NoResult } from '../ui/Empty'
 import { Search, hit } from '../ui/Search'
 import { Rule } from './Rule'
@@ -57,6 +58,7 @@ export function Rules() {
         <LayoutHeader hasDivider padding={4}>
           <VStack gap={4}>
             <HStack gap={3} vAlign="center">
+              <Kind of={L.규정} />
               <StackItem size="fill">
                 <Heading level={1}>{L.규정}</Heading>
               </StackItem>

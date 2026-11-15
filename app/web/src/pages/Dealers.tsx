@@ -5,6 +5,7 @@ import { Heading, Text } from '@astryxdesign/core/Text'
 import { useSetAtom } from 'jotai'
 import { useState } from 'react'
 import { L } from '../labels'
+import { Kind } from '../ui/Mark'
 import { NoResult } from '../ui/Empty'
 import { Search, hit } from '../ui/Search'
 import { navAtom, targetAtom, useData } from '../state'
@@ -44,6 +45,7 @@ export function Dealers() {
         <LayoutHeader hasDivider padding={4}>
           <VStack gap={4}>
             <HStack gap={3} vAlign="center">
+              <Kind of={L.대리점} />
               <StackItem size="fill">
                 <Heading level={1}>{L.대리점}</Heading>
               </StackItem>

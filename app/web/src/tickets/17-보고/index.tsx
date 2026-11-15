@@ -1,7 +1,8 @@
 // astryx template: detail-page — AI 보고는 사실 영역 아래 떠 있는 카드(AiCard, D63)
 // 17 보고: 정황 기록(pages/Signal)의 레일 "AI 보고" 칸. AI가 쓴 글은 여기에만 있다(본문에는 없다).
 // 머리에 AI(누르면 실행 기록)와 상태 Badge. 사실의 문장은 코드가 가리킨 기록에서 값을 채운 것이고 끝의 연결(↗)을 누르면 본문 근거 표의 그 줄이 강조된다.
-// 미확인은 펼쳐져 있고 의견·반론은 접혀 있다. 확신을 숫자로 적지 않는다. 채택·불채택은 조치와 따로 남고 둘 다 secondary(같은 무게).
+// 의견·반론도 처음부터 펼쳐 둔다(정황에 조치를 내리기 전에는 의견이 잠겨 있다). 확신을 숫자로 적지 않는다.
+// 채택·불채택은 조치와 따로 남고 둘 다 secondary(같은 무게). 확인 창 없이 누르면 바로 결정 — 불채택은 사유 칸이 열리고 그 안에서 결정한다.
 import { Badge } from '@astryxdesign/core/Badge'
 import { Button } from '@astryxdesign/core/Button'
 import { Collapsible } from '@astryxdesign/core/Collapsible'
@@ -16,7 +17,8 @@ import { State } from '../../ui/Mark'
 import { L } from '../../labels'
 import { api, store } from '../../state'
 import { Empty } from '../../ui/Empty'
-import { Act } from '../../ui/Record'
+import { grade } from '../../ui/grade'
+import { Reason, blank, ready, sent } from '../../ui/Reason'
 import { reveal } from '../../ui/Region'
 import { Source } from '../../ui/Source'
 import { fail } from '../../ui/status'
@@ -124,7 +126,8 @@ export function Body({ d, signal }: { d: Report; signal?: Signal }) {
       <Part name={L.미확인}>
         <Lines list={r.unknown} />
       </Part>
-      <Collapsible trigger={<Text type="supporting" color="secondary" weight="medium">{L.의견}</Text>} defaultIsOpen={false} isDisabled={!d.opened}>
+      {/* 의견이 열리면(조치 뒤) 펼친 채로 다시 그린다 */}
+      <Collapsible key={String(d.opened)} trigger={<Text type="supporting" color="secondary" weight="medium">{L.의견}</Text>} defaultIsOpen={d.opened} isDisabled={!d.opened}>
         <VStack gap={3}>
           {r.opinion && (
             <VStack gap={1}>
@@ -140,43 +143,68 @@ export function Body({ d, signal }: { d: Report; signal?: Signal }) {
               <Text>{r.counter}</Text>
             </Part>
           )}
-          {signal && <Adopt d={d} signal={signal} />}
+          {signal && <Adopt d={d} />}
         </VStack>
       </Collapsible>
     </VStack>
   )
 }
 
-/** 채택 · 불채택: 같은 무게의 버튼(둘 다 secondary). 누르면 확인 창에서 사유(분류 · 메모)를 받는다 — 불채택은 분류 필수. 서버가 거절하면 그 낱말 */
-function Adopt({ d, signal }: { d: Report; signal: Signal }) {
+/** 채택 · 불채택: 같은 무게의 버튼(둘 다 secondary), 확인 창 없이 바로 결정. 사유가 필수인 조치(불채택)는 누르면 사유 칸이 열리고 그 안의 단추로 결정한다. 서버가 거절하면 그 낱말 */
+function Adopt({ d }: { d: Report }) {
   const [bad, setBad] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  // 사유 칸이 열린 조치와 쓰고 있는 사유
+  const [open, setOpen] = useState<Report['actions'][number] | null>(null)
+  const [draft, setDraft] = useState(blank)
   const id = d.report?.id
   useEffect(() => {
     setBad(null)
+    setOpen(null)
+    setDraft(blank)
   }, [id])
   if (!d.report || !d.actions.length) return null
+  const go = (kind: string, reason: object | null) => {
+    setBusy(true)
+    setBad(null)
+    api('/adopt', { id, kind, reason: reason ?? undefined })
+      .then(() => (setOpen(null), setDraft(blank)), (e: Error) => setBad(e.message))
+      .finally(() => setBusy(false))
+  }
   return (
-    <HStack gap={2} vAlign="center" wrap="wrap">
-      {d.actions.map((a) => (
-        <Act key={a.kind} kind={a.kind} classes={a.classes} must={a.reason} target={signal.signal.dealers.length === 1 ? signal.signal.dealers[0].name : undefined} rows={[[L.종류, signal.signal.kind], ...signal.signal.dealers.filter(() => signal.signal.dealers.length > 1).map((x): [string, string] => [L.대리점, x.name])]} send={(reason) => (setBad(null), api('/adopt', { id, kind: a.kind, reason: reason ?? undefined }).catch((e: Error) => setBad(e.message)))} />
-      ))}
+    <VStack gap={2}>
+      {open ? (
+        <VStack gap={2}>
+          <Reason groups={[{ of: open.kind, classes: open.classes }]} value={draft} onChange={setDraft} />
+          <HStack gap={2} hAlign="end">
+            <Button label={L.취소} variant="secondary" isDisabled={busy} onClick={() => (setOpen(null), setDraft(blank))} />
+            <Button label={open.kind} variant={grade(open.kind)} isLoading={busy} isDisabled={!ready(open.kind, true, draft)} onClick={() => go(open.kind, sent(draft))} />
+          </HStack>
+        </VStack>
+      ) : (
+        <HStack gap={2} vAlign="center" wrap="wrap">
+          {d.actions.map((a) => (
+            <Button key={a.kind} label={a.kind} variant={grade(a.kind)} isDisabled={busy} onClick={() => (a.reason ? (setDraft({ ...blank, of: a.kind }), setOpen(a)) : go(a.kind, null))} />
+          ))}
+        </HStack>
+      )}
       {bad && <Badge variant={fail} label={bad} />}
-    </HStack>
+    </VStack>
   )
 }
 
-/** 남은 결정(채택 · 불채택): 이름표-값 줄 — 결정 · 역할 · 날짜 · 사유 · 메모, 의견(AI 의견이 고른 조치) · 조치(그때까지 정황에 내린 조치)(값 하나에 사실 하나, review.md 2-1) */
+/** 남은 결정(채택 · 불채택 — 결정 자체는 카드 머리의 상태 Badge): 이름표-값 줄 — AI 의견(보고의 의견이 고른 조치) · 조치(내부 감시가 정황에 내린 조치) · 일치(둘이 같은가) · 결정(한 역할) · 날짜, 사유가 있으면 사유 · 메모(값 하나에 사실 하나, review.md 2-1) */
 export function Decide({ d }: { d: Report }) {
   const x = d.decision
   if (!d.report || !x) return null
   const rows: [string, string | null | undefined][] = [
-    [L.결정, x.kind],
-    [L.역할, x.role],
-    [L.날짜, x.at ?? L.미상],
-    [L.사유, x.reason?.class ?? L.없음],
-    [L.메모, x.reason?.memo],
-    [L.의견, x.opinion ?? L.없음],
+    [`${L.AI} ${L.의견}`, x.opinion ?? L.없음],
     [L.조치, x.acted ?? L.없음],
+    [L.일치, x.same == null ? L.없음 : x.same ? L.같음 : L.다름],
+    [L.결정, x.role],
+    [L.날짜, x.at ?? L.미상],
+    [L.사유, x.reason?.class],
+    [L.메모, x.reason?.memo],
   ]
   return (
     <MetadataList columns="single" label={{ position: 'start', width: 96 }}>

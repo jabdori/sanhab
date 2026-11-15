@@ -6,7 +6,7 @@ import { Table, pixel, proportional } from '@astryxdesign/core/Table'
 import { Text } from '@astryxdesign/core/Text'
 import { TextInput } from '@astryxdesign/core/TextInput'
 import { useState } from 'react'
-import { State } from '../../ui/Mark'
+import { Done, State } from '../../ui/Mark'
 import { L } from '../../labels'
 import { api, changedAtom, store, targetAtom } from '../../state'
 import { Confirm } from '../../ui/Confirm'
@@ -46,7 +46,8 @@ export const useRecon = sharedLoad<Recon>((get) => {
   return t?.kind === L.지급 ? `/pays/${t.id}/recon` : null
 })
 
-const verdict = (v: string) => <State word={v} />
+// 일치(기본 상태)는 결과 자리라 Badge 대신 완료 표지(CheckCircle), 나머지는 상태 Badge
+const verdict = (v: string, label = true) => (v === L.일치 ? <Done word={v} label={label} /> : <State word={v} />)
 const none = <Text color="secondary">{L.없음}</Text>
 
 type Row = { key: string; item: string; n: number | null; want: string | null; got: string | null; cmp: string | null } & Record<string, unknown>
@@ -74,8 +75,8 @@ export function Recon() {
       title={L.대사}
       aside={
         <>
-          {/* 대사는 일치 자체가 결과다: 기본 상태라도 표지 대신 글자로 보인다(tokens.md 기본 상태의 예외) */}
-          {recon && (plain(recon.verdict) ? <Text weight="medium">{recon.verdict}</Text> : verdict(recon.verdict))}
+          {/* 대사는 일치 자체가 결과다: 기본 상태라도 완료 표지(CheckCircle + 글자)로 보인다(tokens.md 기본 상태의 예외) */}
+          {recon && verdict(recon.verdict)}
           {last && (
             // 모의 회신(시연 서랍에서 넣은 가상의 은행 회신, A05 §6): 종류 · 대상 · 넣은 값 · 역할 · 날짜 · 이유
             <Source
@@ -124,7 +125,7 @@ export function Recon() {
           { key: 'want', header: L.승인, align: 'end', width: proportional(2, { minWidth: 80 }), renderCell: (r) => cell(r.want) },
           { key: 'got', header: L.회신, align: 'end', width: proportional(2, { minWidth: 80 }), renderCell: (r) => cell(r.got) },
           // 비교가 모두 일치(기본 상태)이거나 회신 전이면 칸째 두지 않는다
-          ...(data.some((r) => !plain(r.cmp)) ? [{ key: 'cmp', header: L.비교, align: 'end' as const, width: pixel(72), renderCell: (r: Row) => verdict(r.cmp!) }] : []),
+          ...(data.some((r) => !plain(r.cmp)) ? [{ key: 'cmp', header: L.비교, align: 'end' as const, width: pixel(72), renderCell: (r: Row) => verdict(r.cmp!, false) }] : []),
         ]}
       />
     </Region>

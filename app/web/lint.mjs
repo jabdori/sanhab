@@ -4,7 +4,8 @@
 // ponytail: 주석을 정규식으로 걷어 내는 단순 검사. 문자열 안의 `//`에 속으면 그때 파서를 쓴다.
 import { readdirSync, readFileSync } from 'node:fs'
 
-// 색(tokens.md "색 — 의미가 있을 때만"): 색 이름은 ui/status.ts에서만. 다른 파일은 그 파일이 낸 값(badge · dot · fail · caution · meter)을 넘긴다
+// 색(tokens.md "색"): 상태 · 범주 · 기록 종류 · 완료의 색 이름은 ui/status.ts에서만. 다른 파일은 그 파일이 낸 값(badge · tone · dot · mark · kind · done · fail · caution · meter)을 넘긴다.
+// accent(테마의 강조색 — AI 표지, 고른 줄의 화살표)는 낱말의 대응이 아니라 막지 않는다
 const COLOR = /\b(variant|color|status)=(\{[^}]*)?["'](red|orange|yellow|green|teal|cyan|blue|purple|pink|success|warning|error|info)["']/
 // Card(tokens.md "면"): 접속 카드, 빈 대화의 제안 카드(ai-chat-landing), 대화 속 조치 카드, 경위 그림의 칸, AI 보고 카드에만. 영역마다 Card를 씌우지 않는다(Card soup)
 const CARD_OK = ['Enter.tsx', 'tickets/24-대화/index.tsx', 'tickets/25-카드/index.tsx', 'tickets/16-경위/index.tsx', 'ui/AiCard.tsx']

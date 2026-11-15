@@ -17,7 +17,7 @@ import { Search, hit } from '../ui/Search'
 import { api, changedAtom, navAtom, paneAtom, scopeAtom, store, targetAtom, useData } from '../state'
 import { Confirm } from '../ui/Confirm'
 import { grade } from '../ui/grade'
-import { Mark, State } from '../ui/Mark'
+import { Kind, Mark, State } from '../ui/Mark'
 import { dot, num, plain } from '../ui/status'
 
 export type Task = { id: string; kind: string; view: string; target: string; name?: string; ym?: string; total?: number | null; marks: string[]; role: string; pick: boolean; state?: string; pay?: string | null }
@@ -94,6 +94,8 @@ export function Work() {
               <CheckboxInput label={L.전체} isLabelHidden size="sm" value={pickable.every((t) => picked.has(t.target))} onChange={(on) => toggle(pickable.map((t) => t.target), on)} />
             </HStack>
           )}
+          {/* 묶음의 기록 종류(색 아이콘, ui/status.ts의 kind) */}
+          {rows.find((t) => groupOf(t) === k) && <Kind of={rows.find((t) => groupOf(t) === k)!.view} />}
           <Text type="body" weight="bold">
             {k}
           </Text>
