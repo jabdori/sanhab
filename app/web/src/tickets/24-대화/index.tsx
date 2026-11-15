@@ -33,12 +33,12 @@ import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/Segme
 import { IconButton } from '@astryxdesign/core/IconButton'
 import { AtSymbolIcon, BanknotesIcon, BookOpenIcon, BuildingStorefrontIcon, ClipboardDocumentCheckIcon, ClockIcon, DocumentCheckIcon, DocumentTextIcon, FlagIcon, ArrowPathIcon, PencilSquareIcon } from '@heroicons/react/24/outline'
 import type { ChatComposerInputHandle } from '@astryxdesign/core/Chat'
-import type { SearchableItem } from '@astryxdesign/core/Typeahead'
+import { TypeaheadItem, type SearchableItem } from '@astryxdesign/core/Typeahead'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ASK, ASK_ANY, L } from '../../labels'
 import { Kind, State } from '../../ui/Mark'
 import { api, changedAtom, exampleAtom, menuAtom, roleAtom, rolesAtom, store, targetAtom, useData, type Target } from '../../state'
-import { fail, nb, kind } from '../../ui/status'
+import { fail, nb, kind, plain } from '../../ui/status'
 import { Card as ActionCard, Surface, type A2ui, type CardData } from '../25-카드'
 
 /** 답에 붙는 조회한 기록(서버가 `data-reads`로 보낸다). go는 이름과 같은 순서의 여는 길(열 화면이 없는 기록은 null) */
@@ -55,12 +55,27 @@ const took = (ms?: number | null) => (ms == null ? undefined : ms < 1000 ? `${ms
 /** 칩에 보이는 이름. 아직 받지 못했거나 모르면 id */
 const key = (t: Target) => `${t.kind}/${t.id}`
 const same = (a: Target, b: Target) => a.kind === b.kind && a.id === b.id
-/** 기록 종류의 색 면 타일(ui/Mark의 Kind — 작업 목록 · 기록 머리와 같은 색). 문맥 카드는 md, 칩은 xsm. 모르는 종류는 문서 아이콘 */
-const kindIcon = (k: string, size: 'xsm' | 'md' = 'xsm') => (kind(k) ? <Kind of={k} size={size} /> : <Icon icon={DocumentTextIcon} size={size === 'md' ? 'md' : 'sm'} />)
-/** `@`로 붙일 기록 찾기(서버 /chat/find — 문맥 밖의 기록도 이름으로 찾는다) */
+/** 글 줄 안(보낸 말의 칩)의 기록 종류: 선 아이콘 16px, 종류 색(ui/status의 kind). 모르는 종류는 문서 아이콘 */
+const kindIcon = (k: string) => {
+  const c = kind(k)
+  return <Icon icon={c?.icon ?? DocumentTextIcon} size="sm" color={c?.color} />
+}
+/** 카드 · 항목 첫머리(`@` 메뉴 줄 · 문맥 칸의 붙인 기록)의 종류: 색 타일 한 크기(Kind sm 28) */
+const kindTile = (k: string) => (kind(k) ? <Kind of={k} size="sm" /> : <Icon icon={DocumentTextIcon} size="md" />)
+/** `@`로 찾은 기록(서버 /chat/find): 칩의 이름(name) 외에 줄의 제목(title)과 대리점 · 귀속월 · 상태(있는 것만) */
+type Found = Ctx & { title?: string; dealer?: string; ym?: string; state?: string }
+/** 줄의 설명: 종류 · 귀속월 · 상태(기본 상태 — 대기 · 일치 · 접수 — 는 쓰지 않는다, ui/Mark의 State와 같다) */
+const about = (f: Found) => [f.kind, f.ym, plain(f.state) ? null : f.state].filter(Boolean).join(' · ')
+/** 메뉴 줄 · 문맥 칸 카드의 꼴(TypeaheadItem: 종류 타일 · 제목 · 설명) */
+const FoundItem = ({ f }: { f: Found }) => <TypeaheadItem item={{ id: `${f.kind}/${f.id}`, label: f.title ?? f.name }} icon={kindTile(f.kind)} description={about(f)} />
+/** `@`로 붙일 기록 찾기: 이름 · 귀속월(`2026-01`, `1월`) · 종류 · 상태로 찾는다. 빈 찾기는 지금 보는 기록(near)과 같은 대리점의 기록이 먼저.
+ *  줄은 종류마다 묶고(auxiliaryData.group), 목록은 메뉴 안에서 스크롤한다(메뉴 높이는 부품의 것) */
 const records = {
-  // 찾기 목록은 여섯 줄까지(입력창 위 칸에 다 들어가 마지막 줄이 잘리지 않게. 더 좁히려면 이름을 더 친다)
-  search: async (q: string): Promise<SearchableItem<Ctx>[]> => (await api<{ items: Ctx[] }>(`/chat/find?q=${encodeURIComponent(q)}`)).items.slice(0, 6).map((i) => ({ id: `${i.kind}/${i.id}`, label: i.name, auxiliaryData: i })),
+  search: async (q: string): Promise<SearchableItem<Found>[]> => {
+    const t = store.get(targetAtom)
+    const near = t ? `&near=${encodeURIComponent(key(t))}` : ''
+    return (await api<{ items: Found[] }>(`/chat/find?q=${encodeURIComponent(q)}${near}`)).items.map((i) => ({ id: `${i.kind}/${i.id}`, label: i.title ?? i.name, auxiliaryData: { ...i, group: i.kind } }))
+  },
   bootstrap: () => records.search(''),
   cancel: () => {},
 }
@@ -91,8 +106,8 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
   const [history, setHistory] = useState(false)
   const [scope, setScope] = useState<'here' | 'all'>(here ? 'here' : 'all')
   const past = scope === 'here' && here ? here : list
-  const [follow, setFollow] = useState(true)
-  const [pinned, setPinned] = useState<Target[]>([])
+  // `@`로 붙인 기록(문맥 칸의 카드 — 사람이 넣은 것만, D67)
+  const [pinned, setPinned] = useState<Found[]>([])
   const [text, setText] = useState('')
   const [kept, setKept] = useState<{ state?: string; error?: string } | null>(null)
   const [keeping, setKeeping] = useState(false)
@@ -115,14 +130,12 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
   // 보낼 때의 문맥을 읽는 곳(전송기는 한 번만 만든다)
   const ctx = useRef<{ target: Target | null; attach: Target[] }>({ target: null, attach: [] })
   const menu = useAtomValue(menuAtom)
-  // 화면을 옮기면 문맥 카드가 다시 따라온다(앞 화면에서 뺐어도)
-  useEffect(() => setFollow(true), [target ? key(target) : menu])
-  const now = follow ? target : null
-  // 목록 화면(연 기록이 없음)의 문맥은 메뉴 이름 하나다
-  const view = follow && !target ? menu : null
-  // 칩의 이름(제목 줄과 같은 이름)은 서버에서 한 번에 받아 둔다
+  // 지금 보는 화면은 카드 없이 요청에 함께 보낸다(서버가 문맥으로 쓴다, D67): 연 기록, 목록 화면이면 메뉴 이름
+  const now = target
+  const view = !target ? menu : null
+  // 보던 기록의 이름(보낸 말의 칩 — 제목 줄과 같은 이름)은 서버에서 받아 둔다
   const [named, setNamed] = useState<Record<string, string | null>>({})
-  const want = [target, ...pinned].filter((t): t is Target => !!t && !(key(t) in named))
+  const want = [target].filter((t): t is Target => !!t && !(key(t) in named))
   const wantKey = want.map(key).join('|')
   useEffect(() => {
     if (!want.length) return
@@ -132,7 +145,7 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
     )
   }, [wantKey])
   const shown = (t: Target) => `${t.kind} ${named[key(t)] ?? t.id}`.trim()
-  ctx.current = { target: now, attach: pinned }
+  ctx.current = { target: now, attach: pinned.map(({ kind, id }) => ({ kind, id })) }
   const [transport] = useState(
     () =>
       new DefaultChatTransport<Talk>({
@@ -185,7 +198,7 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
     }
     setKept(null)
     // 이 말을 할 때 보던 화면(목록이면 메뉴 이름)과 붙인 기록 — 말 위에 남고 서버가 AI에게도 전한다
-    const used: Ctx[] = [...(view ? [{ kind: view, id: '', name: '' }] : []), ...[...(now ? [now] : []), ...pinned].map((t) => ({ ...t, name: named[key(t)] ?? t.id }))]
+    const used: Ctx[] = [...(view ? [{ kind: view, id: '', name: '' }] : []), ...(now ? [{ ...now, name: named[key(now)] ?? now.id }] : []), ...pinned.map(({ kind, id, name }) => ({ kind, id, name }))]
     const files = file ? (() => { const d = new DataTransfer(); d.items.add(file); return d.files })() : undefined
     sendMessage({ text: value.trim(), files, metadata: { ctx: used, at: new Date().toISOString() } })
     setBump((n) => n + 1)
@@ -311,10 +324,11 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
                     {
                       character: '@',
                       searchSource: records,
+                      renderItem: (item) => <FoundItem f={item.auxiliaryData as Found} />,
+                      menuLabel: L.기록,
                       onSelect: (item) => {
-                        const c = item.auxiliaryData as Ctx
-                        setNamed((n) => ({ ...n, [key(c)]: c.name }))
-                        setPinned((p) => (p.some((x) => same(x, c)) ? p : [...p, { kind: c.kind, id: c.id }].slice(-5)))
+                        const c = item.auxiliaryData as Found
+                        setPinned((p) => (p.some((x) => same(x, c)) ? p : [...p, c].slice(-5)))
                         return ''
                       },
                     },
@@ -323,31 +337,27 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
                 />
               }
               drawer={
-                // 문맥은 입력창 안의 카드다: 지금 연 기록(자동, 빼면 이 대화에서 빠진다) · `@`로 붙인 기록 · 올릴 서류. 아무것도 없으면 칸을 두지 않는다
-                (now || view || pinned.length > 0 || file) && (
-                  <ChatComposerDrawer label={L.문맥} count={(now || view ? 1 : 0) + pinned.length + (file ? 1 : 0)} isCollapsed={folded || mention} onCollapsedChange={setFolded}>
-                    <VStack gap={2}>
-                    {/* 지금 보는 화면: 종류 아이콘 · 이름 · 종류. 빼면 이번 말에서 빠지고, 화면을 옮기면 다시 따라온다 */}
-                    {(now || view) && (
-                        <HStack gap={2} vAlign="center">
-                          {kindIcon(now ? now.kind : (view ?? ''), 'md')}
-                          <StackItem size="fill">
-                            <VStack gap={0}>
-                              <Text weight="semibold" maxLines={1}>{now ? named[key(now)] ?? now.id : view}</Text>
-                              {now && <Text type="supporting" color="secondary">{now.kind}</Text>}
-                            </VStack>
-                          </StackItem>
-                          <IconButton label={L.빼기} tooltip={L.빼기} variant="ghost" size="sm" icon={<Icon icon={XMarkIcon} size="sm" />} onClick={() => setFollow(false)} />
-                        </HStack>
-                    )}
-                    {(pinned.length > 0 || file) && (
-                    <HStack gap={1} vAlign="center" wrap="wrap">
+                // 문맥 칸: 사람이 넣은 것만 — `@`로 붙인 기록과 올릴 서류, 각각 X로 뺀다(D67). 아무것도 없으면 칸을 두지 않는다
+                (pinned.length > 0 || file) && (
+                  <ChatComposerDrawer label={L.문맥} count={pinned.length + (file ? 1 : 0)} isCollapsed={folded || mention} onCollapsedChange={setFolded}>
+                    {/* 서랍 안 내용은 제 폭만큼이라 X가 카드 끝에 붙지 않았다 — 칸 폭을 채운다 */}
+                    <VStack gap={1} width="100%">
                       {pinned.map((t) => (
-                        <Token key={key(t)} icon={kindIcon(t.kind)} label={named[key(t)] ?? t.id} size="md" onRemove={() => setPinned(pinned.filter((p) => !same(p, t)))} />
+                        <HStack key={key(t)} gap={2} vAlign="center">
+                          <StackItem size="fill">
+                            <FoundItem f={t} />
+                          </StackItem>
+                          <IconButton label={L.빼기} tooltip={L.빼기} variant="ghost" size="sm" icon={<Icon icon={XMarkIcon} size="sm" />} onClick={() => setPinned(pinned.filter((p) => !same(p, t)))} />
+                        </HStack>
                       ))}
-                      {file && <Token icon={<Icon icon={DocumentTextIcon} size="sm" />} label={file.name} size="md" onRemove={() => choose(null)} />}
-                    </HStack>
-                    )}
+                      {file && (
+                        <HStack gap={2} vAlign="center">
+                          <StackItem size="fill">
+                            <TypeaheadItem item={{ id: 'file', label: file.name }} icon={kindTile(L.서류)} description={L.서류} />
+                          </StackItem>
+                          <IconButton label={L.빼기} tooltip={L.빼기} variant="ghost" size="sm" icon={<Icon icon={XMarkIcon} size="sm" />} onClick={() => choose(null)} />
+                        </HStack>
+                      )}
                     </VStack>
                   </ChatComposerDrawer>
                 )
@@ -363,7 +373,7 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
             />
           }
           emptyState={
-            // ai-chat-landing에서 벗어남(components.md): 인사와 큰 제목은 두지 않는다 — 지금 화면은 입력창의 문맥 카드가 보인다. 제안 카드만 — 연 기록이 있으면 그 기록 이야기, 없으면 일반 제안
+            // ai-chat-landing에서 벗어남(components.md): 인사와 큰 제목은 두지 않는다 — 제안 카드만 — 연 기록이 있으면 그 기록 이야기, 없으면 일반 제안
             (
               <Section variant="transparent" padding={4}>
                 <Grid columns={{ minWidth: 200 }} gap={3}>
@@ -371,7 +381,7 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
                     <ClickableCard key={name} label={name} padding={3} variant="muted" isDisabled={busy} onClick={() => applySuggestion(prompt)}>
                       {/* 주제의 색 면 타일(work-item-detail 첨부 카드의 타일 꼴, 색은 ui/status.ts의 kind) */}
                       <HStack gap={4} vAlign="center">
-                        <Kind of={name} />
+                        <Kind of={name} size="sm" />
                         <StackItem size="fill">
                           <VStack gap={0.5}>
                             <Heading level={4}>{name}</Heading>

@@ -355,22 +355,88 @@ pub fn routes() -> Router<Arc<Db>> {
         .route("/chat/sessions/{id}", get(session).put(save_session).layer(axum::extract::DefaultBodyLimit::max(4 * 1024 * 1024)))
 }
 
-/// `@`로 붙일 기록 찾기: `?q=` → `{ items: [{ kind, id, name }] }`(대리점 · 심사 · 정황 · 소명 · 추인 · 조항, 이름이나 id에 q가 든 것, 종류마다 몇 개).
-/// 그 사람의 세션으로 읽는다(볼 수 있는 기록만). q가 비면 종류마다 두 개(처음 펼친 목록)
+/// `@`로 붙일 기록 찾기: `?q=&near=종류/id` → `{ items: [{ kind, id, name, title, dealer, ym, state }] }`(대리점 · 심사 · 정황 · 소명 · 추인 · 지급 · 조항).
+/// name은 칩 · 제목 줄의 이름(`/chat/names`와 같다), title은 줄의 제목(귀속월을 뺀 이름), dealer · ym · state는 있는 것만.
+/// q는 낱말마다(빈칸으로 나눔) 이름 · id · 종류 · 대리점 · 귀속월(`2026-01`, `1월`) · 상태 가운데 하나에 들어야 한다.
+/// near(지금 보는 기록)가 있으면 그 기록과 대리점이 겹치는 기록을 먼저(그 기록 자신은 뺀다). 그 사람의 세션으로 읽는다(볼 수 있는 기록만)
 async fn find(Extension(me): Extension<Me>, Query(q): Query<HashMap<String, String>>) -> R {
-    let q = q.get("q").map(|s| s.trim().to_lowercase()).unwrap_or_default().chars().take(40).collect::<String>();
-    let n = if q.is_empty() { 2 } else { 5 };
-    let pick = |kind: &str, tb: &str, name: &str| format!("(SELECT '{kind}' AS kind, <string> record::id(id) AS id, {name} AS name FROM {tb} WHERE string::contains(string::lowercase({name} + ' ' + <string> record::id(id)), $q) LIMIT {n})");
-    let parts = [
-        pick("대리점", "dealer", "name"),
-        pick("심사", "review", "name + ' · ' + ym"),
-        pick("정황", "signal", "name"),
-        pick("소명", "clarify", "name"),
-        pick("추인", "ratify", "name + ' · ' + ym"),
-        pick("규정", "clause", "title"),
-    ];
-    let items = q1(&me.db, &format!("RETURN array::flatten([{}]);", parts.join(", ")), json!({ "q": q })).await?;
-    Ok(Json(json!({ "items": items })))
+    let (near, q) = (q.get("near").cloned(), q.get("q").map(|s| s.trim().to_lowercase()).unwrap_or_default().chars().take(40).collect::<String>());
+    // 종류마다 같은 꼴: kind · id · name · title · dealers(대리점 id들 — 관련을 가린다) · dealer(첫 대리점 이름) · ym · state
+    let rows = q1(
+        &me.db,
+        "RETURN array::flatten([
+            (SELECT '대리점' AS kind, <string> record::id(id) AS id, name, name AS title, [<string> id] AS dealers, name AS dealer FROM dealer),
+            (SELECT '심사' AS kind, <string> record::id(id) AS id, name + ' · ' + ym AS name, name AS title, members.map(|$d| <string> $d) AS dealers, members[0].name AS dealer, ym, status AS state FROM review),
+            (SELECT '정황' AS kind, <string> record::id(id) AS id, name, name AS title, dealers.map(|$d| <string> $d) AS dealers, dealers[0].name AS dealer, state FROM signal),
+            (SELECT '소명' AS kind, <string> record::id(id) AS id, name, name AS title, [<string> dealer] AS dealers, dealer.name AS dealer, state FROM clarify),
+            (SELECT '추인' AS kind, <string> record::id(id) AS id, name + ' · ' + ym AS name, name AS title, members.map(|$d| <string> $d) AS dealers, members[0].name AS dealer, ym, marks.last() AS state FROM ratify),
+            (SELECT '지급' AS kind, <string> record::id(id) AS id, (->payout_of->dealer)[0].name + ' · ' + ym AS name, (->payout_of->dealer)[0].name AS title, (->payout_of->dealer).map(|$d| <string> $d) AS dealers, (->payout_of->dealer)[0].name AS dealer, ym, state FROM payout),
+            (SELECT '규정' AS kind, <string> record::id(id) AS id, title AS name, title, [] AS dealers FROM clause)
+        ]);",
+        json!({}),
+    )
+    .await?;
+    let rows = rows.as_array().cloned().unwrap_or_default();
+    Ok(Json(json!({ "items": pick(rows, &q, near.as_deref()) })))
+}
+
+/// 찾기의 고르기와 순서(순수 함수 — 검사가 직접 부른다): 낱말이 모두 맞는 줄만, near와 대리점이 겹치는 줄을 먼저.
+/// 빈 찾기는 near가 있으면 관련 기록 전부 + 종류마다 둘, 없으면 종류마다 셋. 많아야 FOUND줄(화면은 목록 안에서 스크롤한다)
+fn pick(rows: Vec<J>, q: &str, near: Option<&str>) -> Vec<J> {
+    const FOUND: usize = 40;
+    let near = near.and_then(|s| s.split_once('/'));
+    // near 기록의 대리점들(그 기록이 목록에 있어야 한다 — 볼 수 없는 기록이면 관련도 없다)
+    let it = |r: &J| near.is_some_and(|(k, i)| r["kind"] == k && r["id"] == i);
+    let ds = |r: &J| r["dealers"].as_array().cloned().unwrap_or_default();
+    let mine: Vec<J> = rows.iter().find(|r| it(r)).map(ds).unwrap_or_default();
+    let near_of = |r: &J| !mine.is_empty() && ds(r).iter().any(|d| mine.contains(d));
+    // 찾을 글: 이름 · id · 종류 · 대리점 · 귀속월과 그 달(`1월`) · 상태
+    let hay = |r: &J| {
+        let ym = r["ym"].as_str().unwrap_or_default();
+        let month = ym.get(5..7).and_then(|m| m.parse::<u32>().ok()).map(|m| format!("{m}월")).unwrap_or_default();
+        // 칸마다 \u{1}로 앞을 막는다: `1월`이 `11월`에 들지 않게 달은 칸 머리부터 맞춘다
+        ["name", "id", "kind", "dealer", "state"].iter().map(|k| r[*k].as_str().unwrap_or_default()).chain([ym, &month]).map(|x| format!("\u{1}{x}")).collect::<String>().to_lowercase()
+    };
+    let words: Vec<String> = q.split_whitespace().map(|w| if w.strip_suffix('월').is_some_and(|n| n.parse::<u32>().is_ok()) { format!("\u{1}{w}") } else { w.to_string() }).collect();
+    let mut hit: Vec<J> = rows.iter().filter(|r| !it(r) && words.iter().all(|w| hay(r).contains(w.as_str()))).cloned().collect();
+    // 관련 기록이 먼저(안정 정렬 — 종류의 순서는 그대로)
+    hit.sort_by_key(|r| !near_of(r));
+    if words.is_empty() {
+        let mut seen: HashMap<String, usize> = HashMap::new();
+        let each = if mine.is_empty() { 3 } else { 2 };
+        hit.retain(|r| near_of(r) || { let n = seen.entry(r["kind"].as_str().unwrap_or_default().to_string()).or_default(); *n += 1; *n <= each });
+    }
+    hit.truncate(FOUND);
+    for r in &mut hit {
+        if let Some(o) = r.as_object_mut() {
+            o.remove("dealers");
+            o.retain(|_, v| !v.is_null());
+        }
+    }
+    hit
+}
+
+#[cfg(test)]
+mod find_test {
+    use super::*;
+    #[test]
+    fn pick_words_month_near() {
+        let rows = vec![
+            json!({ "kind": "대리점", "id": "d1", "name": "대성상사1", "title": "대성상사1", "dealers": ["dealer:d1"], "dealer": "대성상사1" }),
+            json!({ "kind": "심사", "id": "r1", "name": "대성상사1 · 2026-01", "title": "대성상사1", "dealers": ["dealer:d1"], "dealer": "대성상사1", "ym": "2026-01", "state": "반려" }),
+            json!({ "kind": "심사", "id": "r2", "name": "금강상사2 · 2026-02", "title": "금강상사2", "dealers": ["dealer:d2"], "dealer": "금강상사2", "ym": "2026-02", "state": "대기" }),
+            json!({ "kind": "심사", "id": "r3", "name": "금강상사2 · 2026-11", "title": "금강상사2", "dealers": ["dealer:d2"], "dealer": "금강상사2", "ym": "2026-11", "state": "대기" }),
+            json!({ "kind": "정황", "id": "s2", "name": "계좌 · 금강상사2", "title": "계좌 · 금강상사2", "dealers": ["dealer:d2"], "dealer": "금강상사2", "state": "접수" }),
+        ];
+        let ids = |v: Vec<J>| v.iter().map(|r| r["id"].as_str().unwrap().to_string()).collect::<Vec<_>>();
+        assert_eq!(ids(pick(rows.clone(), "1월", None)), ["r1"]);
+        assert_eq!(ids(pick(rows.clone(), "반려", None)), ["r1"]);
+        assert_eq!(ids(pick(rows.clone(), "정황", None)), ["s2"]);
+        assert_eq!(ids(pick(rows.clone(), "심사 2026-02", None)), ["r2"]);
+        // 지금 보는 기록(r2)은 빠지고, 같은 대리점(d2)의 심사 · 정황이 먼저
+        assert_eq!(ids(pick(rows.clone(), "", Some("심사/r2"))), ["r3", "s2", "d1", "r1"]);
+        assert!(pick(rows, "", None)[0].get("dealers").is_none());
+    }
 }
 
 // ---- 대화 세션(D61): 그래프의 노드 `session`과 선 `about`(대화 → 다룬 기록: 문맥·붙임) · `reads`(대화 → AI가 읽은 기록).
