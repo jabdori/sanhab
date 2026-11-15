@@ -17,5 +17,5 @@ stage rel
 at 0.2; tap @$(ref 'row "금강상사11') 500; sleep 2.0
 scrollto "h2:관계" 12; foc "h2:관계"
 at $(python3 -c "print($S4+0.5)"); wide
-at $(python3 -c "print($S4+8.5)")
+at $(python3 -c "print($S4+4.3)")
 recstop 1
