@@ -191,7 +191,13 @@ pub async fn check(c: &Check) -> Result<()> {
             q(&c.db, "UPDATE doc SET read_tried = NONE, tidy_tried = NONE;", json!({})).await?;
             sweep_with(&c.db, None, None).await?;
         }
+        // 대화에 새로 붙인 파일은 19와 같은 판독으로 읽어 문맥에 준다: 고정 응답은 그 판독 글을 전한다(넘기지 않는다)
+        let (text, done) = say(audit, "여기 뭐라고 적혀 있어?", Some(png)).await?;
+        ensure!(done.is_empty() && text.starts_with("판독(OCR)한 글: ") && text.contains("성일상사24") && text.contains("302호"), "붙인 파일의 판독 {text}");
         *READ.lock().unwrap() = None;
+        // 소명에 올라온 서류의 판독 · 정리는 AI의 읽기 세션이 지시문의 꼴(칸을 정해, 원본 data 없이)로 읽는다
+        let out = super::t17_report::read_db(&super::t17_report::ai_session(&c.db).await?, &format!("SELECT name, read.text AS words, tidy FROM doc WHERE clarify = clarify:`{a}`;")).await;
+        ensure!(out.contains("임대차.png") && out.contains("성일상사24") && out.contains("\"item\"") && !out.contains("\"data\""), "소명 서류 읽기 {out}");
         let d = c.get(audit, &format!("/api/clarifies/{a}/docs")).await?;
         ensure!(d["docs"][0]["words"].as_array().is_some_and(|w| !w.is_empty()) && d["docs"][0]["rows"].as_array().is_some_and(|r| !r.is_empty()), "판독·정리·비교 {d}");
         // 보완 뒤 같은 소명에 다른 파일을 다시 올릴 수 있는 것은 19의 `fn::uploadable`이 정한다(이 길은 그것만 묻는다)

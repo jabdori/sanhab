@@ -59,7 +59,7 @@ pub const SYSTEM: &str = "너는 SanHab의 대화 도우미다. SanHab은 판매
 - 무엇을 묻는지 모호하면 도구를 부르지 말고 한 문장으로 되묻는다.
 
 ## 읽는 법
-DB는 read_db 도구로만 읽는다(SurrealQL의 SELECT와 RETURN만. 쓰기는 되지 않는다). 테이블: dealer(name) · person · address · account · rep/addr/acct(대리점 → 사람/주소/계좌 선) · deposit(회수) · payout(지급: ym, amount, status) · review(심사) · signal(정황) · clarify(소명) · rule(규칙) · clause(조항) · recon(대사) · task(작업). id에 -가 있으면 `D-024`처럼 백틱으로 감싼다.
+DB는 read_db 도구로만 읽는다(SurrealQL의 SELECT와 RETURN만. 쓰기는 되지 않는다). 테이블: dealer(name) · person · address · account · rep/addr/acct(대리점 → 사람/주소/계좌 선) · deposit(회수) · payout(지급: ym, amount, status) · review(심사) · signal(정황) · clarify(소명) · rule(규칙) · clause(조항) · recon(대사) · task(작업) · doc(소명에 올라온 서류: name, clarify, read(판독 — 업스테이지 OCR이 읽은 낱말 목록, 낱말은 read.text), tidy(AI가 판독에서 항목 · 값을 정리한 것: item, value)). doc의 data(원본)는 크니 읽지 않는다: 서류의 내용은 `SELECT name, read.text AS words, tidy FROM doc WHERE clarify = clarify:`…``처럼 칸을 정해 읽는다. id에 -가 있으면 `D-024`처럼 백틱으로 감싼다.
 - 지금 보는 화면의 기록이 있으면 그 id에서 시작한다. 한 번의 조회에 필요한 칸을 함께 가져온다(대개 한두 번, 많아도 서너 번). 같은 것을 다시 읽지 않는다.
 - 칸을 모를 때만 SELECT * FROM 테이블 LIMIT 2로 먼저 본다.
 - 목록 화면(작업)에서는 특정 기록을 가리키지 않는다. 사용자가 기록을 말하지 않았으면 기록을 골라 읽지 않는다.
@@ -74,7 +74,7 @@ DB는 read_db 도구로만 읽는다(SurrealQL의 SELECT와 RETURN만. 쓰기는
 - 합산, 승인권자, 관련자 여부, 재검토 여부는 DB에 계산되어 있는 값을 읽어 전한다. 직접 계산하거나 고치지 않는다.
 - 조치를 실행하지 못하고 기록을 만들거나 바꾸지 못한다. 사용자가 승인, 보류, 반려, 추인, 거부, 요청, 기각, 인정, 불인정, 보완 같은 조치를 하라고 지시하면 card 도구로 조치 카드를 낸다(대상의 id는 먼저 읽어 확인한다). 카드는 내용일 뿐이고 실행은 사람이 카드에서 누른다. 사유의 분류와 메모는 사용자가 말한 것만 옮겨 적고 말하지 않았으면 비운다(지어내지 않는다). 사용자가 지시하지 않았으면 카드를 내지 않는다. 카드를 냈으면 답은 「아래 카드의 실행을 누르면 처리됩니다」처럼 한 문장으로 짧게 맺는다(「카드에서 눌러 주세요」 같은 지시조로 되풀이하지 않는다). 도구가 카드를 내지 않는다고 하면 그 까닭(권한이 없다 · 지금 상태에서는 할 수 없다 · 분류가 맞지 않는다)을 짧게 알린다.
 - 사용자가 이번 말에 파일을 올렸으면(문맥의 「이번 말에 올린 파일」) 묻는 말이 무엇이든 그 파일을 소명의 서류로 넘기는 일로 이끈다. 앞선 말에서 올린 파일은 사용자가 넘기라고 하거나 넘길 소명을 고를 때만 doc로 넘기고, 그 밖의 물음에는 서류 이야기를 꺼내지 않는다. 파일은 소명의 서류로 넘기려고 올리는 것이다. 어느 소명인지 사용자가 말했거나 열어 둔 대상이 소명이면 doc 도구로 넘긴다. 아니면 doc를 clarify 빈 글로 불러 받을 수 있는 소명을 얻고 「이 서류를 어느 소명의 서류로 넘길까요?」처럼 소명의 이름을 들어 묻는다(추측하지 않는다). 받을 수 있는 소명이 없거나 넘기지 못했으면 그 까닭을 짧게 알린다.
-- 서류의 내용은 네가 읽지 않는다: 넘긴 서류는 소명 화면에서 판독 · 정리된다. 서류에 무엇이 적혀 있는지 물으면 읽을 수 없다고만 하지 말고, 소명의 서류로 넘기면 판독 결과가 소명 화면에 보인다고 알리고 위처럼 어느 소명으로 넘길지 묻는다.
+- 서류를 읽고 무엇이 적혀 있는지는 설명하되, 서류를 근거로 인정 · 불인정 같은 판정 의견은 내지 않는다. 소명에 올라온 서류는 doc의 read와 tidy로 읽고, 이번 말에 올린 파일은 문맥의 「판독(OCR) 글」로 읽는다. 서류의 내용을 전할 때는 「판독(OCR)한 글에 ~라고 적혀 있다」처럼 출처가 판독임을 사실로 밝힌다. 판독 글이 없으면(판독하지 못했다) 그 사실만 짧게 알린다.
 
 ## 화면 부품(show)
 - 답에 값이 셋 이상이거나, 여러 기록을 들거나, 둘 이상을 비교할 때만 글과 함께 show로 부품을 하나 그린다(한 기록의 값 → Facts, 여러 기록 · 비교 → Table, 근거가 된 기록 → Records). 대화 칸은 좁다: Table은 열 2개면 표로, 3개 이상이면 줄마다 묶음으로 그려지니 열은 꼭 필요한 넷 안팎으로 하고 값은 짧게 쓴다. 답이 여러 기록을 다뤘으면 Table과 함께 Records로 그 기록들을 열 수 있게 붙인다. 인사 · 낱말 · 값 한두 개의 물음에는 쓰지 않는다.
@@ -101,13 +101,13 @@ fn table_of(kind: &str) -> Option<&'static str> {
 }
 
 /// 요청의 본문: (대화, 문맥, 붙인 기록). 틀리면 400 `대상`
-/// fresh: 파일이 이번 말(마지막 사람의 말)에 올라왔다(아니면 앞선 말의 파일을 화면이 다시 실어 보낸 것)
-struct Ask { talk: Vec<(String, String)>, target: Option<Rec>, attach: Vec<Rec>, files: Vec<Up>, fresh: bool }
+struct Ask { talk: Vec<(String, String)>, target: Option<Rec>, attach: Vec<Rec>, files: Vec<Up>, now: Vec<Up> }
+/// now: 이번 말(마지막 사람의 말)에 올린 파일 — 판독은 이것만 한다(한 말에 한 번)
 /// `asking`이면 마지막이 사람의 말이어야 한다(답을 청하는 요청). 보고로 남길 때는 AI의 답으로 끝난다
 fn parse(b: &J, asking: bool) -> Result<Ask, ApiError> {
     let bad = || refuse("대상");
     let list = b["messages"].as_array().filter(|m| !m.is_empty()).ok_or_else(bad)?;
-    let (mut talk, mut files, mut fresh) = (vec![], vec![], false);
+    let (mut talk, mut files, mut now) = (vec![], vec![], vec![]);
     // 대화가 길어지면 마지막 TURNS개만 쓴다(거절하지 않는다)
     for m in &list[list.len().saturating_sub(TURNS)..] {
         let role = m["role"].as_str().filter(|r| ["user", "assistant"].contains(r)).ok_or_else(bad)?;
@@ -115,7 +115,7 @@ fn parse(b: &J, asking: bool) -> Result<Ask, ApiError> {
         if text.chars().count() > CHARS { return Err(bad()); }
         if role == "user" {
             let got = files_of(m["parts"].as_array().map_or(&[][..], Vec::as_slice));
-            fresh = !got.is_empty();
+            now = got.clone();
             files.extend(got);
         }
         if text.trim().is_empty() { continue; }
@@ -132,7 +132,7 @@ fn parse(b: &J, asking: bool) -> Result<Ask, ApiError> {
         Some(a) if a.len() <= ATTACH => a.iter().map(|r| rec(r).ok_or_else(bad)).collect::<Result<_, _>>()?,
         Some(_) => return Err(bad()),
     };
-    Ok(Ask { talk, target, attach, files: distinct(files), fresh })
+    Ok(Ask { talk, target, attach, files: distinct(files), now: distinct(now) })
 }
 
 /// 모델에게 알리는 문맥: 역할, 지금 열어 둔 대상(끄면 없다), 붙인 기록
@@ -143,7 +143,25 @@ fn context(role: &str, a: &Ask, names: &HashMap<String, String>) -> String {
     s += "\n대화는 화면을 옮겨도 이어진다. 앞선 말의 [이 말을 할 때 보던 화면]은 그 말이 가리키던 기록이다. 그 표시는 답에 되풀이하지 않는다.";
     if !a.attach.is_empty() { s += &format!("\n사용자가 붙인 기록: {}.", a.attach.iter().map(one).collect::<Vec<_>>().join(", ")); }
     let names = a.files.iter().map(|f| f.name.as_str()).collect::<Vec<_>>().join(", ");
-    if !a.files.is_empty() { s += &if a.fresh { format!("\n사용자가 이번 말에 올린 파일: {names}.") } else { format!("\n사용자가 앞선 말에서 올린 파일(이번 말에는 올리지 않았다): {names}.") }; }
+    if !a.files.is_empty() { s += &if !a.now.is_empty() { format!("\n사용자가 이번 말에 올린 파일: {names}.") } else { format!("\n사용자가 앞선 말에서 올린 파일(이번 말에는 올리지 않았다): {names}.") }; }
+    s
+}
+
+/// 문맥에서 이번 말에 올린 파일의 판독 글이 시작하는 표시(고정 응답이 이 뒤를 그대로 전한다)
+const OCR_MARK: &str = "의 판독(OCR) 글: ";
+/// 이번 말에 올린 파일을 19와 같은 판독(업스테이지 OCR, 첫 쪽)으로 읽어 문맥 줄로. 모델의 사용자 말은 글만 받아(aisdk 0.6.4의 UserMessage는 글 하나) 파일을 판독한 글로 준다.
+/// 이미지 · PDF이고 2MB까지만 읽는다. 판독은 한 말에 한 번(앞선 말의 파일은 다시 읽지 않는다)
+async fn read_files(files: &[Up], key: Option<&str>) -> String {
+    let m = super::t19_docs::read_model();
+    let mut s = String::new();
+    for f in files.iter().take(ATTACH) {
+        let ok = f.bytes.len() <= super::t19_docs::MAX && super::t19_docs::looks(&f.mime, &f.bytes);
+        let ws = if ok { super::t19_docs::ocr(&m, key, &f.bytes, &f.mime).await } else { None };
+        s += &match ws {
+            Some(ws) => format!("\n이번 말에 올린 파일 {}{OCR_MARK}{}", f.name, ws.iter().filter_map(|w| w["text"].as_str()).collect::<Vec<_>>().join(" ").chars().take(CHARS).collect::<String>()),
+            None => format!("\n이번 말에 올린 파일 {}은 판독하지 못했다{}.", f.name, if ok { "" } else { "(이미지나 PDF, 2MB까지)" }),
+        };
+    }
     s
 }
 
@@ -298,8 +316,10 @@ async fn fixture_doc(model: &str, me: &Db, talk: &[(String, String)], files: &Ar
 }
 
 /// 고정한 답(자동 검사용): 열어 둔 대상과 붙인 기록을 실제로 읽고(AI의 세션) 그 이름과 값 한두 개를 풀어 쓴다. 문맥이 없으면 읽지 않는다. 판정 의견 · 자기 설명은 쓰지 않는다. (글, 조각 사이의 쉼 밀리초). `fixture-down`은 없음
-async fn canned(model: &str, ai: &Db, _system: &str, recs: &[Rec], _talk: &[(String, String)], seen: &Arc<Mutex<BTreeSet<String>>>) -> Option<(String, u64)> {
+async fn canned(model: &str, ai: &Db, system: &str, recs: &[Rec], _talk: &[(String, String)], seen: &Arc<Mutex<BTreeSet<String>>>) -> Option<(String, u64)> {
     let pause = match model { "fixture" => 5, "fixture-slow" => 600, _ => return None };
+    // 이번 말에 올린 파일을 판독했으면 그 글을 전한다(출처는 판독)
+    if let Some((_, read)) = system.split_once(OCR_MARK) { return Some((format!("판독(OCR)한 글: {}", read.lines().next().unwrap_or_default()), pause)); }
     let mut facts: Vec<String> = vec![];
     for r in recs {
         let Some(tb) = table_of(&r.kind) else { continue };
@@ -471,7 +491,11 @@ async fn chat(Extension(me): Extension<Me>, State(db): State<Arc<Db>>, Body(b): 
     let got = names_of(&db, &recs).await.map_err(|_| refuse("대상"))?;
     if got.iter().any(Option::is_none) { return Err(refuse("대상")); }
     let names: HashMap<String, String> = recs.iter().zip(got).map(|(r, n)| (format!("{}/{}", r.kind, r.id), n.unwrap_or_default())).collect();
-    let events = talk(model(), std::env::var("OPENAI_API_KEY").ok(), ai, me.db.clone(), context(&me.role, &a, &names), recs, a.talk, a.files)
+    let m = model();
+    // 고정 응답(자동 검사)에서는 업스테이지를 부르지 않는다(판독도 고정 응답 `READ`만)
+    let ocr_key = if m.starts_with("fixture") { None } else { std::env::var("UPSTAGE_API_KEY").ok() };
+    let system = context(&me.role, &a, &names) + &read_files(&a.now, ocr_key.as_deref()).await;
+    let events = talk(m, std::env::var("OPENAI_API_KEY").ok(), ai, me.db.clone(), system, recs, a.talk, a.files)
         .chain(futures::stream::once(async { json!("[DONE]") }))
         .map(|v| Ok::<_, Infallible>(Event::default().data(v.as_str().map_or_else(|| v.to_string(), String::from))));
     Ok((
@@ -730,6 +754,8 @@ mod tests {
     #[test]
     fn rules_are_in_the_prompt() {
         assert!(SYSTEM.contains("판정 의견을 내지 않는다") && SYSTEM.contains("read_db") && SYSTEM.contains("쓰기는 되지 않는다"));
+        // 서류: 판독 · 정리를 읽고(원본 data는 읽지 않는다) 출처를 밝힌다. 판정 의견은 내지 않는다
+        assert!(SYSTEM.contains("doc(") && SYSTEM.contains("read.text") && SYSTEM.contains("data(원본)는 크니 읽지 않는다") && SYSTEM.contains("인정 · 불인정 같은 판정 의견은 내지 않는다") && !SYSTEM.contains("네가 읽지 않는다"));
     }
 
     #[test]

@@ -53,7 +53,7 @@ static CALLS: AtomicUsize = AtomicUsize::new(0);
 /// 자동 검사가 판독 모델을 갈아 끼우는 자리(`fixture` 고정 응답, `fixture-down` 응답 없음)
 pub(super) static READ: Mutex<Option<String>> = Mutex::new(None);
 
-fn read_model() -> String {
+pub(super) fn read_model() -> String {
     READ.lock().unwrap().clone().or_else(|| std::env::var("UPSTAGE_MODEL").ok().filter(|m| !m.is_empty())).unwrap_or_else(|| OCR.into())
 }
 pub(super) fn sha(b: &[u8]) -> String {
@@ -88,7 +88,7 @@ fn words(raw: &J) -> Option<Vec<J>> {
 
 /// 판독. `fixture`는 시연 서류의 고정 응답(그 밖의 파일은 응답 없음), `fixture-down`은 응답 없음. 키가 없거나 응답이 없으면 None.
 /// 업스테이지: `POST https://api.upstage.ai/v1/document-digitization`, multipart의 `document`(파일)와 `model`
-async fn ocr(model: &str, key: Option<&str>, bytes: &[u8], mime: &str) -> Option<Vec<J>> {
+pub(super) async fn ocr(model: &str, key: Option<&str>, bytes: &[u8], mime: &str) -> Option<Vec<J>> {
     if let Some(m) = model.strip_prefix("fixture") {
         let fx = SAMPLES.iter().find(|s| m.is_empty() && sha(s.2) == sha(bytes))?.3;
         return words(&serde_json::from_str(fx).ok()?);
@@ -306,7 +306,7 @@ async fn sample(Path(n): Path<usize>) -> Result<impl IntoResponse, ApiError> {
 }
 
 /// 파일의 시작 표시가 선언한 종류와 맞는지(PNG·JPEG·PDF). 받는 종류가 아니면 거짓
-fn looks(mime: &str, b: &[u8]) -> bool {
+pub(super) fn looks(mime: &str, b: &[u8]) -> bool {
     match mime {
         "image/png" => b.starts_with(b"\x89PNG\r\n\x1a\n"),
         "image/jpeg" => b.starts_with(&[0xFF, 0xD8, 0xFF]),
