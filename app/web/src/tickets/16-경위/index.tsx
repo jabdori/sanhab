@@ -129,7 +129,8 @@ function depths(d: Trail) {
 export function Picture() {
   const q = useTrailLoad()
   const setTarget = useSetAtom(targetAtom)
-  if (!q.data) return <Pending of={q} />
+  // 경위가 없으면 그림 영역을 두지 않는다(없음은 시간 순 목록 한 곳에만)
+  if (!q.data) return q.loading || q.error ? <Pending of={q} /> : null
   const d = q.data
   const col = depths(d)
   const on = trunk(d)

@@ -76,8 +76,8 @@ export function OfReview() {
   if (!list.length) return null
   return (
     <Region title={L.가설} aside={<Tag adds={[...new Set(list.flatMap((h) => h.adds))]} />}>
-      {/* 정황마다 표 하나(Section 몸통의 간격 4) */}
-      <VStack gap={4}>
+      {/* 정황마다 표 하나: 표가 칸 끝까지 닿아 아래 간격이 먹으므로 표 사이는 한 단계 더 띄운다 */}
+      <VStack gap={6}>
         {list.map((h) => (
           <VStack key={h.id} gap={1}>
             <Heading level={4}>{h.name}</Heading>

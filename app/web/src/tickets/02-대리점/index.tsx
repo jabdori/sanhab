@@ -87,8 +87,8 @@ export function RegisteredRegion() {
               </VStack>
             ),
           },
-          { key: 'since', header: L.변경일, width: pixel(104), renderCell: (r) => <Text hasTabularNumbers maxLines={1}>{r.since}</Text> },
-          { key: 'known', header: L.인지일, width: pixel(104), renderCell: (r) => (r.known ? <Text hasTabularNumbers maxLines={1}>{r.known}</Text> : <Text color="secondary">{L.미상}</Text>) },
+          { key: 'since', header: L.변경일, width: pixel(128), renderCell: (r) => <Text hasTabularNumbers textWrap="nowrap">{r.since}</Text> },
+          { key: 'known', header: L.인지일, width: pixel(128), renderCell: (r) => (r.known ? <Text hasTabularNumbers textWrap="nowrap">{r.known}</Text> : <Text color="secondary">{L.미상}</Text>) },
           {
             key: 'via',
             header: L.경로,

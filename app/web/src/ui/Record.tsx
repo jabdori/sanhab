@@ -14,7 +14,7 @@ import { Heading, Text } from '@astryxdesign/core/Text'
 import { ArrowLeftIcon, QueueListIcon, ViewColumnsIcon } from '@heroicons/react/24/outline'
 import { useAtom, useAtomValue } from 'jotai'
 import { isValidElement, type ReactNode, useState } from 'react'
-import { State } from './Mark'
+import { Mark, State } from './Mark'
 import { fail, plain } from './status'
 import { L } from '../labels'
 import { menuAtom, navAtom, paneAtom, sideAtom, targetAtom, useData } from '../state'
@@ -37,7 +37,7 @@ function Back() {
   // 조치로 끝난 작업은 목록에서 빠진다: 지금 남아 있는 작업(과 지금 연 기록)만 센다
   const live = useData<{ mine: { view: string; target: string }[]; going: { view: string; target: string }[] }>(opened.length ? '/tasks' : null)
   const left = live ? new Set([...live.mine, ...live.going].map((t) => `${t.view}/${t.target}`)) : null
-  const nav = opened.filter((t) => !left || left.has(`${t.kind}/${t.id}`) || (t.kind === target?.kind && t.id === target?.id))
+  const nav = opened.filter((t) => t.kind === L.대리점 || !left || left.has(`${t.kind}/${t.id}`) || (t.kind === target?.kind && t.id === target?.id))
   const at = nav.findIndex((t) => t.kind === target?.kind && t.id === target?.id)
   const [pane, setPane] = useAtom(paneAtom)
   if (!target) return null
@@ -136,6 +136,9 @@ export function RecordPage({ title, meta, actions, bad, tabs, props = [] }: { ti
   const [side, setSide] = useAtom(sideAtom)
   // detail-page의 isNarrow. 대화 칸(360)까지 있어 기준은 1024가 아니라 1440(D63)
   const narrow = useMediaQuery('(max-width: 1439px)')
+  // 칩 순서는 한 규칙: 상태 Badge → 표시(Mark) → 사람 · 구성 · 링크. 기본 상태의 State는 걸러진다
+  const rank = (f: ReactNode) => (isValidElement(f) ? (f.type === State ? 0 : f.type === Mark ? 1 : 2) : 2)
+  const metaLine = meta.filter((f) => f && !(isValidElement<{ word?: string | null }>(f) && f.type === State && plain(f.props.word))).sort((a, b) => rank(a) - rank(b))
   const body = (tabs.find((t) => t.value === tab) ?? tabs[0])?.body
   const summary = props.length > 0 && (
     <MetadataList columns={narrow ? 'multi' : undefined}>
@@ -147,7 +150,7 @@ export function RecordPage({ title, meta, actions, bad, tabs, props = [] }: { ti
     </MetadataList>
   )
   const act = (actions || bad) && (
-    <VStack gap={2} hAlign={narrow ? 'start' : 'end'} data-tour="actions">
+    <VStack gap={2} hAlign="end" data-tour="actions">
       <HStack gap={2} wrap="wrap">
         {actions}
       </HStack>
@@ -171,7 +174,7 @@ export function RecordPage({ title, meta, actions, bad, tabs, props = [] }: { ti
                       {title}
                     </Heading>
                     <HStack gap={1} vAlign="center" wrap="wrap">
-                      {meta.filter((f) => f && !(isValidElement<{ word?: string | null }>(f) && f.type === State && plain(f.props.word))).map((f, i) => (
+                      {metaLine.map((f, i) => (
                         <HStack key={i} gap={1} vAlign="center">
                           {i > 0 && <Bullet />}
                           {f}
@@ -181,10 +184,8 @@ export function RecordPage({ title, meta, actions, bad, tabs, props = [] }: { ti
                   </VStack>
                 </VStack>
               </StackItem>
-              {!narrow && act}
+              {act}
             </HStack>
-            {/* 좁은 화면: 조치는 메타 아래 한 줄(detail-page의 isNarrow) */}
-            {narrow && act}
             <HStack vAlign="center">
               <StackItem size="fill">
                 <TabList value={tab} onChange={setTab} size="lg" isFullBleed>

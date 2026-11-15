@@ -76,13 +76,16 @@ export function Evidence() {
                           <Badge variant={caution} label={`${e.days}${L.일}`} />
                           <Source kind={L.계산} tip={`${L.지연} ${e.days}${L.일}`} rows={[[L.지연, `${e.days}${L.일}`]]} />
                         </HStack>
-                      ) : (
+                      ) : dated(e) ? (
                         <Text hasTabularNumbers>{dated(e)}</Text>
+                      ) : (
+                        // 기록에 그 값이 없는 줄: 빈칸 대신 없음
+                        <Text color="secondary">{L.없음}</Text>
                       ),
                   },
                 ]
               : []),
-            ...(hasDealer ? [{ key: 'dealer', header: L.대리점, width: proportional(2, { minWidth: 96 }), renderCell: (e: Row) => !dated(e) && e.dealer && <Text>{e.dealer.name}</Text> }] : []),
+            ...(hasDealer ? [{ key: 'dealer', header: L.대리점, width: proportional(2, { minWidth: 96 }), renderCell: (e: Row) => (!dated(e) && e.dealer ? <Text>{e.dealer.name}</Text> : <Text color="secondary">{L.없음}</Text>) }] : []),
             {
               key: 'value',
               header: nodes ? L.식별자 : amounts ? L.금액 : L.비교,

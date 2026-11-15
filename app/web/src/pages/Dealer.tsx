@@ -54,7 +54,7 @@ export function Dealer() {
     <RecordPage
       title={v.name}
       meta={[
-        rel && rel.group.length > 1 && <Meta icon={UserGroupIcon}>{rel.group.map((g) => g.name).join(' · ')}</Meta>,
+        rel && rel.group.length > 1 && <Meta icon={UserGroupIcon}>{`${rel.group.length}${L.곳}`}</Meta>,
       ]}
       actions={<Change onBad={setBad} />}
       // 보조 칸의 요약: 지금 유효한 등록값(대표자 · 주소 · 계좌)과 그룹

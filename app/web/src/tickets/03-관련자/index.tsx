@@ -69,14 +69,6 @@ export function Links() {
               { key: 'related', header: L.관련자, width: proportional(1, { minWidth: 72 }), renderCell: (n) => (n.related ? <Token size="sm" label={L.관련자} /> : <Text color="secondary">{L.없음}</Text>) },
             ]}
           />
-          {d.group.length > 1 && (
-            <HStack gap={2} vAlign="center" wrap="wrap">
-              <Text type="supporting" color="secondary">
-                {L.그룹}
-              </Text>
-              <Text>{d.group.map((g) => g.name).join(' · ')}</Text>
-            </HStack>
-          )}
         </VStack>
       )}
     </Region>

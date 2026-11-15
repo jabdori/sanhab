@@ -2,19 +2,14 @@
 // 심사 기록: astryx detail-page 템플릿에서 출발한 화면. 머리(← 작업 · n/전체 · 앞 뒤 / 제목 / 메타 한 줄 / 페이지 조치 / 탭) → 본문(바탕 위의 카드들) → 오른쪽 레일(요약 · AI 보고 카드).
 // 좁으면(본문이 레일과 나란히 설 수 없으면) 레일이 본문 아래로 간다. 조치는 누를 때 확인 창에서 사유(분류 · 메모)를 받는다.
 import { Badge } from '@astryxdesign/core/Badge'
-import { Citation } from '@astryxdesign/core/Citation'
 import { Icon } from '@astryxdesign/core/Icon'
 import { HStack, Section, StackItem, VStack } from '@astryxdesign/core/Layout'
-import { Link } from '@astryxdesign/core/Link'
-import { List, ListItem } from '@astryxdesign/core/List'
-import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
 import { ProgressBar } from '@astryxdesign/core/ProgressBar'
 import { Text } from '@astryxdesign/core/Text'
 import { BuildingStorefrontIcon, UserIcon } from '@heroicons/react/24/outline'
-import { useSetAtom } from 'jotai'
 import { type ReactNode, useState } from 'react'
 import { L } from '../labels'
-import { api, changedAtom, store, targetAtom, useLoad } from '../state'
+import { api, changedAtom, store, useLoad } from '../state'
 import { Mark, State } from '../ui/Mark'
 import { AiCard } from '../ui/AiCard'
 import { Pending } from '../ui/Pending'
@@ -30,6 +25,7 @@ import { Way, useWay } from '../tickets/10-추인'
 import { Flags } from '../tickets/11-정황'
 import { OfReview } from '../tickets/12-가설'
 import { Picture, Timeline } from '../tickets/16-경위'
+import { Body as ReportBody } from '../tickets/17-보고'
 import type { Report } from '../tickets/17-보고/report'
 
 /** 오른쪽 위 페이지 조치: 보조 조치가 앞, 주 버튼(승인 · 재상신)이 맨 끝. 서버가 거절하면 `onBad`로 그 낱말 */
@@ -94,21 +90,13 @@ function Trail() {
 }
 
 
-/** AI 보고 한 건: 그 정황의 가장 새 보고를 읽기로. 사실마다 근거(Citation), 추정 · 미확인은 목록 */
-function SignalReport({ id, name }: { id: string; name: string }) {
+/** AI 보고 한 건: 그 정황의 가장 새 보고(정황 기록의 AI 카드와 같은 꼴, 읽기만). 보고가 여럿일 때만 정황 이름이 제목 */
+function SignalReport({ id, name, many }: { id: string; name: string; many: boolean }) {
   const q = useLoad<Report>(`/signals/${encodeURIComponent(id)}/report`)
-  const setTarget = useSetAtom(targetAtom)
   const r = q.data?.report
-  const lines = (list: string[]) => (
-    <List density="balanced">
-      {list.map((t, i) => (
-        <ListItem key={i} label={<Text>{t}</Text>} />
-      ))}
-    </List>
-  )
   return (
     <AiCard
-      title={<Link onClick={() => setTarget({ kind: L.정황, id })}>{name}</Link>}
+      title={many ? name : undefined}
       aside={
         <HStack gap={2} vAlign="center">
           <Source kind={L.AI} tip={r?.model ?? undefined} rows={[[L.모델, r?.model ?? L.없음], [L.날짜, r?.at ?? L.없음], [L.조회, String(r?.reads ?? L.없음)]]} />
@@ -116,23 +104,7 @@ function SignalReport({ id, name }: { id: string; name: string }) {
         </HStack>
       }
     >
-      {!q.data && <Pending of={q} />}
-      {r && r.facts.length > 0 && (
-        <MetadataList columns="single" label={{ position: 'top' }}>
-          <MetadataListItem label={L.사실}>
-            <VStack gap={2}>
-              {r.facts.map((f, i) => (
-                <HStack key={i} gap={2} vAlign="start">
-                  <Citation number={i + 1} variant="number" source={{ title: f.text }} />
-                  <Text>{f.text}</Text>
-                </HStack>
-              ))}
-            </VStack>
-          </MetadataListItem>
-          {r.guess.length > 0 && <MetadataListItem label={L.추정}>{lines(r.guess)}</MetadataListItem>}
-          {r.unknown.length > 0 && <MetadataListItem label={L.미확인}>{lines(r.unknown)}</MetadataListItem>}
-        </MetadataList>
-      )}
+      {q.data ? <ReportBody d={q.data} /> : <Pending of={q} />}
     </AiCard>
   )
 }
@@ -148,7 +120,7 @@ export function Reports() {
   return (
     <VStack gap={4}>
       {q.data.map((s) => (
-        <SignalReport key={s.id} id={s.id} name={s.name} />
+        <SignalReport key={s.id} id={s.id} name={s.name} many={q.data!.length > 1} />
       ))}
     </VStack>
   )

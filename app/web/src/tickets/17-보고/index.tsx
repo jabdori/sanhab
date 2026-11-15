@@ -40,7 +40,7 @@ const Part = ({ name, children }: { name: string; children: ReactNode }) => (
 /** 줄마다 한 항목(긴 글이 칸을 넘지 않게 어디서든 줄을 바꾼다) */
 const Lines = ({ list }: { list: string[] }) =>
   list.length ? (
-    <List density="balanced">
+    <List density="compact">
       {list.map((t, i) => (
         <ListItem key={i} label={<Text>{t}</Text>} />
       ))}
@@ -91,23 +91,26 @@ export function Head({ d, signal }: { d: Report; signal: Signal }) {
   )
 }
 
-/** 사실 / 추정 / 미확인 / 의견·반론. 올라와 있는(검토·채택·불채택) 보고에만 내용이 있다 */
-export function Body({ d }: { d: Report }) {
+/** 사실 / 추정 / 미확인 / 의견·반론: 정황 기록과 심사 기록의 AI 카드가 같은 꼴로 쓴다. 올라와 있는(검토·채택·불채택) 보고에만 내용이 있다.
+ * `signal`이 있으면(정황 기록) 사실 끝에 근거 연결(↗)이 있고, 채택 · 불채택 단추는 의견을 펼친 몸통 안에 있다. 없으면(심사 기록) 읽기만 */
+export function Body({ d, signal }: { d: Report; signal?: Signal }) {
   const r = d.report
   // 올라오지 않은(오류 · 대기) 보고는 내용이 없다
   if (!r || !r.facts.length) return null
   return (
     <VStack gap={3}>
       <Part name={L.사실}>
-        <List density="balanced">
+        <List density="compact">
           {r.facts.map((f, i) => (
             <ListItem
               key={i}
               label={<Text>{f.text}</Text>}
               endContent={
-                <Link aria-label={L.근거} color="primary" onClick={() => show(f.ref)}>
-                  ↗
-                </Link>
+                signal && (
+                  <Link aria-label={L.근거} color="primary" onClick={() => show(f.ref)}>
+                    ↗
+                  </Link>
+                )
               }
             />
           ))}
@@ -120,62 +123,59 @@ export function Body({ d }: { d: Report }) {
         <Lines list={r.unknown} />
       </Part>
       <Collapsible trigger={<Text type="supporting" color="secondary" weight="medium">{L.의견}</Text>} defaultIsOpen={false} isDisabled={!d.opened}>
-        <VStack gap={2}>
+        <VStack gap={3}>
           {r.opinion && (
-            <>
+            <VStack gap={1}>
               <HStack gap={2} vAlign="center">
                 <Text type="supporting" color="secondary">{L.조치}</Text>
                 <Text weight="semibold">{r.opinion.action}</Text>
               </HStack>
               <Text>{r.opinion.text}</Text>
-            </>
+            </VStack>
           )}
           {r.counter && (
             <Part name={L.반론}>
               <Text>{r.counter}</Text>
             </Part>
           )}
+          {signal && <Adopt d={d} signal={signal} />}
         </VStack>
       </Collapsible>
     </VStack>
   )
 }
 
-/** 채택 · 불채택: 같은 무게의 버튼(둘 다 secondary). 누르면 확인 창에서 사유(분류 · 메모)를 받는다 — 불채택은 분류 필수. 서버가 거절하면 그 낱말.
- * 결정이 남으면 결정 한 줄과, AI의 의견과 정황의 조치(그때까지 내린 것)를 이름표와 값으로 보인다 */
-export function Decide({ d, signal }: { d: Report; signal: Signal }) {
+/** 채택 · 불채택: 같은 무게의 버튼(둘 다 secondary). 누르면 확인 창에서 사유(분류 · 메모)를 받는다 — 불채택은 분류 필수. 서버가 거절하면 그 낱말 */
+function Adopt({ d, signal }: { d: Report; signal: Signal }) {
   const [bad, setBad] = useState<string | null>(null)
   const id = d.report?.id
   useEffect(() => {
     setBad(null)
   }, [id])
-  // 보고가 없으면 채택 · 불채택할 것이 없다
-  if (!d.report) return null
-  const { decision: x, actions } = d
+  if (!d.report || !d.actions.length) return null
   return (
-    <VStack gap={2}>
-      {actions.length > 0 && (
-        <HStack gap={2} vAlign="center" wrap="wrap">
-          {actions.map((a) => (
-            <Act key={a.kind} kind={a.kind} classes={a.classes} must={a.reason} target={signal.signal.name} send={(reason) => (setBad(null), api('/adopt', { id, kind: a.kind, reason: reason ?? undefined }).catch((e: Error) => setBad(e.message)))} />
-          ))}
-          {bad && <Badge variant={fail} label={bad} />}
-        </HStack>
-      )}
-      {x && (
-        <VStack gap={1}>
-          <Line d={x} />
-          <HStack gap={2} vAlign="center" wrap="wrap">
-            <Text type="supporting" color="secondary">{L.의견}</Text>
-            <Text weight="medium">{x.opinion ?? L.없음}</Text>
-            <Text type="supporting" color="secondary">{L.조치}</Text>
-            <Text weight="medium">{x.acted ?? L.없음}</Text>
-          </HStack>
-        </VStack>
-      )}
-    </VStack>
+    <HStack gap={2} vAlign="center" wrap="wrap">
+      {d.actions.map((a) => (
+        <Act key={a.kind} kind={a.kind} classes={a.classes} must={a.reason} target={signal.signal.name} send={(reason) => (setBad(null), api('/adopt', { id, kind: a.kind, reason: reason ?? undefined }).catch((e: Error) => setBad(e.message)))} />
+      ))}
+      {bad && <Badge variant={fail} label={bad} />}
+    </HStack>
   )
 }
 
-
-
+/** 남은 결정: 결정 한 줄과, AI의 의견과 정황의 조치(그때까지 내린 것)를 이름표와 값으로 보인다 */
+export function Decide({ d }: { d: Report }) {
+  const x = d.decision
+  if (!d.report || !x) return null
+  return (
+    <VStack gap={1}>
+      <Line d={x} />
+      <HStack gap={2} vAlign="center" wrap="wrap">
+        <Text type="supporting" color="secondary">{L.의견}</Text>
+        <Text weight="medium">{x.opinion ?? L.없음}</Text>
+        <Text type="supporting" color="secondary">{L.조치}</Text>
+        <Text weight="medium">{x.acted ?? L.없음}</Text>
+      </HStack>
+    </VStack>
+  )
+}

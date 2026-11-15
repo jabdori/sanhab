@@ -64,14 +64,14 @@ function SignalAi({ s }: { s: Data }) {
   const q = useReportLoad()
   const d = q.data
   return (
-    <AiCard title={s.signal.name} aside={d && <ReportHead d={d} signal={s} />}>
+    <AiCard aside={d && <ReportHead d={d} signal={s} />}>
       {!d ? (
         <Pending of={q} />
       ) : (
         <>
           {/* AI가 응답하지 않았으면 빈 카드 대신 그렇다고 적는다(조사를 다시 누를 수 있다) */}
-          {d.report?.state === L.오류 && !d.report.facts?.length ? <Text color="secondary">{L['AI 응답 없음']}</Text> : <ReportBody d={d} />}
-          <ReportDecide d={d} signal={s} />
+          {d.report?.state === L.오류 && !d.report.facts?.length ? <Text color="secondary">{L['AI 응답 없음']}</Text> : <ReportBody d={d} signal={s} />}
+          <ReportDecide d={d} />
         </>
       )}
     </AiCard>
