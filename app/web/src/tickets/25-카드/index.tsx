@@ -18,13 +18,18 @@ import { L } from '../../labels'
 import { api, store, targetAtom, useData, type Target } from '../../state'
 import { Confirm } from '../../ui/Confirm'
 import { Reason, ready, sent, type Draft } from '../../ui/Reason'
-import { fail } from '../../ui/status'
+import { fail, plain } from '../../ui/status'
 
-/** 서버가 `data-card`로 보내는 카드: 대상(종류, 이름), 조치, 사유가 필수인지와 고를 수 있는 분류, 옮겨 적은 사유, 실행이 부를 경로 */
+/** 서버가 `data-card`로 보내는 카드: 대상(종류 · 대리점 · 귀속월 · 그때의 상태 — 값 하나에 사실 하나), 조치, 사유가 필수인지와 고를 수 있는 분류, 옮겨 적은 사유, 실행이 부를 경로.
+ *  done: 이 카드로 실행했다(대화에 함께 저장된다). 옛 카드는 dealer · ym · state 대신 합친 name만 있다 */
 export type CardData = {
   kind: string
   id: string
-  name: string
+  dealer?: string | null
+  ym?: string | null
+  state?: string | null
+  name?: string
+  done?: boolean
   action: string
   must: boolean
   classes: string[]
@@ -58,16 +63,27 @@ function Excluded({ id }: { id: string }) {
   )
 }
 
-export function Card({ card }: { card: CardData }) {
+/** 조치 카드. onDone: 실행이 끝나면 대화가 그 카드를 실행됨으로 저장한다(다시 열어도 실행됨) */
+export function Card({ card, onDone }: { card: CardData; onDone?: () => void }) {
   const [draft, setDraft] = useState<Draft>({ of: card.action, class: card.class ?? '', memo: card.memo ?? '' })
   const [busy, setBusy] = useState(false)
-  const [done, setDone] = useState(false)
+  const [ran, setRan] = useState(false)
   const [bad, setBad] = useState<string | null>(null)
+  // 실행 전 카드는 지금도 실행할 수 있는지 서버에 묻는다(다른 화면 · 다른 카드로 이미 처리된 기록이면 실행을 막는다)
+  const live = useData<{ ok: boolean; state: string | null; word: string | null }>(card.done || ran ? null : `/chat/card?kind=${encodeURIComponent(card.kind)}&id=${encodeURIComponent(card.id)}&action=${encodeURIComponent(card.action)}`)
+  // 실행됨: 이 카드로 실행했거나, 그 기록이 이미 이 조치의 상태다
+  const done = card.done || ran || (!!live && !live.ok && live.state === card.action)
+  // 막힘: 실행되지 않았는데 지금은 할 수 없다(상태 · 권한) — 거절의 낱말을 보이고 실행 칸을 두지 않는다
+  const blocked = !done && !!live && !live.ok ? live.word : null
+  const state = done ? card.action : (live?.state ?? card.state)
   const go = () => {
     setBusy(true)
     setBad(null)
     api(card.run.path, { ...card.run.body, reason: sent(draft) ?? undefined }).then(
-      () => setDone(true),
+      () => {
+        setRan(true)
+        onDone?.()
+      },
       (e: Error) => {
         setBad(e.message)
         setBusy(false)
@@ -79,17 +95,21 @@ export function Card({ card }: { card: CardData }) {
       <Box variant="muted" padding={3} width="100%" aria-label={L['조치 카드']}>
         <VStack gap={3}>
           <Text type="supporting">{L['조치 카드']}</Text>
+          {/* 값 하나에 사실 하나: 종류 / 대리점(정황 · 소명은 그 이름) / 귀속월 / 상태(기록 머리와 같은 Badge) / 조치 */}
           <MetadataList label={{ width: 72 }}>
-            <MetadataListItem label={L.대상}>
-              <Text>
-                {card.kind} {card.name}
-              </Text>
-            </MetadataListItem>
+            <MetadataListItem label={L.종류}>{card.kind}</MetadataListItem>
+            <MetadataListItem label={card.kind === L.심사 || card.kind === L.추인 ? L.대리점 : L.대상}>{card.dealer ?? card.name}</MetadataListItem>
+            {card.ym && (
+              <MetadataListItem label={L.귀속월}>
+                <Text hasTabularNumbers>{card.ym}</Text>
+              </MetadataListItem>
+            )}
+            {state && <MetadataListItem label={L.상태}>{plain(state) ? state : <State word={state} />}</MetadataListItem>}
             <MetadataListItem label={L.조치}>{card.action}</MetadataListItem>
           </MetadataList>
-          {done ? (
+          {done ? null : blocked ? (
             <HStack>
-              <State word={card.action} />
+              <Badge variant={fail} label={blocked} />
             </HStack>
           ) : (
             <>
@@ -97,7 +117,7 @@ export function Card({ card }: { card: CardData }) {
               <HStack gap={2} vAlign="center" wrap="wrap">
                 {card.action === L.인정 ? (
                   // 인정은 되돌리기 어려워 제외될 선과 기간을 보이는 확인 창을 거친다. 창의 실행 버튼은 결과의 낱말
-                  <Confirm trigger={L.실행} label={card.action} variant="primary" title={`${card.action} ${card.name}`} isDisabled={off} onConfirm={go}>
+                  <Confirm trigger={L.실행} label={card.action} variant="primary" title={`${card.action} ${card.dealer ?? card.name}`} isDisabled={off} onConfirm={go}>
                     <Excluded id={card.id} />
                   </Confirm>
                 ) : (

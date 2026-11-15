@@ -69,14 +69,17 @@ DB는 read_db 도구로만 읽는다(SurrealQL의 SELECT와 RETURN만. 쓰기는
 
 ## 지킬 것
 - 사실과 규정(조항과 규칙의 값)만 답한다. 읽은 값을 그대로 전한다. 읽지 않은 값은 말하지 않는다. 모르면 모른다고 한다. 확신을 숫자나 퍼센트로 쓰지 않는다.
-- 승인, 반려, 보류, 요청, 기각, 추인 같은 조치를 해도 되는지 해야 하는지 묻는 말에는 판정 의견을 내지 않는다. 그 판단에 관련된 사실과 규정을 보여 주고 결정은 사람이 한다고 밝힌다.
+- 승인, 반려, 보류, 요청, 기각, 추인 같은 조치를 해도 되는지 해야 하는지 묻는 말에는 판정 의견을 내지 않는다. 그 판단에 관련된 사실과 규정만 보여 준다.
+- 자기 설명과 면책 문장을 쓰지 않는다: 「판정 의견은 내지 않습니다」 「사실과 규정만 정리합니다」 「결정은 사람이 합니다」 「저는 ~할 수 없습니다」처럼 네가 무엇을 하고 안 하는지 말하는 문장 없이, 첫 문장부터 사실을 쓴다.
 - 합산, 승인권자, 관련자 여부, 재검토 여부는 DB에 계산되어 있는 값을 읽어 전한다. 직접 계산하거나 고치지 않는다.
 - 조치를 실행하지 못하고 기록을 만들거나 바꾸지 못한다. 사용자가 승인, 보류, 반려, 추인, 거부, 요청, 기각, 인정, 불인정, 보완 같은 조치를 하라고 지시하면 card 도구로 조치 카드를 낸다(대상의 id는 먼저 읽어 확인한다). 카드는 내용일 뿐이고 실행은 사람이 카드에서 누른다. 사유의 분류와 메모는 사용자가 말한 것만 옮겨 적고 말하지 않았으면 비운다(지어내지 않는다). 사용자가 지시하지 않았으면 카드를 내지 않는다. 카드를 냈으면 답은 「아래 카드의 실행을 누르면 처리됩니다」처럼 한 문장으로 짧게 맺는다(「카드에서 눌러 주세요」 같은 지시조로 되풀이하지 않는다). 도구가 카드를 내지 않는다고 하면 그 까닭(권한이 없다 · 지금 상태에서는 할 수 없다 · 분류가 맞지 않는다)을 짧게 알린다.
-- 사용자가 대화에 파일을 올리고 소명의 서류로 넘기라고 하면 doc 도구로 넘긴다(문맥에 사용자가 올린 파일이 있을 때만). 어느 소명인지 사용자가 말하지 않았고 열어 둔 대상도 소명이 아니면 clarify를 비워 불러 받을 수 있는 소명을 얻고 사용자에게 묻는다(추측하지 않는다). 넘기지 못했다고 하면 그 까닭을 짧게 알린다. 서류의 내용을 읽거나 판단하지 않는다.
+- 사용자가 이번 말에 파일을 올렸으면(문맥의 「이번 말에 올린 파일」) 묻는 말이 무엇이든 그 파일을 소명의 서류로 넘기는 일로 이끈다. 앞선 말에서 올린 파일은 사용자가 넘기라고 하거나 넘길 소명을 고를 때만 doc로 넘기고, 그 밖의 물음에는 서류 이야기를 꺼내지 않는다. 파일은 소명의 서류로 넘기려고 올리는 것이다. 어느 소명인지 사용자가 말했거나 열어 둔 대상이 소명이면 doc 도구로 넘긴다. 아니면 doc를 clarify 빈 글로 불러 받을 수 있는 소명을 얻고 「이 서류를 어느 소명의 서류로 넘길까요?」처럼 소명의 이름을 들어 묻는다(추측하지 않는다). 받을 수 있는 소명이 없거나 넘기지 못했으면 그 까닭을 짧게 알린다.
+- 서류의 내용은 네가 읽지 않는다: 넘긴 서류는 소명 화면에서 판독 · 정리된다. 서류에 무엇이 적혀 있는지 물으면 읽을 수 없다고만 하지 말고, 소명의 서류로 넘기면 판독 결과가 소명 화면에 보인다고 알리고 위처럼 어느 소명으로 넘길지 묻는다.
 
 ## 화면 부품(show)
 - 답에 값이 셋 이상이거나, 여러 기록을 들거나, 둘 이상을 비교할 때만 글과 함께 show로 부품을 하나 그린다(한 기록의 값 → Facts, 여러 기록 · 비교 → Table, 근거가 된 기록 → Records). 대화 칸은 좁다: Table은 열 2개면 표로, 3개 이상이면 줄마다 묶음으로 그려지니 열은 꼭 필요한 넷 안팎으로 하고 값은 짧게 쓴다. 답이 여러 기록을 다뤘으면 Table과 함께 Records로 그 기록들을 열 수 있게 붙인다. 인사 · 낱말 · 값 한두 개의 물음에는 쓰지 않는다.
 - 부품에는 이 답에서 read_db로 읽은 값만 그대로 넣는다. 읽지 않은 값과 계산한 값은 넣지 않는다. 사용자가 말한 가정의 값(예: 한도 150만 원)은 넣을 수 있고, 열이나 칸 이름에 가정이라고 밝힌다. 부품은 보기만 한다 — 조치는 card로만 낸다.
+- 부품의 칸 하나에는 값 하나만 넣는다: 귀속월 · 금액 · 상태처럼 뜻이 다른 값을 ·나 쉼표로 이어 한 칸에 넣지 않고 열이나 줄을 나눈다.
 - 부품을 그렸으면 글은 첫 문장의 답과 부품에 없는 것만 짧게 쓴다.
 
 ## 답의 꼴
@@ -98,18 +101,23 @@ fn table_of(kind: &str) -> Option<&'static str> {
 }
 
 /// 요청의 본문: (대화, 문맥, 붙인 기록). 틀리면 400 `대상`
-struct Ask { talk: Vec<(String, String)>, target: Option<Rec>, attach: Vec<Rec>, files: Vec<Up> }
+/// fresh: 파일이 이번 말(마지막 사람의 말)에 올라왔다(아니면 앞선 말의 파일을 화면이 다시 실어 보낸 것)
+struct Ask { talk: Vec<(String, String)>, target: Option<Rec>, attach: Vec<Rec>, files: Vec<Up>, fresh: bool }
 /// `asking`이면 마지막이 사람의 말이어야 한다(답을 청하는 요청). 보고로 남길 때는 AI의 답으로 끝난다
 fn parse(b: &J, asking: bool) -> Result<Ask, ApiError> {
     let bad = || refuse("대상");
     let list = b["messages"].as_array().filter(|m| !m.is_empty()).ok_or_else(bad)?;
-    let (mut talk, mut files) = (vec![], vec![]);
+    let (mut talk, mut files, mut fresh) = (vec![], vec![], false);
     // 대화가 길어지면 마지막 TURNS개만 쓴다(거절하지 않는다)
     for m in &list[list.len().saturating_sub(TURNS)..] {
         let role = m["role"].as_str().filter(|r| ["user", "assistant"].contains(r)).ok_or_else(bad)?;
         let text: String = m["parts"].as_array().ok_or_else(bad)?.iter().filter(|p| p["type"] == "text").filter_map(|p| p["text"].as_str()).collect();
         if text.chars().count() > CHARS { return Err(bad()); }
-        if role == "user" { files.extend(files_of(m["parts"].as_array().map_or(&[][..], Vec::as_slice))); }
+        if role == "user" {
+            let got = files_of(m["parts"].as_array().map_or(&[][..], Vec::as_slice));
+            fresh = !got.is_empty();
+            files.extend(got);
+        }
         if text.trim().is_empty() { continue; }
         // 대화는 역할마다 하나라 화면을 오간다(D67): 사람의 말마다 그때 보던 화면을 적어 보낸다. 화면이 보낸 이름이라 짧게 자른다
         let seen: Vec<String> = m["metadata"]["ctx"].as_array().into_iter().flatten().take(ATTACH + 1)
@@ -124,7 +132,7 @@ fn parse(b: &J, asking: bool) -> Result<Ask, ApiError> {
         Some(a) if a.len() <= ATTACH => a.iter().map(|r| rec(r).ok_or_else(bad)).collect::<Result<_, _>>()?,
         Some(_) => return Err(bad()),
     };
-    Ok(Ask { talk, target, attach, files: distinct(files) })
+    Ok(Ask { talk, target, attach, files: distinct(files), fresh })
 }
 
 /// 모델에게 알리는 문맥: 역할, 지금 열어 둔 대상(끄면 없다), 붙인 기록
@@ -134,7 +142,8 @@ fn context(role: &str, a: &Ask, names: &HashMap<String, String>) -> String {
     match &a.target { Some(t) => s += &format!("\n사용자가 지금 보는 화면: {}. 묻는 말에 대상이 따로 없으면 이것을 가리킨다.", one(t)), None => s += "\n사용자가 지금 연 기록은 없다(목록 화면)." }
     s += "\n대화는 화면을 옮겨도 이어진다. 앞선 말의 [이 말을 할 때 보던 화면]은 그 말이 가리키던 기록이다. 그 표시는 답에 되풀이하지 않는다.";
     if !a.attach.is_empty() { s += &format!("\n사용자가 붙인 기록: {}.", a.attach.iter().map(one).collect::<Vec<_>>().join(", ")); }
-    if !a.files.is_empty() { s += &format!("\n사용자가 올린 파일: {}.", a.files.iter().map(|f| f.name.as_str()).collect::<Vec<_>>().join(", ")); }
+    let names = a.files.iter().map(|f| f.name.as_str()).collect::<Vec<_>>().join(", ");
+    if !a.files.is_empty() { s += &if a.fresh { format!("\n사용자가 이번 말에 올린 파일: {names}.") } else { format!("\n사용자가 앞선 말에서 올린 파일(이번 말에는 올리지 않았다): {names}.") }; }
     s
 }
 
@@ -221,11 +230,11 @@ fn talk(model: String, key: Option<String>, ai: Db, me: Db, system: String, recs
                             }
                             LanguageModelStreamChunkType::TextEnd => if open { open = false; yield json!({ "type": "text-end", "id": format!("t{n}") }); },
                             LanguageModelStreamChunkType::ToolCallAvailable(info) => {
-                                let what = match info.tool.name.as_str() { "read_db" => "조회", "card" => "카드", "doc" => "서류", "show" => "표시", _ => "" };
+                                let what = match info.tool.name.as_str() { "read_db" => "조회", "card" => "카드", "doc" => "서류", "show" => "요약", _ => "" };
                                 if !what.is_empty() { running.push((info.tool.id.clone(), what, tokio::time::Instant::now())); yield json!({ "type": "data-step", "id": info.tool.id, "data": { "tool": what, "state": "run", "names": [], "go": [] } }); }
                             }
                             LanguageModelStreamChunkType::ToolCallEnd(r) => {
-                                let what = match r.tool.name.as_str() { "read_db" => "조회", "card" => "카드", "doc" => "서류", "show" => "표시", _ => "" };
+                                let what = match r.tool.name.as_str() { "read_db" => "조회", "card" => "카드", "doc" => "서류", "show" => "요약", _ => "" };
                                 if !what.is_empty() {
                                     let ms = running.iter().find(|(id, ..)| id == &r.tool.id).map(|(.., t0)| t0.elapsed().as_millis() as u64);
                                     running.retain(|(id, ..)| id != &r.tool.id);
@@ -288,10 +297,9 @@ async fn fixture_doc(model: &str, me: &Db, talk: &[(String, String)], files: &Ar
     Some(text)
 }
 
-/// 고정한 답(자동 검사용): 열어 둔 대상과 붙인 기록을 실제로 읽고(AI의 세션) 그 이름과 값 한두 개를 풀어 쓴다. 문맥이 없으면 읽지 않는다. 판정 의견은 내지 않는다. (글, 조각 사이의 쉼 밀리초). `fixture-down`은 없음
-async fn canned(model: &str, ai: &Db, _system: &str, recs: &[Rec], talk: &[(String, String)], seen: &Arc<Mutex<BTreeSet<String>>>) -> Option<(String, u64)> {
+/// 고정한 답(자동 검사용): 열어 둔 대상과 붙인 기록을 실제로 읽고(AI의 세션) 그 이름과 값 한두 개를 풀어 쓴다. 문맥이 없으면 읽지 않는다. 판정 의견 · 자기 설명은 쓰지 않는다. (글, 조각 사이의 쉼 밀리초). `fixture-down`은 없음
+async fn canned(model: &str, ai: &Db, _system: &str, recs: &[Rec], _talk: &[(String, String)], seen: &Arc<Mutex<BTreeSet<String>>>) -> Option<(String, u64)> {
     let pause = match model { "fixture" => 5, "fixture-slow" => 600, _ => return None };
-    let ask = talk.last().map(|(_, t)| t.as_str()).unwrap_or_default();
     let mut facts: Vec<String> = vec![];
     for r in recs {
         let Some(tb) = table_of(&r.kind) else { continue };
@@ -307,9 +315,8 @@ async fn canned(model: &str, ai: &Db, _system: &str, recs: &[Rec], talk: &[(Stri
         else if let (true, Some(n)) = (tb == "signal", row["ev"].as_i64()) { f += &format!(": 근거 {n}건"); }
         facts.push(f);
     }
-    let judge = ["해도", "해야", "승인", "반려", "기각"].iter().any(|w| ask.contains(w));
+    // 판정을 묻는 말에도 판정 의견 · 자기 설명 없이 읽은 사실만
     let text = if facts.is_empty() { "열어 둔 기록도 붙인 기록도 없어 조회하지 않았다. 기록을 열거나 @로 붙여 물어보면 그 기록을 읽어 답한다.".to_string() }
-        else if judge { format!("판정 의견은 내지 않는다. 사실과 규정을 보여 준다: {}. 결정은 사람이 한다.", facts.join(", ")) }
         else { format!("조회한 기록: {}.", facts.join(", ")) };
     // 지시문(문맥 줄)은 되풀이하지 않는다 — 답에는 읽은 기록의 사실만
     Some((text, pause))
@@ -615,7 +622,7 @@ pub async fn check(c: &Check) -> Result<()> {
         let (_, _, body) = stream(support, json!({ "messages": [say("이 지급을 승인해도 되나?")], "target": null, "attach": [{ "kind": "정황", "id": "계좌-D-024" }, { "kind": "지급", "id": "RB-00001" }] })).await?;
         let text = said(&events(&body).0);
         ensure!(text.contains("정황 계좌 · 성일상사24") && text.contains("지급 대성상사1 · ") && !text.contains("테이블") && !text.contains("D-024"), "끈 문맥과 붙임 {text}");
-        ensure!(text.contains("판정 의견은 내지 않는다") && text.contains("결정은 사람이 한다") && !["승인하세요", "승인해도 된다", "승인해도 됩니다", "반려하세요", "기각하세요"].iter().any(|w| text.contains(w)), "판정 의견 {text}");
+        ensure!(text.starts_with("조회한 기록: ") && !["판정 의견", "결정은 사람", "승인하세요", "승인해도 된다", "승인해도 됩니다", "반려하세요", "기각하세요"].iter().any(|w| text.contains(w)), "판정 의견 {text}");
         let (_, _, body) = stream(support, json!({ "messages": [say("안녕"), bot("안녕하세요"), say("대리점 두 곳")] })).await?;
         ensure!(said(&events(&body).0).starts_with("열어 둔 기록도 붙인 기록도 없어"), "여러 말");
 

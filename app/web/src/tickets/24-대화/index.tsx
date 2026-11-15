@@ -60,7 +60,8 @@ const KIND_ICON: Record<string, typeof FlagIcon> = { [L.심사]: ClipboardDocume
 const kindIcon = (k: string) => <Icon icon={KIND_ICON[k] ?? DocumentTextIcon} size="sm" />
 /** `@`로 붙일 기록 찾기(서버 /chat/find — 문맥 밖의 기록도 이름으로 찾는다) */
 const records = {
-  search: async (q: string): Promise<SearchableItem<Ctx>[]> => (await api<{ items: Ctx[] }>(`/chat/find?q=${encodeURIComponent(q)}`)).items.map((i) => ({ id: `${i.kind}/${i.id}`, label: i.name, auxiliaryData: i })),
+  // 찾기 목록은 여섯 줄까지(입력창 위 칸에 다 들어가 마지막 줄이 잘리지 않게. 더 좁히려면 이름을 더 친다)
+  search: async (q: string): Promise<SearchableItem<Ctx>[]> => (await api<{ items: Ctx[] }>(`/chat/find?q=${encodeURIComponent(q)}`)).items.slice(0, 6).map((i) => ({ id: `${i.kind}/${i.id}`, label: i.name, auxiliaryData: i })),
   bootstrap: () => records.search(''),
   cancel: () => {},
 }
@@ -80,8 +81,8 @@ const Mark = ({ word }: { word: string }) => <Badge variant={word === L.대기 ?
 /** 대화 목록의 한 줄(서버 `/chat/sessions`) */
 type Sess = { id: string; title: string; target: Target | null; name: string | null; count: number; updated: string }
 
-/** 저장할 말: 파일 파트(data URL)는 빼고 */
-const lean = (ms: Talk[]) => ms.map((m) => ({ ...m, parts: m.parts.filter((p) => p.type !== 'file') }))
+/** 저장할 말: 파일 파트는 이름만 남긴다(내용 data URL은 저장하지 않는다 — 다시 열어도 붙임 칩은 보이고, 서버는 빈 url을 파일로 읽지 않는다) */
+const lean = (ms: Talk[]) => ms.map((m) => ({ ...m, parts: m.parts.map((p) => (p.type === 'file' ? { ...p, url: '' } : p)) }))
 
 /** here: 지금 연 기록을 다룬 대화(기록을 열지 않았으면 null). 대화 목록 창은 이것(`기록`)부터 보이고 `전체`로 바꾼다 — 지난 대화의 입구는 이 창 하나 */
 function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initial: Talk[]; list: Sess[]; here: Sess[] | null; onPick: (id: string) => void }) {
@@ -96,6 +97,11 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
   const [text, setText] = useState('')
   const [kept, setKept] = useState<{ state?: string; error?: string } | null>(null)
   const [keeping, setKeeping] = useState(false)
+  // 맨 아래로: 보낼 때 · 보고를 남길 때 늘린다(위로 올려 둔 채 보내도 새 말이 보이게)
+  const [bump, setBump] = useState(0)
+  // 문맥 칸 접기(사람이 누른 것). `@`로 찾는 동안에는 찾기 목록이 문맥 카드를 덮지 않게 접는다
+  const [folded, setFolded] = useState(false)
+  const mention = /(^|\s)@[^\s@]*$/.test(text)
   // 올릴 파일(26): 보내면 AI가 소명의 서류로 넘긴다
   const [file, setFile] = useState<File | null>(null)
   const pick = useRef<HTMLInputElement>(null)
@@ -145,18 +151,20 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
         },
       }),
   )
-  const { messages, sendMessage, status, error, clearError } = useChat<Talk>({
+  // 대화 전체를 저장한다: 제목은 첫 말, 다룬 기록은 문맥·붙임, 읽은 기록은 답 아래의 조회(D61)
+  const save = (all: Talk[]) => {
+    const id = session.current
+    if (!id) return
+    const first = all.find((m) => m.role === 'user')?.parts.map((p) => (p.type === 'text' ? p.text : '')).join('') ?? ''
+    const reads = all.flatMap((m) => m.parts.flatMap((p) => (p.type === 'data-reads' ? (p.data.go ?? []).filter((g): g is Target => !!g) : [])))
+    const about = [...new Map(all.flatMap((m) => (m.metadata?.ctx ?? []).filter((c) => c.id).map(({ kind, id }) => [key({ kind, id }), { kind, id }] as const))).values()]
+    api(`/chat/sessions/${id}`, { messages: lean(all), title: first.replace(/\s+/g, ' ').trim().slice(0, 40), about, reads }, 'PUT').catch(() => {})
+  }
+  const { messages, setMessages, sendMessage, status, error, clearError } = useChat<Talk>({
     transport,
     messages: initial,
-    // 답이 끝날 때마다 대화 전체를 저장한다: 제목은 첫 말, 다룬 기록은 문맥·붙임, 읽은 기록은 답 아래의 조회(D61)
-    onFinish: ({ messages: all }) => {
-      const id = session.current
-      if (!id) return
-      const first = all.find((m) => m.role === 'user')?.parts.map((p) => (p.type === 'text' ? p.text : '')).join('') ?? ''
-      const reads = all.flatMap((m) => m.parts.flatMap((p) => (p.type === 'data-reads' ? (p.data.go ?? []).filter((g): g is Target => !!g) : [])))
-      const about = [...new Map(all.flatMap((m) => (m.metadata?.ctx ?? []).filter((c) => c.id).map(({ kind, id }) => [key({ kind, id }), { kind, id }] as const))).values()]
-      api(`/chat/sessions/${id}`, { messages: lean(all), title: first.replace(/\s+/g, ' ').trim().slice(0, 40), about, reads }, 'PUT').catch(() => {})
-    },
+    // 답이 끝날 때마다 저장한다
+    onFinish: ({ messages: all }) => save(all),
     // AI가 파일을 소명의 서류로 넘겼으면 소명 화면이 다시 읽는다
     onData: (p) => {
       if (p.type === 'data-doc') store.set(changedAtom, (n) => n + 1)
@@ -181,6 +189,7 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
     const used: Ctx[] = [...(view ? [{ kind: view, id: '', name: '' }] : []), ...[...(now ? [now] : []), ...pinned].map((t) => ({ ...t, name: named[key(t)] ?? t.id }))]
     const files = file ? (() => { const d = new DataTransfer(); d.items.add(file); return d.files })() : undefined
     sendMessage({ text: value.trim(), files, metadata: { ctx: used, at: new Date().toISOString() } })
+    setBump((n) => n + 1)
     setText('')
     setFile(null)
     setTooBig(false)
@@ -194,12 +203,19 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
     if (document.activeElement) window.getSelection()?.selectAllChildren(document.activeElement)
     el.insertText(prompt)
   }
+  // 조치 카드를 실행하면 그 카드를 실행됨으로 대화에 저장한다(다시 열어도 실행됨 — 입력칸 · 실행 단추로 돌아가지 않는다)
+  const ran = (c: CardData) => {
+    const next = messages.map((m) => ({ ...m, parts: m.parts.map((p) => (p.type === 'data-card' && p.data.kind === c.kind && p.data.id === c.id && p.data.action === c.action ? { ...p, data: { ...p.data, done: true } } : p)) }))
+    setMessages(next)
+    save(next)
+  }
   // 보고로 남기기의 대상은 정황이다(열어 둔 정황, 없으면 붙인 정황)
   const signal = [now, ...pinned].some((t) => t?.kind === L.정황)
   const answered = messages.some((m) => m.role === 'assistant' && m.parts.some((p) => p.type === 'text' && p.text))
   const keep = async () => {
     setKeeping(true)
     setKept(null)
+    setBump((n) => n + 1)
     try {
       const body = { messages: messages.slice(-20).map(({ role, parts }) => ({ role, parts: parts.filter((p) => p.type === 'text') })), ...ctx.current }
       setKept({ state: (await api<{ state: string }>('/chat/report', body)).state })
@@ -207,6 +223,7 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
       setKept({ error: word(e as Error) })
     } finally {
       setKeeping(false)
+      setBump((n) => n + 1)
     }
   }
 
@@ -230,16 +247,23 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
             <IconButton label={`${L.대화} ${L.목록}`} tooltip={`${L.대화} ${L.목록}`} variant="ghost" size="sm" icon={<Icon icon={ClockIcon} size="sm" />} onClick={() => setHistory(true)} />
             <IconButton label={`${L.새} ${L.대화}`} tooltip={`${L.새} ${L.대화}`} variant="ghost" size="sm" icon={<Icon icon={PencilSquareIcon} size="sm" />} onClick={() => onPick('')} />
           </HStack>
+          {/* 대화 목록 창(DialogScrollingContent 블록 꼴): 머리 · 갈래 단추 · 목록의 왼쪽 끝을 한 줄에(List edge="outset") */}
           <Dialog isOpen={history} onOpenChange={setHistory} width={480}>
-            <DialogHeader title={`${L.대화} ${L.목록}`} onOpenChange={setHistory} />
+            <Layout
+              header={<DialogHeader title={`${L.대화} ${L.목록}`} onOpenChange={setHistory} />}
+              content={
+            <LayoutContent>
+            <VStack gap={3}>
             {here && (
+              <HStack>
               <SegmentedControl label={`${L.대화} ${L.목록}`} value={scope} onChange={(v) => setScope(v as typeof scope)} size="sm">
                 <SegmentedControlItem label={L.기록} value="here" />
                 <SegmentedControlItem label={L.전체} value="all" />
               </SegmentedControl>
+              </HStack>
             )}
             {past.length ? (
-              <List hasDividers>
+              <List hasDividers edge="flush">
                 {past.map((x) => (
                   <ListItem
                     key={x.id}
@@ -256,6 +280,10 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
             ) : (
               <EmptyState title={`${L.대화} ${L.없음}`} isCompact />
             )}
+            </VStack>
+            </LayoutContent>
+              }
+            />
           </Dialog>
         </LayoutHeader>
       }
@@ -264,7 +292,7 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
         {/* ChatLayout은 flex 1로 높이를 채운다: 세로 Stack(높이 100%) 안에 둔다 */}
         <VStack height="100%">
         <ChatLayout
-          scrollButton={<Jump />}
+          scrollButton={<Jump bump={bump} />}
           density="spacious"
           composer={
             <ChatComposer
@@ -298,7 +326,7 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
               drawer={
                 // 문맥은 입력창 안의 카드다: 지금 연 기록(자동, 빼면 이 대화에서 빠진다) · `@`로 붙인 기록 · 올릴 서류. 아무것도 없으면 칸을 두지 않는다
                 (now || view || pinned.length > 0 || file) && (
-                  <ChatComposerDrawer label={L.문맥} count={(now || view ? 1 : 0) + pinned.length + (file ? 1 : 0)}>
+                  <ChatComposerDrawer label={L.문맥} count={(now || view ? 1 : 0) + pinned.length + (file ? 1 : 0)} isCollapsed={folded || mention} onCollapsedChange={setFolded}>
                     <VStack gap={2}>
                     {/* 지금 보는 화면: 종류 아이콘 · 이름 · 종류. 빼면 이번 말에서 빠지고, 화면을 옮기면 다시 따라온다 */}
                     {(now || view) && (
@@ -371,7 +399,7 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
               const bubbles = [
                 ...(body ? [{ key: 'text', wide: false, node: ai ? <Markdown density="compact" isStreaming={busy}>{body}</Markdown> : <ChatTokenizedText>{body}</ChatTokenizedText> }] : []),
                 ...surfaces.map((x) => ({ key: `a2ui/${x.id}`, wide: true, node: <Surface messages={x.messages} /> })),
-                ...cards.map((c) => ({ key: `${c.kind}/${c.id}/${c.action}`, wide: true, node: <ActionCard card={c} /> })),
+                ...cards.map((c) => ({ key: `${c.kind}/${c.id}/${c.action}`, wide: true, node: <ActionCard card={c} onDone={() => ran(c)} /> })),
               ]
               // 답이 오기 전의 빈 AI 말: 마지막이고 받는 중이면 응답 대기 줄 하나, 아니면 그리지 않는다(아바타가 둘이 되지 않게)
               if (empty && !(busy && m === messages.at(-1))) return null
@@ -433,6 +461,11 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
                 <ChatToolCalls calls={[{ key: 'wait', name: L.응답, status: 'running' }]} />
               </ChatMessage>
             )}
+            {keeping && (
+              <ChatMessage sender="assistant" avatar={AI_MARK}>
+                <ChatToolCalls calls={[{ key: 'keep', name: L.보고, status: 'running' }]} />
+              </ChatMessage>
+            )}
             {(error || kept || tooBig) && (
               <ChatSystemMessage>
                 <HStack gap={2} vAlign="center" wrap="wrap">
@@ -465,8 +498,9 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
 /** 같은 이름을 한 번만(도구 줄의 이름 반복 제거) */
 const uniq = (a: string[]) => [...new Set(a)]
 
-/** 맨 아래로 가는 단추: 맨 아래에 있으면 보이지 않는다(템플릿 기본은 '새 메시지' 표지가 맨 아래에서도 남아 답 끝을 가린다) */
-function Jump() {
+/** 맨 아래로 가는 단추: 맨 아래에 있으면 보이지 않는다(템플릿 기본은 '새 메시지' 표지가 맨 아래에서도 남아 답 끝을 가린다).
+ *  bump가 바뀌면(보냄 · 보고) 그리고 대화를 열 때 맨 아래로 간다 — 위로 올려 둔 채 보내도 새 말이 보이고, 다시 연 대화는 마지막 말부터 보인다 */
+function Jump({ bump }: { bump: number }) {
   const box = useChatLayoutContext()!.scrollContainerRef
   const [away, setAway] = useState(false)
   useEffect(() => {
@@ -480,6 +514,11 @@ function Jump() {
     return () => { el.removeEventListener('scroll', on); ro.disconnect() }
   }, [box])
   const down = useCallback(() => box.current?.scrollTo({ top: box.current.scrollHeight, behavior: 'smooth' }), [box])
+  // 그린 뒤(말 · 표가 높이를 정한 뒤) 맨 아래로
+  useEffect(() => {
+    const id = requestAnimationFrame(() => box.current?.scrollTo({ top: box.current.scrollHeight }))
+    return () => cancelAnimationFrame(id)
+  }, [bump, box])
   return <ChatLayoutScrollButton isVisible={away} onClick={down} />
 }
 
