@@ -17,7 +17,11 @@ const Lines = () => (
   </VStack>
 )
 
+/** 권한 밖(403): 그 사람에게 없는 기록이라 오류 · 없음을 남기지 않고 아무것도 그리지 않는다(역할 이름이 아니라 서버의 권한 결과로) */
+export const denied = (of: Load<unknown> | Load<unknown>[]) => (Array.isArray(of) ? of : [of]).some((l) => l.error?.status === 403)
+
 export function Pending({ of, page = false }: { of: Load<unknown> | Load<unknown>[]; page?: boolean }) {
+  if (denied(of)) return null
   const all = Array.isArray(of) ? of : [of]
   // 서버 내부 오류(5xx)의 말은 DB · 코드의 문장이라 화면에 두지 않는다(review.md 2-1 개발용 표기) — 4xx의 말(권한 · 대상 …)은 낱말이라 보인다
   const error = all.find((l) => l.error)?.error

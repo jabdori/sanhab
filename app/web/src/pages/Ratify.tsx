@@ -24,7 +24,7 @@ export function Ratify() {
         // 묶음에는 상태가 없다: 이견이 남아 종결을 기다리면 그것이 상태(Badge)
         ...(dissent(b) ? [<State word={L.이견} />] : []),
         // 기록 종류(추인)와 같은 표시는 생략
-        ...r.marks.filter((m) => m !== L.추인).map((m) => <Mark>{m}</Mark>),
+        ...(r.marks ?? []).filter((m) => m !== L.추인).map((m) => <Mark>{m}</Mark>),
         <Meta icon={UserIcon}>{r.approver}</Meta>,
         <Meta icon={BuildingStorefrontIcon}>{`${b.members.length}${L.곳}`}</Meta>,
       ]}

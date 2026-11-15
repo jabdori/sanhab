@@ -29,7 +29,7 @@ export function Pane() {
           go: { kind: t.view, id: t.target },
           label: t.name ?? t.target,
           description: [t.kind, t.ym, t.total != null ? num(t.total) : null].filter(Boolean).join(' · '),
-          flag: t.marks.includes(L.정황),
+          flag: t.marks?.includes(L.정황),
         }))
       : menu === L.대리점
         ? (dealers ?? []).map((d) => ({ go: { kind: L.대리점, id: d.id }, label: d.name, description: d.id }))

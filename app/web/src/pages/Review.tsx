@@ -93,6 +93,8 @@ function Trail() {
 function SignalReport({ id, name, many }: { id: string; name: string; many: boolean }) {
   const q = useLoad<Report>(`/signals/${encodeURIComponent(id)}/report`)
   const r = q.data?.report
+  // 보고를 볼 권한이 없으면 카드째 그리지 않는다
+  if (q.error?.status === 403) return null
   return (
     <AiCard
       title={many ? name : undefined}
@@ -111,11 +113,12 @@ function SignalReport({ id, name, many }: { id: string; name: string; many: bool
 /** AI 보고: 이 심사에 걸린 정황마다 그 보고 카드(정황 영역 바로 아래, D63). 정황이 없으면 없음 */
 export function Reports() {
   const r = useReview()?.review
-  const on = !!r?.marks.includes(L.정황)
+  const on = !!r?.marks?.includes(L.정황)
   const q = useLoad<{ id: string; name: string }[]>(on ? `/reviews/${r!.id}/signals` : null)
   // 정황 표시가 없는 심사에는 보고가 없다(이전 심사의 값이 남아 있어도 그리지 않는다)
   if (!on) return null
   if (!q.data) return <Pending of={q} />
+  if (!q.data.length) return null
   return (
     <VStack gap={4}>
       {q.data.map((s) => (
@@ -141,7 +144,7 @@ export function Review() {
         <Meta icon={UserIcon}>{v.holder ?? v.approver}</Meta>,
         <Meta icon={BuildingStorefrontIcon}>{`${data.members.length}${L.곳}`}</Meta>,
         // 추인 묶음(10)이 있으면 그 표시는 묶음으로 가는 링크(Way)가 맡는다 — 같은 `추인`을 두 번 두지 않는다
-        ...v.marks.filter((m) => !(way && m === L.추인)).map((m) => <Mark>{m}</Mark>),
+        ...(v.marks ?? []).filter((m) => !(way && m === L.추인)).map((m) => <Mark>{m}</Mark>),
         ...(way ? [<Way b={way} />] : []),
       ]}
       actions={<Actions r={data} s={s} onBad={(word) => setBad(word ? { id: v.id, word } : null)} />}
@@ -154,7 +157,7 @@ export function Review() {
         // 반려 · 보류의 사유는 받는 사람이 내용에서 바로 본다(이력 탭까지 가지 않게)
         // 값 하나에 사실 하나(review.md 2-1): 사유의 분류와 메모를 줄마다
         ...data.history.filter((h) => h.kind === v.status && (h.kind === L.반려 || h.kind === L.보류)).slice(-1).flatMap((h): [string, ReactNode][] => [[L.사유, h.reason?.class ?? L.없음], ...(h.reason?.memo ? [[L.메모, h.reason.memo] as [string, ReactNode]] : [])]),
-        [L.승인권자, v.holder && v.holder !== v.approver ? <HStack gap={2} vAlign="center"><Text>{v.holder}</Text><Mark>{v.marks.includes(L.이탈) ? L.이탈 : L.가설}</Mark></HStack> : v.approver],
+        [L.승인권자, v.holder && v.holder !== v.approver ? <HStack gap={2} vAlign="center"><Text>{v.holder}</Text><Mark>{v.marks?.includes(L.이탈) ? L.이탈 : L.가설}</Mark></HStack> : v.approver],
         [L.귀속월, v.ym],
         [L.구성, <Names list={data.members.map((m) => m.name)} unit={L.곳} />],
         // 귀속월 안에 식별자가 바뀌었으면 왜 오늘의 대리점 화면과 구성이 다른지: 계산한 기간과 그 변경(D47)

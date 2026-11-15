@@ -20,7 +20,7 @@ import { grade } from '../ui/grade'
 import { Kind, Mark, State } from '../ui/Mark'
 import { dot, num, plain, signalDot } from '../ui/status'
 
-export type Task = { id: string; kind: string; view: string; target: string; name?: string; ym?: string; total?: number | null; marks: string[]; role: string; pick: boolean; state?: string; pay?: string | null }
+export type Task = { id: string; kind: string; view: string; target: string; name?: string; ym?: string; total?: number | null; marks?: string[]; role: string; pick: boolean; state?: string; pay?: string | null }
 
 /** 종류의 묶음(위에서 아래로, 묶음 하나에 종류 하나). 한 건씩 정하는 작업이 위, 묶어서 승인하는 심사가 맨 아래 */
 const GROUPS: string[][] = [[L.추인], [L.종결], [L.정황], [L.발송], [L.소명], [L.미응답], [L.지급], [L.대사], [L.재상신], [L.심사]]
@@ -32,7 +32,7 @@ export const sortTasks = (ts: Task[]) => GROUPS.flatMap((kinds) => ts.filter((t)
 /** 안내가 열어 볼 첫 작업: 목록과 같은 순서에서 정황이 걸린 것이 먼저(설명할 거리가 많다) */
 export const firstTask = (mine: Task[]) => {
   const sorted = sortTasks(mine)
-  return sorted.find((t) => t.marks.includes(L.정황)) ?? sorted[0]
+  return sorted.find((t) => t.marks?.includes(L.정황)) ?? sorted[0]
 }
 
 /** 결정을 보낸다. 거절되어도 목록을 다시 읽어 지금 할 수 있는 것을 보인다 */
@@ -137,7 +137,7 @@ export function Work() {
       width: pixel(44),
       renderCell: (t) => (
         <Center axis="horizontal">
-          <StatusDot variant={t.kind === L.정황 ? signalDot(t.pay ?? '') : dot(t.marks, t.pay ?? t.state)} label={t.marks.join(' · ') || (t.pay ?? t.state ?? t.kind)} />
+          <StatusDot variant={t.kind === L.정황 ? signalDot(t.pay ?? '') : dot(t.marks ?? [], t.pay ?? t.state)} label={t.marks?.join(' · ') || (t.pay ?? t.state ?? t.kind)} />
         </Center>
       ),
     },
@@ -160,7 +160,7 @@ export function Work() {
       width: proportional(1, { minWidth: 136 }),
       renderCell: (t) => (
         <HStack gap={1} vAlign="center" wrap="nowrap">
-          {t.marks.map((m) => (
+          {t.marks?.map((m) => (
             <Mark key={m}>{m}</Mark>
           ))}
         </HStack>
@@ -169,7 +169,7 @@ export function Work() {
     { key: 'state', header: L.상태, width: pixel(80), renderCell: (t) => (t.pay ?? t.state) && <State word={(t.pay ?? t.state)} /> },
   ]
   // 값이 하나도 없는 칸은 두지 않는다(정황만 있는 내부 감시에는 귀속월 · 금액 · 표시가 없다)
-  const has = { ym: rows.some((t) => t.ym), total: rows.some((t) => t.total != null), marks: rows.some((t) => t.marks.length), state: rows.some((t) => !plain(t.pay ?? t.state)) } as Record<string, boolean>
+  const has = { ym: rows.some((t) => t.ym), total: rows.some((t) => t.total != null), marks: rows.some((t) => t.marks?.length), state: rows.some((t) => !plain(t.pay ?? t.state)) } as Record<string, boolean>
   const shown = columns.filter((c) => has[c.key as string] ?? true)
   return (
     <Layout

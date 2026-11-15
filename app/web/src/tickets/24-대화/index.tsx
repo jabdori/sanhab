@@ -37,7 +37,7 @@ import { TypeaheadItem, type SearchableItem } from '@astryxdesign/core/Typeahead
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ASK, ASK_ANY, ASK_RULE, L } from '../../labels'
 import { Kind, State } from '../../ui/Mark'
-import { api, changedAtom, exampleAtom, menuAtom, roleAtom, rolesAtom, store, targetAtom, useData, type Target } from '../../state'
+import { api, changedAtom, exampleAtom, menuAtom, roleAtom, rolesAtom, store, targetAtom, useData, useLoad, type Target } from '../../state'
 import { fail, nb, kind, plain } from '../../ui/status'
 import { Card as ActionCard, Surface, type A2ui, type CardData } from '../25-카드'
 
@@ -136,6 +136,9 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
   const view = !target ? menu : null
   // 규정 기록: 조항을 연 것, 또는 조항이 하나뿐이라 규정 메뉴가 곧 그 기록인 것(pages/Rules) — 규정에 맞는 제안(D14)
   const rule = target ? target.kind === L.규정 : menu === L.규정
+  // 정황 제안: 연 심사에 정황이 안 보이면(권한 밖 403 · 걸린 것 없음) 그 카드를 거둔다 — 역할 이름이 아니라 서버가 준 것으로
+  const seen = useLoad<unknown[]>(target?.kind === L.심사 ? `/reviews/${target.id}/signals` : null)
+  const asks = Object.entries(rule ? ASK_RULE : now ? ASK : ASK_ANY).filter(([name]) => name !== L.정황 || !target || target.kind !== L.심사 || !!seen.data?.length || seen.loading)
   // 보던 기록의 이름(보낸 말의 칩 — 제목 줄과 같은 이름)은 서버에서 받아 둔다
   const [named, setNamed] = useState<Record<string, string | null>>({})
   const want = [target].filter((t): t is Target => !!t && !(key(t) in named))
@@ -381,7 +384,7 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
             mention ? undefined : (
               <Section variant="transparent" padding={4}>
                 <Grid columns={{ minWidth: 200 }} gap={3}>
-                  {Object.entries(rule ? ASK_RULE : now ? ASK : ASK_ANY).map(([name, prompt]) => (
+                  {asks.map(([name, prompt]) => (
                     <ClickableCard key={name} label={name} padding={3} variant="muted" isDisabled={busy} onClick={() => applySuggestion(prompt)}>
                       {/* 주제의 색 면 타일(work-item-detail 첨부 카드의 타일 꼴, 색은 ui/status.ts의 kind) */}
                       <HStack gap={4} vAlign="center">

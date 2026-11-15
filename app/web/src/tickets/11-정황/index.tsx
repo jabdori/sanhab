@@ -158,13 +158,14 @@ export function History() {
 /** 심사 상세의 "정황": 그 심사의 구성원에 걸린 정황. 누르면 그 정황이 열린다. 표시가 붙은 심사에만 보인다 */
 export function Flags() {
   const r = useReview()?.review
-  const on = r?.marks.includes(L.정황)
+  const on = r?.marks?.includes(L.정황)
   const q = useLoad<{ id: string; kind: string; name: string; state: string }[]>(r && on ? `/reviews/${r.id}/signals` : null)
   const setTarget = useSetAtom(targetAtom)
   // 정황 표시가 없는 심사에는 정황 줄이 없다
   if (!on) return null
   if (!q.data) return <Pending of={q} />
   const list = q.data
+  if (!list.length) return null
   // ItemWithMetadata 꼴: 주의 점 · 정황 이름 / 종류 · 상태 Badge. 누르면 그 정황이 열린다. 기준이 가정인 종류(근접 D51, 지연 D30)는 그 가정의 표지
   return (
     <Region title={L.정황} aside={<Badge variant="neutral" label={String(list.length)} />}>

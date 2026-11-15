@@ -26,7 +26,7 @@ import { type Decision, useReview } from '../04-심사/review'
 import { Names } from '../../ui/Line'
 
 export type Bundle = {
-  ratify: { id: string; name: string; ym: string; marks: string[]; total: number; limit: number; approver: string; source: string }
+  ratify: { id: string; name: string; ym: string; marks?: string[]; total: number; limit: number; approver: string; source: string }
   members: { id: string; name: string }[]
   /** 그 달의 재검토인 과거의 승인. 값은 당시의 것 */
   reviews: { id: string; name: string; members: number; total: number; approver: string; paid: string | null; source: string; file: string | null; row: number | null }[]
@@ -148,7 +148,7 @@ export function Past() {
 }
 
 /** 이견이 남았고 아직 종결되지 않았는가: 머리의 상태(이견 Badge)와 조치가 이것을 본다 */
-export const dissent = (b: Bundle) => b.history.some((h) => h.kind === L.이견) && !b.ratify.marks.includes(L.종결)
+export const dissent = (b: Bundle) => b.history.some((h) => h.kind === L.이견) && !b.ratify.marks?.includes(L.종결)
 
 /** 페이지 조치: 지금 역할이 할 수 있는 것만(추인 / 거부 · 종결 · 이견). 보조가 앞, 주 버튼이 맨 끝. 서버가 거절하면 `onBad`로 그 낱말 */
 export function RatifyActions({ onBad }: { onBad: (word: string | null) => void }) {
@@ -204,7 +204,7 @@ export function useWay() {
   const r = useReview()
   const [b, setB] = useState<{ id: string; name: string; ym: string } | null>(null)
   const id = r?.review.id
-  const marks = r?.review.marks.join()
+  const marks = r?.review.marks?.join()
   useEffect(() => {
     setB(null)
     if (id) api<{ id: string; name: string; ym: string }>(`/reviews/${id}/ratify`).then(setB, () => {})

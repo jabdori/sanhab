@@ -133,7 +133,7 @@ export function Payouts() {
                   <Link weight="semibold" onClick={() => setTarget({ kind: L.심사, id: p.review!.id })}>
                     {p.review.name}
                   </Link>
-                  {p.review.marks.map((m) => (
+                  {p.review.marks?.map((m) => (
                     <Mark key={m}>{m}</Mark>
                   ))}
                 </HStack>

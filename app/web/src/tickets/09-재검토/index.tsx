@@ -52,7 +52,7 @@ export function Then() {
       </MetadataList>
     </Region>
   )
-  if (!r.marks.includes(L.재검토)) return paid
+  if (!r.marks?.includes(L.재검토)) return paid
   return (
     <>
       {paid}
