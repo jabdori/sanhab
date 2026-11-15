@@ -124,6 +124,13 @@ fn parts(text: &str, ev: &J) -> Vec<(String, bool)> {
     out
 }
 
+/// 식별자 기록(rep · addr · acct)을 가리킨 사실의 구조: 종류(대표자 · 주소 · 계좌), 대리점, 값. 화면이 대리점끼리 비교 표로 묶는다. 다른 기록이면 null
+fn ident(f: &J) -> J {
+    let (r, c) = (f["ref"].as_str().unwrap_or_default(), &f["cited"]);
+    if !["rep:", "addr:", "acct:"].iter().any(|t| r.starts_with(t)) { return J::Null }
+    json!({ "item": c["item"], "dealer": c["dealer"], "value": c["node"]["name"] })
+}
+
 /// AI의 답(글)에서 JSON을 꺼내 꼴을 본다. 틀린 곳이 있으면 오류의 낱말: 꼴(JSON이나 칸이 틀림) · 값(문장 틀이 틀림) · 기록(없는 기록을 가리킴)
 pub(super) struct Shape { facts: Vec<(String, String)>, guess: Vec<String>, unknown: Vec<String>, action: String, opinion: String, counter: String }
 pub(super) fn shape(raw: &str) -> Result<Shape, &'static str> {
@@ -356,7 +363,7 @@ pub async fn work(db: std::sync::Arc<Db>) {
 
 // ---- 조회와 조치 ----
 
-/// 정황의 보고(가장 새것). `report`는 없으면 null. 사실의 값은 코드가 가리킨 기록에서 읽어 채우고(`facts[].text`),
+/// 정황의 보고(가장 새것). `report`는 없으면 null. 사실의 값은 코드가 가리킨 기록에서 읽어 채우고(`facts[].text`, 식별자 기록이면 그 구조 `facts[].id`),
 /// 오류인 보고와 대기인 보고에는 내용이 없다. 조치 뒤에야 의견이 열리는 정황(`fn::gated`)에서는 조치 전에 의견과 반론을 보내지 않는다(`opened`).
 /// `run`은 지금 역할이 조사를 누를 수 있는지(내부 감시이고 보고가 없거나 입력이 달라졌거나 대기·오류), `actions`는 채택·불채택, `decision`은 남은 결정
 async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
@@ -398,7 +405,7 @@ async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
             x["opinion"] = J::Null;
             x["counter"] = J::Null;
         }
-        let facts: Vec<J> = x["facts"].as_array().into_iter().flatten().map(|f| { let t = f["text"].as_str().unwrap_or_default(); json!({ "ref": f["ref"], "text": fill(t, &f["cited"]), "parts": parts(t, &f["cited"]) }) }).collect();
+        let facts: Vec<J> = x["facts"].as_array().into_iter().flatten().map(|f| { let t = f["text"].as_str().unwrap_or_default(); json!({ "ref": f["ref"], "text": fill(t, &f["cited"]), "parts": parts(t, &f["cited"]), "id": ident(f) }) }).collect();
         x["facts"] = json!(facts);
         x["stale"] = json!(stale);
         x
@@ -518,6 +525,7 @@ pub async fn check(c: &Check) -> Result<()> {
             { "ref": ev[1]["id"], "text": "성일상사24의 2026-04-13 회수가 국민 412-27-556310에 들어갔다" },
             { "ref": ev[2]["id"], "text": "금강상사11의 계좌 등록 국민 412-27-556310" },
         ]), "사실 {}", s["facts"]);
+        ensure!(s["facts"][0]["id"].is_null() && s["facts"][2]["id"]["item"] == "계좌" && s["facts"][2]["id"]["dealer"]["name"] == "금강상사11" && s["facts"][2]["id"]["value"] == "국민 412-27-556310", "식별자 구조 {}", s["facts"]);
         ensure!(s["guess"].as_array().is_some_and(|g| g.len() == 1) && s["unknown"] == json!(["계좌 예금주"]) && s["opinion"]["action"] == "요청" && s["counter"].is_string() && s.get("input").is_none(), "추정·미확인·의견 {s}");
         ensure!(d["actions"] == json!([{ "kind": "채택", "reason": false, "classes": ["기타"] }, { "kind": "불채택", "reason": true, "classes": ["추정", "의견", "기타"] }]) && d["decision"].is_null(), "조치 {}", d["actions"]);
         // 지급 정황의 사실 값(금액은 쉼표)

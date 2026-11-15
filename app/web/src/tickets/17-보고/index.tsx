@@ -1,6 +1,6 @@
 // astryx template: detail-page — AI 보고는 사실 영역 아래 떠 있는 카드(AiCard, D63)
 // 17 보고: 정황 기록(pages/Signal)의 레일 "AI 보고" 칸. AI가 쓴 글은 여기에만 있다(본문에는 없다).
-// 머리에 AI(누르면 실행 기록)와 상태 Badge. 사실의 문장은 코드가 가리킨 기록에서 값을 채운 것이고 끝의 연결(↗)을 누르면 본문 근거 표의 그 줄이 강조된다.
+// 머리에 AI(누르면 실행 기록)와 상태 Badge. 식별자(대표자 · 주소 · 계좌) 사실은 대리점끼리 비교 표, 나머지는 목록. 사실의 값은 코드가 가리킨 기록에서 값을 채운 것이고 끝의 연결(↗)을 누르면 본문 근거 표의 그 줄이 강조된다.
 // 의견·반론도 처음부터 펼쳐 둔다(정황에 조치를 내리기 전에는 의견이 잠겨 있다). 확신을 숫자로 적지 않는다.
 // 채택·불채택은 조치와 따로 남고 둘 다 secondary(같은 무게). 확인 창 없이 누르면 바로 결정 — 불채택은 사유 칸이 열리고 그 안에서 결정한다.
 import { Badge } from '@astryxdesign/core/Badge'
@@ -10,10 +10,11 @@ import { HStack, StackItem, VStack } from '@astryxdesign/core/Layout'
 import { Link } from '@astryxdesign/core/Link'
 import { List, ListItem } from '@astryxdesign/core/List'
 import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
+import { Table, proportional } from '@astryxdesign/core/Table'
 import { Text } from '@astryxdesign/core/Text'
 import { useSetAtom } from 'jotai'
 import { type ReactNode, useEffect, useState } from 'react'
-import { State } from '../../ui/Mark'
+import { Done, State } from '../../ui/Mark'
 import { L } from '../../labels'
 import { api, store } from '../../state'
 import { Empty } from '../../ui/Empty'
@@ -23,7 +24,7 @@ import { reveal } from '../../ui/Region'
 import { Source } from '../../ui/Source'
 import { fail } from '../../ui/status'
 import { type Signal, markAtom } from '../11-정황/signal'
-import { type Report, tickAtom } from './report'
+import { type Fact, type Report, tickAtom } from './report'
 
 /** 근거 연결: 누르면 본문 근거 표의 그 줄로 가서 2.4초 동안 강조한다. 표에 없는 사실이면 근거 영역으로 */
 function show(ref: string) {
@@ -95,6 +96,81 @@ export function Head({ d, signal }: { d: Report; signal: Signal }) {
   )
 }
 
+/** 근거 연결(↗): 근거 표에 줄이 없는 사실(주소 · 계좌의 등록 등)은 가리킬 줄이 없어 연결을 두지 않는다 */
+const Go = ({ f, signal }: { f: Fact; signal?: Signal }) =>
+  signal?.evidence.some((e) => e.id === f.ref) ? (
+    <Link aria-label={L.근거} color="primary" onClick={() => show(f.ref)}>
+      ↗
+    </Link>
+  ) : null
+
+const ITEMS: string[] = [L.대표자, L.주소, L.계좌]
+type Row = { item: string; cells: Record<string, Fact> } & Record<string, unknown>
+
+/** 사실: 식별자 기록(대표자 · 주소 · 계좌)을 가리킨 사실이 두 대리점 이상이면 비교 표(줄 = 항목, 열 = 대리점, 끝 열 일치 — 기록 값의 비교이지 AI 판단이 아니다).
+ * 나머지 사실(지급 · 회수 · 변경 …)은 목록. 한 대리점의 같은 항목을 둘 가리켰으면 칸이 겹쳐 표로 묶지 않는다 */
+function Facts({ facts, signal }: { facts: Fact[]; signal?: Signal }) {
+  const ids = facts.filter((f) => f.id && ITEMS.includes(f.id.item))
+  const dealers = [...new Map(ids.map((f) => [f.id!.dealer.id, f.id!.dealer])).values()]
+  const rows: Row[] = ITEMS.map((item) => ({ item, cells: Object.fromEntries(ids.filter((f) => f.id!.item === item).map((f) => [f.id!.dealer.id, f])) })).filter((r) => Object.keys(r.cells).length)
+  const table = ids.length >= 2 && dealers.length >= 2 && rows.reduce((n, r) => n + Object.keys(r.cells).length, 0) === ids.length
+  const rest = table ? facts.filter((f) => !ids.includes(f)) : facts
+  // 모든 대리점에 값이 있어야 비교한다(빠진 칸이 있으면 없음)
+  const same = (r: Row) => {
+    const v = dealers.map((d) => r.cells[d.id]?.id?.value)
+    return v.some((x) => !x) ? null : v.every((x) => x === v[0])
+  }
+  return (
+    <VStack gap={2}>
+      {table && (
+        // 표가 카드 안 줄 사이에 있다: Table은 상자의 첫 · 끝 자식이면 위아래로 카드 여백(spacing 4)만큼 번진다(앞의 이름표 · 뒤의 추정을 덮음). 같은 여백을 주어 번짐을 받아 낸다(옆으로는 카드 끝까지 번진 그대로)
+        <VStack paddingBlock={4}>
+          <Table<Row>
+            data={rows}
+            idKey="item"
+            density="compact"
+            columns={[
+              { key: 'item', header: L.항목, width: proportional(1, { minWidth: 64 }), renderCell: (r) => <Text weight="semibold">{r.item}</Text> },
+              ...dealers.map((d) => ({
+                key: d.id,
+                header: d.name,
+                width: proportional(2, { minWidth: 96 }),
+                renderCell: (r: Row) => {
+                  const f = r.cells[d.id]
+                  return f ? (
+                    <HStack gap={1} vAlign="start">
+                      <Text hasTabularNumbers>{f.id!.value ?? L.없음}</Text>
+                      <Go f={f} signal={signal} />
+                    </HStack>
+                  ) : (
+                    <Text color="secondary">{L.없음}</Text>
+                  )
+                },
+              })),
+              {
+                key: 'same',
+                header: L.일치,
+                width: proportional(1, { minWidth: 64 }),
+                renderCell: (r) => {
+                  const s = same(r)
+                  return s ? <Done word={L.같음} /> : <Text color="secondary">{s === null ? L.없음 : L.다름}</Text>
+                },
+              },
+            ]}
+          />
+        </VStack>
+      )}
+      {rest.length > 0 && (
+        <List density="compact">
+          {rest.map((f, i) => (
+            <ListItem key={i} label={<Text>{f.text}</Text>} endContent={<Go f={f} signal={signal} />} />
+          ))}
+        </List>
+      )}
+    </VStack>
+  )
+}
+
 /** 사실 / 추정 / 미확인 / 의견·반론: 정황 기록과 심사 기록의 AI 카드가 같은 꼴로 쓴다. 올라와 있는(검토·채택·불채택) 보고에만 내용이 있다.
  * `signal`이 있으면(정황 기록) 사실 끝에 근거 연결(↗)이 있고, 채택 · 불채택 단추는 의견을 펼친 몸통 안에 있다. 없으면(심사 기록) 읽기만 */
 export function Body({ d, signal }: { d: Report; signal?: Signal }) {
@@ -104,22 +180,7 @@ export function Body({ d, signal }: { d: Report; signal?: Signal }) {
   return (
     <VStack gap={3}>
       <Part name={L.사실}>
-        <List density="compact">
-          {r.facts.map((f, i) => (
-            <ListItem
-              key={i}
-              label={<Text>{f.text}</Text>}
-              endContent={
-                // 근거 표에 줄이 없는 사실(주소 · 계좌의 등록 등)은 가리킬 줄이 없어 연결을 두지 않는다
-                signal?.evidence.some((e) => e.id === f.ref) && (
-                  <Link aria-label={L.근거} color="primary" onClick={() => show(f.ref)}>
-                    ↗
-                  </Link>
-                )
-              }
-            />
-          ))}
-        </List>
+        <Facts facts={r.facts} signal={signal} />
       </Part>
       <Part name={L.추정}>
         <Lines list={r.guess} />

@@ -5,6 +5,14 @@ import { L } from '../../labels'
 import { type ApiError, type Load, api, changedAtom, roleAtom, targetAtom } from '../../state'
 import type { Decision } from '../04-심사/review'
 
+/** 사실: 가리킨 기록(근거 표의 줄과 같은 id)과, 코드가 그 기록에서 값을 채운 글. `id`는 식별자 기록(대표자 · 주소 · 계좌)이면 그 구조, 아니면 null */
+export type Fact = {
+  ref: string
+  text: string
+  parts: [string, boolean][]
+  id: { item: string; dealer: { id: string; name: string }; value: string | null } | null
+}
+
 export type Report = {
   /** 아직 보고가 없으면 null */
   report: {
@@ -14,8 +22,8 @@ export type Report = {
     /** AI가 DB를 읽은 횟수 */
     reads: number
     at: string
-    /** 사실: 가리킨 기록(근거 표의 줄과 같은 id)과, 코드가 그 기록에서 값을 채운 글. 오류·대기이면 비어 있다 */
-    facts: { ref: string; text: string; parts: [string, boolean][] }[]
+    /** 사실(Fact). 오류·대기이면 비어 있다 */
+    facts: Fact[]
     guess: string[]
     unknown: string[]
     /** 의견: 고른 조치와 글. 조치를 내린 뒤에야 열리는 정황에서 조치 전에는 null */
