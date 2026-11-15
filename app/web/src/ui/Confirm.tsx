@@ -12,8 +12,8 @@ import { L } from '../labels'
  * 확인을 거치는 조치(승인, 지급, 회신, 발송, 변경, 초기화 …): 버튼 → 확인 창. 창의 버튼은 결과의 낱말(`승인` / `취소`)이고
  * "정말 하시겠습니까"를 쓰지 않는다. `variant`는 여는 버튼과 창의 실행 버튼의 등급(components.md의 버튼 등급). `title`이 없으면 `label`.
  * `rows`(이름표와 값 — 무엇이 어떻게 바뀌는지)는 창의 몸통이다.
- * - 입력(children)이 없으면 AlertDialog: rows는 설명 한 줄(`이름표 값 / 이름표 값`)
- * - 입력이 있으면 Dialog form: rows는 MetadataList, 그 아래 입력
+ * - rows도 입력(children)도 없으면 AlertDialog(제목과 결과의 낱말만)
+ * - rows나 입력이 있으면 Dialog form: rows는 MetadataList(값 하나에 사실 하나 — review.md 2-1), 그 아래 입력
  * `onConfirm`이 끝나야 창이 닫히고, 그동안 실행 버튼은 도는 표지로 다시 눌리지 않는다
  */
 export function Confirm({ label, trigger, title, rows, variant = 'secondary', isDisabled, onConfirm, canConfirm = true, children }: {
@@ -42,8 +42,8 @@ export function Confirm({ label, trigger, title, rows, variant = 'secondary', is
     }
   }
   // 입력 없는 확인(AlertDialog)에는 실행 버튼을 막는 길이 없다: 실행할 수 없으면 여는 버튼을 막는다
-  const opener = <Button label={trigger ?? label} variant={variant} isDisabled={isDisabled || (!children && !canConfirm)} onClick={() => setOpen(true)} />
-  if (!children)
+  const opener = <Button label={trigger ?? label} variant={variant} isDisabled={isDisabled || (!children && !rows?.length && !canConfirm)} onClick={() => setOpen(true)} />
+  if (!children && !rows?.length)
     return (
       <>
         {opener}
@@ -51,7 +51,7 @@ export function Confirm({ label, trigger, title, rows, variant = 'secondary', is
           isOpen={open}
           onOpenChange={setOpen}
           title={title ?? label}
-          description={(rows ?? []).map(([k, v]) => `${k} ${v}`).join(' / ')}
+          description=""
           actionLabel={label}
           actionVariant={variant}
           cancelLabel={L.취소}

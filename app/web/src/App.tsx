@@ -24,7 +24,7 @@ import { Rule } from './pages/Rule'
 import { Rules } from './pages/Rules'
 import { Signal } from './pages/Signal'
 import { Work } from './pages/Work'
-import { MENUS, type Menu, menuAtom, paneAtom, roleAtom, rolesAtom, targetAtom, useData } from './state'
+import { MENUS, type Menu, menuAtom, paneAtom, roleAtom, rolesAtom, targetAtom, startView, useData } from './state'
 import { Chat } from './tickets/24-대화'
 import { Help } from './ui/Help'
 import { Tour } from './ui/Tour'
@@ -105,7 +105,7 @@ function Nav({ onDemo }: { onDemo: () => void }) {
           <Selector label={L.역할} isLabelHidden size="sm" width="100%" value={role ?? undefined} options={roles.map((r) => r.role)}
             onChange={(v: string) => {
               setRole(v)
-              setTarget(null)
+              startView()
               setFolded(true) // 역할을 고르면 다시 레일로 접는다(펴 둔 채면 본문이 좁아진다)
             }}
           />

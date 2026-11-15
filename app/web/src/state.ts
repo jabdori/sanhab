@@ -26,6 +26,19 @@ export const changedAtom = atom(0)
 
 export const store = getDefaultStore()
 
+/** 작업 목록의 갈래: 전체 · 담당 · 진행. 기록을 열었다 돌아와도 남는다(역할을 바꾸면 시작값으로) */
+export const scopeAtom = atom<'all' | 'mine' | 'going'>('mine')
+/** 역할을 바꾸면 화면 상태(메뉴 · 갈래 · 대상 · 목록 순서 · 목록 사이드바)를 그 역할의 시작값으로 */
+export function startView() {
+  store.set(menuAtom, MENUS[0])
+  store.set(scopeAtom, 'mine')
+  store.set(targetAtom, null)
+  store.set(navAtom, [])
+  store.set(paneAtom, false)
+}
+/** 초기화가 새 토큰을 받는 동안: 옛 토큰으로 나간 읽기가 401을 받아도 역할을 지우지 않는다 */
+let resetting = false
+
 /**
  * 안내(온보딩)의 예시: 켜져 있으면 화면이 서버 대신 이 응답(경로 → 값)을 받는다. 실제 서버 · DB는 건드리지 않는다.
  * 값이 null이면 `없음`(404)처럼, 목록에 없는 경로는 PASS만 서버에서 읽고 나머지는 `없음`. 조치(POST)는 실행하지 않는다
@@ -57,13 +70,17 @@ export async function api<T = unknown>(path: string, body?: unknown, method?: st
   if (ex && !PASS.some((p) => path.startsWith(p))) return example<T>(ex, path)
   const role = store.get(roleAtom)
   const token = store.get(rolesAtom).find((r) => r.role === role)?.token
+  if (path === '/reset') resetting = true
   const res = await fetch(`/api${path}`, {
     method: method ?? (body === undefined ? 'GET' : 'POST'),
     headers: { ...(token && { authorization: `Bearer ${token}` }), ...(body !== undefined && { 'content-type': 'application/json' }) },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
   const data = await res.json().catch(() => null)
-  if (res.status === 401 && path !== '/enter') {
+  if (path === '/reset') resetting = false
+  // 지금 역할의 토큰으로 나간 읽기만 접속을 끊는다(초기화가 토큰을 바꾼 뒤 늦게 돌아온 옛 토큰의 401은 무시)
+  const current = store.get(rolesAtom).find((r) => r.role === store.get(roleAtom))?.token
+  if (res.status === 401 && path !== '/enter' && !resetting && current === token) {
     store.set(rolesAtom, [])
     store.set(roleAtom, null)
   }

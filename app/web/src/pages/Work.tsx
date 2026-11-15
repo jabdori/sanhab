@@ -10,12 +10,11 @@ import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/Segme
 import { Table, type TableColumn, type TablePlugin, TableSelectionToolbar, pixel, proportional, useTableGroupedRows } from '@astryxdesign/core/Table'
 import { Heading, Text } from '@astryxdesign/core/Text'
 import { useAtom, useSetAtom } from 'jotai'
-import { atom } from 'jotai'
 import { useState } from 'react'
 import { L } from '../labels'
 import { NoResult } from '../ui/Empty'
 import { Search, hit } from '../ui/Search'
-import { api, changedAtom, navAtom, paneAtom, store, targetAtom, useData } from '../state'
+import { api, changedAtom, navAtom, paneAtom, scopeAtom, store, targetAtom, useData } from '../state'
 import { Confirm } from '../ui/Confirm'
 import { grade } from '../ui/grade'
 import { Mark, State } from '../ui/Mark'
@@ -32,10 +31,6 @@ export const firstTask = (mine: Task[]) => {
   const sorted = GROUPS.flatMap((kinds) => mine.filter((t) => kinds.includes(t.kind)).sort(order))
   return sorted.find((t) => t.marks.includes(L.정황)) ?? sorted[0]
 }
-
-/** 전체 · 담당 · 진행. 기록을 열었다 돌아와도 남는다 */
-const scopeAtom = atom<'all' | 'mine' | 'going'>('mine')
-
 
 /** 결정을 보낸다. 거절되어도 목록을 다시 읽어 지금 할 수 있는 것을 보인다 */
 const decide = (ids: string[]) => api('/decide', { ids, kind: L.승인 }).catch(() => store.set(changedAtom, (n) => n + 1))

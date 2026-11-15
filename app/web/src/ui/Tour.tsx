@@ -195,6 +195,8 @@ export function Tour() {
         <Popover key={i} anchorRef={hole as RefObject<HTMLElement>} isOpen onOpenChange={() => {}} placement={side} alignment="start" width={320} padding={5} label={L.안내} hasLightDismiss={false} hasEscapeDismiss={false} hasCloseButton={false}
           content={
             <VStack gap={4}>
+              {/* 진행(walkthrough의 dots — 눌러서 그 단계로)은 맨 위에: 키보드로 닿을 때 뜨는 `이전 페이지로 이동` 말풍선이 설명이 아니라 카드 밖 위로 뜬다 */}
+              <Pagination variant="dots" size="sm" label={L.안내} page={i + 1} totalPages={steps.length} onChange={(p) => setI(p - 1)} />
               <VStack gap={1}>
                 <HStack gap={2} vAlign="center">
                   <StackItem size="fill">
@@ -207,8 +209,6 @@ export function Tour() {
                   {s.body}
                 </Text>
               </VStack>
-              {/* 진행(walkthrough의 dots — 눌러서 그 단계로) 아래 단추 줄 */}
-              <Pagination variant="dots" size="sm" label={L.안내} page={i + 1} totalPages={steps.length} onChange={(p) => setI(p - 1)} />
               <HStack gap={2} hAlign="end">
                 {!last && <Button label={L.스킵} variant="ghost" size="sm" onClick={close} />}
                 {i > 0 && <Button label={L.이전} variant="secondary" size="sm" onClick={() => setI(i - 1)} />}
