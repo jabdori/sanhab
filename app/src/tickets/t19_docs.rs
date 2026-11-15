@@ -114,7 +114,7 @@ const SYSTEM: &str = "너는 판매장려금 심사에서 내부 감시를 돕�
 항목마다 그 값에 해당하는 낱말의 번호를 가리키고, 값을 견줄 수 있게 다듬는다.
 - 항목: 임차인(상호 그대로), 주소(시 도로명 건물번호까지. 층·호는 빼고 예: 성남시 상공로 128), 호실(호 번호에 '호'. 층은 빼고 예: 302호), 기간(YYYY-MM-DD~YYYY-MM-DD).
 - 값은 가리킨 낱말에 있는 글자와 숫자로만 만든다. 없는 숫자를 지어내지 않는다.
-- 서류에서 찾지 못한 항목은 words를 빈 배열, value를 null로 둔다. 임대차계약서가 아닌 서류(산정 내역서, 거래 명세 등)면 모든 항목을 찾지 못한 것으로 둔다.
+- 서류에서 찾지 못한 항목은 words를 빈 배열, value를 null로 둔다. 항목 하나(예: 호실)를 찾지 못했다고 다른 항목까지 비우지 않는다. 서류의 종류는 코드가 따로 판단하니 너는 낱말에 있는 항목만 찾는다.
 - JSON 하나로만 답한다(다른 글, 코드 울타리 없이): {\"items\": [{\"item\": \"호실\", \"words\": [13, 14], \"value\": \"302호\"}, …]}";
 
 /// 자동 검사용으로 고정한 정리: 항목의 이름표 낱말(임차인·소재지·호실·기간)을 찾아 같은 줄의 뒤 낱말을 가리킨다. `fixture-digit`은 호실에 판독에 없는 숫자를 쓴다
@@ -162,6 +162,11 @@ fn checked(raw: &str, ws: &[J]) -> Option<Vec<J>> {
     let t = raw.trim().trim_start_matches("```json").trim_start_matches("```").trim_end_matches("```");
     let v: J = serde_json::from_str(t.trim()).ok()?;
     let got = v["items"].as_array()?;
+    // 서류 종류는 AI가 아니라 코드가 본다: 제목에 '임대차'가 없는 서류(산정 내역서 등)는 값을 모두 비운다(AI가 임대차를 비우는 흔들림도 막는다)
+    let lease = ws.iter().any(|w| w["text"].as_str().is_some_and(|t| t.contains("임대차")));
+    if !lease {
+        return Some(ITEMS.iter().map(|item| json!({ "item": item, "words": [] })).collect());
+    }
     ITEMS.iter().map(|item| {
         let Some(e) = got.iter().find(|e| e["item"] == *item) else { return Some(json!({ "item": item, "words": [] })) };
         let idx: Vec<usize> = e["words"].as_array()?.iter().map(|i| i.as_u64().map(|i| i as usize).filter(|i| *i < ws.len())).collect::<Option<_>>()?;
@@ -376,6 +381,10 @@ mod tests {
         assert!(checked(r#"{"items":[{"item":"호실","words":[999],"value":"302호"}]}"#, &ws).is_none(), "없는 낱말");
         assert!(checked(r#"{"items":[{"item":"호실","words":[],"value":"302호"}]}"#, &ws).is_none(), "가리키지 않은 값");
         assert!(checked("글", &ws).is_none());
+        // 임대차 낱말이 없는 서류(산정 내역서)는 AI가 값을 내도 모두 비운다
+        let calc = vec![json!({ "text": "산정", "box": [0.0, 0.0, 0.1, 0.1] }), json!({ "text": "서울시", "box": [0.0, 0.2, 0.1, 0.3] })];
+        let t = checked(r#"{"items":[{"item":"주소","words":[1],"value":"서울시"}]}"#, &calc).unwrap();
+        assert!(t.iter().all(|x| x["value"].is_null() && x["words"] == json!([])), "{t:?}");
         // 호실이 빠진 서류: 호실은 찾지 못함
         let ws3 = sample_words(2);
         let t3 = checked(&canned("fixture", &ws3).unwrap(), &ws3).unwrap();
