@@ -96,7 +96,8 @@ for n,x in enumerate(evs):
     T=round(out(x['raw']),2)
     if x['kind']=='wide': cam.append({'t':T,'wide':True})
     # 화면 밖(오른쪽으로 넘친 탭 등)을 가리키는 확대는 버리고 전체 화면으로 — 빈 곳을 크게 확대하지 않게(좌표는 ×K, 화면 폭 1280×K)
-    elif x['kind']=='focus': cam.append({'t':T,'wide':True} if cfg.get('nozoom') or x['r'][1]<120 or x['r'][0]+x['r'][2]>1280*K+8 or x['r'][0]<0 else {'t':T,'r':x['r']})
+    # 카메라 확대는 쓰지 않는다(2026-11-15 유저: 확대로 화면이 잘리는 곳이 많다) — 장면 설정 zoom: true일 때만
+    elif x['kind']=='focus': cam.append({'t':T,'wide':True} if not cfg.get('zoom') or x['r'][1]<120 or x['r'][0]+x['r'][2]>1280*K+8 or x['r'][0]<0 else {'t':T,'r':x['r']})
     elif x['kind'].startswith('mock'): mock.append(T)
     elif x['kind']=='hl':
         nx=[out(y['raw']) for y in evs[n+1:] if y['kind'] in('hl','clear')]+[total]
