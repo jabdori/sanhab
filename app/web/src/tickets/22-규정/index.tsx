@@ -9,7 +9,7 @@ import { Text } from '@astryxdesign/core/Text'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { DOCS, L } from '../../labels'
 import { fileLine } from '../../ui/Source'
-import { menuAtom, targetAtom, useLoad, type Load } from '../../state'
+import { targetAtom, useLoad, type Load } from '../../state'
 import { Pending } from '../../ui/Pending'
 import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
@@ -93,7 +93,6 @@ export function Versions() {
 export function Assumes() {
   const q = useClause()
   const c = q.data
-  const setMenu = useSetAtom(menuAtom)
   const setTarget = useSetAtom(targetAtom)
   if (!c) return <Pending of={q} />
   const { assumes } = c.d
@@ -117,7 +116,6 @@ export function Assumes() {
                       <Link
                         key={u.view}
                         onClick={() => {
-                          setMenu(L.작업)
                           setTarget({ kind: u.kind!, id: u.id! })
                         }}
                       >

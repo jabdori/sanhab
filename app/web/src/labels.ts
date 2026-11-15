@@ -100,8 +100,8 @@ export const TOUR: Record<string, TourStep[]> = {
   '내부 감시': [
     { at: '[data-tour=work] table', title: '작업', body: '판정할 정황입니다. 열어서 처리합니다' },
     { at: '[data-tour=actions]', record: true, title: '조치', body: '여기서 소명을 요청하거나 기각합니다' },
-    { at: '[data-tour=tiles]', record: true, title: '근거', body: '정황을 받치는 기록의 수입니다' },
-    { at: '[data-region="근거"], [data-region="관계"]', record: true, title: '관계', body: '회수금이 다른 대리점의 계좌로 이어진 기록을 봅니다' },
+    { at: '[data-region="근거"]', record: true, title: '근거', body: '정황을 받치는 기록입니다' },
+    { at: '[data-region="관계"]', record: true, title: '관계', body: '회수금이 다른 대리점의 계좌로 이어진 기록을 봅니다' },
     SIDE_AI, CHAT, DEMO,
   ],
   영업임원: [

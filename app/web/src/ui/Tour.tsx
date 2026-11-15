@@ -72,6 +72,11 @@ export function Tour() {
   const [el, setEl] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
   const hole = useRef<HTMLElement>(null)
+  // 단추 줄: 단계가 바뀔 때 `다음`에 초점을 둔다(맨 위 `이전` 화살표에 초점이면 그 말풍선이 카드 제목을 가린다)
+  const buttons = useRef<HTMLElement>(null)
+  useEffect(() => {
+    if (ready) setTimeout(() => buttons.current?.querySelector<HTMLElement>('button:last-of-type')?.focus(), 50)
+  }, [ready, i])
   // Popover의 자리(요소 쪽): 좁은 왼쪽 요소면 오른쪽(end), 오른쪽 요소면 왼쪽(start), 넓은 요소면 아래(모자라면 위)
   const [side, setSide] = useState<'start' | 'end' | 'above' | 'below'>('below')
   // 안내를 열기 전에 보던 기록(끝나면 거기로 돌아간다)
@@ -209,7 +214,7 @@ export function Tour() {
                   {s.body}
                 </Text>
               </VStack>
-              <HStack gap={2} hAlign="end">
+              <HStack ref={buttons} gap={2} hAlign="end">
                 {!last && <Button label={L.스킵} variant="ghost" size="sm" onClick={close} />}
                 {i > 0 && <Button label={L.이전} variant="secondary" size="sm" onClick={() => setI(i - 1)} />}
                 <Button label={last ? L.끝 : L.다음} variant="primary" size="sm" onClick={() => (last ? close() : setI(i + 1))} />

@@ -18,12 +18,12 @@ import { api, changedAtom, navAtom, paneAtom, scopeAtom, store, targetAtom, useD
 import { Confirm } from '../ui/Confirm'
 import { grade } from '../ui/grade'
 import { Kind, Mark, State } from '../ui/Mark'
-import { dot, num, plain } from '../ui/status'
+import { dot, num, plain, signalDot } from '../ui/status'
 
 export type Task = { id: string; kind: string; view: string; target: string; name?: string; ym?: string; total?: number | null; marks: string[]; role: string; pick: boolean; state?: string; pay?: string | null }
 
-/** 종류의 묶음(위에서 아래로). 한 건씩 정하는 작업이 위, 묶어서 승인하는 심사가 맨 아래 */
-const GROUPS: string[][] = [[L.추인, L.종결], [L.정황], [L.발송, L.소명, L.미응답], [L.지급, L.대사], [L.재상신, L.심사]]
+/** 종류의 묶음(위에서 아래로, 묶음 하나에 종류 하나). 한 건씩 정하는 작업이 위, 묶어서 승인하는 심사가 맨 아래 */
+const GROUPS: string[][] = [[L.추인], [L.종결], [L.정황], [L.발송], [L.소명], [L.미응답], [L.지급], [L.대사], [L.재상신], [L.심사]]
 const order = (a: Task, b: Task) => (a.ym ?? '9').localeCompare(b.ym ?? '9') || (a.name ?? '').localeCompare(b.name ?? '', 'ko', { numeric: true })
 
 /** 작업 목록의 순서(묶음 → 귀속월 → 이름). 목록 칸(Pane)과 n/전체도 이 순서 */
@@ -76,7 +76,7 @@ export function Work() {
   }
   // 표(table-grouped): 종류의 묶음마다 머리(접힘 · 건수), 줄 = 고르기 · 주의 점 · 대상 · 종류 · 귀속월 · 금액 · 담당 · 표시 · 상태
   type Row = Task & Record<string, unknown>
-  const groupOf = (t: Task) => GROUPS.find((g) => g.includes(t.kind))?.filter((k) => rows.some((r) => r.kind === k)).join(' · ') ?? t.kind
+  const groupOf = (t: Task) => t.kind
   const grouped = useTableGroupedRows<Row>({
     data: rows as Row[],
     groupBy: (t) => groupOf(t),
@@ -137,7 +137,7 @@ export function Work() {
       width: pixel(44),
       renderCell: (t) => (
         <Center axis="horizontal">
-          <StatusDot variant={dot(t.marks, t.pay ?? t.state)} label={t.marks.join(' · ') || (t.pay ?? t.state ?? t.kind)} />
+          <StatusDot variant={t.kind === L.정황 ? signalDot(t.pay ?? '') : dot(t.marks, t.pay ?? t.state)} label={t.marks.join(' · ') || (t.pay ?? t.state ?? t.kind)} />
         </Center>
       ),
     },

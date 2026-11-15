@@ -299,8 +299,8 @@ export function OfDealer() {
               <Link
                 weight="semibold"
                 onClick={() => {
-                  setMenu(L.작업)
                   setTarget({ kind: L.소명, id: c.id })
+                  setMenu(L.작업)
                 }}
               >
                 {c.name}

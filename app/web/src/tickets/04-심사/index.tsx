@@ -118,7 +118,7 @@ export function Rules() {
             header: L.조항,
             width: proportional(2, { minWidth: 100 }),
             renderCell: (x) => (
-              <Link onClick={() => (setMenu(L.규정), setTarget({ kind: L.규정, id: x.clause }))}>
+              <Link onClick={() => (setTarget({ kind: L.규정, id: x.clause }), setMenu(L.규정))}>
                 {x.title}
               </Link>
             ),

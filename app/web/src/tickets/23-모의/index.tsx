@@ -3,13 +3,13 @@
 // 페이지 조치(Simulate)에서 한도를 넣고, 본문(Result)에 결과를 둔다. 결과는 두 컴포넌트가 나눠 쓰는 atom에 있다.
 import { VStack } from '@astryxdesign/core/Layout'
 import { Link } from '@astryxdesign/core/Link'
-import { NumberInput } from '@astryxdesign/core/NumberInput'
+import { TextInput } from '@astryxdesign/core/TextInput'
 import { Table, pixel, proportional } from '@astryxdesign/core/Table'
 import { Text } from '@astryxdesign/core/Text'
 import { atom, useAtomValue, useSetAtom } from 'jotai'
 import { useState } from 'react'
 import { L } from '../../labels'
-import { api, menuAtom, roleAtom, targetAtom, useData } from '../../state'
+import { api, roleAtom, targetAtom, useData } from '../../state'
 import { Compare } from '../../ui/Compare'
 import { Confirm } from '../../ui/Confirm'
 import { grade } from '../../ui/grade'
@@ -40,7 +40,9 @@ export function Simulate({ target, onBad }: { target: string; onBad: (word: stri
   const role = useAtomValue(roleAtom)
   const info = useData<Info>('/mock')
   const setResult = useSetAtom(resultAtom)
-  const [won, setWon] = useState<number | null>(1_500_000)
+  const [text, setText] = useState('1500000')
+  // 글로 받아 1~MAX의 정수일 때만 켠다(NumberInput은 0을 쓰는 동안 값을 알리지 않아 단추가 켜진 채였고 영어 검증 문구를 달았다)
+  const won = /^\d{1,10}$/.test(text) ? Number(text) : null
   if (!info?.can) return null
   return (
     <Confirm
@@ -48,7 +50,7 @@ export function Simulate({ target, onBad }: { target: string; onBad: (word: stri
       variant={grade(L.모의)}
       title={L.모의}
       rows={[[L.규정, target]]}
-      canConfirm={!!won && won >= 1 && won <= MAX}
+      canConfirm={won !== null && won >= 1 && won <= MAX}
       onConfirm={() => {
         onBad(null)
         return api<Mock>('/mock', { limit: won }).then(
@@ -57,7 +59,7 @@ export function Simulate({ target, onBad }: { target: string; onBad: (word: stri
         )
       }}
     >
-      <NumberInput label={L.한도} width="100%" value={won} onChange={setWon} min={1} max={MAX} isIntegerOnly formatValue={num} />
+      <TextInput label={L.한도} width="100%" value={text} onChange={setText} inputMode="numeric" />
     </Confirm>
   )
 }
@@ -67,7 +69,6 @@ export function Result() {
   const r = useAtomValue(resultAtom)
   const role = useAtomValue(roleAtom)
   const info = useData<Info>('/mock')
-  const setMenu = useSetAtom(menuAtom)
   const setTarget = useSetAtom(targetAtom)
   if (!r || !info || r.role !== role) return null
   const m = r.mock
@@ -105,7 +106,6 @@ export function Result() {
                 <Link
                   weight="semibold"
                   onClick={() => {
-                    setMenu(L.작업)
                     setTarget({ kind: L.심사, id: x.id })
                   }}
                 >

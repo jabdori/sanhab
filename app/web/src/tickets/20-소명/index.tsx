@@ -145,8 +145,8 @@ export function Intake() {
     return bin(`/dealers/${encodeURIComponent(id)}/clarify`, file, `?other=${encodeURIComponent(other.id)}&kind=${encodeURIComponent(kind)}&name=${encodeURIComponent(file.name)}`)
       .then((r) => r.json())
       .then((r: { id: string }) => {
-        setMenu(L.작업)
         setTarget({ kind: L.소명, id: r.id })
+        setMenu(L.작업)
       })
       .catch((e: Error) => setBad(e.message))
       .finally(() => setBusy(false))

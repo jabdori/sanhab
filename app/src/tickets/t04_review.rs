@@ -144,19 +144,19 @@ pub fn routes() -> Router<std::sync::Arc<Db>> {
     Router::new().route("/tasks", get(tasks)).route("/reviews/{id}", get(detail)).route("/decide", post(decide))
 }
 
-/// 작업 목록: 담당(`mine`, 지금 내 역할이 처리할 것)과 진행(`going`, 내 역할이 관여했고 다른 역할의 차례인 것 + 내 담당이지만 `state`가 진행인 것 — 보류한 심사, D48).
+/// 작업 목록: 담당(`mine`, 지금 내 역할이 처리할 것)과 진행(`going`, 내 역할이 관여했고 다른 역할의 차례인 것 + 내 담당이지만 `state`가 진행인 것 — 보류한 심사, D48. 이견 뒤의 종결 작업은 진행이어도 아직 내가 닫을 차례라 담당에 둔다).
 /// 대상의 이름·귀속월·합산·표시는 대상 기록의 `name`·`ym`·`total`·`marks`에서 읽는다. 정황이 걸린 줄이 위, 그다음은 합산이 큰 순.
 /// `pick`은 여러 개를 골라 한 번에 승인할 수 있는 줄: 담당에 있고, 대기이고, 정황이 없고, 승인권자가 영업지원이고, 승인에 사유가 필수가 아닌 심사(보류된 줄은 아니다)
 async fn tasks(Extension(me): Extension<Me>) -> R {
     let r = q1(&me.db, "
         SELECT record::id(id) AS id, kind, view, record::id(target) AS target, target.name AS name, target.ym AS ym, target.total AS total, target.marks ?? [] AS marks, role, state,
-            -- 지급 작업이면 그 지급의 상태(대기·재심사·이체·완료 — 지급 상세의 제목과 같은 값. 작업의 상태와 다르다)
-            IF record::tb(target) = 'payout' THEN target.state END AS pay,
+            -- 지급 · 정황 작업이면 그 기록의 상태(지급: 대기·재심사·이체·완료, 정황: 접수·요청·해소·기각 — 상세의 제목과 같은 값. 작업의 상태와 다르다), 재상신이면 반려된 심사의 상태
+            IF record::tb(target) INSIDE ['payout', 'signal'] THEN target.state ELSE IF kind = '재상신' THEN target.status END AS pay,
             IF kind = '심사' THEN state = '대기' AND target.status = '대기' AND target.approver = '영업지원' AND '정황' NOTINSIDE target.marks AND fn::can('승인', target) AND !fn::must('승인', target) ELSE false END AS pick
         FROM task WHERE state INSIDE ['대기', '진행'] AND (role = $auth.role OR also CONTAINS $auth.role);", json!({})).await?;
     let mut rows: Vec<J> = r.as_array().cloned().unwrap_or_default();
     rows.sort_by_key(|t| (!t["marks"].as_array().is_some_and(|m| m.contains(&json!("정황"))), -t["total"].as_i64().unwrap_or(0), t["id"].as_str().map(String::from)));
-    let (mine, going): (Vec<J>, Vec<J>) = rows.into_iter().partition(|t| t["role"] == me.role.as_str() && t["state"] != "진행");
+    let (mine, going): (Vec<J>, Vec<J>) = rows.into_iter().partition(|t| t["role"] == me.role.as_str() && (t["state"] != "진행" || t["kind"] == "종결"));
     Ok(Json(json!({ "mine": mine, "going": going })))
 }
 
