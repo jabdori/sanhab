@@ -1,3 +1,4 @@
+// astryx template: detail-page — 영역은 ItemsCard 꼴(Region), 이력은 TimelineSection 꼴
 // 11 정황: 정황 기록(pages/Signal)의 본문 영역 — 근거, 관계 — 과 이력, 그리고 심사 기록의 "정황" 줄(Flags). 데이터는 signal.ts의 useSignal().
 // 머리·조치·요약은 pages/Signal, AI 보고는 17, 가설은 12, 소명 줄은 18이 그린다. 값은 모두 코드가 기록에서 읽은 것이다(AI의 글은 17).
 import { Badge } from '@astryxdesign/core/Badge'
@@ -8,28 +9,31 @@ import { Table, pixel, proportional } from '@astryxdesign/core/Table'
 import { Text } from '@astryxdesign/core/Text'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { Icon } from '@astryxdesign/core/Icon'
-import { UserCircleIcon } from '@heroicons/react/24/outline'
+import { ArrowRightIcon, UserCircleIcon } from '@heroicons/react/24/outline'
 import { L } from '../../labels'
-import { targetAtom, useData } from '../../state'
+import { targetAtom, useLoad } from '../../state'
 import { Empty } from '../../ui/Empty'
 import { Mark, State } from '../../ui/Mark'
+import { Pending } from '../../ui/Pending'
 import { Region } from '../../ui/Region'
 import { Relation } from '../../ui/Relation'
 import { DECISION, Source } from '../../ui/Source'
 import { caution, num, signalDot } from '../../ui/status'
 import { useReview } from '../04-심사/review'
+import { Step } from '../16-경위'
 import { useReport } from '../17-보고/report'
-import { type Evidence as Ev, markAtom, useSignal } from './signal'
+import { type Evidence as Ev, markAtom, useSignalLoad } from './signal'
 
 type Row = Ev & Record<string, unknown>
 
 /** 근거 표: 정황이 가리키는 기록마다 한 줄 — 무엇, 언제 또는 어느 대리점, 값(식별자 · 금액 · 대사에서 맞지 않은 항목), 출처.
- * 근거 연결(17 보고의 사실 ↗)이 가리킨 줄은 첫 칸에 theme.css의 `.mark`(잠깐 노랗게)를 건다 — astryx Table에 줄 강조가 없어 칸 안에서 보인다.
+ * 근거 연결(17 보고의 사실 ↗)이 가리킨 줄은 첫 칸 앞에 강조색 화살표 아이콘을 1.2초 보인다 — astryx Table에 줄 강조가 없어 칸 안에서 보인다(theme.css의 `.mark`를 쓰지 않는다).
  * 날짜(귀속월)와 대리점은 뜻이 다르니 열을 나누고, 한쪽이 아예 없으면 그 열을 두지 않는다 */
 export function Evidence() {
-  const d = useSignal()
+  const q = useSignalLoad()
   const picked = useAtomValue(markAtom)
-  if (!d) return null
+  if (!q.data) return <Pending of={q} />
+  const d = q.data
   const rows = d.evidence as Row[]
   const nodes = rows.some((e) => e.node)
   const amounts = rows.every((e) => e.amount != null)
@@ -50,8 +54,9 @@ export function Evidence() {
               header: L.근거,
               width: pixel(112),
               renderCell: (e) => (
-                <HStack gap={2} vAlign="center" className={e.id === picked ? 'mark' : undefined}>
-                  <Text weight="semibold" className="whitespace-nowrap">{e.item}</Text>
+                <HStack gap={2} vAlign="center">
+                  {e.id === picked && <Icon icon={ArrowRightIcon} size="sm" color="accent" />}
+                  <Text weight="semibold" textWrap="nowrap">{e.item}</Text>
                   {d.fresh.includes(e.id) && <Mark>{L.새}</Mark>}
                 </HStack>
               ),
@@ -93,7 +98,7 @@ export function Evidence() {
                     </Text>
                   </VStack>
                 ) : (
-                  <Text hasTabularNumbers className="whitespace-nowrap">{e.node?.name ?? (e.amount == null ? e.value : num(e.amount))}</Text>
+                  <Text hasTabularNumbers textWrap="nowrap">{e.node?.name ?? (e.amount == null ? e.value : num(e.amount))}</Text>
                 ),
             },
             {
@@ -122,31 +127,32 @@ export function Evidence() {
 
 /** 관계 그림: 대상 대리점이 왼쪽, 근거의 사람·주소·계좌가 가운데. 점선은 등록이 아닌 이어짐(회수가 들어간 계좌). 같은 내용은 근거 표에 있다 */
 export function Links() {
-  const d = useSignal()
-  if (!d) return null
+  const q = useSignalLoad()
+  if (!q.data) return <Pending of={q} />
+  const d = q.data
   return <Region title={L.관계}>{d.relation.mid.length ? <Relation {...d.relation} /> : <Empty />}</Region>
 }
 
-/** 이력: 요청 · 기각과 보고의 채택 · 불채택(17)을 일어난 순서대로. 역할의 Avatar · 결정 / 사유 / 날짜 */
+/** 이력: 요청 · 기각과 보고의 채택 · 불채택(17)을 일어난 순서대로. detail-page의 TimelineSection 꼴(16-경위의 Step): 역할 아이콘 · 결정 / 사유 / 날짜 */
 export function History() {
-  const d = useSignal()
+  const q = useSignalLoad()
   const r = useReport()
-  if (!d) return null
+  if (!q.data) return <Pending of={q} />
+  const d = q.data
   const all = [...d.history.map((h) => ({ ...h, stamp: (h as { stamp?: string }).stamp ?? '' })), ...(r?.trail ?? [])].sort((a, b) => a.stamp.localeCompare(b.stamp))
   if (!all.length) return <Empty />
   return (
-    <List density="spacious">
+    <VStack gap={4}>
       {all.map((h, i) => (
-        <ListItem
+        <Step
           key={i}
-          align="start"
-          startContent={<Icon icon={UserCircleIcon} size="md" color="secondary" />}
-          label={`${h.kind} · ${h.role}`}
-          description={[h.reason?.class ?? `${L.사유} ${L.없음}`, h.reason?.memo, h.source === L.원본 ? L.원본 : null].filter(Boolean).join(' · ')}
-          endContent={h.at ? <Text type="supporting" color="secondary" hasTabularNumbers>{h.at}</Text> : <Text type="supporting" color="secondary">{L.미상}</Text>}
+          icon={UserCircleIcon}
+          title={`${h.kind} · ${h.role}`}
+          text={[h.reason?.class ?? `${L.사유} ${L.없음}`, h.reason?.memo, h.source === L.원본 ? L.원본 : null].filter(Boolean).join(' · ')}
+          at={h.at ?? L.미상}
         />
       ))}
-    </List>
+    </VStack>
   )
 }
 
@@ -154,9 +160,12 @@ export function History() {
 export function Flags() {
   const r = useReview()?.review
   const on = r?.marks.includes(L.정황)
-  const list = useData<{ id: string; kind: string; name: string; state: string }[]>(r && on ? `/reviews/${r.id}/signals` : null)
+  const q = useLoad<{ id: string; kind: string; name: string; state: string }[]>(r && on ? `/reviews/${r.id}/signals` : null)
   const setTarget = useSetAtom(targetAtom)
-  if (!on || !list) return null
+  // 정황 표시가 없는 심사에는 정황 줄이 없다
+  if (!on) return null
+  if (!q.data) return <Pending of={q} />
+  const list = q.data
   // ItemWithMetadata 꼴: 주의 점 · 정황 이름 / 종류 · 상태 Badge. 누르면 그 정황이 열린다. 기준이 가정인 종류(근접 D51, 지연 D30)는 그 가정의 표지
   return (
     <Region title={L.정황} aside={<Badge variant="neutral" label={String(list.length)} />}>

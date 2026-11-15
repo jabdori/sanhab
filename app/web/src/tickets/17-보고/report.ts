@@ -2,7 +2,7 @@
 import { atom, useAtomValue } from 'jotai'
 import { unwrap } from 'jotai/utils'
 import { L } from '../../labels'
-import { api, changedAtom, roleAtom, targetAtom } from '../../state'
+import { type ApiError, type Load, api, changedAtom, roleAtom, targetAtom } from '../../state'
 import type { Decision } from '../04-심사/review'
 
 export type Report = {
@@ -45,14 +45,18 @@ const reportAtom = atom(async (get) => {
   get(tickAtom)
   const t = get(targetAtom)
   if (t?.kind !== L.정황) return null
-  const d = await api<Report>(`/signals/${encodeURIComponent(t.id)}/report`).catch(() => null)
-  return d && { of: t.id, d }
+  return api<Report>(`/signals/${encodeURIComponent(t.id)}/report`).then((d) => ({ of: t.id, d }), (error: ApiError) => ({ of: t.id, error }))
 })
 // 다시 읽는 동안에는 앞의 값을 그대로 둔다(조치 뒤에 화면이 비지 않게)
 const latestAtom = unwrap(reportAtom, (prev) => prev ?? null)
 
-export function useReport() {
+/** 열어 둔 정황의 보고: 읽는 중 · 실패 · 값(ui/Pending이 읽는 꼴) */
+export function useReportLoad(): Load<Report> {
   const target = useAtomValue(targetAtom)
   const r = useAtomValue(latestAtom)
-  return r && target?.kind === L.정황 && r.of === target.id ? r.d : null
+  if (target?.kind !== L.정황) return { loading: false }
+  if (!r || r.of !== target.id) return { loading: true }
+  return 'error' in r ? { error: r.error, loading: false } : { data: r.d, loading: false }
 }
+
+export const useReport = () => useReportLoad().data ?? null

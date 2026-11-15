@@ -1,16 +1,18 @@
+// astryx template: detail-page — 경위 목록은 TimelineSection 꼴. 그림(svg)만 astryx에 대응이 없어 남긴다(components.md)
 // 16 경위: 지급·심사·추인 기록의 경위 탭 — 그림(Picture)과 시간 순 목록(Timeline).
 // 그림: 원인은 왼쪽, 결과는 오른쪽, 방향은 바뀌지 않는다. 지금 대상의 줄기(앞뒤로 이어진 칸과 선)가 진하다. 칸을 누르면 그 대상으로 간다. 결정의 칸에는 사람과 사유가 붙는다.
+import { Card } from '@astryxdesign/core/Card'
 import { ClickableCard } from '@astryxdesign/core/ClickableCard'
 import { HStack, StackItem, VStack } from '@astryxdesign/core/Layout'
-import { List as Rows, ListItem } from '@astryxdesign/core/List'
 import { Text } from '@astryxdesign/core/Text'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { Icon } from '@astryxdesign/core/Icon'
 import { UserCircleIcon, DocumentTextIcon } from '@heroicons/react/24/outline'
 import { L } from '../../labels'
 import { nb } from '../../ui/status'
-import { targetAtom, useData } from '../../state'
+import { type Load, targetAtom, useLoad } from '../../state'
 import { Empty } from '../../ui/Empty'
+import { Pending } from '../../ui/Pending'
 import { Region } from '../../ui/Region'
 
 type Node = {
@@ -26,35 +28,72 @@ type Trail = { for: [string, string]; now: string; nodes: Node[]; edges: [string
 /** 대상의 종류 → 서버의 경로 */
 const PATH: Record<string, string> = { [L.지급]: 'pay', [L.심사]: 'review', [L.추인]: 'ratify' }
 
-function useTrail() {
+function useTrailLoad(): Load<Trail> {
   const target = useAtomValue(targetAtom)
   const path = target ? PATH[target.kind] : undefined
-  const d = useData<Trail>(target && path ? `/trail/${path}/${encodeURIComponent(target.id)}` : null)
+  const q = useLoad<Trail>(target && path ? `/trail/${path}/${encodeURIComponent(target.id)}` : null)
   // 대상이 바뀐 뒤에도 앞 대상의 값이 남아 있으므로 지금 대상의 것인지 본다
-  return target && d && d.for[0] === path && d.for[1] === target.id ? d : undefined
+  const mine = target && q.data && q.data.for[0] === path && q.data.for[1] === target.id
+  return mine ? q : { error: q.error, loading: q.loading || !!q.data }
 }
 
-/** 시간 순 목록(incident-console의 Timeline 꼴, 기록 화면의 경위 탭): 사람(역할)의 Avatar · 종류 · 대상 / 사유 / 날짜. 누르면 그 대상으로 */
-export function Timeline() {
-  const d = useTrail()
-  const setTarget = useSetAtom(targetAtom)
-  if (!d) return <Empty />
+/** 경위 한 줄(detail-page의 TimelineSection 꼴): 사람 · 기록의 아이콘 / muted 카드에 굵은 제목 · 설명 / 아래 날짜. 사람은 아이콘으로(components.md) — 템플릿의 Avatar 대신.
+ * `onClick`이 있으면 카드를 눌러 그 대상으로 간다. `now`는 지금 보는 대상(떠 있는 카드) */
+export function Step({ icon, title, text, at, now, onClick }: { icon: typeof UserCircleIcon; title: string; text?: string; at?: string | null; now?: boolean; onClick?: () => void }) {
+  const body = (
+    <VStack gap={1}>
+      <Text type="body" weight="bold">
+        {title}
+      </Text>
+      {text && <Text type="body">{text}</Text>}
+    </VStack>
+  )
   return (
-    <Rows density="balanced" hasDividers>
+    <HStack gap={3} vAlign="start">
+      <Icon icon={icon} size="md" color="secondary" />
+      <StackItem size="fill">
+        <VStack gap={2}>
+          {onClick ? (
+            <ClickableCard label={title} onClick={onClick} variant={now ? 'default' : 'muted'} elevation={now ? 'low' : 'none'} padding={3} aria-current={now || undefined}>
+              {body}
+            </ClickableCard>
+          ) : (
+            <Card variant="muted" padding={3}>
+              {body}
+            </Card>
+          )}
+          {/* 아직 일어나지 않은 칸(대기 중인 심사)은 날짜를 비운다 */}
+          {at && (
+            <Text type="supporting" color="secondary" hasTabularNumbers>
+              {at}
+            </Text>
+          )}
+        </VStack>
+      </StackItem>
+    </HStack>
+  )
+}
+
+/** 시간 순 목록(detail-page의 TimelineSection 꼴, 기록 화면의 경위 탭): 종류 · 대상 / 사람(역할) · 사유 / 날짜. 누르면 그 대상으로 */
+export function Timeline() {
+  const q = useTrailLoad()
+  const setTarget = useSetAtom(targetAtom)
+  if (!q.data) return q.loading || q.error ? <Pending of={q} /> : <Empty />
+  const d = q.data
+  return (
+    <VStack gap={4}>
       {d.nodes.map((n) => (
-        <ListItem
+        <Step
           key={n.key}
-          align="start"
-          isSelected={n.key === d.now}
-          startContent={<Icon icon={n.who?.role ? UserCircleIcon : DocumentTextIcon} size="md" color="secondary" />}
-          label={`${n.kind} · ${n.name}`}
-          description={[n.who?.role, n.who?.reason?.class, n.who?.reason?.memo].filter(Boolean).join(' · ') || undefined}
-          // 아직 일어나지 않은 칸(대기 중인 심사)은 그림처럼 날짜를 비운다
-          endContent={n.at ? <Text type="supporting" color="secondary" hasTabularNumbers>{n.at}</Text> : undefined}
+          icon={n.who?.role ? UserCircleIcon : DocumentTextIcon}
+          title={`${n.kind} · ${n.name}`}
+          text={[n.who?.role, n.who?.reason?.class, n.who?.reason?.memo].filter(Boolean).join(' · ') || undefined}
+          at={n.at}
+          now={n.key === d.now}
           onClick={() => setTarget(n.go)}
         />
       ))}
-    </Rows>
+    </VStack>
   )
 }
 
@@ -88,9 +127,10 @@ function depths(d: Trail) {
 /** 가운데(경위를 펼쳤을 때): 원인 → 결과의 그림. 머리(제목·숫자 줄)는 위에 그대로 남고 몸통만 바뀐다.
  * 열마다 칸을 세로 가운데로 모으고, 선은 칸의 오른쪽 가운데에서 꺾여 다음 칸의 왼쪽 가운데로 들어간다(겹치지 않게 꺾는 자리는 열 사이 가운데) */
 export function Picture() {
-  const d = useTrail()
+  const q = useTrailLoad()
   const setTarget = useSetAtom(targetAtom)
-  if (!d) return null
+  if (!q.data) return <Pending of={q} />
+  const d = q.data
   const col = depths(d)
   const on = trunk(d)
   const count: Record<number, number> = {}
@@ -109,14 +149,16 @@ export function Picture() {
   const height = most * (H + GAP_Y) - GAP_Y
   return (
     <Region title={L.그림}>
-        {/* 칸 폭이 모자라면(1280) 그림 전체가 비율대로 줄어든다 — 마지막 칸이 잘리지 않게 */}
-        <svg role="img" aria-label={L.경위} viewBox={`0 0 ${width} ${height}`} width={width} height={height} className="h-auto max-w-full">
+      {/* 칸 폭이 모자라면(1280) 그림 전체가 비율대로 줄어든다(마지막 칸이 잘리지 않게), 넓어도 제 크기 이상은 커지지 않는다(VStack의 maxWidth).
+          raw svg: astryx에 노드 · 선 그림 부품이 없다(doctor 지적 1건). 색은 토큰 변수(--color-text-*)를 속성으로 */}
+      <VStack maxWidth={width}>
+        <svg role="img" aria-label={L.경위} viewBox={`0 0 ${width} ${height}`} width="100%">
           <defs>
             <marker id="head" markerUnits="userSpaceOnUse" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" orient="auto">
-              <path d="M0 0L8 4L0 8z" className="fill-disabled" />
+              <path d="M0 0L8 4L0 8z" fill="var(--color-text-disabled)" />
             </marker>
             <marker id="head-on" markerUnits="userSpaceOnUse" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" orient="auto">
-              <path d="M0 0L8 4L0 8z" className="fill-primary" />
+              <path d="M0 0L8 4L0 8z" fill="var(--color-text-primary)" />
             </marker>
           </defs>
           {d.edges.map(([a, b]) => {
@@ -129,7 +171,7 @@ export function Picture() {
                 d={`M${x1} ${y1}H${mid}V${y2}H${x2}`}
                 fill="none"
                 markerEnd={`url(#${strong ? 'head-on' : 'head'})`}
-                className={strong ? 'stroke-primary' : 'stroke-disabled'}
+                stroke={strong ? 'var(--color-text-primary)' : 'var(--color-text-disabled)'}
                 strokeWidth={strong ? 2 : 1}
               />
             )
@@ -140,12 +182,12 @@ export function Picture() {
               <ClickableCard label={n.name} onClick={() => setTarget(n.go)} variant={n.key === d.now ? 'muted' : on.has(n.key) ? 'default' : 'transparent'} padding={2} height="100%" aria-current={n.key === d.now || undefined}>
                 <VStack gap={0.5}>
                   {/* 종류 · 날짜는 한 줄씩(좁은 칸에서 `재심사`가 꺾이지 않게) */}
-                  <Text weight="semibold" color={on.has(n.key) ? 'primary' : 'secondary'} className="whitespace-nowrap">
+                  <Text weight="semibold" color={on.has(n.key) ? 'primary' : 'secondary'} textWrap="nowrap">
                     {n.kind}
                   </Text>
                   {/* 아직 일어나지 않은 칸(결정 전의 심사, 표시 전의 지급)은 날짜를 비운다 */}
                   {n.at && (
-                    <Text type="supporting" hasTabularNumbers className="whitespace-nowrap">
+                    <Text type="supporting" hasTabularNumbers textWrap="nowrap">
                       {n.at}
                     </Text>
                   )}
@@ -163,6 +205,7 @@ export function Picture() {
             </foreignObject>
           ))}
         </svg>
+      </VStack>
     </Region>
   )
 }

@@ -2,7 +2,7 @@
 import { atom, useAtomValue } from 'jotai'
 import { unwrap } from 'jotai/utils'
 import { L } from '../../labels'
-import { api, changedAtom, roleAtom, targetAtom } from '../../state'
+import { type ApiError, type Load, api, changedAtom, roleAtom, targetAtom } from '../../state'
 import { type Draft, blank } from '../../ui/Reason'
 
 type From = { source: string; file?: string | null; row?: number | null }
@@ -24,16 +24,21 @@ const reviewAtom = atom(async (get) => {
   get(changedAtom)
   get(roleAtom)
   const t = get(targetAtom)
-  return t?.kind === L.심사 ? api<Review>(`/reviews/${t.id}`).catch(() => null) : null
+  return t?.kind === L.심사 ? api<Review>(`/reviews/${t.id}`).then((data) => ({ of: t.id, data }), (error: ApiError) => ({ of: t.id, error })) : null
 })
 // 다시 읽는 동안에는 앞의 값을 그대로 둔다(조치 뒤에 화면이 비지 않게)
 const latestAtom = unwrap(reviewAtom, (prev) => prev ?? null)
 
-export function useReview() {
+/** 열어 둔 심사의 읽는 중 · 실패 · 값(ui/Pending이 읽는 꼴) */
+export function useReviewLoad(): Load<Review> {
   const target = useAtomValue(targetAtom)
   const r = useAtomValue(latestAtom)
-  return r && r.review.id === target?.id ? r : null
+  if (target?.kind !== L.심사) return { loading: false }
+  if (!r || r.of !== target.id) return { loading: true }
+  return 'error' in r ? { error: r.error, loading: false } : { data: r.data, loading: false }
 }
+
+export const useReview = () => useReviewLoad().data ?? null
 
 /** 결정에 붙일 사유(쓰고 있는 것). 사유 칸(05)이 채우고, 조치 버튼이 `ready`로 눌릴 수 있는지를 보고 `sent`의 모양으로 보낸 뒤 비운다 */
 export const reasonAtom = atom<Draft>(blank)

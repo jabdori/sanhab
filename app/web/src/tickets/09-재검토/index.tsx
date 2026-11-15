@@ -1,10 +1,12 @@
+// astryx template: detail-page — 영역은 ItemsCard 꼴(Region)
 // 09 재검토: 승인된 심사의 가운데에 원본의 지급일을, 재검토 표시가 붙은 심사에는 당시 / 현재를 나란히 둔다(04의 제목·숫자 줄 -40과 구성 -30 사이).
 // 원본에는 승인한 날이 없다(이력에는 미상). 지급일은 승인한 날이 아니므로 이름표를 달아 따로 보인다.
 // 당시는 굳은 심사의 값 그대로이고 현재는 서버가 다시 계산해 준다. 과거의 심사는 대리점 상세의 지급 줄에서 연다(02의 조각).
 import { Text } from '@astryxdesign/core/Text'
 import { L } from '../../labels'
-import { useData } from '../../state'
+import { useLoad } from '../../state'
 import { Compare } from '../../ui/Compare'
+import { Pending } from '../../ui/Pending'
 import { Region } from '../../ui/Region'
 import { HStack } from '@astryxdesign/core/Layout'
 import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
@@ -30,8 +32,11 @@ const size = (n: number) => (n === 1 ? L.단독 : `${n}${L.곳}`)
 
 export function Then() {
   const r = useReview()?.review
-  const d = useData<Again>(r?.status === L.승인 ? `/reviews/${r.id}/again` : null)
-  if (!r || d?.id !== r.id) return null
+  const q = useLoad<Again>(r?.status === L.승인 ? `/reviews/${r.id}/again` : null)
+  // 승인된 심사에만 있다(다른 심사의 값이 남아 있어도 그리지 않는다)
+  if (r?.status !== L.승인) return null
+  if (q.data?.id !== r.id) return <Pending of={q.data ? { loading: true } : q} />
+  const d = q.data
   const rule = d.now.rules.find((x) => x.name === L.한도)
   const paid = d.paid.length > 0 && (
     <Region title={L.지급일}>

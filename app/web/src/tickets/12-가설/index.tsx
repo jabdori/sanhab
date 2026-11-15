@@ -1,10 +1,12 @@
+// astryx template: detail-page — 영역은 ItemsCard 꼴(Region)
 // 12 가설: 정황 상세와 심사 상세의 "가설" — 정황이 사실이라고 놓았을 때의 일치, 그룹, 승인권자를 현재와 나란히 둔다(다른 줄만 굵다).
 // 값은 모두 코드가 03의 계산에 정황이 가리키는 선을 더해 다시 구한 것이고 출처는 가정이다. 합산과 저장된 승인권자에는 들어가지 않는다.
 import { L } from '../../labels'
-import { useData } from '../../state'
+import { useLoad } from '../../state'
 import { VStack } from '@astryxdesign/core/Layout'
 import { Heading } from '@astryxdesign/core/Text'
 import { Compare } from '../../ui/Compare'
+import { Pending } from '../../ui/Pending'
 import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
 import { useReview } from '../04-심사/review'
@@ -46,13 +48,14 @@ function Rows({ h }: { h: Hypo }) {
 
 export function OfSignal() {
   const id = useSignal()?.signal.id
-  const h = useData<Hypo>(id ? `/signals/${encodeURIComponent(id)}/hypo` : null)
+  const q = useLoad<Hypo>(id ? `/signals/${encodeURIComponent(id)}/hypo` : null)
   if (!id) return null
-  // 읽는 동안에는 같은 자리에 그룹·승인권자 줄을 먼저 둔다(뒤의 줄이 밀리지 않게)
-  if (!h || h.id !== id)
+  // 읽는 동안에도 영역 자리를 잡는다(뒤의 영역이 밀리지 않게). 앞 정황의 값이 남아 있으면 읽는 중으로 본다
+  const h = q.data?.id === id ? q.data : undefined
+  if (!h)
     return (
       <Region title={L.가설} aside={<Tag adds={[]} />}>
-        <Compare head={[L.현재, L.가설]} rows={[[L.그룹, '', ''], [L.승인권자, '', '']]} />
+        <Pending of={q.data ? { loading: true } : q} />
       </Region>
     )
   return (
@@ -65,12 +68,16 @@ export function OfSignal() {
 /** 심사 상세: 그 심사의 구성원에 걸린 열린 정황마다. 그룹과 승인권자는 그 심사의 값이다 */
 export function OfReview() {
   const id = useReview()?.review.id
-  const list = useData<Hypo[]>(id ? `/reviews/${id}/hypo` : null)
-  if (!list?.length) return null
+  const q = useLoad<Hypo[]>(id ? `/reviews/${id}/hypo` : null)
+  if (!id) return null
+  if (!q.data) return <Pending of={q} />
+  const list = q.data
+  // 정황이 걸리지 않은 심사에는 가설이 없다
+  if (!list.length) return null
   return (
     <Region title={L.가설} aside={<Tag adds={[...new Set(list.flatMap((h) => h.adds))]} />}>
-      {/* 정황마다 표 하나. 표 사이는 넓게(한 표의 제목과 표보다) */}
-      <VStack gap={6}>
+      {/* 정황마다 표 하나(Section 몸통의 간격 4) */}
+      <VStack gap={4}>
         {list.map((h) => (
           <VStack key={h.id} gap={1}>
             <Heading level={4}>{h.name}</Heading>

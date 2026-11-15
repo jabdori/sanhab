@@ -1,3 +1,4 @@
+// astryx template: detail-page
 // 심사 기록: astryx detail-page 템플릿에서 출발한 화면. 머리(← 작업 · n/전체 · 앞 뒤 / 제목 / 메타 한 줄 / 페이지 조치 / 탭) → 본문(바탕 위의 카드들) → 오른쪽 레일(요약 · AI 보고 카드).
 // 좁으면(본문이 레일과 나란히 설 수 없으면) 레일이 본문 아래로 간다. 조치는 누를 때 확인 창에서 사유(분류 · 메모)를 받는다.
 import { Badge } from '@astryxdesign/core/Badge'
@@ -13,17 +14,17 @@ import { BuildingStorefrontIcon, UserIcon } from '@heroicons/react/24/outline'
 import { useSetAtom } from 'jotai'
 import { type ReactNode, useState } from 'react'
 import { L } from '../labels'
-import { api, changedAtom, store, targetAtom, useData } from '../state'
-import { Empty } from '../ui/Empty'
+import { api, changedAtom, store, targetAtom, useLoad } from '../state'
 import { Mark, State } from '../ui/Mark'
 import { AiCard } from '../ui/AiCard'
+import { Pending } from '../ui/Pending'
 import { Act, Meta, RecordPage, Tiles, byGrade } from '../ui/Record'
 import { Region } from '../ui/Region'
 import { Source } from '../ui/Source'
 import { caution, fail, meter, num, pct, plain } from '../ui/status'
 import { Links, Members, Rules } from '../tickets/04-심사'
-import { bundled, useReview } from '../tickets/04-심사/review'
-import { History, useResubmit } from '../tickets/06-반려'
+import { type Review as Data, bundled, useReview, useReviewLoad } from '../tickets/04-심사/review'
+import { History, type Resubmit, useResubmit } from '../tickets/06-반려'
 import { Then } from '../tickets/09-재검토'
 import { Way, useWay } from '../tickets/10-추인'
 import { Flags } from '../tickets/11-정황'
@@ -32,10 +33,7 @@ import { Picture, Timeline } from '../tickets/16-경위'
 import type { Report } from '../tickets/17-보고/report'
 
 /** 오른쪽 위 페이지 조치: 보조 조치가 앞, 주 버튼(승인 · 재상신)이 맨 끝. 서버가 거절하면 `onBad`로 그 낱말 */
-function Actions({ onBad }: { onBad: (word: string | null) => void }) {
-  const r = useReview()
-  const s = useResubmit()
-  if (!r) return null
+function Actions({ r, s, onBad }: { r: Data; s: Resubmit | null; onBad: (word: string | null) => void }) {
   const fail = (e: Error) => {
     onBad(e.message)
     store.set(changedAtom, (n) => n + 1)
@@ -62,9 +60,7 @@ function Actions({ onBad }: { onBad: (word: string | null) => void }) {
 }
 
 /** 판단의 재료 세 타일: 합산(한도 대비 막대, 넘으면 오류 색) · 한도 · 승인권자. 합산 · 승인권자는 계산이라 출처 표지를 단다 */
-function ReviewTiles() {
-  const r = useReview()?.review
-  if (!r) return null
+function ReviewTiles({ r }: { r: Data['review'] }) {
   const over = r.limit !== null && r.total > r.limit
   return (
     <Tiles
@@ -85,7 +81,7 @@ function ReviewTiles() {
   )
 }
 
-/** 경위 탭: 그림과 같은 칸들의 시간 순 목록(incident-console의 Timeline 꼴) */
+/** 경위 탭: 그림과 같은 칸들의 시간 순 목록(detail-page의 TimelineSection 꼴) */
 function Trail() {
   return (
     <>
@@ -100,9 +96,9 @@ function Trail() {
 
 /** AI 보고 한 건: 그 정황의 가장 새 보고를 읽기로. 사실마다 근거(Citation), 추정 · 미확인은 목록 */
 function SignalReport({ id, name }: { id: string; name: string }) {
-  const d = useData<Report>(`/signals/${encodeURIComponent(id)}/report`)
+  const q = useLoad<Report>(`/signals/${encodeURIComponent(id)}/report`)
   const setTarget = useSetAtom(targetAtom)
-  const r = d?.report
+  const r = q.data?.report
   const lines = (list: string[]) => (
     <List density="balanced">
       {list.map((t, i) => (
@@ -120,6 +116,7 @@ function SignalReport({ id, name }: { id: string; name: string }) {
         </HStack>
       }
     >
+      {!q.data && <Pending of={q} />}
       {r && r.facts.length > 0 && (
         <MetadataList columns="single" label={{ position: 'top' }}>
           <MetadataListItem label={L.사실}>
@@ -143,12 +140,14 @@ function SignalReport({ id, name }: { id: string; name: string }) {
 /** AI 보고: 이 심사에 걸린 정황마다 그 보고 카드(정황 영역 바로 아래, D63). 정황이 없으면 없음 */
 export function Reports() {
   const r = useReview()?.review
-  const list = useData<{ id: string; name: string }[]>(r?.marks.includes(L.정황) ? `/reviews/${r.id}/signals` : null)
-  if (r?.marks.includes(L.정황) && !list) return null // 읽는 중에는 비운다(없음이 깜박이지 않게)
-  if (!r?.marks.includes(L.정황) || !list?.length) return null
+  const on = !!r?.marks.includes(L.정황)
+  const q = useLoad<{ id: string; name: string }[]>(on ? `/reviews/${r!.id}/signals` : null)
+  // 정황 표시가 없는 심사에는 보고가 없다(이전 심사의 값이 남아 있어도 그리지 않는다)
+  if (!on) return null
+  if (!q.data) return <Pending of={q} />
   return (
     <VStack gap={4}>
-      {list.map((s) => (
+      {q.data.map((s) => (
         <SignalReport key={s.id} id={s.id} name={s.name} />
       ))}
     </VStack>
@@ -156,23 +155,25 @@ export function Reports() {
 }
 
 export function Review() {
-  const r = useReview()
+  const r = useReviewLoad()
   const [bad, setBad] = useState<{ id: string; word: string } | null>(null)
   const way = useWay()
-  if (!r) return null
-  const v = r.review
+  const s = useResubmit()
+  if (!r.data) return <Pending of={r} page />
+  const { data } = r
+  const v = data.review
   return (
     <RecordPage
       title={`${v.name} · ${v.ym}`}
       meta={[
         <State word={v.status} />,
         <Meta icon={UserIcon}>{v.holder ?? v.approver}</Meta>,
-        <Meta icon={BuildingStorefrontIcon}>{`${r.members.length}${L.곳}`}</Meta>,
+        <Meta icon={BuildingStorefrontIcon}>{`${data.members.length}${L.곳}`}</Meta>,
         ...v.marks.map((m) => <Mark>{m}</Mark>),
         // 이 심사가 든 추인 묶음(10): 있으면 그리로 가는 링크
         ...(way ? [<Way b={way} />] : []),
       ]}
-      actions={<Actions onBad={(word) => setBad(word ? { id: v.id, word } : null)} />}
+      actions={<Actions r={data} s={s} onBad={(word) => setBad(word ? { id: v.id, word } : null)} />}
       bad={bad?.id === v.id ? bad.word : null}
       // 보조 칸의 요약: 상태 · 담당(실제로 결정하는 사람) · 승인권자(합산으로 정한 것, 가설로 올라갔으면 표시) · 귀속월 · 구성
       props={[
@@ -180,10 +181,10 @@ export function Review() {
         // 반려 뒤의 차례는 영업지원(재상신) — 담당은 지금 할 사람
         [L.담당, v.status === L.반려 ? L.영업지원 : v.holder ?? v.approver],
         // 반려 · 보류의 사유는 받는 사람이 내용에서 바로 본다(이력 탭까지 가지 않게)
-        ...r.history.filter((h) => h.kind === v.status && (h.kind === L.반려 || h.kind === L.보류)).slice(-1).map((h): [string, ReactNode] => [L.사유, [h.reason?.class, h.reason?.memo].filter(Boolean).join(' · ') || L.없음]),
+        ...data.history.filter((h) => h.kind === v.status && (h.kind === L.반려 || h.kind === L.보류)).slice(-1).map((h): [string, ReactNode] => [L.사유, [h.reason?.class, h.reason?.memo].filter(Boolean).join(' · ') || L.없음]),
         [L.승인권자, v.holder && v.holder !== v.approver ? <HStack gap={2} vAlign="center"><Text>{v.holder}</Text><Mark>{v.marks.includes(L.이탈) ? L.이탈 : L.가설}</Mark></HStack> : v.approver],
         [L.귀속월, v.ym],
-        [L.구성, r.members.map((m) => m.name).join(' · ')],
+        [L.구성, data.members.map((m) => m.name).join(' · ')],
       ]}
       tabs={[
         {
@@ -191,7 +192,7 @@ export function Review() {
           label: L.내용,
           body: (
             <>
-              <ReviewTiles />
+              <ReviewTiles r={v} />
               <Then />
               <Members />
               <Links />

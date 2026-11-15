@@ -2,7 +2,7 @@
 import { atom, useAtomValue } from 'jotai'
 import { unwrap } from 'jotai/utils'
 import { L } from '../../labels'
-import { api, changedAtom, roleAtom, targetAtom } from '../../state'
+import { type ApiError, type Load, api, changedAtom, roleAtom, targetAtom } from '../../state'
 import type { Decision } from '../04-심사/review'
 
 type Dot = { id: string; name: string }
@@ -51,16 +51,21 @@ const signalAtom = atom(async (get) => {
   get(changedAtom)
   get(roleAtom)
   const t = get(targetAtom)
-  return t?.kind === L.정황 ? api<Signal>(`/signals/${encodeURIComponent(t.id)}`).catch(() => null) : null
+  return t?.kind === L.정황 ? api<Signal>(`/signals/${encodeURIComponent(t.id)}`).then((data) => ({ of: t.id, data }), (error: ApiError) => ({ of: t.id, error })) : null
 })
 // 다시 읽는 동안에는 앞의 값을 그대로 둔다(조치 뒤에 화면이 비지 않게)
 const latestAtom = unwrap(signalAtom, (prev) => prev ?? null)
 
-export function useSignal() {
+/** 열어 둔 정황의 읽는 중 · 실패 · 값(ui/Pending이 읽는 꼴) */
+export function useSignalLoad(): Load<Signal> {
   const target = useAtomValue(targetAtom)
   const s = useAtomValue(latestAtom)
-  return s && target?.kind === L.정황 && s.signal.id === target.id ? s : null
+  if (target?.kind !== L.정황) return { loading: false }
+  if (!s || s.of !== target.id) return { loading: true }
+  return 'error' in s ? { error: s.error, loading: false } : { data: s.data, loading: false }
 }
+
+export const useSignal = () => useSignalLoad().data ?? null
 
 /** 근거 표에서 강조할 줄(그 기록의 id). 근거 연결(17 보고의 사실)이 정하고 1.2초 뒤 비운다 */
 export const markAtom = atom<string | null>(null)

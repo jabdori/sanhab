@@ -1,3 +1,4 @@
+// astryx template: detail-page — 영역은 ItemsCard 꼴(Region)
 // 04 심사: 심사 기록(pages/Review)의 본문 영역 — 구성, 관계, 규정 — 과 결정 한 줄. 데이터는 review.ts의 useReview().
 // 작업 목록은 pages/Work, 머리·조치·요약은 pages/Review가 그린다.
 import { Badge } from '@astryxdesign/core/Badge'
@@ -11,20 +12,21 @@ import { L } from '../../labels'
 import { menuAtom, targetAtom } from '../../state'
 import { Empty } from '../../ui/Empty'
 import { Line as Row } from '../../ui/Line'
+import { Pending } from '../../ui/Pending'
 import { Region } from '../../ui/Region'
 import { Relation } from '../../ui/Relation'
 import { Source } from '../../ui/Source'
-import {  } from '../../ui/status'
 import { num } from '../../ui/status'
-import { type Decision, type Review, useReview } from './review'
+import { type Decision, type Review, useReviewLoad } from './review'
 
 type Pay = { key: string; id: string; name: string; match: string[]; amount: number | null; source?: string; file?: string | null; row?: number | null } & Record<string, unknown>
 
 /** 구성: 지급마다 한 줄(금액의 합이 합산과 같다. 지급이 없는 구성원도 한 줄). 이름은 굵게 + 보조 id, 일치는 종류마다 색 Token, 금액은 굵게 오른쪽, 출처는 조용히 */
 export function Members() {
-  const r = useReview()
+  const q = useReviewLoad()
   const setTarget = useSetAtom(targetAtom)
-  if (!r) return null
+  if (!q.data) return <Pending of={q} />
+  const r = q.data
   const data: Pay[] = r.members.flatMap((m) =>
     (m.pays.length ? m.pays : [null]).map((p, i) => ({ key: `${m.id}/${i}`, id: m.id, name: m.name, match: m.match, amount: p?.amount ?? null, source: p?.source, file: p?.file, row: p?.row })),
   )
@@ -70,8 +72,9 @@ export function Members() {
 
 /** 관계 그림. 같은 내용은 구성 표의 "일치" 열에 글자로 있다. 이웃이 없으면(단독) 접힌 `관계 없음` */
 export function Links() {
-  const r = useReview()
-  if (!r) return null
+  const q = useReviewLoad()
+  if (!q.data) return <Pending of={q} />
+  const r = q.data
   return (
     <Region
       title={L.관계}
@@ -98,10 +101,11 @@ export function Links() {
 type Rule = Review['rules'][number] & Record<string, unknown>
 
 export function Rules() {
-  const r = useReview()
+  const q = useReviewLoad()
   const setMenu = useSetAtom(menuAtom)
   const setTarget = useSetAtom(targetAtom)
-  if (!r) return null
+  if (!q.data) return <Pending of={q} />
+  const r = q.data
   return (
     <Region title={L.규정}>
       <Table<Rule>

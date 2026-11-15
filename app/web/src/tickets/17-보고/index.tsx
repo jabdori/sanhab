@@ -1,3 +1,4 @@
+// astryx template: detail-page — AI 보고는 사실 영역 아래 떠 있는 카드(AiCard, D63)
 // 17 보고: 정황 기록(pages/Signal)의 레일 "AI 보고" 칸. AI가 쓴 글은 여기에만 있다(본문에는 없다).
 // 머리에 AI(누르면 실행 기록)와 상태 Badge. 사실의 문장은 코드가 가리킨 기록에서 값을 채운 것이고 끝의 연결(↗)을 누르면 본문 근거 표의 그 줄이 강조된다.
 // 미확인은 펼쳐져 있고 의견·반론은 접혀 있다. 확신을 숫자로 적지 않는다. 채택·불채택은 조치와 따로 남고 둘 다 secondary(같은 무게).
@@ -18,8 +19,8 @@ import { Act } from '../../ui/Record'
 import { Source } from '../../ui/Source'
 import { fail } from '../../ui/status'
 import { Line } from '../04-심사'
-import { markAtom, useSignal } from '../11-정황/signal'
-import { tickAtom, useReport } from './report'
+import { type Signal, markAtom } from '../11-정황/signal'
+import { type Report, tickAtom } from './report'
 
 /** 근거 연결: 누르면 본문 근거 표의 그 줄이 1.2초 동안 강조된다 */
 function show(ref: string) {
@@ -49,14 +50,12 @@ const Lines = ({ list }: { list: string[] }) =>
   )
 
 /** 머리: AI 표지(누르면 실행 기록), 상태 Badge, 조사(내부 감시에게. 요청이 끝날 때까지 다시 눌리지 않는다). 대기인 보고는 AI가 쓰는 동안 몇 초마다 다시 읽는다 */
-export function Head() {
-  const d = useReport()
-  const signal = useSignal()
+export function Head({ d, signal }: { d: Report; signal: Signal }) {
   const bump = useSetAtom(tickAtom)
   const [busy, setBusy] = useState(false)
   const [bad, setBad] = useState<string | null>(null)
-  const id = signal?.signal.id
-  const waiting = !!d && (!d.report || d.report.state === L.대기)
+  const id = signal.signal.id
+  const waiting = !d.report || d.report.state === L.대기
   useEffect(() => {
     setBad(null)
   }, [id])
@@ -65,7 +64,6 @@ export function Head() {
     const t = setInterval(() => bump((n) => n + 1), 3000)
     return () => clearInterval(t)
   }, [waiting, bump])
-  if (!d || !id) return null
   const r = d.report
   return (
     <HStack gap={2} vAlign="center" wrap="wrap">
@@ -94,10 +92,10 @@ export function Head() {
 }
 
 /** 사실 / 추정 / 미확인 / 의견·반론. 올라와 있는(검토·채택·불채택) 보고에만 내용이 있다 */
-export function Body() {
-  const d = useReport()
-  const r = d?.report
-  if (!d || !r || !r.facts.length) return null
+export function Body({ d }: { d: Report }) {
+  const r = d.report
+  // 올라오지 않은(오류 · 대기) 보고는 내용이 없다
+  if (!r || !r.facts.length) return null
   return (
     <VStack gap={3}>
       <Part name={L.사실}>
@@ -145,15 +143,14 @@ export function Body() {
 
 /** 채택 · 불채택: 같은 무게의 버튼(둘 다 secondary). 누르면 확인 창에서 사유(분류 · 메모)를 받는다 — 불채택은 분류 필수. 서버가 거절하면 그 낱말.
  * 결정이 남으면 결정 한 줄과, AI의 의견과 정황의 조치(그때까지 내린 것)를 이름표와 값으로 보인다 */
-export function Decide() {
-  const d = useReport()
-  const signal = useSignal()
+export function Decide({ d, signal }: { d: Report; signal: Signal }) {
   const [bad, setBad] = useState<string | null>(null)
-  const id = d?.report?.id
+  const id = d.report?.id
   useEffect(() => {
     setBad(null)
   }, [id])
-  if (!d || !d.report || !signal) return null
+  // 보고가 없으면 채택 · 불채택할 것이 없다
+  if (!d.report) return null
   const { decision: x, actions } = d
   return (
     <VStack gap={2}>
@@ -180,15 +177,5 @@ export function Decide() {
   )
 }
 
-/** 레일 칸의 몸통(RailCard 안): 머리 · 본문 · 채택/불채택 */
-export function AiReport() {
-  if (!useReport()) return null
-  return (
-    <VStack gap={3}>
-      <Head />
-      <Body />
-      <Decide />
-    </VStack>
-  )
-}
+
 
