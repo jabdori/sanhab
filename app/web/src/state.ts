@@ -14,7 +14,26 @@ const session = <T>() => createJSONStorage<T>(() => sessionStorage)
 export const rolesAtom = atomWithStorage<{ role: string; token: string }[]>('roles', [], session(), { getOnInit: true })
 export const roleAtom = atomWithStorage<string | null>('role', null, session(), { getOnInit: true })
 export const menuAtom = atom<Menu>(MENUS[0])
-export const targetAtom = atom<Target | null>(null)
+const openAtom = atom<Target | null>(null)
+/** 기록에서 기록으로 옮겨 갈 때 쌓는 앞 화면(메뉴 · 대상 · 목록 순서). 기록 머리의 돌아가기가 하나씩 꺼낸다 */
+export type Back = { menu: Menu; target: Target; nav: Target[] }
+export const backAtom = atom<Back[]>([])
+const same = (a: Target, b: Target) => a.kind === b.kind && a.id === b.id
+/**
+ * 열어 둔 대상. 기록을 연 채 다른 기록으로 가면(규정 · 대리점 링크, 대화의 기록 링크 …) 앞 화면을 쌓아 돌아가기가 그리로 돌아온다.
+ * 목록으로 나가면(null) 쌓인 것을 비운다. n/전체로 옮겨 다니는 것은 쌓지 않는다(`stepAtom`)
+ */
+export const targetAtom = atom(
+  (get) => get(openAtom),
+  (get, set, next: Target | null) => {
+    const prev = get(openAtom)
+    if (!next) set(backAtom, [])
+    else if (prev && !same(prev, next)) set(backAtom, [...get(backAtom), { menu: get(menuAtom), target: prev, nav: get(navAtom) }])
+    set(openAtom, next)
+  },
+)
+/** 같은 목록 안에서 앞 · 뒤로 옮긴다(n/전체): 돌아가기에 쌓지 않는다 */
+export const stepAtom = atom(null, (_get, set, next: Target) => set(openAtom, next))
 /** 작업 목록에서 기록을 열 때의 목록 순서. 기록 화면의 `n/전체 · 앞 / 뒤`가 이것을 따른다 */
 export const navAtom = atom<Target[]>([])
 /** 목록 사이드바: 기록을 열면 접힌 채 시작하고 기록 머리의 `목록` 단추로 편다 */
@@ -34,6 +53,7 @@ export function startView() {
   store.set(scopeAtom, 'mine')
   store.set(targetAtom, null)
   store.set(navAtom, [])
+  store.set(backAtom, [])
   store.set(paneAtom, false)
 }
 /** 초기화가 새 토큰을 받는 동안: 옛 토큰으로 나간 읽기가 401을 받아도 역할을 지우지 않는다 */

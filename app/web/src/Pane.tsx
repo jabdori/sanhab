@@ -6,7 +6,7 @@ import { Section, VStack } from '@astryxdesign/core/Layout'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { FlagIcon } from '@heroicons/react/24/outline'
 import { L } from './labels'
-import { menuAtom, navAtom, targetAtom, useData, type Target } from './state'
+import { menuAtom, navAtom, stepAtom, targetAtom, useData, type Target } from './state'
 import { type Task, sortTasks } from './pages/Work'
 import { num } from './ui/status'
 import { useRules } from './tickets/22-규정'
@@ -15,7 +15,8 @@ type Item = { go: Target; label: string; description?: string; flag?: boolean }
 
 export function Pane() {
   const menu = useAtomValue(menuAtom)
-  const [target, setTarget] = useAtom(targetAtom)
+  const target = useAtomValue(targetAtom)
+  const step = useSetAtom(stepAtom)
   const setNav = useSetAtom(navAtom)
   const tasks = useData<{ mine: Task[] }>(menu === L.작업 ? '/tasks' : null)
   const dealers = useData<{ id: string; name: string }[]>(menu === L.대리점 ? '/dealers' : null)
@@ -46,8 +47,9 @@ export function Pane() {
             isSelected={it.go.kind === target?.kind && it.go.id === target?.id}
             endContent={it.flag ? <Icon icon={FlagIcon} size="sm" color="secondary" /> : undefined}
             onClick={() => {
+              // 목록 안에서 옮겨 다니는 것은 돌아가기에 쌓지 않는다(n/전체와 같다)
               setNav(items.map((x) => x.go))
-              setTarget(it.go)
+              step(it.go)
             }}
           />
         ))}

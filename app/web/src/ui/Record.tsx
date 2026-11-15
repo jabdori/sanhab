@@ -12,12 +12,12 @@ import { Link } from '@astryxdesign/core/Link'
 import { Tab, TabList } from '@astryxdesign/core/TabList'
 import { Heading, Text } from '@astryxdesign/core/Text'
 import { ArrowLeftIcon, QueueListIcon, ViewColumnsIcon } from '@heroicons/react/24/outline'
-import { useAtom, useAtomValue } from 'jotai'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { isValidElement, type ReactNode, useState } from 'react'
 import { Mark, State } from './Mark'
 import { fail, plain } from './status'
 import { L } from '../labels'
-import { menuAtom, navAtom, paneAtom, sideAtom, targetAtom, useData } from '../state'
+import { backAtom, menuAtom, navAtom, paneAtom, sideAtom, stepAtom, targetAtom, useData } from '../state'
 import { useMediaQuery } from '@astryxdesign/core/hooks'
 import { type Draft, Reason, blank, ready, sent } from './Reason'
 import { Confirm } from './Confirm'
@@ -31,9 +31,11 @@ const Bullet = () => (
 
 /** ← (지금 메뉴) · n/전체 ‹ ›(Pagination compact): 작업 목록에서 열었으면 그 순서를 따라 앞뒤로 간다 */
 function Back() {
-  const opened = useAtomValue(navAtom)
+  const [opened, setNav] = useAtom(navAtom)
   const [target, setTarget] = useAtom(targetAtom)
-  const menu = useAtomValue(menuAtom)
+  const [menu, setMenu] = useAtom(menuAtom)
+  const [back, setBack] = useAtom(backAtom)
+  const step = useSetAtom(stepAtom)
   // 조치로 끝난 작업은 목록에서 빠진다: 지금 남아 있는 작업(과 지금 연 기록)만 센다
   const live = useData<{ mine: { view: string; target: string }[]; going: { view: string; target: string }[] }>(opened.length ? '/tasks' : null)
   const left = live ? new Set([...live.mine, ...live.going].map((t) => `${t.view}/${t.target}`)) : null
@@ -45,13 +47,21 @@ function Back() {
     <HStack gap={2} vAlign="center">
       {/* 목록 사이드바를 펴고 접는다(기록을 열면 접힌 채 시작) */}
       <Button label={L.목록} variant="ghost" size="sm" isIconOnly icon={<Icon icon={QueueListIcon} size="sm" />} onClick={() => setPane(!pane)} />
-      <Link color="secondary" onClick={() => setTarget(null)}>
+      {/* 다른 기록에서 건너왔으면 그 기록으로(낱말은 그 기록의 종류), 아니면 목록으로(메뉴) */}
+      <Link color="secondary" onClick={() => {
+          const b = back.at(-1)
+          if (!b) return setTarget(null)
+          setBack(back.slice(0, -1))
+          setMenu(b.menu)
+          setNav(b.nav)
+          step(b.target)
+        }}>
         <HStack gap={1} vAlign="center">
           <Icon icon={ArrowLeftIcon} size="sm" color="inherit" />
-          {menu}
+          {back.at(-1)?.target.kind ?? menu}
         </HStack>
       </Link>
-      {at >= 0 && nav.length > 1 && <Pagination variant="compact" size="sm" label={L.목록} page={at + 1} totalPages={nav.length} onChange={(p) => setTarget(nav[p - 1])} />}
+      {at >= 0 && nav.length > 1 && <Pagination variant="compact" size="sm" label={L.목록} page={at + 1} totalPages={nav.length} onChange={(p) => step(nav[p - 1])} />}
     </HStack>
   )
 }
