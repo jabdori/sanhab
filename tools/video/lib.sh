@@ -46,7 +46,8 @@ prep(){ A set viewport 1280 720 3 >/dev/null
   echo "prep $(now) tour=$ok viewport=1280x720x3" >> $MARKS; }
 # 녹화: agent-browser 녹화기는 커서를 페이지에 그리는 데만 쓴다(그 영상은 1280×720을 키운 것이라 버린다). 화면은 cdp-rec.mjs가 배율 3 스크린샷으로 찍는다
 # DRY=1: 녹화하지 않고 동작만 돌린다(바뀐 화면에서 못 찾는 상자 · 단추를 미리 찾는 리허설). miss는 marks.txt에 남는다
-recstart(){ [ -n "${DRY:-}" ] && { echo "rec$1 $(now)" >> $MARKS; return; };  rm -rf $W/frames$1; A record start $W/cursor$1.mp4 --cursor >/dev/null 2>&1; ( node $HERE/cdp-rec.mjs "$(A get cdp-url)" $W/frames$1 > /dev/null & echo $! > $W/grab.pid ); sleep 1; echo "rec$1 $(now)" >> $MARKS; sleep 0.5; }
+recstart(){ [ -n "${DRY:-}" ] && { echo "rec$1 $(now)" >> $MARKS; return; };  rm -rf $W/frames$1; A record start $W/cursor$1.mp4 --cursor >/dev/null 2>&1; A set viewport 1280 720 1.5 >/dev/null;  # record start가 화면을 1920×1080으로 되돌린다 — 다시 1280×720(캡처는 clip.scale 1.5)
+  ( node $HERE/cdp-rec.mjs "$(A get cdp-url)" $W/frames$1 > /dev/null & echo $! > $W/grab.pid ); sleep 1; echo "rec$1 $(now)" >> $MARKS; sleep 0.5; }
 recstop(){ wait; [ -n "${DRY:-}" ] && { echo "end$1 $(now)" >> $MARKS; return; }; echo "end$1 $(now)" >> $MARKS; sleep 0.3; kill -TERM $(cat $W/grab.pid); while kill -0 $(cat $W/grab.pid) 2>/dev/null; do sleep 0.2; done; A record stop >/dev/null 2>&1; rm -f $W/cursor$1.mp4
   python3 $HERE/stitch.py $W/frames$1 $(grep "^rec$1 " $MARKS | cut -d' ' -f2) $(grep "^end$1 " $MARKS | cut -d' ' -f2) $W/clip$1.mp4 && rm -rf $W/frames$1; }
 # 접속(서버를 다시 띄우면 토큰이 바뀐다): 패스워드는 .env에서 읽어 입력만 하고 출력하지 않는다
