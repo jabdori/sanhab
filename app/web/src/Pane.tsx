@@ -19,7 +19,7 @@ export function Pane() {
   const setNav = useSetAtom(navAtom)
   const tasks = useData<{ mine: Task[] }>(menu === L.작업 ? '/tasks' : null)
   const dealers = useData<{ id: string; name: string }[]>(menu === L.대리점 ? '/dealers' : null)
-  const rules = useRules()
+  const rules = useRules().data
   const items: Item[] =
     menu === L.작업
       ? (tasks?.mine ?? []).map((t) => ({

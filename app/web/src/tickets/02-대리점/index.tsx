@@ -6,7 +6,8 @@ import { Table, pixel, proportional } from '@astryxdesign/core/Table'
 import { Text } from '@astryxdesign/core/Text'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { L } from '../../labels'
-import { targetAtom, useData } from '../../state'
+import { targetAtom, useLoad, type Load } from '../../state'
+import { Pending } from '../../ui/Pending'
 import { Mark, State } from '../../ui/Mark'
 import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
@@ -37,16 +38,19 @@ export const Dealer = ({ name, onOpen }: { name: string; id?: string; onOpen: ()
 )
 
 /** 열어 둔 대리점의 상세. 읽기 전이거나 다른 대리점의 것이면 undefined */
-export function useDetail() {
+export function useDetailLoad(): Load<Detail> {
   const target = useAtomValue(targetAtom)
-  const d = useData<Detail>(target && `/dealers/${target.id}`)
-  return d?.dealer.id === target?.id ? d : undefined
+  const q = useLoad<Detail>(target && `/dealers/${target.id}`)
+  // 앞 대리점의 값이 남아 있으면 지금 연 것으로 보지 않는다
+  return q.data?.dealer.id === target?.id ? q : { ...q, data: undefined, loading: q.loading || !q.error }
 }
+export const useDetail = () => useDetailLoad().data
 
 /** 등록: 식별자마다 값(덧말: 동일인 · 제외 · 이전)과 변경일 · 인지일 · 경로(출처). 이전 값은 `이전 ~마지막 날` */
 export function RegisteredRegion() {
-  const d = useDetail()
-  if (!d) return null
+  const q = useDetailLoad()
+  const d = q.data
+  if (!d) return <Pending of={q} />
   return (
     <Region title={L.등록}>
       <Table<Registered>
@@ -54,14 +58,14 @@ export function RegisteredRegion() {
         idKey={(r) => `${r.item}/${r.value}/${r.since}`}
         density="balanced"
         columns={[
-          { key: 'item', header: L.식별자, width: pixel(88), renderCell: (r) => <Text weight="semibold" className="whitespace-nowrap">{r.item}</Text> },
+          { key: 'item', header: L.식별자, width: pixel(88), renderCell: (r) => <Text weight="semibold" maxLines={1}>{r.item}</Text> },
           {
             key: 'value',
             header: L.값,
             width: proportional(2, { minWidth: 96 }),
             renderCell: (r) => (
               <VStack gap={0}>
-                <Text hasTabularNumbers className="whitespace-nowrap">{r.value}</Text>
+                <Text hasTabularNumbers maxLines={1}>{r.value}</Text>
                 {r.same && (
                   <Text type="supporting" color="secondary">
                     {L.동일인} {r.same}
@@ -83,8 +87,8 @@ export function RegisteredRegion() {
               </VStack>
             ),
           },
-          { key: 'since', header: L.변경일, width: pixel(104), renderCell: (r) => <Text hasTabularNumbers className="whitespace-nowrap">{r.since}</Text> },
-          { key: 'known', header: L.인지일, width: pixel(104), renderCell: (r) => (r.known ? <Text hasTabularNumbers className="whitespace-nowrap">{r.known}</Text> : <Text color="secondary">{L.미상}</Text>) },
+          { key: 'since', header: L.변경일, width: pixel(104), renderCell: (r) => <Text hasTabularNumbers maxLines={1}>{r.since}</Text> },
+          { key: 'known', header: L.인지일, width: pixel(104), renderCell: (r) => (r.known ? <Text hasTabularNumbers maxLines={1}>{r.known}</Text> : <Text color="secondary">{L.미상}</Text>) },
           {
             key: 'via',
             header: L.경로,
@@ -104,9 +108,10 @@ export function RegisteredRegion() {
 
 /** 지급: 귀속월 · 금액 · 상태 · 심사(누르면 그 심사가 열린다) · 출처. 이 앱이 상태를 준 지급은 그 상태와 출처, 손대지 않은 지급은 원본의 값 그대로 */
 export function Payouts() {
-  const d = useDetail()
+  const q = useDetailLoad()
+  const d = q.data
   const setTarget = useSetAtom(targetAtom)
-  if (!d) return null
+  if (!d) return <Pending of={q} />
   return (
     <Region title={L.지급} aside={<Badge variant="neutral" label={String(d.payouts.length)} />}>
       <Table<Payout>

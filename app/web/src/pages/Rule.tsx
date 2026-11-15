@@ -3,14 +3,16 @@ import { Source } from '../ui/Source'
 import { DocumentTextIcon } from '@heroicons/react/24/outline'
 import { useState } from 'react'
 import { L } from '../labels'
+import { Pending } from '../ui/Pending'
 import { Meta, RecordPage, Tiles } from '../ui/Record'
 import { Assumes, Original, Uses, Versions, useClause, place, where } from '../tickets/22-규정'
 import { Result, Simulate } from '../tickets/23-모의'
 
 export function Rule() {
-  const c = useClause()
+  const q = useClause()
+  const c = q.data
   const [bad, setBad] = useState<string | null>(null)
-  if (!c) return null
+  if (!c) return <Pending of={q} page />
   const { clause, rules, d } = c
   return (
     <RecordPage

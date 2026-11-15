@@ -1,4 +1,5 @@
 // astryx template: table-page — 대리점 목록. 문서 머리(제목 · 사실 묶음) → 검색(오른쪽 300) → 표. 벗어난 곳은 docs/design/components.md
+import { Button } from '@astryxdesign/core/Button'
 import { EmptyState } from '@astryxdesign/core/EmptyState'
 import { HStack, Layout, LayoutContent, StackItem, VStack } from '@astryxdesign/core/Layout'
 import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
@@ -9,6 +10,7 @@ import { useState } from 'react'
 import { L } from '../labels'
 import { Search, hit } from '../ui/Search'
 import { targetAtom, useData } from '../state'
+import { flushEdges } from '../ui/Flush'
 import { Dealer, type Row } from '../tickets/02-대리점'
 
 /** 표의 줄: 등록값(여러 개일 수 있다)은 한 줄로 이어 검색과 표시에 같이 쓴다 */
@@ -36,8 +38,9 @@ export function Dealers() {
   return (
     <Layout
       height="fill"
+      contentWidth={960}
       content={
-        <LayoutContent padding={0}>
+        <LayoutContent role="main" padding={0}>
           <VStack padding={4} gap={8}>
             {/* table-page: 문서의 제목과 사실 묶음은 본문의 머리(스크롤과 함께 지나간다) */}
             <VStack gap={6} paddingBlockEnd={4}>
@@ -61,9 +64,9 @@ export function Dealers() {
               </VStack>
             </HStack>
             {list && !visible.length ? (
-              <EmptyState title={L.없음} />
+              <EmptyState title={L.없음} description={q.trim()} actions={<Button label={L.초기화} variant="secondary" onClick={() => setQ('')} />} />
             ) : (
-              <Table<Line> data={visible} columns={columns} idKey="id" density="balanced" dividers="none" hasHover textOverflow="truncate" plugins={{ open: openRow }} />
+              <Table<Line> data={visible} columns={columns} idKey="id" density="balanced" dividers="none" hasHover textOverflow="truncate" plugins={{ open: openRow, flush: flushEdges<Line>() }} />
             )}
           </VStack>
         </LayoutContent>

@@ -86,7 +86,7 @@ export function Source({ kind, file, row, place, quiet, side, of, decision, line
     setOpen(true)
   }
   const content = (
-    <VStack gap={3} className="max-h-96 overflow-y-auto">
+    <VStack gap={3}>
       <Text weight="semibold">{line}</Text>
       {origin && file && row && <Origin file={file} row={row} o={origin} />}
       {spec && <Decision s={spec} />}

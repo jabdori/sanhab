@@ -1,3 +1,4 @@
+import { VStack } from '@astryxdesign/core/Layout'
 import { L } from '../labels'
 
 type Dot = { id: string; name: string }
@@ -27,9 +28,10 @@ export function Relation({ left, mid, right, lines, hints = [] }: { left: Dot[];
     return i < 0 ? null : y(col, i)
   }
   return (
-    // 자리가 좁으면(1280, 대화를 펼침) 그림 전체가 비율대로 줄어든다
-    <>
-      <svg role="img" aria-label={L.관계} viewBox={`0 0 ${WIDTH} ${height}`} width={WIDTH} height={height} className="h-auto max-w-full text-sm">
+    // 자리가 좁으면(1280, 대화를 펼침) 그림 전체가 비율대로 줄어든다(너비 100%, 높이는 viewBox 비율)
+    // astryx에 관계 그림(노드 · 선) 부품이 없어 svg로 그린다(Icon은 아이콘 한 개용). 색은 astryx 토큰(CSS 변수)을 속성으로 쓴다
+    <VStack maxWidth={WIDTH}>
+      <svg role="img" aria-label={L.관계} viewBox={`0 0 ${WIDTH} ${height}`} width="100%" fontSize={14}>
         {[...lines, ...hints].map(([dealer, ident], i) => {
           const dash = i >= lines.length ? '4 4' : undefined
           const to = at(1, ident)
@@ -45,7 +47,7 @@ export function Relation({ left, mid, right, lines, hints = [] }: { left: Dot[];
               fill="none"
               strokeWidth={1.5}
               strokeDasharray={dash}
-              className="stroke-border"
+              stroke="var(--color-border-emphasized)"
             />
           )
         })}
@@ -61,14 +63,16 @@ export function Relation({ left, mid, right, lines, hints = [] }: { left: Dot[];
                   width={width}
                   height={BOX}
                   rx={c === 1 ? 8 : BOX / 2}
-                  className={c === 0 ? 'fill-primary' : c === 1 ? 'fill-muted stroke-border' : 'fill-surface stroke-border'}
+                  fill={c === 0 ? 'var(--color-background-inverted)' : c === 1 ? 'var(--color-background-muted)' : 'var(--color-background-surface)'}
+                  stroke={c === 0 ? 'none' : 'var(--color-border-emphasized)'}
                 />
                 <text
                   x={X[c] + width / 2}
                   y={y(c, i)}
                   textAnchor="middle"
                   dominantBaseline="central"
-                  className={`${c === 0 ? 'fill-on-dark font-medium' : 'fill-primary'} tabular-nums`}
+                  fill={c === 0 ? 'var(--color-background-body)' : 'var(--color-text-primary)'}
+                  fontWeight={c === 0 ? 500 : undefined}
                 >
                   {d.name}
                 </text>
@@ -77,6 +81,6 @@ export function Relation({ left, mid, right, lines, hints = [] }: { left: Dot[];
           }),
         )}
       </svg>
-    </>
+    </VStack>
   )
 }

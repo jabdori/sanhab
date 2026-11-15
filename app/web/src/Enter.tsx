@@ -21,7 +21,7 @@ export function Enter() {
   const [bad, setBad] = useState(false)
   const [busy, setBusy] = useState(false)
   return (
-    <Center axis="both" padding={6} minHeight="100vh" className="bg-body">
+    <Center axis="both" padding={6} minHeight="100vh">
       <VStack gap={4} hAlign="center" width="100%" maxWidth={400}>
         <VStack gap={2} hAlign="center">
           <Icon icon={BanknotesIcon} size="lg" />

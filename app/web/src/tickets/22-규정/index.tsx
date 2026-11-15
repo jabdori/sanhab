@@ -9,7 +9,8 @@ import { Text } from '@astryxdesign/core/Text'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { DOCS, L } from '../../labels'
 import { fileLine } from '../../ui/Source'
-import { menuAtom, targetAtom, useData } from '../../state'
+import { menuAtom, targetAtom, useLoad, type Load } from '../../state'
+import { Pending } from '../../ui/Pending'
 import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
 import { num } from '../../ui/status'
@@ -26,21 +27,25 @@ export const where = (c: Clause) => fileLine(c.file, c.first, c.last)
 export const place = (c: Clause) => `${DOCS[c.file] ?? L.원본} · ${c.first}–${c.last}${L.행}`
 
 /** 규정 전체의 읽기 */
-export const useRules = () => useData<Data>('/rules')
+export const useRules = () => useLoad<Data>('/rules')
 
-/** 열어 둔 조항과 그 규칙(읽기 전이거나 없으면 undefined) */
-export function useClause() {
-  const d = useRules()
+/** 열어 둔 조항과 그 규칙(읽는 중 · 실패 · 없는 조항은 Load의 상태로) */
+export function useClause(): Load<{ d: Data; clause: Clause; rules: Rule[] }> {
+  const q = useRules()
   const target = useAtomValue(targetAtom)
+  const d = q.data
   // 조항이 하나뿐이면 목록 없이 그 조항이 열린 것으로 본다(메뉴 규정 → 바로 그 조항)
   const clause = d?.clauses.find((x) => x.id === target?.id) ?? (!target && d?.clauses.length === 1 ? d.clauses[0] : undefined)
-  return d && clause ? { d, clause, rules: d.rules.filter((r) => r.clause === clause.id) } : undefined
+  if (d && clause) return { ...q, data: { d, clause, rules: d.rules.filter((r) => r.clause === clause.id) } }
+  // 읽었는데 그 조항이 없으면 없는 기록(404)
+  return { ...q, data: undefined, error: q.error ?? (d ? Object.assign(new Error(L.없음), { status: 404 }) : undefined) }
 }
 
 /** 조항: 원문. 첫 줄(`## 제목`)은 화면 제목이 이미 보인다 */
 export function Original() {
-  const c = useClause()
-  if (!c) return null
+  const q = useClause()
+  const c = q.data
+  if (!c) return <Pending of={q} />
   return (
     <Region title={L.조항} aside={<Source kind={c.clause.source} tip={where(c.clause)} place={`${c.clause.first}–${c.clause.last}${L.행}`} rows={[[L.위치, where(c.clause)], [L.해시, c.clause.sha]]} />}>
       <Markdown density="default">{c.clause.text.replace(/^#+ .*\n/, '')}</Markdown>
@@ -50,8 +55,9 @@ export function Original() {
 
 /** 규칙: 버전마다 값 · 시행 · 이전 · 출처 */
 export function Versions() {
-  const c = useClause()
-  if (!c) return null
+  const q = useClause()
+  const c = q.data
+  if (!c) return <Pending of={q} />
   const { clause, rules } = c
   return (
     <Region title={L.규칙} aside={<Badge variant="neutral" label={String(rules.length)} />}>
@@ -62,7 +68,7 @@ export function Versions() {
         columns={[
           { key: 'name', header: L.규칙, width: proportional(2, { minWidth: 96 }), renderCell: (r) => <Text weight="semibold">{r.name}</Text> },
           { key: 'ver', header: L.버전, align: 'end', width: pixel(64), renderCell: (r) => <Text hasTabularNumbers>{r.ver}</Text> },
-          { key: 'value', header: L.값, align: 'end', width: pixel(104), renderCell: (r) => <Text hasTabularNumbers className="whitespace-nowrap">{r.name === L.합산 ? `${L.일치} ${r.value}` : num(r.value)}</Text> },
+          { key: 'value', header: L.값, align: 'end', width: pixel(104), renderCell: (r) => <Text hasTabularNumbers maxLines={1}>{r.name === L.합산 ? `${L.일치} ${r.value}` : num(r.value)}</Text> },
           { key: 'since', header: L.시행, width: proportional(1, { minWidth: 80 }), renderCell: (r) => (r.since || r.until ? <Text hasTabularNumbers>{`${r.since ?? ''} ~ ${r.until ?? ''}`.trim()}</Text> : none) },
           { key: 'prev', header: L.이전, width: proportional(1, { minWidth: 96 }), renderCell: (r) => (r.prev ? <Text>{`${r.prev.name} ${L.버전} ${r.prev.ver}`}</Text> : none) },
           {
@@ -84,10 +90,11 @@ export function Versions() {
 
 /** 가정: 표 전체가 가정이라 줄마다 표지를 달지 않는다. 번호(조용한 출처)를 누르면 설명 칸, 쓰임을 누르면 그 기록 */
 export function Assumes() {
-  const c = useClause()
+  const q = useClause()
+  const c = q.data
   const setMenu = useSetAtom(menuAtom)
   const setTarget = useSetAtom(targetAtom)
-  if (!c) return null
+  if (!c) return <Pending of={q} />
   const { assumes } = c.d
   return (
     <Region title={L.가정} aside={<Badge variant="neutral" label={String(assumes.length)} />}>
