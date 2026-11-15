@@ -3,7 +3,7 @@
 : "${W:?장면 작업 폴더 W 필요}"
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 MARKS=$W/marks.txt
-A(){ agent-browser --session vid "$@"; }
+A(){ agent-browser --session ${SES:-vid} "$@"; }
 ref(){ A snapshot -i 2>/dev/null | grep -F -- "$1" | grep -oE 'ref=e[0-9]+' | head -1 | cut -d= -f2; }
 last(){ A snapshot -i 2>/dev/null | grep -F -- "$1" | tail -1 | grep -oE 'ref=e[0-9]+' | cut -d= -f2; }
 now(){ python3 -c 'import time;print(time.time())'; }
@@ -40,17 +40,18 @@ prep(){ A set viewport 1280 720 3 >/dev/null
   local nc; nc=$(ref 'button "새 대화"'); [ -n "$nc" ] && A click @$nc >/dev/null; sleep 0.5   # 대화 칸은 빈 새 대화로
   echo "prep $(now) tour=$ok viewport=1280x720x3" >> $MARKS; }
 # 녹화: agent-browser 녹화기는 커서를 페이지에 그리는 데만 쓴다(그 영상은 1280×720을 키운 것이라 버린다). 화면은 cdp-rec.mjs가 배율 3 스크린샷으로 찍는다
-recstart(){ rm -rf $W/frames$1; A record start $W/cursor$1.mp4 --cursor >/dev/null 2>&1; ( node $HERE/cdp-rec.mjs "$(A get cdp-url)" $W/frames$1 > /dev/null & echo $! > $W/grab.pid ); sleep 1; echo "rec$1 $(now)" >> $MARKS; sleep 0.5; }
-recstop(){ wait; echo "end$1 $(now)" >> $MARKS; sleep 0.3; kill -TERM $(cat $W/grab.pid); while kill -0 $(cat $W/grab.pid) 2>/dev/null; do sleep 0.2; done; A record stop >/dev/null 2>&1; rm -f $W/cursor$1.mp4
+# DRY=1: 녹화하지 않고 동작만 돌린다(바뀐 화면에서 못 찾는 상자 · 단추를 미리 찾는 리허설). miss는 marks.txt에 남는다
+recstart(){ [ -n "${DRY:-}" ] && { echo "rec$1 $(now)" >> $MARKS; return; };  rm -rf $W/frames$1; A record start $W/cursor$1.mp4 --cursor >/dev/null 2>&1; ( node $HERE/cdp-rec.mjs "$(A get cdp-url)" $W/frames$1 > /dev/null & echo $! > $W/grab.pid ); sleep 1; echo "rec$1 $(now)" >> $MARKS; sleep 0.5; }
+recstop(){ wait; [ -n "${DRY:-}" ] && { echo "end$1 $(now)" >> $MARKS; return; }; echo "end$1 $(now)" >> $MARKS; sleep 0.3; kill -TERM $(cat $W/grab.pid); while kill -0 $(cat $W/grab.pid) 2>/dev/null; do sleep 0.2; done; A record stop >/dev/null 2>&1; rm -f $W/cursor$1.mp4
   python3 $HERE/stitch.py $W/frames$1 $(grep "^rec$1 " $MARKS | cut -d' ' -f2) $(grep "^end$1 " $MARKS | cut -d' ' -f2) $W/clip$1.mp4 && rm -rf $W/frames$1; }
 # 접속(서버를 다시 띄우면 토큰이 바뀐다): 패스워드는 .env에서 읽어 입력만 하고 출력하지 않는다
-login(){ local p; p=$(grep '^DEMO_PASS=' "$HERE/../../.env" | cut -d= -f2- | tr -d '"'); A open http://localhost:3100 >/dev/null 2>&1; sleep 3
+login(){ local p; p=$(grep '^DEMO_PASS=' "$HERE/../../.env" | cut -d= -f2- | tr -d '"'); A open ${APP:-http://localhost:3100} >/dev/null 2>&1; sleep 3
   [ -n "$(ref textbox)" ] || return 0; A fill @$(ref textbox) "$p" >/dev/null; A click @$(ref 'button "접속"') >/dev/null; sleep 3; A click @$(ref "button \"${1:-영업지원}\"") >/dev/null; sleep 3; }
 # 어시스턴트에게 묻기: 입력창을 눌러 질문을 치고 보낸다(ask 표지). 답이 끝날 때까지 기다리는 구간은 wait_on ~ wait_off로 남겨 편집에서 잘라 낸다(대기 생략 표시)
 ask(){ wait; local r; r=$(ref 'combobox "대화"'); tap @$r 450; typeslow "$1"; sleep 0.4; log ask ""; A press Enter >/dev/null; sleep 1.2; log wait_on ""
-  # 답이 끝남 = AI 답 글(마크다운, break-keep)의 길이가 0보다 크고 3초 동안 늘지 않음
-  local base prev=-1 same=0 n; base=$(A eval '[...document.querySelectorAll(".break-keep")].map(e=>e.innerText).join("").length' | tr -d '"')
+  # 답이 끝남 = 대화 칸 글(답 · 도구 줄 · A2UI 부품)의 길이가 늘었고 3초 동안 늘지 않음
+  local base prev=-1 same=0 n; base=$(A eval '(document.querySelector("[role=complementary]")?.innerText ?? "").length' | tr -d '"')
   for i in $(seq 1 90); do sleep 1
-    n=$(A eval '[...document.querySelectorAll(".break-keep")].map(e=>e.innerText).join("").length' | tr -d '"')
+    n=$(A eval '(document.querySelector("[role=complementary]")?.innerText ?? "").length' | tr -d '"')
     if [ "$n" -gt "$base" ] && [ "$n" = "$prev" ]; then same=$((same+1)); [ $same -ge 3 ] && break; else same=0; fi; prev=$n; done
   log wait_off ""; }
