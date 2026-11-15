@@ -41,7 +41,7 @@ const Lines = ({ list }: { list: string[] }) =>
   list.length ? (
     <List density="balanced">
       {list.map((t, i) => (
-        <ListItem key={i} label={<Text className="break-keep wrap-anywhere">{t}</Text>} />
+        <ListItem key={i} label={<Text>{t}</Text>} />
       ))}
     </List>
   ) : (
@@ -105,7 +105,7 @@ export function Body() {
           {r.facts.map((f, i) => (
             <ListItem
               key={i}
-              label={<Text className="break-keep wrap-anywhere">{f.text}</Text>}
+              label={<Text>{f.text}</Text>}
               endContent={
                 <Link aria-label={L.근거} color="primary" onClick={() => show(f.ref)}>
                   ↗
@@ -129,12 +129,12 @@ export function Body() {
                 <Text type="supporting" color="secondary">{L.조치}</Text>
                 <Text weight="semibold">{r.opinion.action}</Text>
               </HStack>
-              <Text className="break-keep wrap-anywhere">{r.opinion.text}</Text>
+              <Text>{r.opinion.text}</Text>
             </>
           )}
           {r.counter && (
             <Part name={L.반론}>
-              <Text className="break-keep wrap-anywhere">{r.counter}</Text>
+              <Text>{r.counter}</Text>
             </Part>
           )}
         </VStack>

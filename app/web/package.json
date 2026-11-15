@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "vite",
     "build": "npm run lint && tsc --noEmit && vite build",
-    "lint": "node lint.mjs"
+    "lint": "node lint.mjs",
+    "doctor": "node doctor.mjs"
   },
   "dependencies": {
     "@ai-sdk/react": "^4.0.174",

@@ -98,7 +98,7 @@ function Aside() {
   const at = all.docs.indexOf(d)
   return (
     <>
-      <Text type="supporting" color="secondary" className="wrap-anywhere">{d.name}</Text>
+      <Text type="supporting" color="secondary">{d.name}</Text>
       {/* 시연 서랍에서 넣은 서류는 가상 입력(A05 §6) */}
       {/* 시연용으로 만든 서류(내용이 시연 서류와 같다)는 어느 길로 올렸든 합성 — 사람이 올린 실제 파일에는 표지가 없다 */}
       {d.sample && <Source kind={L.합성} tip={L.서류} rows={[[L.종류, L.서류], [L.대상, d.name], [L.이유, L.시연]]} />}
@@ -253,7 +253,7 @@ export function Upload() {
       title={L.접수}
       aside={bad ? <Badge variant={fail} label={bad} /> : undefined}
       // 대리점 화면의 접수와 같은 꼴: 확인 창에서 무엇을 올리는지 보이고 실행(서류를 받으면 소명이 접수가 된다)
-      actions={<Confirm label={L.접수} variant="primary" title={L.접수} rows={[[L.서류, <Text className="wrap-anywhere">{file?.name}</Text>]]} isDisabled={!file || busy} onConfirm={go} />}
+      actions={<Confirm label={L.접수} variant="primary" title={L.접수} rows={[[L.서류, file?.name ?? '']]} isDisabled={!file || busy} onConfirm={go} />}
     >
       <FileInput label={L.서류} isLabelHidden placeholder={L.서류} width="100%" accept={d.kinds.join(',')} value={file} onChange={(f) => setFile(f as File | null)} />
     </Region>

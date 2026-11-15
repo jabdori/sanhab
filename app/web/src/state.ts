@@ -74,20 +74,32 @@ export async function api<T = unknown>(path: string, body?: unknown, method?: st
   return data
 }
 
-/** 조회. 역할이 바뀌거나 조치가 끝나면 다시 읽는다. 읽기 전에는 undefined */
-export function useData<T>(path: string | null): T | undefined {
+/** 서버가 거절한 응답: status(404 …)와 data를 가진 Error */
+export type ApiError = Error & { status?: number; data?: unknown }
+/** 조회의 상태: 받은 값(data), 실패(error), 읽는 중(loading). 다시 읽는 동안에는 앞의 data가 남는다 */
+export type Load<T> = { data?: T; error?: ApiError; loading: boolean }
+
+/** 조회(상태까지). 역할이 바뀌거나 조치가 끝나면 다시 읽는다. 화면은 ui/Pending으로 읽는 중 · 실패를 그린다 */
+export function useLoad<T>(path: string | null): Load<T> {
   const role = useAtomValue(roleAtom)
   const changed = useAtomValue(changedAtom)
   const ex = useAtomValue(exampleAtom)
-  const [data, setData] = useState<T>()
+  const [load, setLoad] = useState<Load<T>>({ loading: !!path })
   useEffect(() => {
     if (!path) return
     let live = true
-    // 예시가 켜지거나 꺼지면 앞의 값을 지운다(예시와 실제가 섞여 보이지 않게)
-    api<T>(path).then((d) => live && setData(d), () => live && ex && setData(undefined))
+    setLoad((l) => (l.loading && !l.error ? l : { data: l.data, loading: true }))
+    api<T>(path).then(
+      (data) => live && setLoad({ data, loading: false }),
+      // 예시가 켜지거나 꺼지면 앞의 값을 지운다(예시와 실제가 섞여 보이지 않게)
+      (error: ApiError) => live && setLoad((l) => ({ data: ex ? undefined : l.data, error, loading: false })),
+    )
     return () => {
       live = false
     }
   }, [path, role, changed, ex])
-  return data
+  return load
 }
+
+/** 조회(값만). 읽기 전이나 실패하면 undefined — 읽는 중 · 실패를 그려야 하면 useLoad */
+export const useData = <T>(path: string | null): T | undefined => useLoad<T>(path).data

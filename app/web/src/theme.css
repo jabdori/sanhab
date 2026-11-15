@@ -23,64 +23,20 @@
   --font-family-heading: var(--font-family-body);
 }
 
+/* 한글 줄바꿈: 앱 전체에서 어절 단위로 끊고(keep-all — 한 글자만 다음 줄로 넘어가지 않게), 줄보다 긴 숫자 · 영문 · 경로는 아무 데서나 끊는다(anywhere).
+   화면마다 className(break-keep · wrap-anywhere)을 달지 않는다. astryx Text는 스스로 overflow-wrap: break-word를 둬 긴 낱말이 넘치지 않는다 */
 body {
   background: var(--color-background-body);
   color: var(--color-text-primary);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
-/* 예외 2 — 근거 연결(17 보고의 사실 ↗)이 가리킨 표의 줄을 잠깐 노랗게(ui/Table의 mark). astryx Table에 줄 강조 상태가 없다 */
+/* 예외 2 — 근거 연결(17 보고의 사실 ↗)이 가리킨 줄을 잠깐 노랗게(tickets/11 · 19의 className 'mark'). astryx에 줄 강조 상태가 없다.
+   남은 앱 클래스는 이것 하나다: 그 화면이 className을 걷어 내면(예: el.animate로) 이 규칙과 함께 지운다 */
 @keyframes mark {
   from { background: var(--color-background-yellow); }
 }
 .mark {
   animation: mark 1.2s ease-out;
-}
-
-/* 예외 3 — 안내(ui/Tour): 밝힌 요소 둘레를 어둡게 하는 구멍(가장자리에 강조색 링), 바깥 누름을 막는 막, 떠 있는 흰 카드(테두리 없이 큰 그림자 — 화면의 낮은 카드와 다른 층)와 꼬리, 진행 점. astryx에 둘러보기 부품이 없다 */
-.tour-veil {
-  position: fixed;
-  inset: 0;
-  z-index: 900;
-}
-.tour-hole {
-  position: fixed;
-  z-index: 901;
-  border-radius: 10px;
-  box-shadow: 0 0 0 2px var(--color-accent), 0 0 0 9999px rgb(0 0 0 / 0.5);
-  pointer-events: none;
-}
-.tour-card {
-  position: fixed;
-  z-index: 902;
-  width: 320px;
-  max-width: calc(100vw - 32px);
-  padding: 20px;
-  border-radius: 14px;
-  background: var(--color-background-surface, #fff);
-  /* 한 글자만 다음 줄로 넘어가지 않게: 낱말(어절) 단위로 끊고 줄 길이를 고르게 */
-  word-break: keep-all;
-  text-wrap: pretty;
-  box-shadow: 0 24px 48px rgb(0 0 0 / 0.28), 0 4px 12px rgb(0 0 0 / 0.16);
-}
-.tour-card::before {
-  content: '';
-  position: absolute;
-  width: 14px;
-  height: 14px;
-  background: inherit;
-  transform: rotate(45deg);
-}
-.tour-card[data-side='left']::before { left: -7px; top: calc(var(--tail) - 7px); }
-.tour-card[data-side='right']::before { right: -7px; top: calc(var(--tail) - 7px); }
-.tour-card[data-side='top']::before { top: -7px; left: calc(var(--tail) - 7px); }
-.tour-card[data-side='bottom']::before { bottom: -7px; left: calc(var(--tail) - 7px); }
-.tour-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--color-border, rgb(0 0 0 / 0.15));
-}
-.tour-dot-on {
-  width: 16px;
-  background: var(--color-accent);
 }

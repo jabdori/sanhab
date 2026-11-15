@@ -1,12 +1,14 @@
-// 안내(온보딩): 예시 기록(ui/example.json) 위에서 요소를 하나씩 밝히고(둘레를 어둡게, 가장자리에 링) 옆에 떠 있는 흰 카드로 한 줄을 띄운다.
-// astryx에 둘러보기 부품이 없어 구멍과 카드의 자리를 직접 잰다. 역할마다 처음 들어올 때 한 번(이 브라우저 기준), 도움말 창에서 다시.
-// 예시가 켜진 동안 화면은 서버 대신 예시 응답을 받고 조치는 실행되지 않는다(state.ts의 exampleAtom). 끝나면 예시를 끄고 목록으로 돌아간다
+// 안내(온보딩): 예시 기록(ui/example.json) 위에서 요소를 하나씩 밝히고(둘레를 어둡게, 가장자리에 링) 그 옆에 astryx Popover로 한 줄을 띄운다.
+// 역할마다 처음 들어올 때 한 번(이 브라우저 기준), 도움말 창에서 다시. 진행은 Pagination dots(walkthrough), 단추는 스킵 · 이전 · 다음/끝.
+// 예시가 켜진 동안 화면은 서버 대신 예시 응답을 받고 조치는 실행되지 않는다(state.ts의 exampleAtom). 끝나면 예시를 끄고 보던 화면으로 돌아간다
 import { Button } from '@astryxdesign/core/Button'
 import { HStack, StackItem, VStack } from '@astryxdesign/core/Layout'
+import { Pagination } from '@astryxdesign/core/Pagination'
+import { Popover } from '@astryxdesign/core/Popover'
 import { Heading, Text } from '@astryxdesign/core/Text'
 import { Token } from '@astryxdesign/core/Token'
 import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { L, TOUR } from '../labels'
 import { MENUS, changedAtom, exampleAtom, menuAtom, roleAtom, store, targetAtom, type Target } from '../state'
@@ -69,8 +71,9 @@ export function Tour() {
   const [i, setI] = useState(0)
   const [el, setEl] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
-  const hole = useRef<HTMLDivElement>(null)
-  const card = useRef<HTMLDivElement>(null)
+  const hole = useRef<HTMLElement>(null)
+  // Popover의 자리(요소 쪽): 좁은 왼쪽 요소면 오른쪽(end), 오른쪽 요소면 왼쪽(start), 넓은 요소면 아래(모자라면 위)
+  const [side, setSide] = useState<'start' | 'end' | 'above' | 'below'>('below')
   // 안내를 열기 전에 보던 기록(끝나면 거기로 돌아간다)
   const before = useRef<Target | null>(null)
   const beforeMenu = useRef(MENUS[0] as (typeof MENUS)[number])
@@ -118,39 +121,29 @@ export function Tour() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, i])
 
-  // 구멍(밝힌 자리)과 카드의 자리. 카드: 좁은 왼쪽 요소면 오른쪽에, 오른쪽 요소면 왼쪽에, 넓은 요소면 아래(모자라면 위). 꼬리는 요소 쪽 가장자리에
+  // 구멍(밝힌 자리): astryx에 둘러보기(spotlight) 부품이 없어 이 요소 하나만 직접 그린다 — 자리 · 모양을 여기서 잰다(theme.css의 클래스 없이).
+  // 링은 테마의 강조색, 둘레는 반투명 검정. Popover는 이 구멍에 붙는다(anchorRef)
   const place = (sel: string | null) => {
     const h = hole.current
-    const c = card.current
     const r = sel && bounds(sel)
     if (!h || !r) return
-    const set = (e: HTMLElement, k: string, v: number) => e.style.setProperty(k, `${Math.round(v)}px`)
     // 링은 화면 안쪽에 둔다(영역이 화면 끝에 붙어도 네 변이 다 보이게)
     const pad = 6
     const edge = 4
     const [hl, ht] = [Math.max(edge, r.left - pad), Math.max(edge, r.top - pad)]
     const [hr, hb] = [Math.min(innerWidth - edge, r.right + pad), Math.min(innerHeight - edge, r.bottom + pad)]
-    set(h, 'left', hl)
-    set(h, 'top', ht)
-    set(h, 'width', hr - hl)
-    set(h, 'height', hb - ht)
-    if (!c) return
-    const [cw, ch, gap] = [c.offsetWidth, c.offsetHeight, 16]
-    let side: 'left' | 'right' | 'top' | 'bottom'
-    let [cx, cy] = [0, 0]
-    if (r.width < innerWidth * 0.3 && r.right < innerWidth * 0.55) [side, cx, cy] = ['left', r.right + pad + gap, r.top]
-    else if (r.left > innerWidth * 0.45) [side, cx, cy] = ['right', r.left - pad - cw - gap, r.top]
-    else if (innerHeight - r.bottom > ch + gap * 2) [side, cx, cy] = ['top', r.left, r.bottom + pad + gap]
-    else if (r.top > ch + gap * 2) [side, cx, cy] = ['bottom', r.left, r.top - pad - ch - gap]
-    else [side, cx, cy] = ['top', r.left + gap * 2, r.top + gap * 2]
-    cx = Math.min(Math.max(16, cx), innerWidth - cw - 16)
-    cy = Math.min(Math.max(16, cy), innerHeight - ch - 16)
-    set(c, 'left', cx)
-    set(c, 'top', cy)
-    // 꼬리: 카드 가장자리에서 요소의 가운데 쪽으로(카드 안에 머물게)
-    c.dataset.side = side
-    const along = side === 'left' || side === 'right' ? Math.min(Math.max(20, r.top + Math.min(r.height, 80) / 2 - cy), ch - 20) : Math.min(Math.max(20, r.left + Math.min(r.width, 160) / 2 - cx), cw - 20)
-    set(c, '--tail', along)
+    Object.assign(h.style, {
+      position: 'fixed',
+      zIndex: '901',
+      pointerEvents: 'none',
+      borderRadius: 'var(--radius-3, 10px)',
+      boxShadow: '0 0 0 2px var(--color-accent), 0 0 0 9999px rgb(0 0 0 / 0.5)',
+      left: `${hl}px`,
+      top: `${ht}px`,
+      width: `${hr - hl}px`,
+      height: `${hb - ht}px`,
+    })
+    setSide(r.width < innerWidth * 0.3 && r.right < innerWidth * 0.55 ? 'end' : r.left > innerWidth * 0.45 ? 'start' : innerHeight - r.bottom > 240 ? 'below' : 'above')
   }
   useLayoutEffect(() => {
     if (open && ready) place(el)
@@ -196,37 +189,34 @@ export function Tour() {
   const last = i === steps.length - 1
   return createPortal(
     <>
-      {/* 바깥을 누르는 것을 막는 막 + 둘레를 어둡게 하고 가장자리에 링을 두른 구멍(theme.css의 tour-) */}
-      <div className="tour-veil" />
-      <div ref={hole} className="tour-hole" hidden={!ready} />
+      {/* 구멍(위 place). 뒤 화면은 inert라 바깥을 누르는 막은 따로 두지 않는다. role=button: Popover가 붙을 자리의 약속(anchorRef) — 누를 수는 없다(pointer-events none) */}
+      <VStack ref={hole} role="button" aria-hidden hidden={!ready} />
       {ready && (
-        <div ref={card} className="tour-card" role="dialog" aria-label={L.안내}>
-          <VStack gap={4}>
-            <VStack gap={1}>
-              <HStack gap={2} vAlign="center">
-                <StackItem size="fill">
-                  <Heading level={3}>{s.title}</Heading>
-                </StackItem>
-                {/* 화면의 기록은 예시다(실제 업무 기록이 아니다) */}
-                <Token size="sm" label={L.예시} />
-              </HStack>
-              <Text color="secondary">{s.body}</Text>
-            </VStack>
-            <HStack gap={2} vAlign="center">
-              <StackItem size="fill">
-                {/* 진행 점: 지금 단계만 진하게 */}
-                <HStack gap={1} vAlign="center" aria-label={`${i + 1}/${steps.length}`}>
-                  {steps.map((_, k) => (
-                    <span key={k} className={k === i ? 'tour-dot tour-dot-on' : 'tour-dot'} />
-                  ))}
+        <Popover key={i} anchorRef={hole as RefObject<HTMLElement>} isOpen onOpenChange={() => {}} placement={side} alignment="start" width={320} padding={5} label={L.안내} hasLightDismiss={false} hasEscapeDismiss={false} hasCloseButton={false}
+          content={
+            <VStack gap={4}>
+              <VStack gap={1}>
+                <HStack gap={2} vAlign="center">
+                  <StackItem size="fill">
+                    <Heading level={3}>{s.title}</Heading>
+                  </StackItem>
+                  {/* 화면의 기록은 예시다(실제 업무 기록이 아니다) */}
+                  <Token size="sm" label={L.예시} />
                 </HStack>
-              </StackItem>
-              {!last && <Button label={L.스킵} variant="ghost" size="sm" onClick={close} />}
-              {i > 0 && <Button label={L.이전} variant="secondary" size="sm" onClick={() => setI(i - 1)} />}
-              <Button label={last ? L.끝 : L.다음} variant="primary" size="sm" onClick={() => (last ? close() : setI(i + 1))} />
-            </HStack>
-          </VStack>
-        </div>
+                <Text color="secondary" textWrap="pretty">
+                  {s.body}
+                </Text>
+              </VStack>
+              {/* 진행(walkthrough의 dots — 눌러서 그 단계로) 아래 단추 줄 */}
+              <Pagination variant="dots" size="sm" label={L.안내} page={i + 1} totalPages={steps.length} onChange={(p) => setI(p - 1)} />
+              <HStack gap={2} hAlign="end">
+                {!last && <Button label={L.스킵} variant="ghost" size="sm" onClick={close} />}
+                {i > 0 && <Button label={L.이전} variant="secondary" size="sm" onClick={() => setI(i - 1)} />}
+                <Button label={last ? L.끝 : L.다음} variant="primary" size="sm" onClick={() => (last ? close() : setI(i + 1))} />
+              </HStack>
+            </VStack>
+          }
+        />
       )}
     </>,
     document.querySelector('[data-astryx-theme]') ?? document.body,

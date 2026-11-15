@@ -154,7 +154,7 @@ function Decision({ s }: { s: Spec }) {
         <Text hasTabularNumbers>{s.since} ~</Text>
       </MetadataListItem>
       <MetadataListItem label={L.위치}>
-        <Text className="break-all">
+        <Text>
           {s.file} {s.row}
           {L.행}
         </Text>
@@ -181,7 +181,7 @@ function Origin({ file, row, o }: { file: string; row: number; o: Row }) {
   return (
     <MetadataList>
       <MetadataListItem label={L.원본}>
-        <Text className="break-all">
+        <Text>
           {file} {row}
           {L.행}
         </Text>

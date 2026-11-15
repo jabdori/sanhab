@@ -150,7 +150,7 @@ export function Picture() {
                     </Text>
                   )}
                   {/* 줄은 띄어쓰기에서만 바꾼다(`2026-06`이 꺾이지 않게) */}
-                  <Text maxLines={2} color={on.has(n.key) ? 'primary' : 'secondary'} className="break-keep">
+                  <Text maxLines={2} color={on.has(n.key) ? 'primary' : 'secondary'}>
                     {nb(n.name)}
                   </Text>
                   {n.who?.role && (

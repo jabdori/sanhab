@@ -35,6 +35,7 @@
 | 예외 | 어디 | 근거 |
 |---|---|---|
 | 글꼴 Pretendard | `theme.css`의 `[data-astryx-theme]` | 테마의 글꼴에 한글 자형이 없다 |
+| 한글 어절 줄바꿈(`word-break: keep-all`, `overflow-wrap: anywhere`) | `theme.css`의 `body` | 한 글자만 다음 줄로 넘어가지 않게, 긴 숫자 · 경로는 넘치지 않게. 화면마다 className을 달지 않으려고 전역 한 곳에 |
 | 근거 강조(노란 바탕 1.2초) | `theme.css`의 `.mark` | 보고의 사실(↗)이 가리킨 표의 줄을 보이는 기능. astryx Table에 줄 강조 상태가 없다 |
 
 ## 쓰는 법

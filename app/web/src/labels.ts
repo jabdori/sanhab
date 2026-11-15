@@ -76,7 +76,7 @@ export type TourStep = { at: string; title: string; body: string; record?: boole
 
 // 요약 칸: 그 기록에 실제로 있는 것만 말한다(AI 보고는 심사 · 정황에만 있다)
 const SIDE_AI: TourStep = { at: '[data-tour=ai]', record: true, title: 'AI 보고', body: 'AI가 정리한 보고를 봅니다' }
-const CHAT: TourStep = { at: 'div[aria-label="대화"]:not([role])', record: true, title: '대화', body: '이 기록에 대해 AI에게 묻습니다' }
+const CHAT: TourStep = { at: '[role=complementary][aria-label="대화"]', record: true, title: '대화', body: '이 기록에 대해 AI에게 묻습니다' }
 const DEMO: TourStep = { at: 'button[aria-label="시연"]', record: true, title: '시연', body: '날짜를 넘기거나 처음으로 되돌립니다' }
 const SUM: TourStep = { at: '[data-tour=tiles]', record: true, title: '합산', body: '관련 거래처까지 합친 금액과 한도를 비교합니다' }
 

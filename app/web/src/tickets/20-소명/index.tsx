@@ -161,7 +161,7 @@ export function Intake() {
           rows={[
             [L.대리점, other?.name ?? ''],
             [L.일치, kind ?? ''],
-            [L.서류, <Text className="wrap-anywhere">{file?.name}</Text>],
+            [L.서류, file?.name ?? ''],
           ]}
           isDisabled={busy || !other || !kind || !file}
           onConfirm={go}

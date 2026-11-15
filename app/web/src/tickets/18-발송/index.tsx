@@ -53,7 +53,7 @@ export function Letter() {
       {d.can ? (
         <TextArea label={L.요청서} isLabelHidden rows={6} width="100%" value={typed ?? d.draft?.text ?? ''} onChange={setTyped} />
       ) : (
-        <Text className="break-keep wrap-anywhere">{d.body}</Text>
+        <Text>{d.body}</Text>
       )}
     </Region>
   )

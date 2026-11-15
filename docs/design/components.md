@@ -1,7 +1,7 @@
 # 부품 목록 (디자인 하네스)
 
 **화면은 astryx 템플릿 코드에서 출발한다(2026-11-14 결정).** `npx astryx template <id> <경로>`로 받은 코드의 구조 · 부품 · 스타일(StyleX 포함)을 그대로 두고, 데이터 · 낱말(`labels.ts`) · 조치만 우리 것으로 바꾼다. 템플릿을 참고해 처음부터 다시 짜지 않는다.
-- 템플릿에서 온 파일은 첫 줄에 `// astryx template: <id>`를 단다. lint는 이 파일에서 `style=` · 직접 값 검사를 하지 않는다(템플릿의 스타일을 그대로 쓴다). 낱말 · 색 이름 검사는 그대로.
+- 템플릿에서 온 파일은 첫 줄에 `// astryx template: <id>`(블록이면 `// astryx block: <Block>`)를 단다. `style=` · 직접 값은 어느 파일에서나 lint가 막는다(astryx 규칙). 날 요소 · className · `.css` 가져오기는 `npm --prefix app/web run doctor`(astryx doctor의 "Source uses Astryx well")가 센다.
 - 템플릿에서 바꾼 것은 아래 "템플릿에서 벗어난 곳"에 이유와 함께 적는다. 목록에 없는 차이는 판정에서 어김이다. 이유는 유저와 합의한 것만.
 - 대응하는 템플릿이 없는 화면만 직접 짜고, 그 이유를 "화면 ↔ 템플릿" 표에 적는다.
 - 앱이 갖는 부품은 astryx와 템플릿에 같은 일을 하는 것이 없을 때만 둔다.
@@ -11,12 +11,14 @@
 |---|---|---|
 | `ui/Region` | 제목 달린 영역: `Section`(위 구분선) + `Heading 2` + 옆 표지 + 오른쪽 영역 조치. 카드가 아니다 | work-item-detail의 SectionHeader를 한 번만 옮겨 둔 것 |
 | `ui/Source` | 출처 표지(아래) | A05 §6의 출처 구분 — 우리 고유 기능. 안은 `Link`·`Icon`·`Popover`·`MetadataList` |
-| `ui/Confirm` | 확인 창: 버튼 → `Dialog`(제목 · `MetadataList` · 입력 · 취소/실행) | 조치마다 같은 꼴을 지키려고 |
+| `ui/Confirm` | 확인 창: 버튼 → 입력이 없으면 `AlertDialog`(AlertDialogAsyncAction 블록 — 제목 · 설명 한 줄 `이름표 값 / 이름표 값` · 취소/실행), 입력(사유 · 값)이 있으면 `Dialog` form(DialogFormDialog 블록 — 제목 · `MetadataList` · 입력 · 취소/실행). 실행 중엔 실행 버튼이 도는 표지 | 조치마다 같은 꼴을 지키려고 |
 | `ui/Reason` | 사유: 분류 `Selector` + 메모 `TextInput` | 조치마다 같은 규칙(`ready`)을 쓰려고 |
-| `ui/Mark` | 표시: 정황은 warning `Badge`, 나머지는 기본 색 `Token`(아이콘 + 글자) | 표시마다 같은 꼴 |
+| `ui/Mark` | `State`: 머리 · 요약의 상태 `Badge`(detail-page). `StateDot`: 목록 줄의 상태 `StatusDot` + 글자(table-grouped). `RowDot`: 줄 맨 앞의 주의 점. `Mark`: 표시 — 정황은 warning `Badge`, 나머지는 기본 색 `Token`. 기본 상태(대기 · 일치 · 접수)는 어디서나 그리지 않는다 | 자리마다 템플릿의 꼴을 한 곳에서 |
+| `ui/Pending` | 읽는 중(`Skeleton`) · 실패(`EmptyState` `오류` + 서버의 말, 404는 `없음`). `page`면 기록 화면 틀의 자리 | `useLoad`의 상태를 화면마다 같은 꼴로 |
+| `ui/Tour` | 안내: 밝힌 자리(구멍) + `Popover`(anchorRef, 바깥 눌러 닫기 없음) · 진행 `Pagination dots` | astryx에 둘러보기 부품이 없다 — 구멍만 직접 그린다 |
 | `ui/Compare` | 두 열 비교 `Table`(다른 줄만 굵게) | 당시/현재 · 현재/가설 · 현재/모의가 같은 꼴 |
 | `ui/Relation`, `16`의 경위 그림 | 관계 · 경위 그림(SVG) | astryx에 그림 부품이 없다 |
-| `ui/Record` | 기록 화면의 틀: `RecordPage`(머리 — 돌아가기 · n/전체 / 제목 / 칩 줄 / 페이지 조치 / 탭) · `Tiles`(숫자 타일, Card를 쓰는 곳) · `Act`(확인 창 + 사유) | 모든 기록 화면이 같은 꼴이 되게. work-item-detail 템플릿을 한 번만 옮겨 둔 것 |
+| `ui/Record` | 기록 화면의 틀: `RecordPage`(detail-page 머리 — 목록 펴기 · ← 메뉴 · `Pagination compact`(n/전체 ‹ ›) / 제목 / 메타 줄(상태 Badge · 표시 · 사람, 사이 점) / 조치(좁으면 메타 아래 한 줄) / 탭 줄(탭이 하나여도) + 요약 칸 단추) · `Tiles`(숫자 묶음, Section + MetadataList) · `Act`(확인 창 + 사유) | 모든 기록 화면이 같은 꼴이 되게. detail-page 템플릿을 한 번만 옮겨 둔 것 |
 | `ui/Line` | 결정 한 줄(Stack + Text) | 요약의 결정 · 보고의 결정이 같은 꼴 |
 
 ## 버튼 등급
@@ -25,7 +27,7 @@
 - **destructive는 기록을 지우는 시연 조작(초기화)에만.** 반려·불인정·거부·기각은 사유와 함께 남는 결정이고 되돌리는 길(재상신·보완·이견·재접수)이 있어 붉게 칠하지 않는다. 붉은 버튼이 판단을 한쪽으로 미는 것도 막는다.
 - **예외: 보고의 채택·불채택은 둘 다 secondary**(같은 무게, `docs/research-ux.md`). AI의 의견을 받아들이는 쪽으로 기울이지 않는다.
 - 권한이 없으면 버튼 대신 `승인권자 영업임원`(이름표는 보조, 값은 굵게). 비활성 버튼을 늘어놓지 않는다.
-- 확인 창의 실행 버튼은 여는 버튼과 같은 등급, 취소는 secondary.
+- 확인 창의 실행 버튼은 여는 버튼과 같은 등급. 취소는 블록대로 — AlertDialog는 ghost, Dialog form은 secondary.
 
 
 ## 출처 표지
@@ -58,8 +60,8 @@
 
 ## 빈 자리
 - 내용 없는 영역(몸통이 `없음`뿐이고 영역 조치가 없음)은 그리지 않는다(`ui/Region`). 탭 몸통처럼 자리를 지켜야 하는 곳만 `EmptyState` 작은 꼴(`ui/Empty`).
-- 대화 칸이 비면 `EmptyState` + 질문 제안 `List`(줄 전체가 단추, ai-chat-landing 꼴).
-- 날짜는 `YYYY-MM-DD` 하나로 쓴다(서버 값 그대로, 고정폭 숫자). 사람은 아이콘으로. 예외: 대화의 AI는 ai-chat 템플릿대로 Avatar(2026-11-14 합의).
+- 대화 칸이 비면 제안 카드(`ClickableCard` Grid, ai-chat-landing 꼴). 누르면 입력창에 글을 넣는다(템플릿의 applySuggestion — 바로 보내지 않는다).
+- 날짜는 `YYYY-MM-DD` 하나로 쓴다(서버 값 그대로, 고정폭 숫자). 사람은 아이콘으로. 예외: 대화의 AI 표지는 반짝이 아이콘(아래 "벗어난 곳").
 
 ## 화면 ↔ 템플릿
 템플릿은 `npx astryx template <id> <경로>`로 받아 앱 코드의 출발점으로 쓴다. 앱은 StyleX(`@stylexjs/babel-plugin`)를 빌드에 들인다.
@@ -67,12 +69,12 @@
 ## 템플릿에서 벗어난 곳
 | 화면 | 템플릿 | 바꾼 것 | 이유(합의) |
 |---|---|---|---|
-| 앱 틀 | AppShellSideNavOnly | 오른쪽 끝에 대화 칸(LayoutPanel, 폭 조절) | 대화는 본문을 돕는 보조 칸(2026-11-14 합의: 본문이 주인공) |
+| 앱 틀 | shell-side-nav · AppShellSideNavOnly | 오른쪽 끝에 대화 칸(table-grouped의 상세 칸 꼴: 선 없는 `ResizeHandle` + `LayoutPanel hasDivider resizable role=complementary`), 늘 열림 | 대화는 본문을 돕는 보조 칸(2026-11-14 합의: 본문이 주인공) |
+| 앱 틀 | shell-side-nav | 메뉴 머리 아래 역할 고르기(topContent, 접히면 아이콘 단추), 메뉴는 아이콘 줄로 접힌 채 시작, 바닥 묶음은 날짜 · 도움말 · 시연(날짜를 누르면 시연 서랍), 메뉴 폭 조절 없음 | 역할 전환(S2) · 본문 폭(2026-11-14 합의) |
+| 앱 틀 | shell-side-nav | main 표지는 틀이 아니라 각 화면(목록 · 기록)의 `LayoutContent role="main"` | 화면마다 템플릿이 main을 갖는다 — 겹치지 않게 |
 | 대화 | ai-chat | 결과물(artifact) 칸 없음, 머리(제목 · 대화 목록 · 새 대화) | 대화 칸 폭(360)에 대화 열만. 지난 대화의 입구는 머리의 목록 하나(D61, 2026-11-14) |
-| 대화 | ai-chat | 말마다 시각(Timestamp) 없음 | 저장한 말에 시각이 없다 |
-| 대화 | ai-chat | 날짜 구분선 · 대화 목록의 시각은 **실제 시각**(시연의 오늘이 아니다) | 대화는 실제로 언제 묻고 답했는지 남기는 기록(D62, 2026-11-14 합의) |
+| 대화 | ai-chat | 날짜 구분선 · 말의 시각(보낸 순간 · 답을 마친 순간, 말의 metadata.at — 옛 말은 시각 없이) · 대화 목록의 시각은 **실제 시각**(시연의 오늘이 아니다) | 대화는 실제로 언제 묻고 답했는지 남기는 기록(D62, 2026-11-14 합의) |
 | 대화 | ai-chat | 머리 제목 아래 지금 대화의 제목(첫 질문) | 지난 대화를 고를 때 어느 대화인지(2026-11-14 합의) |
-| 대화 | ai-chat-landing | 문맥 칸에 손잡이 줄 없음 | 끌어 올릴 내용이 없다(2026-11-14 합의) |
 | 대화 | ai-chat-landing | 인사(아이콘 + 한 줄)와 큰 제목 없음. 연 기록이 있으면 제안 카드만, 없으면 빈 칸 | 같은 화면에 이미 보이는 이름의 되풀이(2026-11-15 합의, D67). 지금 화면은 입력창의 문맥 카드가 보인다 |
 | 대화 | ai-chat | 입력창 문맥 칸 첫 줄에 지금 보는 화면 카드(종류 아이콘 · 이름 · 종류 · 빼기) | 대화는 역할마다 하나라 화면을 오간다 — 어느 화면에 대한 말인지 늘 보이게(2026-11-15 합의, D67) |
 | 대화 | ai-chat | 도구 호출 줄(ChatToolCalls)을 답의 글 앞에, 부르는 순간 진행 → 완료 | AI가 무엇을 읽는지 보이게. 이름만 보이고 조회문은 숨긴다(2026-11-15 합의, D67 · review.md 2-1) |
@@ -81,8 +83,11 @@
 | 대화 목록 | 없음 | Dialog + `기록` / `전체` + List | 대응 템플릿 없음(2026-11-14 합의) |
 | 작업 목록 | table-grouped | 검색은 PowerSearch 대신 바로 걸러지는 검색칸, 상세 칸(inspector) 없음 · 줄을 누르면 기록 화면 | 판정 합의(2026-11-13), 2026-11-14 합의 A |
 | 작업 목록 | table-grouped | 머리 오른쪽에 만들기 단추 대신 `전체 · 담당 · 진행`, 일괄 승인 줄(묶음 머리와 줄 앞 체크) | 이전 합의(작업 화면) |
-| 기록 | detail-page | 머리 왼쪽 위에 목록 펴기 · n/전체 · 앞 뒤 | 이전 합의(목록 사이드바, 앞 · 뒤) |
-| 기록 | detail-page | 오른쪽 칸은 요약 하나. 좁은 기준은 1024가 아니라 1440(대화 칸 360이 있어서)이고, 좁으면 요약을 본문 맨 위로 | 2026-11-14 합의(D63) |
+| 기록 | detail-page | 머리 왼쪽 위에 목록 펴기 · ← 메뉴 · `Pagination compact`(n/전체 ‹ ›, 읽는 글은 `2/37`로 바꿈 — main.tsx) | 이전 합의(목록 사이드바, 앞 · 뒤) |
+| 기록 | detail-page | 좁은 화면의 조치는 메타 아래 한 줄이지만 단추마다 꽉 채우지 않는다 | 조치는 화면마다 한 부품(`actions`)으로 들어와 단추를 나눌 수 없다 |
+| 확인 창 | AlertDialog | 설명은 `rows`를 `이름표 값 / 이름표 값` 한 줄로 | AlertDialog의 설명은 글 하나다(목록을 넣을 수 없다) |
+| 안내 | (없음) Popover · Pagination | 밝힌 자리의 구멍(둘레 어둡게 · 강조색 링)은 직접 그린 요소 하나(자리 · 모양을 코드에서 잰다), 카드의 꼬리 없음 | 구멍은 안내의 합의(2026-11-15 이전, 링은 화면 안쪽). astryx에 spotlight가 없다 |
+| 기록 | detail-page | 오른쪽 칸은 요약 하나. 좁은 기준은 1024가 아니라 1440(대화 칸 360이 있어서)이고, 좁으면 요약을 본문 맨 위로(전체 화면 창 대신 — 그래서 좁으면 요약 칸 단추가 없다) | 2026-11-14 합의(D63) |
 | 기록(심사 · 정황 · 소명) | detail-page | AI 보고는 다룬 사실 영역 바로 아래 떠 있는 카드(elevation med) | D63 |
 | 기록 | detail-page | 숫자 묶음은 제목 없는 Section + MetadataList | 템플릿에 없는 지표(합산 · 한도 …)를 InvoiceCard 꼴로 |
 | 기록(규정) | detail-page | 조항이 하나면 돌아가기 줄 없음 | 메뉴가 바로 그 조항을 연다(이전 합의) |
@@ -90,6 +95,11 @@
 | 규정 | documentation-design | detail-page 틀을 같이 쓴다(모의 단추 · 내용/가정 탭 · 요약 칸) | 모든 기록을 한 틀로(2026-11-14 합의) |
 | 대화 | ai-chat · ai-chat-landing | 입력창 위 문맥 칸(ChatComposerDrawer: 연 기록 · @로 붙인 기록 · 서류) | 문맥 카드(이전 합의). 같은 부품을 ai-chat-landing이 첨부 칸으로 쓴다 |
 | 대화 | ai-chat | `@`는 단추 하나(입력에 @를 넣어 찾기를 연다), 모드 · 설정 메뉴와 받아쓰기 단추 없음 | 대화 열의 기준은 ai-chat(Mention 단추 하나). 모드 · 설정 · 받아쓰기는 우리에게 없는 기능 |
+| 대화 | ai-chat | `@`로 고른 기록은 입력 속 토큰이 아니라 문맥 칸의 카드(입력에는 남기지 않는다) | 붙인 기록은 말 한 줄이 아니라 이 말의 문맥이다 — 지금 화면 카드와 같은 자리에서 빼고 넣고, 보낸 말 위에 그대로 남는다(문맥 카드 합의, D67) |
+| 대화 | ai-chat | `/` 명령 없음 | 조치는 말로 지시하면 AI가 조치 카드를 낸다(U13). 따로 외울 명령이 없다 |
+| 대화 | ai-chat | AI 표지는 Avatar가 아니라 반짝이 아이콘(헤더 · AI 보고 카드와 같은 것), 답의 첫 줄(도구 줄) 가운데 | 글자 "A" 원형이 이상하다는 유저 지적(2026-11-15 합의) |
+| 대화 | ai-chat | 말풍선 안에 화면 부품(A2UI v0.8 표면): 앱의 부품 목록 Column → VStack · Text → Text · Facts → MetadataList · Table → Table(ui/Compare 꼴) · Records → List(누르면 그 기록). 단추 · 조치 없음 | AI가 값이 여럿인 답을 표 · 목록으로 보이게(2026-11-15 유저 결정, service-plan U17). 실행 단추는 조치 카드에만 |
+| 대화 | ai-chat | 서류 붙이기 단추 뒤에 숨은 `<input type="file">`(doctor 지적 1건) | astryx에 단추로 여는 파일 고르기가 없다(FileInput은 늘 보이는 칸). 붙여넣기 · 끌어놓기는 ChatComposerInput의 onFiles |
 | 빈 대화 | ai-chat-landing | 제목 display-3, 카드 Grid 최소 폭 200, 바깥은 Section | 대화 칸 폭(360) |
 | 작업 목록 | table-grouped | 묶음 기준 고르기(View Options) · 줄 끝 `···` 메뉴 없음 · 숫자 묶음 없음 | 묶음 기준은 종류 하나(2026-11-14 합의) |
 | 대리점 목록 | table-page | 머리의 내려받기(Download PDF) · 범위 고르기(SegmentedControl) · 합계 줄(TotalRow) · 정렬 · 칸별 걸러내기 없음. 사실 묶음은 대리점 수 · 걸러진 수 | 대리점 목록에는 금액 · 범위가 없다 |
@@ -97,25 +107,28 @@
 
 | 화면 | 템플릿 | 따르는 것 | 파일 |
 |---|---|---|---|
-| 틀 | AppShell + SideNav(scaffold) | 메뉴 · 흰 본문 · 오른쪽 패널 | `App.tsx` |
+| 틀 | shell-side-nav / AppShellSideNavOnly(+ table-grouped의 폭 조절 칸) | 메뉴(SideNavHeading + SideNavSection 둘: 메뉴 · 바닥) · 흰 본문 · 오른쪽 대화 칸 | `App.tsx` |
 | 접속 | login-card | 가운데 카드 하나 | `Enter.tsx` |
 | 작업 | **table-grouped**(+ dashboard-alert-rail의 숫자 타일) | 머리(제목 · 분할 단추) → 숫자 타일 → 검색 → 묶음 머리(접힘 · 건수)가 있는 Table, 줄은 StatusDot · 이름 · 열 · 상태 | `pages/Work.tsx` |
 | 대리점 · 규정 목록 | table-page / table-grouped | 흰 면의 Table, 줄 전체가 눌림 | `pages/Dealers.tsx`, `pages/Rules.tsx` |
-| 기록(심사 · 정황 · 소명 · 지급 · 추인 · 대리점 · 규정) | **work-item-detail**(머리) + detail-page(탭) | 머리의 돌아가기 줄 · 제목 · 칩 줄(상태 Badge · 표시 · 사람), 본문은 흰 면의 Section을 구분선으로 잇는다. 카드는 숫자 타일뿐 | `pages/Review.tsx` 외 |
-| 오른쪽 | ai-chat · ai-chat-landing(+ dashboard-alert-rail의 오른쪽 칸) | AI 보고(접힘) 위, 대화 아래, 입력창 상시 | `AiPanel.tsx`, `tickets/24-대화` |
-| 시연 서랍 | Drawer | 뒤를 막지 않음 | `Demo.tsx` |
+| 기록(심사 · 정황 · 소명 · 지급 · 추인 · 대리점 · 규정) | **detail-page**(+ work-item-detail 머리) | 머리의 돌아가기 줄 · 제목 · 메타 줄(상태 Badge · 표시 · 사람) · 조치 · 탭 줄, 본문은 Section(`ui/Region`)이 gap 4로 쌓이고, 오른쪽 칸은 요약 | `ui/Record.tsx`, `ui/Region.tsx`, `pages/Review.tsx` 외 |
+| 오른쪽 | ai-chat · ai-chat-landing | 대화 칸 하나(입력창 상시). AI 보고는 기록 화면 안, 다룬 사실 영역 바로 아래 카드(D63) | `tickets/24-대화`, `ui/AiCard.tsx` |
+| 시연 서랍 | DrawerScrim 블록(hasScrim={false}) | 뒤를 막지 않음 | `Demo.tsx` |
+| 확인 창 · 도움말 | AlertDialogAsyncAction · DialogFormDialog · DialogScrollingContent 블록 | 확인(입력 없음 / 있음), 도움말(머리 · 몸통 · 바닥의 `안내`) | `ui/Confirm.tsx`, `ui/Help.tsx` |
+| 안내 | Popover · Pagination(dots) | 밝힌 자리 옆의 Popover, 진행 점 | `ui/Tour.tsx` |
 
 ## 상태 대응 (최소)
-`ui/status.ts`: `badge`(상태 → neutral · success · warning · error), `dot`(줄의 주의 단계), `mark`(표시의 아이콘, 정황만 주의). 대응이 이 넷 밖으로 늘면 tokens.md의 색 표부터 고친다.
+`ui/status.ts`: `badge`(상태 → neutral · success · warning · error), `dot`(줄의 주의 단계), `mark`(표시의 아이콘, 정황만 주의). 대응이 이 넷 밖으로 늘면 tokens.md의 색 표부터 고친다. 그리는 부품은 `ui/Mark` 하나: 머리는 `State`(Badge), 목록 줄은 `StateDot` · `RowDot`(StatusDot).
 
-## 오른쪽 = AI 구역
-- 대화 칸(380, 언제나 열림) 위에 지금 연 기록의 **AI 보고** 카드가 고정된다(`AiPanel.tsx`, 접힘, 칸 높이의 절반까지). 심사는 걸린 정황들의 보고, 정황은 그 보고와 채택 · 불채택, 소명은 서류 정리와 미확인.
-- 기록 화면에는 레일이 없다: 요약은 머리의 메타 · 타일과 겹쳐 없앴다.
+## 오른쪽 = 대화 칸
+- 오른쪽 끝은 대화 칸 하나(360, 320–560 폭 조절, 언제나 열림). 기록 화면의 AI 보고는 칸 위가 아니라 기록 본문, 다룬 사실 영역 바로 아래 카드다(`ui/AiCard`, D63).
+- 기록 화면의 오른쪽 칸(대화 칸 안쪽)은 요약 하나다(`ui/Record`).
 
 ## 반응 계약(astryx docs layout/responsive)
 | 폭 | 메뉴 | 본문 | 오른쪽(AI 보고 + 대화) |
 |---|---|---|---|
 | 모든 폭 | 아이콘 줄로 접힌 채 시작(역할은 아이콘 단추, 펼침 단추로 편다 — 역할을 고르면 다시 접힌다) | 나머지 | 대화 360(폭 조절) |
+| 1440 미만 | 같음 | 기록: 요약은 본문 맨 위 Section(여러 열), 조치는 메타 아래 한 줄 | 같음 |
 
 ## 아이콘 단추와 글자 단추
 - **조치는 글자 단추**(승인 · 반려 · 보류 · 요청 · 접수 · 지급 · 실행 · 확인 창의 버튼): 결과가 남는 일이라 무엇을 누르는지 글자로 분명해야 한다. 주 버튼은 하나.

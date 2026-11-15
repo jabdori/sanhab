@@ -1,3 +1,4 @@
+// astryx block: DrawerScrim — 막지 않는 서랍(hasScrim={false}): 뒤 화면이 그대로 눌린다
 import { Drawer, DrawerHeader } from '@astryxdesign/core/Drawer'
 import { HStack, Layout, LayoutContent, VStack } from '@astryxdesign/core/Layout'
 import { NumberInput } from '@astryxdesign/core/NumberInput'
