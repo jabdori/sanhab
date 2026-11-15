@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { Link } from '@astryxdesign/core/Link'
 import { store, targetAtom } from '../state'
 import { State } from '../ui/Mark'
+import { plain } from '../ui/status'
 import { L } from '../labels'
 import { Meta, RecordPage } from '../ui/Record'
 import { BuildingStorefrontIcon, UserIcon } from '@heroicons/react/24/outline'
@@ -40,7 +41,7 @@ export function Pay() {
       // 보조 칸의 요약: 상태 · 대리점 · 귀속월 · 계좌(지금 등록된 것) · 심사(누르면 열린다) · 담당
       props={[
         // 대사 불일치: 상태는 불일치 하나로(돈이 나갔다는 것은 대사 표의 회신에)
-        [L.상태, off ? <State word={L.불일치} /> : pay.state],
+        [L.상태, plain(shown) ? shown : <State word={shown} />],
         [L.대리점, pay.name],
         [L.귀속월, pay.ym],
         [L.계좌, p.accounts.length ? p.accounts.map((a) => a.value).join(' · ') : L.없음],

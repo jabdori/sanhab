@@ -149,6 +149,9 @@ export const HELP = {
 /** 원본 문서의 사람이 읽는 이름(문서 첫 줄의 제목). 파일 경로는 화면에 두지 않는다(review.md 2-1) — 출처 설명 칸에서만 */
 export const DOCS: Record<string, string> = {
   '00_common/approval_authority_policy.md': '의사결정 권한',
+  '01_corevia/master/m_agency_cv.csv': '대리점 목록',
+  '01_corevia/sales/sales_rebate_payment_cv.csv': '판매장려금 지급',
+  '01_corevia/financials/fin_collection_history_cv.csv': '입금 내역',
 }
 
 /** 원본 CSV 열 이름 → 사람이 읽는 이름(원본 설명 칸). 원래 열 이름은 그 아래 보조 글로 남는다(추적용) */

@@ -14,6 +14,7 @@ import { BuildingStorefrontIcon } from '@heroicons/react/24/outline'
 import { useAtomValue } from 'jotai'
 import { useState } from 'react'
 import { State } from '../ui/Mark'
+import { plain } from '../ui/status'
 import { L } from '../labels'
 import { api, changedAtom, store, targetAtom } from '../state'
 import { Pending } from '../ui/Pending'
@@ -95,7 +96,7 @@ export function Clarify() {
       bad={bad?.id === c.id ? bad.word : null}
       // 보조 칸의 요약: 상태 · 대리점 · 정황 · 발송 · 기한(가정 D32)
       props={[
-        [L.상태, c.state],
+        [L.상태, plain(c.state) ? c.state : <State word={c.state} />],
         [L.대리점, c.dealer.name],
         ...(c.signal ? [[L.정황, c.signal.name] as [string, string]] : []),
         // 보완의 사유는 서류를 다시 받을 영업지원이 내용에서 바로 본다

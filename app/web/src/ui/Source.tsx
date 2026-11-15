@@ -9,7 +9,7 @@ import { Icon } from '@astryxdesign/core/Icon'
 import { BeakerIcon, CalculatorIcon, InformationCircleIcon, LightBulbIcon, SparklesIcon, Square2StackIcon, AcademicCapIcon } from '@heroicons/react/24/outline'
 import { Tooltip } from '@astryxdesign/core/Tooltip'
 import { type ReactNode, useState } from 'react'
-import { COLS, L } from '../labels'
+import { COLS, DOCS, L } from '../labels'
 import { api } from '../state'
 
 /**
@@ -39,8 +39,6 @@ const readSpecs = () =>
     },
   ))
 
-const base = (file: string) => file.split('/').at(-1)
-
 /** 출처 표지의 아이콘: 계산 · 가정 · 합성 · AI · 모의 */
 const ICON: Record<string, typeof SparklesIcon> = { [L.예시]: AcademicCapIcon, [L.계산]: CalculatorIcon, [L.가정]: LightBulbIcon, [L.합성]: Square2StackIcon, [L.AI]: SparklesIcon, [L.모의]: BeakerIcon }
 
@@ -69,7 +67,7 @@ export function Source({ kind, file, row, place, quiet, plain, side, of, decisio
   const id = decision ?? (of ? DECISION[of] : undefined)
   const isOrigin = name === L.원본
   if (isOrigin && !(file && row) && !children && !rows) return null
-  const line = isOrigin && file && row ? `${L.원본} · ${base(file)} ${row}${L.행}` : [[name, id].filter(Boolean).join(' '), tip ?? of].filter(Boolean).join(' · ')
+  const line = isOrigin && file && row ? `${L.원본} · ${DOCS[file] ?? L.원본} ${row}${L.행}` : [[name, id].filter(Boolean).join(' '), tip ?? of].filter(Boolean).join(' · ')
   // 열기 전에 내용을 받아 둔다(빈 칸이 먼저 열렸다 채워지지 않게)
   const toggle = (next: boolean) => {
     if (!next) return setOpen(false)

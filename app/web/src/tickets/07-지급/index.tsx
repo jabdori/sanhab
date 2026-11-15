@@ -79,7 +79,7 @@ export function PayActions({ onBad }: { onBad: (word: string | null) => void }) 
     <HStack gap={2}>
       <Act
         kind={L.지급}
-        target={p.pay.dealer}
+        target={p.pay.name}
         // 값 하나에 사실 하나(review.md 2-1): 귀속월 · 금액, 계좌는 줄마다
         rows={[
           [L.귀속월, p.pay.ym],

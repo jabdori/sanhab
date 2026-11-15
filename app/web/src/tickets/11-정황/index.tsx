@@ -40,6 +40,7 @@ export function Evidence() {
   const dated = (e: Ev) => e.at || e.ym
   const hasDate = rows.some(dated)
   const hasDealer = rows.some((e) => !dated(e) && e.dealer)
+  const late = rows.some((e) => e.known)
   const when = rows.filter(dated).every((e) => e.ym && !e.at) ? L.귀속월 : L.날짜
   return (
     <Region title={L.근거} aside={<Badge variant="neutral" label={String(rows.length)} />}>
@@ -53,7 +54,7 @@ export function Evidence() {
               key: 'item',
               // 영역 제목이 이미 `근거`라 열은 항목(무엇의 기록인지). data-ref: 보고의 근거 연결(↗)이 이 줄을 찾아 간다(ui/Region의 reveal)
               header: L.항목,
-              width: pixel(112),
+              width: pixel(96),
               renderCell: (e) => (
                 <HStack gap={2} vAlign="center" data-ref={e.id}>
                   {e.id === picked && <Icon icon={ArrowRightIcon} size="sm" color="accent" />}
@@ -67,20 +68,24 @@ export function Evidence() {
               ? [
                   {
                     key: 'at',
-                    header: when,
-                    width: rows.some((e) => e.known) ? proportional(3, { minWidth: 168 }) : proportional(2, { minWidth: 104 }),
+                    header: late ? L.변경일 : when,
+                    width: late ? pixel(112) : proportional(2, { minWidth: 104 }),
+                    renderCell: (e: Row) => (dated(e) ? <Text hasTabularNumbers>{dated(e)}</Text> : <Text color="secondary">{L.없음}</Text>),
+                  },
+                ]
+              : []),
+            // 지연: 값 하나에 사실 하나 — 변경일(위 날짜 열) · 인지일 · 지연(계산)을 열로 나눈다
+            ...(late
+              ? [
+                  { key: 'known', header: L.인지일, width: pixel(112), renderCell: (e: Row) => (e.known ? <Text hasTabularNumbers>{e.known}</Text> : <Text color="secondary">{L.없음}</Text>) },
+                  {
+                    key: 'days',
+                    header: L.지연,
+                    width: pixel(88),
                     renderCell: (e: Row) =>
                       e.known ? (
-                        <HStack gap={2} vAlign="center" wrap="wrap">
-                          <Text hasTabularNumbers>{`${L.변경일} ${e.at}`}</Text>
-                          <Text color="secondary" hasTabularNumbers>{`${L.인지일} ${e.known}`}</Text>
-                          <Badge variant={caution} label={`${L.지연} ${e.days}${L.일}`} />
-                          <Source kind={L.계산} tip={`${L.지연} ${e.days}${L.일}`} rows={[[L.지연, `${e.days}${L.일}`]]} />
-                        </HStack>
-                      ) : dated(e) ? (
-                        <Text hasTabularNumbers>{dated(e)}</Text>
+                        <Badge variant={caution} label={`${e.days}${L.일}`} />
                       ) : (
-                        // 기록에 그 값이 없는 줄: 빈칸 대신 없음
                         <Text color="secondary">{L.없음}</Text>
                       ),
                   },
@@ -111,6 +116,8 @@ export function Evidence() {
               align: 'end',
               width: pixel(88),
               renderCell: (e) => (
+                <HStack gap={2} vAlign="center" hAlign="end">
+                  {e.known && <Source kind={L.계산} tip={`${L.지연} ${e.days}${L.일}`} rows={[[L.지연, `${e.days}${L.일}`]]} />}
                 <Source
                   kind={e.source}
                   file={e.file ?? undefined}
@@ -118,6 +125,7 @@ export function Evidence() {
                   tip={e.value ?? undefined}
                   rows={e.want && e.got ? [[L.승인, num(e.want.amount)], ...e.want.accounts.map((a): [string, string] => [L.계좌, a]), [L.회신, num(e.got.amount)], [L.계좌, e.got.account], [L.비교, e.value ?? '']] : undefined}
                 />
+                </HStack>
               ),
             },
           ]}

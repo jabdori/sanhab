@@ -56,14 +56,14 @@ export function Relation({ left, mid, right, lines, hints = [] }: { left: Dot[];
             const width = c === 1 ? IDENT : DEALER
             return (
               <g key={`${c}${d.id}`}>
-                {/* 대리점은 알약, 식별자는 둥근 사각. 대상 대리점(왼쪽)만 진하게, 나머지는 옅은 면 + 부드러운 테두리 */}
+                {/* 대리점은 알약, 식별자는 둥근 사각. 대상 대리점(왼쪽)만 테마 강조색 면으로, 나머지는 옅은 면 + 부드러운 테두리 */}
                 <rect
                   x={X[c]}
                   y={y(c, i) - BOX / 2}
                   width={width}
                   height={BOX}
                   rx={c === 1 ? 8 : BOX / 2}
-                  fill={c === 0 ? 'var(--color-background-inverted)' : c === 1 ? 'var(--color-background-muted)' : 'var(--color-background-surface)'}
+                  fill={c === 0 ? 'var(--color-accent)' : c === 1 ? 'var(--color-background-muted)' : 'var(--color-background-surface)'}
                   stroke={c === 0 ? 'none' : 'var(--color-border-emphasized)'}
                 />
                 <text
@@ -71,7 +71,7 @@ export function Relation({ left, mid, right, lines, hints = [] }: { left: Dot[];
                   y={y(c, i)}
                   textAnchor="middle"
                   dominantBaseline="central"
-                  fill={c === 0 ? 'var(--color-background-body)' : 'var(--color-text-primary)'}
+                  fill={c === 0 ? 'var(--color-on-accent)' : 'var(--color-text-primary)'}
                   fontWeight={c === 0 ? 500 : undefined}
                 >
                   {d.name}

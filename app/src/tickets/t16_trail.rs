@@ -146,12 +146,23 @@ async fn trail(Extension(me): Extension<crate::Me>, Path((kind, id)): Path<(Stri
             let r = q1(db, "
                 LET $v = (SELECT * FROM review WHERE id = type::record('review', $id))[0];
                 RETURN IF $v = NONE THEN NONE ELSE {
-                    pay: (SELECT VALUE record::id(payout) FROM redo WHERE was = $v.id OR back = $v.id OR payout INSIDE $v.payouts ORDER BY stamp DESC LIMIT 1)[0],
+                    pays: array::distinct((SELECT VALUE record::id(payout) FROM redo WHERE was = $v.id OR back = $v.id OR payout INSIDE $v.payouts ORDER BY stamp DESC)),
                     ratify: (SELECT VALUE record::id(id) FROM ratify WHERE reviews CONTAINS $v.id LIMIT 1)[0],
                     paid: (SELECT VALUE record::id(id) FROM payout WHERE review = $v.id LIMIT 1)[0],
                 } END;", json!({ "id": id })).await?;
             // 재심사 기록이 없는 보통의 승인 심사는 그 심사가 승인한 지급의 경위(승인 → 지급)로 연다. 추인 묶음에 든 과거의 승인은 추인이 먼저다
-            let f = if let Some(p) = r["pay"].as_str() { pay(db, p).await? } else if let Some(b) = r["ratify"].as_str() { ratify(db, b).await? } else if let Some(p) = r["paid"].as_str() { pay(db, p).await? } else { changed(db, &id).await? };
+            // 합쳐진 심사는 구성원마다 지급이 재심사가 되므로 그 사슬을 모두 합친다(칸 · 선은 중복 없이)
+            let f = if let Some(ps) = r["pays"].as_array().filter(|a| !a.is_empty()) {
+                let mut all: Option<(Vec<J>, Vec<J>, String)> = None;
+                for p in ps.iter().filter_map(J::as_str) {
+                    if let Some((n, e, k)) = pay(db, p).await? {
+                        let (an, ae, _) = all.get_or_insert((vec![], vec![], k));
+                        an.extend(n.into_iter().filter(|x| !an.iter().any(|y| y["key"] == x["key"])).collect::<Vec<_>>());
+                        ae.extend(e.into_iter().filter(|x| !ae.contains(x)).collect::<Vec<_>>());
+                    }
+                }
+                all
+            } else if let Some(b) = r["ratify"].as_str() { ratify(db, b).await? } else if let Some(p) = r["paid"].as_str() { pay(db, p).await? } else { changed(db, &id).await? };
             (f, Some(format!("r:{id}")))
         }
         _ => (None, None),

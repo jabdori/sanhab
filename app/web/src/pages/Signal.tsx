@@ -102,7 +102,9 @@ export function Signal() {
   if (!q.data) return <Pending of={q} page />
   const d = q.data
   const s = d.signal
-  const dealers = s.dealers.map((x) => x.name).join(' · ')
+  // 여러 대리점이면 머리 · 요약에는 개수, 목록은 구성(심사 · 추인 기록과 같은 꼴)
+  const many = s.dealers.length > 1
+  const dealers = many ? `${s.dealers.length}${L.곳}` : s.dealers[0]?.name ?? L.없음
   const [k, v, src] = basisOf(d)
   return (
     <RecordPage
@@ -110,6 +112,7 @@ export function Signal() {
         [L.상태, plain(s.state) ? s.state : <State word={s.state} />],
         [L.종류, s.kind === L.추인 ? L.거부 : s.kind],
         [L.대리점, dealers],
+        ...(many ? [[L.구성, s.dealers.map((x) => x.name).join(' · ')] as [string, string]] : []),
         [k, <HStack gap={2} vAlign="center">{typeof v === 'string' ? <Text>{v}</Text> : v}{src}</HStack>],
         // 거부된 추인의 정황: 그 거부(누가 · 사유 · 날짜)
         // 값 하나에 사실 하나(review.md 2-1): 결정의 날짜 · 사유 · 메모를 줄마다

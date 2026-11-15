@@ -99,8 +99,8 @@ export function Head({ d, signal }: { d: Report; signal: Signal }) {
  * `signal`이 있으면(정황 기록) 사실 끝에 근거 연결(↗)이 있고, 채택 · 불채택 단추는 의견을 펼친 몸통 안에 있다. 없으면(심사 기록) 읽기만 */
 export function Body({ d, signal }: { d: Report; signal?: Signal }) {
   const r = d.report
-  // 올라오지 않은(오류 · 대기) 보고는 내용이 없다
-  if (!r || !r.facts.length) return null
+  // 올라오지 않은(오류 · 대기) 보고는 내용이 없다: 제목만 있는 카드 대신 빈 자리
+  if (!r || !r.facts.length) return <Empty />
   return (
     <VStack gap={3}>
       <Part name={L.사실}>
@@ -110,7 +110,8 @@ export function Body({ d, signal }: { d: Report; signal?: Signal }) {
               key={i}
               label={<Text>{f.text}</Text>}
               endContent={
-                signal && (
+                // 근거 표에 줄이 없는 사실(주소 · 계좌의 등록 등)은 가리킬 줄이 없어 연결을 두지 않는다
+                signal?.evidence.some((e) => e.id === f.ref) && (
                   <Link aria-label={L.근거} color="primary" onClick={() => show(f.ref)}>
                     ↗
                   </Link>
