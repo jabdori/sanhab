@@ -98,7 +98,7 @@
    "7월 1일"
   ],
   [
-   "날짜 선택",
+   "css:dialog input[role=combobox]",
    2,
    "2월 1일부터"
   ],

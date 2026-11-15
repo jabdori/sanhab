@@ -21,7 +21,7 @@ pt "재심사" $C3
 at $(python3 -c "print($C3+2.5)")
 clear; setrole "내부 감시"; tap @$(ref 'button "작업"') 400; sleep 1.8; tap @$(ref 'row "동명 · 박준호') 450; sleep 2.5
 stage audit
-pre "새" "부족 · 대표자 이름만 같고 주소 · 계좌가 달라 근거 부족 · 2026-07-01"
-pt "새" $C4; pt "부족 · 대표자 이름만 같고 주소 · 계좌가 달라 근거 부족 · 2026-07-01" $C5
+pre "새" "대표자 이름만 같고 주소 · 계좌가 달라 근거 부족"
+pt "새" $C4; pt "대표자 이름만 같고 주소 · 계좌가 달라 근거 부족" $C5
 sleep 5; clear; wide
 recstop 1

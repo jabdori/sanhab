@@ -14,7 +14,7 @@ at $(python3 -c "print($S1+6.5)")
 stage change
 at 0.1; wide; top; tap @$(ref 'button "변경"') 450; sleep 0.8
 pt "2026-07-01" $C2
-pt "날짜 선택" $C3; A click @$(ref 'spinbutton "연도') >/dev/null; for k in 2 0 2 6 0 2 0 1; do A press $k >/dev/null; sleep 0.08; done
+pt "css:dialog input[role=combobox]" $C3; A click @$(ref 'combobox "변경일"') >/dev/null; A keyboard type "2026-02-01" >/dev/null; sleep .2; A press Escape >/dev/null   # Escape는 달력 팝오버만 닫는다(값 칸을 가린다)
 pt "css:input:not([type=radio])" $C4; A click @$(ref 'textbox "값"') >/dev/null; A fill @$(ref 'textbox "값"') "" >/dev/null; typeslow "고양시 중앙로 128"
 pt "2026-07-01" $C5
 at $(python3 -c "print($S3+2.6)"); tap @$(last 'button "변경"') 450; sleep 2.5

@@ -32,7 +32,12 @@ curRole(){ A snapshot -i | grep -oE 'button "(영업지원|영업임원|내부 �
 setrole(){ wait; local cur; cur=$(curRole); [ "$cur" = "$1" ] && return; A mouse move 36 36 --duration 500 --human >/dev/null; A click @$(ref "button \"$cur\"") >/dev/null; sleep 0.6; tap @$(ref 'combobox "역할"') 450; sleep 0.4; tap @$(ref "option \"$1\"") 400; sleep 2.2; newchat; }
 role_quiet(){ local cur; cur=$(curRole); [ "$cur" = "$1" ] && return; A click @$(ref "button \"$cur\"") >/dev/null; sleep .6; A click @$(ref 'combobox "역할"') >/dev/null; sleep .5; A click @$(ref "option \"$1\"") >/dev/null; sleep 3; }
 typeslow(){ wait; log clear ""; A keyboard type "$1" >/dev/null; }
-reset_demo(){ wait; A press Escape >/dev/null; A press Escape >/dev/null; local c; c=$(last 'button "취소"'); [ -n "$c" ] && A click @$c >/dev/null; sleep .5; A click @$(ref 'button "시연"') >/dev/null; sleep 1; A click @$(last 'button "초기화"') >/dev/null; sleep 1; A click @$(last 'button "초기화"') >/dev/null; sleep 6; A press Escape >/dev/null; sleep 1; }
+# 시연 패널 닫기: Escape가 패널에 닿지 않을 때가 있어(초점이 밖에 있으면) 남아 있으면 패널의 닫기를 누른다(남으면 대화 칸을 가린다)
+demo_off(){ A press Escape >/dev/null; sleep .4; local c; c=$(A snapshot -i 2>/dev/null | grep -A3 'dialog "시연"' | grep -F 'button "닫기"' | grep -oE 'ref=e[0-9]+' | cut -d= -f2); [ -n "$c" ] && A click @$c >/dev/null; sleep .3; }
+# 초기화: 확인 창은 서버 초기화가 끝나야 닫힌다(같은 SurrealDB의 다른 적재와 잠금을 나눠 몇 분 걸릴 수 있다) — 닫힐 때까지 기다린다.
+# 끝나면 다시 읽어 목록이 초기화 전 값으로 남지 않게 하고(폴링을 기다리지 않고), 초기화는 토큰을 새로 내므로 접속 화면이 나오면 다시 접속
+reset_demo(){ wait; A press Escape >/dev/null; A press Escape >/dev/null; local c; c=$(last 'button "취소"'); [ -n "$c" ] && A click @$c >/dev/null; sleep .5; A click @$(ref 'button "시연"') >/dev/null; sleep 1; A click @$(last 'button "초기화"') >/dev/null; sleep 1; A click @$(last 'button "초기화"') >/dev/null; sleep 2
+  for i in $(seq 1 150); do A snapshot -i 2>/dev/null | grep -q 'dialog "초기화"' || break; sleep 2; done; sleep 1; demo_off; A reload >/dev/null; sleep 3; [ -z "$(ref 'textbox "접속 패스워드"')" ] || login; }
 # 녹화 시작 전 확인: 1280×720 · 3배, 네 역할 안내를 본 것으로(온보딩이 찍히지 않게)
 prep(){ A set viewport 1280 720 3 >/dev/null
   A eval 'for (const r of ["영업지원","영업임원","내부 감시","회계·자금"]) localStorage.setItem("tour:"+r,"1"); 1' >/dev/null
@@ -49,9 +54,9 @@ login(){ local p; p=$(grep '^DEMO_PASS=' "$HERE/../../.env" | cut -d= -f2- | tr 
   [ -n "$(ref textbox)" ] || return 0; A fill @$(ref textbox) "$p" >/dev/null; A click @$(ref 'button "접속"') >/dev/null; sleep 3; A click @$(ref "button \"${1:-영업지원}\"") >/dev/null; sleep 3; }
 # 어시스턴트에게 묻기: 입력창을 눌러 질문을 치고 보낸다(ask 표지). 답이 끝날 때까지 기다리는 구간은 wait_on ~ wait_off로 남겨 편집에서 잘라 낸다(대기 생략 표시)
 ask(){ wait; local r; r=$(ref 'combobox "대화"'); tap @$r 450; typeslow "$1"; sleep 0.4; log ask ""; A press Enter >/dev/null; sleep 1.2; log wait_on ""
-  # 답이 끝남 = 대화 칸 글(답 · 도구 줄 · A2UI 부품)의 길이가 늘었고 3초 동안 늘지 않음
+  # 답이 끝남 = 대화 칸 글(답 · 도구 줄 · A2UI 부품)의 길이가 늘었고, 메시지 목록이 스트리밍 중(aria-busy)이 아닌 채 3초 동안 늘지 않음(도구 호출 사이의 멈춤을 끝으로 보지 않게)
   local base prev=-1 same=0 n; base=$(A eval '(document.querySelector("[role=complementary]")?.innerText ?? "").length' | tr -d '"')
   for i in $(seq 1 90); do sleep 1
-    n=$(A eval '(document.querySelector("[role=complementary]")?.innerText ?? "").length' | tr -d '"')
+    n=$(A eval '(c=>c?(c.querySelector("[role=log][aria-busy=true]")?-1:c.innerText.length):0)(document.querySelector("[role=complementary]"))' | tr -d '"')
     if [ "$n" -gt "$base" ] && [ "$n" = "$prev" ]; then same=$((same+1)); [ $same -ge 3 ] && break; else same=0; fi; prev=$n; done
   log wait_off ""; }

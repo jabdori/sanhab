@@ -10,8 +10,8 @@ A click @$(ref 'row "선택한라인상사34') >/dev/null; sleep 3; A click @$(r
 [ -z "$(ref 'button "보류"')" ] || die "한라인상사34 6월 전결"
 if [ "${1:-}" = change ]; then
   A click @$(ref 'button "대리점"') >/dev/null; sleep 2; A fill @$(ref 'searchbox "검색"') "한라인상사34" >/dev/null; sleep 1.5; A click @$(ref 'row "한라인상사34') >/dev/null; sleep 3
-  A click @$(ref 'button "변경"') >/dev/null; sleep 1; A click @$(ref 'spinbutton "연도') >/dev/null; for k in 2 0 2 6 0 2 0 1; do A press $k >/dev/null; done
+  A click @$(ref 'button "변경"') >/dev/null; sleep 1; A click @$(ref 'combobox "변경일"') >/dev/null; A keyboard type "2026-02-01" >/dev/null; sleep .2; A press Escape >/dev/null
   A fill @$(ref 'textbox "값"') "고양시 중앙로 128" >/dev/null; A click @$(last 'button "변경"') >/dev/null; sleep 4
-  [ "$(A eval 'document.body.innerText.includes("한라인상사34 · 금강상사41")')" = true ] || die "주소 변경"
+  [ "$(A eval '(t=>t.includes("고양시 중앙로 128")&&t.includes("재심사"))(document.querySelector("main,#astryx-app-shell-main").innerText)')" = true ] || die "주소 변경"   # 그룹은 이제 이름 토큰 줄이라 바뀐 주소와 6월 재심사로 확인
 fi
 echo "준비 확인 통과"

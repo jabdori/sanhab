@@ -53,15 +53,15 @@ tap @$(ref 'button "지급"') 450; sleep .7; tap @$(last 'button "지급"') 400;
 at $S14; log mock_on ""
 tap @$(ref 'button "시연"') 450; sleep 1.0; foc "h2:회신"
 tap @$(ref 'button "회신"') 450; sleep .7; tap @$(last 'button "회신"') 400; sleep 1.8
-A press Escape >/dev/null; log mock_off ""; wide; sleep 0.6
+demo_off; log mock_off ""; wide; sleep 0.6
 foc "h2:대사"; sleep 1.5
 recstop 1
 # 녹화 밖: 나머지 두 건
-for n in 2 3; do
-  A click @$(ref 'button "뒤"') >/dev/null; sleep 2.5
+for n in 대륙상사37 성일상사24; do
+  A click @$(ref 'button "작업"') >/dev/null; sleep 2; A click @$(ref "row \"$n") >/dev/null; sleep 2.5
   A click @$(ref 'button "지급"') >/dev/null; sleep .8; A click @$(last 'button "지급"') >/dev/null; sleep 2
   A click @$(ref 'button "시연"') >/dev/null; sleep 1; A click @$(ref 'button "회신"') >/dev/null; sleep .8; A click @$(last 'button "회신"') >/dev/null; sleep 2
-  A press Escape >/dev/null; sleep 1
+  demo_off; sleep 1
 done
 A click @$(ref 'button "내용"') >/dev/null; sleep 1; A mouse move 640 400 >/dev/null
 recstart 2
