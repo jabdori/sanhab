@@ -21,5 +21,5 @@ pt "1,500,000" $C4
 at 12.3
 stage ask2
 clear; wide; ask "아까 그 1월 건은 한도를 150만 원으로 보면 어떻게 돼?"
-sleep 5; clear; wide
+sleep 2.5; clear; wide
 recstop 1
