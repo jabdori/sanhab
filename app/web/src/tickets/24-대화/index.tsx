@@ -14,7 +14,7 @@ import { List, ListItem } from '@astryxdesign/core/List'
 import { Badge } from '@astryxdesign/core/Badge'
 import { EmptyState } from '@astryxdesign/core/EmptyState'
 import { HStack, Layout, LayoutContent, LayoutHeader, StackItem, VStack } from '@astryxdesign/core/Layout'
-import { ChatComposer, ChatComposerDrawer, ChatComposerInput, ChatLayout, ChatMessage, ChatMessageBubble, ChatMessageList, ChatMessageMetadata, ChatSystemMessage, ChatTokenizedText, ChatToolCalls } from '@astryxdesign/core/Chat'
+import { ChatComposer, ChatComposerDrawer, ChatComposerInput, ChatLayout, ChatLayoutScrollButton, ChatMessage, ChatMessageBubble, ChatMessageList, ChatMessageMetadata, ChatSystemMessage, ChatTokenizedText, ChatToolCalls, useChatLayoutContext } from '@astryxdesign/core/Chat'
 import { Timestamp } from '@astryxdesign/core/Timestamp'
 import { Center } from '@astryxdesign/core/Center'
 import { ClickableCard } from '@astryxdesign/core/ClickableCard'
@@ -34,7 +34,7 @@ import { IconButton } from '@astryxdesign/core/IconButton'
 import { AtSymbolIcon, BanknotesIcon, BookOpenIcon, BuildingStorefrontIcon, ClipboardDocumentCheckIcon, ClockIcon, DocumentCheckIcon, DocumentTextIcon, FlagIcon, ArrowPathIcon, PencilSquareIcon } from '@heroicons/react/24/outline'
 import type { ChatComposerInputHandle } from '@astryxdesign/core/Chat'
 import type { SearchableItem } from '@astryxdesign/core/Typeahead'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ASK, ASK_ANY, L } from '../../labels'
 import { State } from '../../ui/Mark'
 import { api, changedAtom, exampleAtom, menuAtom, roleAtom, rolesAtom, store, targetAtom, useData, type Target } from '../../state'
@@ -264,6 +264,7 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
         {/* ChatLayout은 flex 1로 높이를 채운다: 세로 Stack(높이 100%) 안에 둔다 */}
         <VStack height="100%">
         <ChatLayout
+          scrollButton={<Jump />}
           density="spacious"
           composer={
             <ChatComposer
@@ -405,11 +406,11 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
                         status: x.state === 'run' ? ('running' as const) : x.state === 'fail' ? ('error' as const) : ('complete' as const),
                         duration: x.state === 'done' ? took(x.ms) : undefined,
                         // 이름이 없는 조회(개수 세기 등)는 이름 칸을 두지 않는다
-                        target: x.names.length > 2 ? `${x.names.slice(0, 2).join(' · ')} ${L.외} ${x.names.length - 2}` : x.names.length ? x.names.join(' · ') : undefined,
+                        target: uniq(x.names).length > 2 ? `${uniq(x.names).slice(0, 2).join(' · ')} ${L.외} ${uniq(x.names).length - 2}` : x.names.length ? uniq(x.names).join(' · ') : undefined,
                         resultDetail: x.names.length ? (
                           <VStack gap={1}>
-                            {x.names.map((name, i) => {
-                              const go = x.go[i]
+                            {uniq(x.names).map((name) => {
+                              const go = x.go[x.names.indexOf(name)]
                               return go ? <Link key={name} type="supporting" onClick={() => store.set(targetAtom, go)}>{name}</Link> : <Text key={name} type="supporting">{name}</Text>
                             })}
                           </VStack>
@@ -459,6 +460,27 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
       }
     />
   )
+}
+
+/** 같은 이름을 한 번만(도구 줄의 이름 반복 제거) */
+const uniq = (a: string[]) => [...new Set(a)]
+
+/** 맨 아래로 가는 단추: 맨 아래에 있으면 보이지 않는다(템플릿 기본은 '새 메시지' 표지가 맨 아래에서도 남아 답 끝을 가린다) */
+function Jump() {
+  const box = useChatLayoutContext()!.scrollContainerRef
+  const [away, setAway] = useState(false)
+  useEffect(() => {
+    const el = box.current
+    if (!el) return
+    const on = () => setAway(el.scrollHeight - el.scrollTop - el.clientHeight > 48)
+    on()
+    el.addEventListener('scroll', on, { passive: true })
+    const ro = new ResizeObserver(on)
+    ro.observe(el)
+    return () => { el.removeEventListener('scroll', on); ro.disconnect() }
+  }, [box])
+  const down = useCallback(() => box.current?.scrollTo({ top: box.current.scrollHeight, behavior: 'smooth' }), [box])
+  return <ChatLayoutScrollButton isVisible={away} onClick={down} />
 }
 
 // AI의 말 표지: 헤더 · AI 카드와 같은 반짝이 아이콘(이름 첫 글자 아바타는 뜻이 없다). 답의 첫 줄은 언제나 도구 줄(조회 · 응답, 높이 40px)이므로 그 줄의 가운데에 둔다

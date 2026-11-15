@@ -62,7 +62,7 @@ export const L = Object.fromEntries(words.map((w) => [w, w])) as { [K in (typeof
 
 /** 대화 칸이 비었을 때의 질문 제안: 이름(명사 한 단어) → 누르면 보내는 말. 사람이 보내는 말이라 문장이다(copy.md 규칙 9) */
 export const ASK: Record<string, string> = {
-  관계: '지금 연 기록의 관련자와 일치하는 식별자를 정리해 줘',
+  관계: '지금 연 기록과 얽힌 거래처와 관계를 정리해 줘',
   한도: '지금 연 기록의 합산과 한도, 승인권자를 비교해 줘',
   정황: '지금 연 기록에 걸린 정황과 근거를 정리해 줘',
 }

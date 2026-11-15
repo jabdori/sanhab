@@ -6,6 +6,7 @@
 import { Badge } from '@astryxdesign/core/Badge'
 import { Button } from '@astryxdesign/core/Button'
 import { HStack, VStack } from '@astryxdesign/core/Layout'
+import { Divider } from '@astryxdesign/core/Divider'
 import { Card as Box } from '@astryxdesign/core/Card'
 import { List, ListItem } from '@astryxdesign/core/List'
 import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
@@ -141,7 +142,7 @@ export function Surface({ messages }: { messages: A2ui[] }) {
       return titled(
         id,
         c.Facts.title,
-        <MetadataList label={{ width: 72 }}>
+        <MetadataList label={{ position: 'top' }}>
           {c.Facts.items.map((i, n) => (
             <MetadataListItem key={n} label={i.label}>
               <Text hasTabularNumbers>{i.value}</Text>
@@ -150,17 +151,39 @@ export function Surface({ messages }: { messages: A2ui[] }) {
         </MetadataList>,
       )
     if (c?.Table) {
+      // 대화 칸은 좁다: 열이 둘이면 표, 셋 이상이면 줄마다 이름 아래에 값을 묶는다(칸 폭에서 이름 · 금액이 끊기지 않게)
       const t = c.Table
-      const data = t.rows.map((r, n) => ({ n, ...Object.fromEntries(r.map((v, i) => [`c${i}`, v])) }) as Record<string, string | number>)
+      if (t.columns.length <= 2) {
+        const data = t.rows.map((r, n) => ({ n, ...Object.fromEntries(r.map((v, i) => [`c${i}`, v])) }) as Record<string, string | number>)
+        return titled(
+          id,
+          t.title,
+          <Table<Record<string, string | number>>
+            data={data}
+            idKey="n"
+            density="balanced"
+            columns={t.columns.map((h, i) => ({ key: `c${i}`, header: h, width: proportional(1, { minWidth: 80 }), renderCell: (r) => <Text weight={i === 0 ? 'semibold' : undefined} hasTabularNumbers>{r[`c${i}`]}</Text> }))}
+          />,
+        )
+      }
       return titled(
         id,
         t.title,
-        <Table<Record<string, string | number>>
-          data={data}
-          idKey="n"
-          density="balanced"
-          columns={t.columns.map((h, i) => ({ key: `c${i}`, header: h, width: proportional(1, { minWidth: 80 }), renderCell: (r) => <Text weight={i === 0 ? 'semibold' : undefined} hasTabularNumbers>{r[`c${i}`]}</Text> }))}
-        />,
+        <VStack gap={2}>
+          {t.rows.map((r, n) => (
+            <VStack key={n} gap={2}>
+              {n > 0 && <Divider />}
+              <Text weight="semibold">{r[0]}</Text>
+              <MetadataList label={{ width: 88 }}>
+                {r.slice(1).map((v, i) => (
+                  <MetadataListItem key={i} label={t.columns[i + 1]}>
+                    <Text hasTabularNumbers>{v}</Text>
+                  </MetadataListItem>
+                ))}
+              </MetadataList>
+            </VStack>
+          ))}
+        </VStack>,
       )
     }
     if (c?.Records)
