@@ -35,7 +35,7 @@ import { AtSymbolIcon, BanknotesIcon, BookOpenIcon, BuildingStorefrontIcon, Clip
 import type { ChatComposerInputHandle } from '@astryxdesign/core/Chat'
 import { TypeaheadItem, type SearchableItem } from '@astryxdesign/core/Typeahead'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ASK, ASK_ANY, L } from '../../labels'
+import { ASK, ASK_ANY, ASK_RULE, L } from '../../labels'
 import { Kind, State } from '../../ui/Mark'
 import { api, changedAtom, exampleAtom, menuAtom, roleAtom, rolesAtom, store, targetAtom, useData, type Target } from '../../state'
 import { fail, nb, kind, plain } from '../../ui/status'
@@ -49,8 +49,8 @@ type Step = { tool: string; state: 'run' | 'done' | 'fail'; names: string[]; go:
 /** 말의 메타데이터: 문맥(보낸 말), 시각(보낸 순간 · 서버가 답을 마친 순간, ISO), 실패의 낱말(AI 답). 옛 말에는 시각이 없다 */
 type Meta = { ctx?: Ctx[]; at?: string; fail?: string | null }
 type Talk = UIMessage<Meta, { reads: { names: string[]; go?: (Target | null)[] }; card: CardData; doc: { id: string; name: string }; step: Step; a2ui: { messages: A2ui[] } }>
-/** 도구 줄의 걸린 시간(템플릿 ai-chat의 duration 꼴: 45ms · 3.2s) */
-const took = (ms?: number | null) => (ms == null ? undefined : ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`)
+/** 도구 줄의 걸린 시간(템플릿 ai-chat의 duration 꼴): 1초 이상만 `1.2초`. 1초 미만은 개발용 표기로 보여 숨긴다(D10) */
+const took = (ms?: number | null) => (ms == null || ms < 1000 ? undefined : `${(ms / 1000).toFixed(1)}${L.초}`)
 
 /** 칩에 보이는 이름. 아직 받지 못했거나 모르면 id */
 const key = (t: Target) => `${t.kind}/${t.id}`
@@ -64,12 +64,13 @@ const kindIcon = (k: string) => {
 const kindTile = (k: string) => (kind(k) ? <Kind of={k} size="sm" /> : <Icon icon={DocumentTextIcon} size="md" />)
 /** `@`로 찾은 기록(서버 /chat/find): 칩의 이름(name) 외에 줄의 제목(title)과 대리점 · 귀속월 · 상태(있는 것만) */
 type Found = Ctx & { title?: string; dealer?: string; ym?: string; state?: string }
-/** 줄의 설명: 종류 · 귀속월 · 상태(기본 상태 — 대기 · 일치 · 접수 — 는 쓰지 않는다, ui/Mark의 State와 같다) */
-const about = (f: Found) => [f.kind, f.ym, plain(f.state) ? null : f.state].filter(Boolean).join(' · ')
+/** 줄의 설명: 종류 · 귀속월 · 상태(기본 상태 — 대기 · 일치 · 접수 — 는 쓰지 않는다, ui/Mark의 State와 같다).
+ *  `@` 메뉴는 종류 묶음 이름이 위에 있어 종류를 되풀이하지 않는다(D11) — 문맥 칸 카드에만 종류 */
+const about = (f: Found, grouped?: boolean) => [grouped ? null : f.kind, f.ym, plain(f.state) ? null : f.state].filter(Boolean).join(' · ')
 /** 메뉴 줄 · 문맥 칸 카드의 꼴(TypeaheadItem: 종류 타일 · 제목 · 설명) */
-const FoundItem = ({ f }: { f: Found }) => <TypeaheadItem item={{ id: `${f.kind}/${f.id}`, label: f.title ?? f.name }} icon={kindTile(f.kind)} description={about(f)} />
+const FoundItem = ({ f, grouped }: { f: Found; grouped?: boolean }) => <TypeaheadItem item={{ id: `${f.kind}/${f.id}`, label: f.title ?? f.name }} icon={kindTile(f.kind)} description={about(f, grouped) || undefined} />
 /** `@`로 붙일 기록 찾기: 이름 · 귀속월(`2026-01`, `1월`) · 종류 · 상태로 찾는다. 빈 찾기는 지금 보는 기록(near)과 같은 대리점의 기록이 먼저.
- *  줄은 종류마다 묶고(auxiliaryData.group), 목록은 메뉴 안에서 스크롤한다(메뉴 높이는 부품의 것) */
+ *  줄은 종류마다 묶고(auxiliaryData.group), 서버가 종류마다 셋 · 모두 열둘까지 준다(D11 — 메뉴 높이는 부품의 것) */
 const records = {
   search: async (q: string): Promise<SearchableItem<Found>[]> => {
     const t = store.get(targetAtom)
@@ -133,6 +134,8 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
   // 지금 보는 화면은 카드 없이 요청에 함께 보낸다(서버가 문맥으로 쓴다, D67): 연 기록, 목록 화면이면 메뉴 이름
   const now = target
   const view = !target ? menu : null
+  // 규정 기록: 조항을 연 것, 또는 조항이 하나뿐이라 규정 메뉴가 곧 그 기록인 것(pages/Rules) — 규정에 맞는 제안(D14)
+  const rule = target ? target.kind === L.규정 : menu === L.규정
   // 보던 기록의 이름(보낸 말의 칩 — 제목 줄과 같은 이름)은 서버에서 받아 둔다
   const [named, setNamed] = useState<Record<string, string | null>>({})
   const want = [target].filter((t): t is Target => !!t && !(key(t) in named))
@@ -324,7 +327,7 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
                     {
                       character: '@',
                       searchSource: records,
-                      renderItem: (item) => <FoundItem f={item.auxiliaryData as Found} />,
+                      renderItem: (item) => <FoundItem f={item.auxiliaryData as Found} grouped />,
                       menuLabel: L.기록,
                       onSelect: (item) => {
                         const c = item.auxiliaryData as Found
@@ -373,11 +376,12 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
             />
           }
           emptyState={
-            // ai-chat-landing에서 벗어남(components.md): 인사와 큰 제목은 두지 않는다 — 제안 카드만 — 연 기록이 있으면 그 기록 이야기, 없으면 일반 제안
-            (
+            // ai-chat-landing에서 벗어남(components.md): 인사와 큰 제목은 두지 않는다 — 제안 카드만 — 연 기록이 있으면 그 기록 이야기, 없으면 일반 제안.
+            // `@`로 찾는 동안은 카드를 거둔다: 찾기 메뉴(위치 · 높이는 부품의 것)가 카드 위에 겹치지 않게(D11)
+            mention ? undefined : (
               <Section variant="transparent" padding={4}>
                 <Grid columns={{ minWidth: 200 }} gap={3}>
-                  {Object.entries(now ? ASK : ASK_ANY).map(([name, prompt]) => (
+                  {Object.entries(rule ? ASK_RULE : now ? ASK : ASK_ANY).map(([name, prompt]) => (
                     <ClickableCard key={name} label={name} padding={3} variant="muted" isDisabled={busy} onClick={() => applySuggestion(prompt)}>
                       {/* 주제의 색 면 타일(work-item-detail 첨부 카드의 타일 꼴, 색은 ui/status.ts의 kind) */}
                       <HStack gap={4} vAlign="center">

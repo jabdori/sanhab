@@ -82,27 +82,44 @@ pub(super) async fn hand(me: &Db, files: &[Up], clarify: &str, file: &str) -> (S
     }
 }
 
+/// 넘기라는 지시가 아닐 때 도구가 돌려주는 글(넘기지 않는다)
+pub(super) const NOT_ASKED: &str = "넘기지 않았다: 사용자가 넘기라고 하지 않았다. 내용만 답하고 「어느 소명으로 넘길까요?」처럼 묻는다";
+/// 이번 말이 넘기라는 지시인가(B1): 사람의 마지막 말에 넘기는 낱말(넘기 · 넘겨 · 접수 · 제출)이 있거나,
+/// 바로 앞 AI 답이 「넘길까요」라고 물었고 사람이 그것을 물리지 않았을 때(아니 · 말고 · 하지 마)만. 내용만 물은 말은 넘기지 않는다
+pub(super) fn asked(talk: &[(String, String)]) -> bool {
+    let Some(i) = talk.iter().rposition(|(r, _)| r == "user") else { return false };
+    // 앞에 붙는 `[이 말을 할 때 보던 화면: …]` 표시는 사람의 말이 아니다
+    let t = &talk[i].1;
+    let said = t.strip_prefix("[이 말을 할 때 보던 화면").and_then(|r| r.split_once("] ")).map_or(t.as_str(), |x| x.1);
+    let no = ["아니", "말고", "하지 마", "넘기지 마", "안 넘"].iter().any(|w| said.contains(w));
+    let verb = ["넘기", "넘겨", "접수", "제출"].iter().any(|w| said.contains(w));
+    let answered = i > 0 && talk[i - 1].0 == "assistant" && talk[i - 1].1.contains("넘길까요");
+    !no && (verb || answered)
+}
+
 #[derive(serde::Deserialize, schemars::JsonSchema)]
 #[allow(dead_code)] // 입력의 꼴은 모델에게 보이는 스키마로만 쓰인다
 // 칸은 모두 필수다(OpenAI의 strict 도구 규칙) — 정해지지 않았으면 빈 글
 struct DocInput {
-    /// 서류를 받을 소명의 id 또는 후보 목록의 번호. 사용자가 말했거나 열어 둔 대상이 소명일 때만 쓴다. 정해지지 않았으면 빈 글(추측하지 않는다)
+    /// 서류를 받을 소명의 id 또는 후보 목록의 번호. 사용자가 이번 말에 넘기라고 했고, 소명을 말했거나 열어 둔 대상이 소명일 때만 쓴다. 정해지지 않았거나 넘기라는 말이 없으면 빈 글(추측하지 않는다)
     clarify: String,
     /// 넘길 파일의 이름. 올라온 파일이 하나뿐이면 빈 글
     file: String,
 }
 
-/// 대화에 올린 파일을 소명의 서류로 넘기는 도구(`doc`). `me`는 사람의 세션이라 권한과 상태는 19와 같은 길에서 DB가 정한다. 넘긴 것은 `done`에 모은다
-pub(super) fn doc_tool(me: &Db, files: Arc<Vec<Up>>, done: Arc<Mutex<Vec<J>>>) -> Result<Tool, &'static str> {
+/// 대화에 올린 파일을 소명의 서류로 넘기는 도구(`doc`). `me`는 사람의 세션이라 권한과 상태는 19와 같은 길에서 DB가 정한다. 넘긴 것은 `done`에 모은다.
+/// `asked`(이번 말이 넘기라는 지시 — `asked()`)가 아니면 소명을 정해 불러도 넘기지 않는다(후보 목록은 준다 — 묻는 데 쓴다)
+pub(super) fn doc_tool(me: &Db, files: Arc<Vec<Up>>, done: Arc<Mutex<Vec<J>>>, asked: bool) -> Result<Tool, &'static str> {
     Tool::builder()
         .name("doc")
-        .description("사용자가 대화에 올린 파일을 소명의 서류로 넘긴다. 어느 소명인지 정해지지 않았으면 clarify를 빈 글로 불러 서류를 받을 수 있는 소명의 목록을 얻고 사용자에게 묻는다. 넘길 수 없으면 까닭을 글로 돌려준다")
+        .description("사용자가 대화에 올린 파일을 소명의 서류로 넘긴다(접수된다). 사용자가 이번 말에 넘기라고 분명히 말했을 때만 clarify를 채워 부른다 — 파일 내용만 물었으면 넘기지 않는다. 받을 수 있는 소명의 목록이 필요하면(어느 소명으로 넘길지 물을 때) clarify를 빈 글로 부른다. 넘길 수 없으면 까닭을 글로 돌려준다")
         .input_schema(schemars::schema_for!(DocInput))
         .execute(ToolExecute::from_async({
             let me = me.clone();
             move |_, input: J| {
                 let (me, files, done) = (me.clone(), files.clone(), done.clone());
                 async move {
+                    if !asked && !input["clarify"].as_str().unwrap_or_default().trim().is_empty() { return Ok(NOT_ASKED.to_string()); }
                     let (text, ok) = hand(&me, &files, input["clarify"].as_str().unwrap_or_default(), input["file"].as_str().unwrap_or_default()).await;
                     if let Some(d) = ok { done.lock().unwrap().push(d); }
                     Ok(text)
@@ -182,6 +199,9 @@ pub async fn check(c: &Check) -> Result<()> {
         ensure!(done.is_empty() && text.contains("상태가 아니다") && count(a).await? == 1, "접수 뒤 {text}");
         let (text, done) = say(support, "서류||", Some(png)).await?;
         ensure!(done.is_empty() && text.contains("어느 소명") && text.contains("1 ") && !text.contains("2 ") && !text.contains(b.as_str()), "후보는 요청 상태만, id 없이 {text}");
+        // 묻기만 하면 넘기지 않는다(B1): 소명을 정해 불러도 사람의 말이 넘기라는 지시가 아니면 접수되지 않는다
+        let (text, done) = say(support, &format!("서류|{b}||이 서류에 뭐가 적혀 있어?"), Some(png)).await?;
+        ensure!(done.is_empty() && text.contains("넘기라고 하지 않았다") && count(b).await? == 0, "묻기만 {text}");
         // 번호로 고르면 그 소명에 넘어간다
         let (text, done) = say(support, "서류|1|", Some(png)).await?;
         ensure!(text.contains("넘겼다") && done.len() == 1 && done[0]["id"] == b.as_str() && count(b).await? == 1, "번호로 고름 {text}");
@@ -211,6 +231,16 @@ pub async fn check(c: &Check) -> Result<()> {
 mod tests {
     use super::*;
     fn up(n: &str, b: u8) -> Up { Up { name: n.into(), mime: "image/png".into(), bytes: vec![b] } }
+    #[test]
+    fn hand_only_when_asked() {
+        let t = |l: &[(&str, &str)]| asked(&l.iter().map(|(a, b)| (a.to_string(), b.to_string())).collect::<Vec<_>>());
+        assert!(!t(&[("user", "이 서류에 뭐가 적혀 있어?")]));
+        assert!(!t(&[("user", "[이 말을 할 때 보던 화면: 소명 넘기상사] 뭐라고 적혀 있어?")]));
+        assert!(t(&[("user", "이 서류를 소명으로 넘겨 줘")]));
+        assert!(t(&[("user", "뭐야?"), ("assistant", "어느 소명으로 넘길까요?"), ("user", "1번")]));
+        assert!(!t(&[("user", "뭐야?"), ("assistant", "어느 소명으로 넘길까요?"), ("user", "아니, 괜찮아")]));
+        assert!(!t(&[("user", "접수하지 말고 내용만")]));
+    }
     #[test]
     fn same_bytes_once_same_name_numbered() {
         let l = distinct(vec![up("1.png", 1), up("1.png", 1), up("1.png", 2), up("1.png", 3), up("a", 4), up("a", 5)]);

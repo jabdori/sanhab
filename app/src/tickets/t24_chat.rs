@@ -74,7 +74,7 @@ DB는 read_db 도구로만 읽는다(SurrealQL의 SELECT와 RETURN만. 쓰기는
 - 자기 설명과 면책 문장을 쓰지 않는다: 「판정 의견은 내지 않습니다」 「사실과 규정만 정리합니다」 「결정은 사람이 합니다」 「저는 ~할 수 없습니다」처럼 네가 무엇을 하고 안 하는지 말하는 문장 없이, 첫 문장부터 사실을 쓴다.
 - 합산, 승인권자, 관련자 여부, 재검토 여부는 DB에 계산되어 있는 값을 읽어 전한다. 직접 계산하거나 고치지 않는다.
 - 조치를 실행하지 못하고 기록을 만들거나 바꾸지 못한다. 사용자가 승인, 보류, 반려, 추인, 거부, 요청, 기각, 인정, 불인정, 보완 같은 조치를 하라고 지시하면 card 도구로 조치 카드를 낸다(대상의 id는 먼저 읽어 확인한다). 카드는 내용일 뿐이고 실행은 사람이 카드에서 누른다. 사유의 분류와 메모는 사용자가 말한 것만 옮겨 적고 말하지 않았으면 비운다(지어내지 않는다). 사용자가 지시하지 않았으면 카드를 내지 않는다. 카드를 냈으면 답은 「아래 카드의 실행을 누르면 처리됩니다」처럼 한 문장으로 짧게 맺는다(「카드에서 눌러 주세요」 같은 지시조로 되풀이하지 않는다). 도구가 카드를 내지 않는다고 하면 그 까닭(권한이 없다 · 지금 상태에서는 할 수 없다 · 분류가 맞지 않는다)을 짧게 알린다.
-- 사용자가 이번 말에 파일을 올렸으면(문맥의 「이번 말에 올린 파일」) 묻는 말이 무엇이든 그 파일을 소명의 서류로 넘기는 일로 이끈다. 앞선 말에서 올린 파일은 사용자가 넘기라고 하거나 넘길 소명을 고를 때만 doc로 넘기고, 그 밖의 물음에는 서류 이야기를 꺼내지 않는다. 파일은 소명의 서류로 넘기려고 올리는 것이다. 어느 소명인지 사용자가 말했거나 열어 둔 대상이 소명이면 doc 도구로 넘긴다. 아니면 doc를 clarify 빈 글로 불러 받을 수 있는 소명을 얻고 「이 서류를 어느 소명의 서류로 넘길까요?」처럼 소명의 이름을 들어 묻는다(추측하지 않는다). 받을 수 있는 소명이 없거나 넘기지 못했으면 그 까닭을 짧게 알린다.
+- 파일을 소명의 서류로 넘기는(doc로 접수하는) 일은 사용자가 이번 말에 넘기라고 분명히 말했을 때(「넘겨 줘」 「접수해 줘」, 또는 네가 「어느 소명으로 넘길까요?」라고 물은 데에 소명을 고르거나 그렇다고 답했을 때)만 한다. 파일을 올리고 내용만 물었으면(「이 서류에 뭐가 적혀 있어?」) 내용만 답하고 넘기지 않는다 — 열어 둔 대상이 소명이어도 그렇다. 이번 말에 파일을 올렸으면 내용 답 끝에 doc를 clarify 빈 글로 불러 받을 수 있는 소명을 얻고 「이 서류를 어느 소명으로 넘길까요?」처럼 소명의 이름을 들어 묻는다(추측하지 않는다). 앞선 말에서 올린 파일은 사용자가 넘기라고 하거나 넘길 소명을 고를 때만 꺼낸다. 넘기라고 했는데 어느 소명인지 사용자가 말했거나 열어 둔 대상이 소명이면 doc 도구로 넘긴다. 받을 수 있는 소명이 없거나 넘기지 못했으면 그 까닭을 짧게 알린다.
 - 서류를 읽고 무엇이 적혀 있는지는 설명하되, 서류를 근거로 인정 · 불인정 같은 판정 의견은 내지 않는다. 소명에 올라온 서류는 doc의 read와 tidy로 읽고, 이번 말에 올린 파일은 문맥의 「판독(OCR) 글」로 읽는다. 서류의 내용을 전할 때는 「판독(OCR)한 글에 ~라고 적혀 있다」처럼 출처가 판독임을 사실로 밝힌다. 판독 글이 없으면(판독하지 못했다) 그 사실만 짧게 알린다.
 
 ## 화면 부품(show)
@@ -229,7 +229,7 @@ fn talk(model: String, key: Option<String>, ai: Db, me: Db, system: String, recs
         } else if key.as_deref().is_none_or(str::is_empty) {
             word = Some("대기");
         } else {
-            let tool = read_tool(&ai, { let seen = seen.clone(); Arc::new(move |out: &str| cited(out, &mut seen.lock().unwrap())) }).and_then(|t| card_tool(&me, cards.clone()).map(|c| (t, c))).and_then(|(t, c)| doc_tool(&me, files.clone(), handed.clone()).map(|d| (t, c, d))).and_then(|(t, c, d)| show_tool(&ai, seen.clone(), surfaces.clone()).map(|s| (t, c, d, s)));
+            let tool = read_tool(&ai, { let seen = seen.clone(); Arc::new(move |out: &str| cited(out, &mut seen.lock().unwrap())) }).and_then(|t| card_tool(&me, cards.clone()).map(|c| (t, c))).and_then(|(t, c)| doc_tool(&me, files.clone(), handed.clone(), super::t26_chatdoc::asked(&talk)).map(|d| (t, c, d))).and_then(|(t, c, d)| show_tool(&ai, seen.clone(), surfaces.clone()).map(|s| (t, c, d, s)));
             let started = match tool {
                 Ok((tool, card, doc, show)) => LanguageModelRequest::builder()
                     .model(OpenAI::<aisdk::core::DynamicModel>::model_name(&model)).messages(messages(system, &talk))
@@ -309,10 +309,12 @@ async fn fixture_card(model: &str, me: &Db, talk: &[(String, String)], cards: &A
     })
 }
 
-/// 고정한 서류 넘기기(자동 검사용, 모델 `fixture`만): 사람의 말이 `서류|소명 id|파일 이름`이면 실제 도구와 같은 `hand`로 넘긴다. 글은 `hand`의 결과 그대로다
+/// 고정한 서류 넘기기(자동 검사용, 모델 `fixture`만): 사람의 말이 `서류|소명 id|파일 이름[|사람의 말]`이면 실제 도구와 같은 `hand`로 넘긴다. 글은 `hand`의 결과 그대로다
 async fn fixture_doc(model: &str, me: &Db, talk: &[(String, String)], files: &Arc<Vec<Up>>, handed: &Arc<Mutex<Vec<J>>>) -> Option<String> {
     let ask = talk.last().map(|(_, t)| t.as_str())?;
     let f: Vec<&str> = ask.strip_prefix("서류|").filter(|_| model == "fixture")?.split('|').collect();
+    // 넷째 칸이 있으면 그것을 사람의 말로 보고 실제 도구와 같이 넘기라는 지시인지 본다(없으면 지시로 본다)
+    if let Some(said) = f.get(2).filter(|s| !s.is_empty() && !f[0].is_empty()) && !super::t26_chatdoc::asked(&[("user".into(), said.to_string())]) { return Some(super::t26_chatdoc::NOT_ASKED.into()); }
     let (text, done) = hand(me, files, f.first().copied().unwrap_or_default(), f.get(1).copied().unwrap_or_default()).await;
     if let Some(d) = done { handed.lock().unwrap().push(d); }
     Some(text)
@@ -381,9 +383,10 @@ async fn find(Extension(me): Extension<Me>, Query(q): Query<HashMap<String, Stri
 }
 
 /// 찾기의 고르기와 순서(순수 함수 — 검사가 직접 부른다): 낱말이 모두 맞는 줄만, near와 대리점이 겹치는 줄을 먼저.
-/// 빈 찾기는 near가 있으면 관련 기록 전부 + 종류마다 둘, 없으면 종류마다 셋. 많아야 FOUND줄(화면은 목록 안에서 스크롤한다)
+/// 종류마다 많아야 EACH줄(관련 기록이 먼저 채운다), 모두 많아야 FOUND줄 — 메뉴 높이(서너 줄) 안에서 묶음이 다 보이게(D11)
 fn pick(rows: Vec<J>, q: &str, near: Option<&str>) -> Vec<J> {
-    const FOUND: usize = 40;
+    const EACH: usize = 3;
+    const FOUND: usize = 12;
     let near = near.and_then(|s| s.split_once('/'));
     // near 기록의 대리점들(그 기록이 목록에 있어야 한다 — 볼 수 없는 기록이면 관련도 없다)
     let it = |r: &J| near.is_some_and(|(k, i)| r["kind"] == k && r["id"] == i);
@@ -401,11 +404,8 @@ fn pick(rows: Vec<J>, q: &str, near: Option<&str>) -> Vec<J> {
     let mut hit: Vec<J> = rows.iter().filter(|r| !it(r) && words.iter().all(|w| hay(r).contains(w.as_str()))).cloned().collect();
     // 관련 기록이 먼저(안정 정렬 — 종류의 순서는 그대로)
     hit.sort_by_key(|r| !near_of(r));
-    if words.is_empty() {
-        let mut seen: HashMap<String, usize> = HashMap::new();
-        let each = if mine.is_empty() { 3 } else { 2 };
-        hit.retain(|r| near_of(r) || { let n = seen.entry(r["kind"].as_str().unwrap_or_default().to_string()).or_default(); *n += 1; *n <= each });
-    }
+    let mut seen: HashMap<String, usize> = HashMap::new();
+    hit.retain(|r| { let n = seen.entry(r["kind"].as_str().unwrap_or_default().to_string()).or_default(); *n += 1; *n <= EACH });
     hit.truncate(FOUND);
     for r in &mut hit {
         if let Some(o) = r.as_object_mut() {
@@ -435,7 +435,11 @@ mod find_test {
         assert_eq!(ids(pick(rows.clone(), "심사 2026-02", None)), ["r2"]);
         // 지금 보는 기록(r2)은 빠지고, 같은 대리점(d2)의 심사 · 정황이 먼저
         assert_eq!(ids(pick(rows.clone(), "", Some("심사/r2"))), ["r3", "s2", "d1", "r1"]);
-        assert!(pick(rows, "", None)[0].get("dealers").is_none());
+        assert!(pick(rows.clone(), "", None)[0].get("dealers").is_none());
+        // 종류마다 셋까지(D11): 심사 넷이면 셋만
+        let mut more = rows;
+        more.push(json!({ "kind": "심사", "id": "r4", "name": "대성상사1 · 2026-04", "title": "대성상사1", "dealers": ["dealer:d1"], "ym": "2026-04", "state": "대기" }));
+        assert_eq!(ids(pick(more, "심사", None)), ["r1", "r2", "r3"]);
     }
 }
 
@@ -835,6 +839,8 @@ mod tests {
     fn rules_are_in_the_prompt() {
         assert!(SYSTEM.contains("판정 의견을 내지 않는다") && SYSTEM.contains("read_db") && SYSTEM.contains("쓰기는 되지 않는다"));
         // 서류: 판독 · 정리를 읽고(원본 data는 읽지 않는다) 출처를 밝힌다. 판정 의견은 내지 않는다
+        // 넘기는 일은 넘기라고 했을 때만, 내용만 물으면 답하고 묻는다(B1)
+        assert!(SYSTEM.contains("내용만 답하고 넘기지 않는다") && SYSTEM.contains("어느 소명으로 넘길까요?") && !SYSTEM.contains("묻는 말이 무엇이든"));
         assert!(SYSTEM.contains("doc(") && SYSTEM.contains("read.text") && SYSTEM.contains("data(원본)는 크니 읽지 않는다") && SYSTEM.contains("인정 · 불인정 같은 판정 의견은 내지 않는다") && !SYSTEM.contains("네가 읽지 않는다"));
     }
 
