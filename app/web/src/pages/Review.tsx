@@ -25,6 +25,7 @@ import { OfReview } from '../tickets/12-가설'
 import { Picture, Timeline } from '../tickets/16-경위'
 import { Body as ReportBody } from '../tickets/17-보고'
 import type { Report } from '../tickets/17-보고/report'
+import { Names } from '../ui/Line'
 
 /** 오른쪽 위 페이지 조치: 보조 조치가 앞, 주 버튼(승인 · 재상신)이 맨 끝. 서버가 거절하면 `onBad`로 그 낱말 */
 function Actions({ r, s, onBad }: { r: Data; s: Resubmit | null; onBad: (word: string | null) => void }) {
@@ -155,7 +156,7 @@ export function Review() {
         ...data.history.filter((h) => h.kind === v.status && (h.kind === L.반려 || h.kind === L.보류)).slice(-1).flatMap((h): [string, ReactNode][] => [[L.사유, h.reason?.class ?? L.없음], ...(h.reason?.memo ? [[L.메모, h.reason.memo] as [string, ReactNode]] : [])]),
         [L.승인권자, v.holder && v.holder !== v.approver ? <HStack gap={2} vAlign="center"><Text>{v.holder}</Text><Mark>{v.marks.includes(L.이탈) ? L.이탈 : L.가설}</Mark></HStack> : v.approver],
         [L.귀속월, v.ym],
-        [L.구성, data.members.map((m) => m.name).join(' · ')],
+        [L.구성, <Names list={data.members.map((m) => m.name)} unit={L.곳} />],
       ]}
       tabs={[
         {

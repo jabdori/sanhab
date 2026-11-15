@@ -7,7 +7,7 @@ import { useReportLoad } from '../tickets/17-보고/report'
 import { HStack } from '@astryxdesign/core/Layout'
 import { Text } from '@astryxdesign/core/Text'
 import { Token } from '@astryxdesign/core/Token'
-import { BuildingStorefrontIcon, FlagIcon } from '@heroicons/react/24/outline'
+import { BuildingStorefrontIcon } from '@heroicons/react/24/outline'
 import { type ReactNode, useState } from 'react'
 import { State } from '../ui/Mark'
 import { L } from '../labels'
@@ -21,6 +21,7 @@ import { Evidence, History, Links } from '../tickets/11-정황'
 import { type Signal as Data, useSignalLoad } from '../tickets/11-정황/signal'
 import { OfSignal } from '../tickets/12-가설'
 import { Of } from '../tickets/18-발송'
+import { Names } from '../ui/Line'
 
 /** 오른쪽 위 페이지 조치: 요청(주 버튼, 맨 끝) · 기각. 서버가 거절하면 `onBad`로 그 낱말 */
 function Actions({ d, onBad }: { d: Data; onBad: (word: string | null) => void }) {
@@ -112,7 +113,7 @@ export function Signal() {
         [L.상태, plain(s.state) ? s.state : <State word={s.state} />],
         [L.종류, s.kind === L.추인 ? L.거부 : s.kind],
         [L.대리점, dealers],
-        ...(many ? [[L.구성, s.dealers.map((x) => x.name).join(' · ')] as [string, string]] : []),
+        ...(many ? [[L.구성, <Names list={s.dealers.map((x) => x.name)} unit={L.곳} />] as [string, ReactNode]] : []),
         [k, <HStack gap={2} vAlign="center">{typeof v === 'string' ? <Text>{v}</Text> : v}{src}</HStack>],
         // 거부된 추인의 정황: 그 거부(누가 · 사유 · 날짜)
         // 값 하나에 사실 하나(review.md 2-1): 결정의 날짜 · 사유 · 메모를 줄마다
@@ -123,7 +124,8 @@ export function Signal() {
       title={s.name}
       meta={[
         <State word={s.state} />,
-        <Meta icon={FlagIcon}>{s.kind === L.추인 ? L.거부 : s.kind}</Meta>,
+        // 정황 종류(근접 · 동명 · 계좌 · 지연)는 깃발 없는 글자 — 기록 종류(정황)가 이미 깃발을 가졌다
+        <Text type="body" maxLines={1}>{s.kind === L.추인 ? L.거부 : s.kind}</Text>,
         <Meta icon={BuildingStorefrontIcon}>{dealers}</Meta>,
       ]}
       actions={<Actions d={d} onBad={(word) => setBad(word ? { id: s.id, word } : null)} />}

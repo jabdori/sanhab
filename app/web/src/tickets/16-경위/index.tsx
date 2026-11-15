@@ -102,7 +102,7 @@ export function Timeline() {
         <Step
           key={n.key}
           icon={n.who?.role ? UserCircleIcon : DocumentTextIcon}
-          title={`${n.kind} · ${n.name}`}
+          title={`${kindOf(n.kind)} · ${n.name}`}
           text={[n.who?.role, n.who?.reason?.class, n.who?.reason?.memo].filter(Boolean).join(' · ') || undefined}
           at={n.at}
           now={n.key === d.now}
@@ -115,8 +115,10 @@ export function Timeline() {
 
 // 그림의 치수(간격 단위 4의 배수). 칸은 종류·날짜 / 대상(두 줄까지) / 사람·사유에 맞춘 높이. 1280에서 네 칸이 목록을 접은 가운데에 들어간다. 넘치면 그림이 가로로 밀린다(글자를 줄이지 않는다)
 const W = 128
-const H = 120
+const H = 136
 const GAP_X = 24
+/** 칸의 이름은 기록 종류의 낱말: 서버가 `작업`이라 부르는 칸은 추인 기록이다 */
+const kindOf = (k: string) => (k === L.작업 ? L.추인 : k)
 const GAP_Y = 16
 
 /** 지금 대상의 줄기: 지금 칸에서 원인 쪽과 결과 쪽으로 이어진 칸 전부 */
@@ -200,7 +202,7 @@ export function Picture() {
                 <VStack gap={0.5}>
                   {/* 종류 · 날짜는 한 줄씩(좁은 칸에서 `재심사`가 꺾이지 않게) */}
                   <Text weight="semibold" color={on.has(n.key) ? 'primary' : 'secondary'} textWrap="nowrap">
-                    {n.kind}
+                    {kindOf(n.kind)}
                   </Text>
                   {/* 아직 일어나지 않은 칸(결정 전의 심사, 표시 전의 지급)은 날짜를 비운다 */}
                   {n.at && (
@@ -213,7 +215,7 @@ export function Picture() {
                     {nb(n.name)}
                   </Text>
                   {n.who?.role && (
-                    <Text type="supporting" maxLines={1}>
+                    <Text type="supporting" maxLines={2}>
                       {[n.who.role, n.who.reason?.class, n.who.reason?.memo].filter(Boolean).join(' · ')}
                     </Text>
                   )}

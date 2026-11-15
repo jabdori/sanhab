@@ -31,7 +31,8 @@ import { Excluded, Verdicts } from '../tickets/20-소명'
 function Send({ d, onBad }: { d: Data; onBad: (word: string | null) => void }) {
   const typed = useAtomValue(letterAtom)
   const body = (typed ?? d.draft?.text ?? '').trim()
-  const rows = d.docs.map(([kind, doc]): [string, string] => [kind, doc])
+  // 값 하나에 사실 하나: 보낼 곳 · 요청서 글(앞부분) · 요청하는 서류를 줄마다
+  const rows: [string, string][] = [[L.대리점, d.clarify.dealer.name], [L.요청서, body.length > 40 ? `${body.slice(0, 40)}…` : body], ...d.docs.map(([kind, doc]): [string, string] => [kind, doc])]
   return (
     <Act
       kind={L.발송}
@@ -100,8 +101,8 @@ export function Clarify() {
         [L.상태, plain(c.state) ? c.state : <State word={c.state} />],
         [L.대리점, c.dealer.name],
         ...(c.signal ? [[L.정황, c.signal.name] as [string, string]] : []),
-        // 보완의 사유는 서류를 다시 받을 영업지원이 내용에서 바로 본다
-        ...d.history.filter((h) => h.kind === L.보완).slice(-1).flatMap((h): [string, ReactNode][] => [[L.보완, h.reason?.class ?? L.없음], ...(h.reason?.memo ? [[L.메모, h.reason.memo] as [string, ReactNode]] : [])]),
+        // 보완의 사유는 서류를 다시 받을 영업지원이 내용에서 바로 본다(보완이 가장 나중 결정일 때만 — 인정 · 불인정 뒤에는 남기지 않는다, 이력에 있다)
+        ...d.history.slice(-1).filter((h) => h.kind === L.보완).flatMap((h): [string, ReactNode][] => [[L.보완, h.reason?.class ?? L.없음], ...(h.reason?.memo ? [[L.메모, h.reason.memo] as [string, ReactNode]] : [])]),
         [L.발송, d.sent ?? L.없음],
         [L.기한, d.due ? <HStack gap={2} vAlign="center"><Text>{d.due}</Text><Source kind={L.가정} of={L.기한} rows={[[L.발송, d.sent ?? L.없음], [L.기한, d.due]]} /></HStack> : L.없음],
       ]}
@@ -114,8 +115,7 @@ export function Clarify() {
               {/* 숫자 타일: 요청한 서류 · 접수한 서류 · 기한, 판독했으면 누락 · 불일치(계산). 머리의 칩은 상태 · 대리점 · 정황만 */}
               <Tiles
                 items={[
-                  { name: L.서류, value: d.docs.length },
-                  { name: L.접수, value: docs?.docs.length ?? 0 },
+                  { name: L.서류, value: docs?.docs.length ?? 0 },
                   // 기한(발송일 아래). 기한의 길이는 가정(D32). 발송 전에는 기한이 없으니 타일도 없다
                   ...(read
                     ? [

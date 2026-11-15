@@ -9,6 +9,7 @@ import { Pending } from '../ui/Pending'
 import { Region } from '../ui/Region'
 import { Again, Past, RatifyActions, RatifyHistory, RatifyTiles, dissent, useBundle } from '../tickets/10-추인'
 import { Picture, Timeline } from '../tickets/16-경위'
+import { Names } from '../ui/Line'
 
 export function Ratify() {
   const q = useBundle()
@@ -22,7 +23,8 @@ export function Ratify() {
       meta={[
         // 묶음에는 상태가 없다: 이견이 남아 종결을 기다리면 그것이 상태(Badge)
         ...(dissent(b) ? [<State word={L.이견} />] : []),
-        ...r.marks.map((m) => <Mark>{m}</Mark>),
+        // 기록 종류(추인)와 같은 표시는 생략
+        ...r.marks.filter((m) => m !== L.추인).map((m) => <Mark>{m}</Mark>),
         <Meta icon={UserIcon}>{r.approver}</Meta>,
         <Meta icon={BuildingStorefrontIcon}>{`${b.members.length}${L.곳}`}</Meta>,
       ]}
@@ -30,7 +32,7 @@ export function Ratify() {
       props={[
         [L.승인권자, r.approver],
         [L.귀속월, r.ym],
-        [L.구성, b.members.map((m) => m.name).join(' · ')],
+        [L.구성, <Names list={b.members.map((m) => m.name)} unit={L.곳} />],
       ]}
       bad={bad}
       tabs={[

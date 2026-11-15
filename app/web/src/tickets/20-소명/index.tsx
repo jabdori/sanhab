@@ -82,6 +82,7 @@ export function Unknown() {
 export function Verdicts({ onBad }: { onBad: (word: string | null) => void }) {
   const v = useVerdict().data
   const c = useClarify().data
+  const docs = useDocs().data
   // 정할 수 있는 역할(내부 감시)에게만 조치가 있다
   if (!v?.can || !c) return null
   const go = (kind: string, reason: object | null) => {
@@ -101,7 +102,7 @@ export function Verdicts({ onBad }: { onBad: (word: string | null) => void }) {
           must
           target={c.clarify.dealer.name}
           // 값 하나에 사실 하나(review.md 2-1): 제외하는 값은 항목을 이름표로 줄마다
-          rows={a.kind === L.인정 ? [...(v.lines.length ? v.lines.map((l): [string, string] => [l.item, l.value]) : [[L.제외, L['제외 없음']] as [string, string]]), [L.기간, span(v.span?.[0], v.span?.[1]) ?? L.미상]] : undefined}
+          rows={a.kind !== L.인정 ? [[L.서류, docs?.docs.at(-1)?.name ?? L.없음], [L.접수, String(docs?.docs.length ?? 0)]] : [...(v.lines.length ? v.lines.map((l): [string, string] => [l.item, l.value]) : [[L.제외, L['제외 없음']] as [string, string]]), [L.기간, span(v.span?.[0], v.span?.[1]) ?? L.미상]]}
           send={(reason) => go(a.kind, reason)}
         />
       ))}

@@ -23,6 +23,7 @@ import { Line } from '../04-심사'
 import { sharedLoad } from '../load'
 import { Steps, why } from '../16-경위'
 import { type Decision, useReview } from '../04-심사/review'
+import { Names } from '../../ui/Line'
 
 export type Bundle = {
   ratify: { id: string; name: string; ym: string; marks: string[]; total: number; limit: number; approver: string; source: string }
@@ -44,7 +45,7 @@ export const useBundle = sharedLoad<Bundle>((get) => {
 })
 
 const size = (n: number) => (n === 1 ? L.단독 : `${n}${L.곳}`)
-const uniq = (list: string[]) => [...new Set(list)].join(' · ')
+const uniq = (list: string[]) => [...new Set(list)].join('\n')
 
 /** 판단의 재료 세 타일(심사 기록과 같다): 합산(한도 대비 막대) · 한도 · 승인권자. 합산 · 승인권자는 계산이라 출처 표지를 단다 */
 export function RatifyTiles() {
@@ -182,7 +183,7 @@ export function RatifySummary() {
   return (
     <MetadataList columns="single" label={{ position: 'start', width: 72 }}>
       <MetadataListItem label={L.귀속월}>{b.ratify.ym}</MetadataListItem>
-      <MetadataListItem label={L.구성}>{b.members.map((m) => m.name).join(' · ')}</MetadataListItem>
+      <MetadataListItem label={L.구성}><Names list={b.members.map((m) => m.name)} unit={L.곳} /></MetadataListItem>
       <MetadataListItem label={L.담당}>{b.role ?? L.없음}</MetadataListItem>
       <MetadataListItem label={L.결정}>{last ? <Line d={last} /> : L.없음}</MetadataListItem>
     </MetadataList>

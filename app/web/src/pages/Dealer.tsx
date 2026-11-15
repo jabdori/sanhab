@@ -1,7 +1,7 @@
 // 대리점 기록: astryx detail-page 템플릿 꼴(ui/Record). 머리(← 대리점 / 이름 / 식별자 · 그룹 · 출처 / 변경) → 내용(타일 · 등록 · 관계 · 지급 · 서류 · 접수) · 이력 → 레일(요약).
 import { Text } from '@astryxdesign/core/Text'
 import { BuildingStorefrontIcon } from '@heroicons/react/24/outline'
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { L } from '../labels'
 import { useData } from '../state'
 import { Meta, RecordPage, Tiles } from '../ui/Record'
@@ -13,6 +13,7 @@ import { Links, useRelated } from '../tickets/03-관련자'
 import { Change, History } from '../tickets/13-변경'
 import { OfDealer } from '../tickets/19-서류'
 import { Intake } from '../tickets/20-소명'
+import { Names } from '../ui/Line'
 
 /** 판단의 재료 타일: 관련자 · 지급 · 금액(지급의 합) */
 function DealerTiles() {
@@ -59,7 +60,7 @@ export function Dealer() {
       // 보조 칸의 요약: 지금 유효한 등록값(대표자 · 주소 · 계좌)과 그룹
       props={[
         ...[L.대표자, L.주소, L.계좌].map((k): [string, string] => [k, d.registered.filter((x) => x.item === k && !x.until).map((x) => x.value).join(' · ') || L.없음]),
-        ...(rel && rel.group.length > 1 ? [[L.그룹, rel.group.map((g) => g.name).join(' · ')] as [string, string]] : []),
+        ...(rel && rel.group.length > 1 ? [[L.그룹, <Names list={rel.group.map((g) => g.name)} unit={L.곳} />] as [string, ReactNode]] : []),
       ]}
       bad={bad}
       tabs={[

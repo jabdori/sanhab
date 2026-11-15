@@ -67,7 +67,7 @@ export function Change({ onBad }: { onBad: (word: string | null) => void }) {
           ))}
         </RadioList>
         <TextInput label={L.값} width="100%" value={value} onChange={setValue} />
-        <DateInput label={L.변경일} width="100%" presentation="native" max={(today || undefined) as ComponentProps<typeof DateInput>['max']} format="system_date" value={(since || undefined) as ComponentProps<typeof DateInput>['value']} onChange={(v) => setSince(v ?? '')} />
+        <DateInput label={L.변경일} width="100%" presentation="popover" max={(today || undefined) as ComponentProps<typeof DateInput>['max']} format="system_date" value={(since || undefined) as ComponentProps<typeof DateInput>['value']} onChange={(v) => setSince(v ?? '')} />
       </VStack>
     </Confirm>
   )

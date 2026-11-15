@@ -4,6 +4,7 @@ import { List, ListItem } from '@astryxdesign/core/List'
 import { Heading } from '@astryxdesign/core/Text'
 import { Section, VStack } from '@astryxdesign/core/Layout'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { useEffect } from 'react'
 import { FlagIcon } from '@heroicons/react/24/outline'
 import { L } from './labels'
 import { menuAtom, navAtom, stepAtom, targetAtom, useData, type Target } from './state'
@@ -33,6 +34,11 @@ export function Pane() {
       : menu === L.대리점
         ? (dealers ?? []).map((d) => ({ go: { kind: L.대리점, id: d.id }, label: d.name, description: d.id }))
         : (rules?.clauses ?? []).map((c) => ({ go: { kind: L.규정, id: c.id }, label: c.title }))
+  // 조치로 작업이 줄면 기록 머리의 n/전체도 남은 작업 수로(처리한 줄은 순서에서 뺀다)
+  const left = menu === L.작업 && tasks ? new Set(items.map((x) => `${x.go.kind}/${x.go.id}`)) : null
+  useEffect(() => {
+    if (left) setNav((nav) => (nav.every((n) => left.has(`${n.kind}/${n.id}`)) ? nav : nav.filter((n) => left.has(`${n.kind}/${n.id}`))))
+  }, [tasks]) // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <VStack gap={0}>
       <Section variant="transparent" padding={4} paddingBlockEnd={2}>
