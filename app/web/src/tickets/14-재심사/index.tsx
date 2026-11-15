@@ -23,8 +23,9 @@ type Redo = {
 }
 
 export function Why() {
-  const p = usePay()
-  const r = useData<Redo>(p && `/pays/${p.pay.id}/redo`)
+  const p = usePay().data
+  // 재심사가 된 적 없는 지급에는 영역이 없다(값이 없는 것이 정상이라 읽는 중에도 그리지 않는다)
+  const r = useData<Redo>(p ? `/pays/${p.pay.id}/redo` : null)
   const setTarget = useSetAtom(targetAtom)
   if (!p || r?.redo.payout !== p.pay.id) return null
   const { cause, was, back, now } = r.redo

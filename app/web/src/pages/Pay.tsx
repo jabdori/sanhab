@@ -1,5 +1,3 @@
-import { Text } from '@astryxdesign/core/Text'
-import { HStack } from '@astryxdesign/core/Layout'
 import { useRecon } from '../tickets/08-대사'
 // 지급 기록: 심사 기록(Review)과 같은 틀. 머리(대리점 · 귀속월 / 상태 · 표시) → 본문(타일 · 대사 · 재심사) → 레일(요약).
 // 탭: 내용 | 경위 | 이력(지급 표시와 회신을 일어난 순서대로). 조치는 지급 하나(회신은 시연 서랍).
@@ -10,6 +8,7 @@ import { State } from '../ui/Mark'
 import { L } from '../labels'
 import { Meta, RecordPage } from '../ui/Record'
 import { BuildingStorefrontIcon, UserIcon } from '@heroicons/react/24/outline'
+import { Pending } from '../ui/Pending'
 import { Region } from '../ui/Region'
 import { PayActions } from '../tickets/07-지급'
 import { usePay } from '../tickets/07-지급/pay'
@@ -20,10 +19,11 @@ import { Picture, Timeline } from '../tickets/16-경위'
 
 
 export function Pay() {
-  const p = usePay()
-  const rc = useRecon()
+  const pq = usePay()
+  const rc = useRecon().data
   const [bad, setBad] = useState<string | null>(null)
-  if (!p) return null
+  const p = pq.data
+  if (!p) return <Pending of={pq} page />
   const { pay } = p
   // 돈은 나갔어도(완료) 대사가 불일치면 머리 · 요약은 불일치(오류)로 — 초록 완료로 끝난 것처럼 보이지 않게
   const off = rc?.recon?.verdict === L.불일치

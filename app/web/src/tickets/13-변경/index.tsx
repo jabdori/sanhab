@@ -11,10 +11,11 @@ import { type ComponentProps, useState } from 'react'
 import { Icon } from '@astryxdesign/core/Icon'
 import { UserCircleIcon } from '@heroicons/react/24/outline'
 import { L } from '../../labels'
-import { api, targetAtom, useData } from '../../state'
+import { api, targetAtom, useData, useLoad } from '../../state'
 import { Confirm } from '../../ui/Confirm'
 import { Empty } from '../../ui/Empty'
 import { grade } from '../../ui/grade'
+import { Pending } from '../../ui/Pending'
 import { useDetail } from '../02-대리점'
 
 const ITEMS = [L.대표자, L.주소, L.계좌] as const
@@ -81,8 +82,9 @@ type Changed = { kind: string; role: string; at: string; item: string; value: st
 /** 이력: 그 대리점에 들어온 변경을 일어난 순서대로. 06의 이력과 같은 꼴 — 역할의 Avatar · `변경 · 역할` / `항목 값 · 변경일 날짜` / 날짜 */
 export function History() {
   const target = useAtomValue(targetAtom)
-  const h = useData<Changed[]>(target && `/dealers/${target.id}/changes`)
-  if (!target || !h) return null
+  const q = useLoad<Changed[]>(target && `/dealers/${target.id}/changes`)
+  const h = q.data
+  if (!h) return <Pending of={q} />
   if (!h.length) return <Empty />
   return (
     <List density="spacious">

@@ -5,14 +5,16 @@ import { useState } from 'react'
 import { L } from '../labels'
 import { Mark } from '../ui/Mark'
 import { Meta, RecordPage } from '../ui/Record'
+import { Pending } from '../ui/Pending'
 import { Region } from '../ui/Region'
 import { Again, Past, RatifyActions, RatifyHistory, RatifyTiles, useBundle } from '../tickets/10-추인'
 import { Picture, Timeline } from '../tickets/16-경위'
 
 export function Ratify() {
-  const b = useBundle()
+  const q = useBundle()
   const [bad, setBad] = useState<string | null>(null)
-  if (!b) return null
+  const b = q.data
+  if (!b) return <Pending of={q} page />
   const r = b.ratify
   return (
     <RecordPage

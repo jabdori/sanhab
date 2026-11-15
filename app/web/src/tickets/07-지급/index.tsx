@@ -5,9 +5,10 @@ import { Link } from '@astryxdesign/core/Link'
 import { Text } from '@astryxdesign/core/Text'
 import { useSetAtom } from 'jotai'
 import { L } from '../../labels'
-import { api, changedAtom, store, targetAtom, useData } from '../../state'
+import { api, changedAtom, store, targetAtom, useData, useLoad } from '../../state'
 import { ProgressBar } from '@astryxdesign/core/ProgressBar'
 import { Table } from '@astryxdesign/core/Table'
+import { Pending } from '../../ui/Pending'
 import { Region } from '../../ui/Region'
 import type { Review } from '../04-심사/review'
 import { Empty } from '../../ui/Empty'
@@ -19,9 +20,10 @@ import { usePay } from './pay'
 
 /** 판단의 재료 타일: 금액(원본이라 행 번호 표지) · 계좌 · 이 지급을 승인한 심사(누르면 그 심사가 열린다) */
 export function PayTiles() {
-  const p = usePay()
+  const q = usePay()
+  const p = q.data
   const r = useData<Review>(p ? `/reviews/${p.pay.review.id}` : null)?.review
-  if (!p) return null
+  if (!p) return <Pending of={q} />
   const { pay } = p
   const over = !!r?.limit && r.total > r.limit
   // 지표만: 이 지급의 금액, 이 지급을 승인한 심사의 합산(한도 대비 막대)과 한도. 계좌 · 심사 같은 글은 보조 칸의 요약으로
@@ -47,10 +49,12 @@ export function PayTiles() {
 
 /** 구성: 이 지급을 승인한 심사에 묶인 대리점과 금액 — 지급이 어느 묶음의 돈인지(이 대리점이 굵게) */
 export function PayGroup() {
-  const p = usePay()
-  const r = useData<Review>(p ? `/reviews/${p.pay.review.id}` : null)
+  const q = usePay()
+  const p = q.data
+  const rq = useLoad<Review>(p ? `/reviews/${p.pay.review.id}` : null)
+  const r = rq.data
   const setTarget = useSetAtom(targetAtom)
-  if (!p || !r) return null
+  if (!p || !r) return <Region title={L.구성}><Pending of={[q, rq]} /></Region>
   const rows = r.members.map((m) => ({ id: m.id, name: m.name, amount: m.pays.reduce((n, x) => n + x.amount, 0), self: m.id === p.pay.dealer }))
   return (
     <Region title={L.구성} aside={<Link type="supporting" onClick={() => setTarget({ kind: L.심사, id: r.review.id })}>{`${r.review.name} · ${r.review.ym}`}</Link>}>
@@ -69,7 +73,8 @@ export function PayGroup() {
 
 /** 페이지 조치: 지급으로 표시할 수 있을 때만(주 버튼, 되돌릴 수 없으므로 확인 창). 거절되어도 화면을 다시 읽어 지금 할 수 있는 조치를 보인다 */
 export function PayActions({ onBad }: { onBad: (word: string | null) => void }) {
-  const p = usePay()
+  const p = usePay().data
+  // 지금 역할이 표시할 수 없으면 조치가 없다
   if (!p?.can) return null
   return (
     <HStack gap={2}>

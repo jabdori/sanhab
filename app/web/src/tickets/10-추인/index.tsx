@@ -9,21 +9,22 @@ import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
 import { ProgressBar } from '@astryxdesign/core/ProgressBar'
 import { Table, pixel, proportional } from '@astryxdesign/core/Table'
 import { Text } from '@astryxdesign/core/Text'
-import { atom, useAtomValue, useSetAtom } from 'jotai'
-import { unwrap } from 'jotai/utils'
+import { useSetAtom } from 'jotai'
 import { useEffect, useState } from 'react'
 import { Icon } from '@astryxdesign/core/Icon'
 import { UserCircleIcon, UserIcon } from '@heroicons/react/24/outline'
 import { L } from '../../labels'
-import { api, changedAtom, roleAtom, store, targetAtom } from '../../state'
+import { api, changedAtom, store, targetAtom } from '../../state'
 import { Compare } from '../../ui/Compare'
 import { Empty } from '../../ui/Empty'
 import { Mark } from '../../ui/Mark'
+import { Pending } from '../../ui/Pending'
 import { Act, byGrade, Tiles } from '../../ui/Record'
 import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
 import { fail, meter, num, pct } from '../../ui/status'
 import { Line } from '../04-심사'
+import { sharedLoad } from '../load'
 import { type Decision, useReview } from '../04-심사/review'
 
 export type Bundle = {
@@ -39,28 +40,20 @@ export type Bundle = {
   history: Decision[]
 }
 
-const bundleAtom = atom(async (get) => {
-  get(changedAtom)
-  get(roleAtom)
-  const t = get(targetAtom)
-  return t?.kind === L.추인 ? api<Bundle>(`/ratifies/${t.id}`).catch(() => null) : null
-})
 // 다시 읽는 동안에는 앞의 값을 그대로 둔다(04의 심사와 같다)
-const latestAtom = unwrap(bundleAtom, (prev) => prev ?? null)
-
-export function useBundle() {
-  const target = useAtomValue(targetAtom)
-  const b = useAtomValue(latestAtom)
-  return b && b.ratify.id === target?.id ? b : null
-}
+export const useBundle = sharedLoad<Bundle>((get) => {
+  const t = get(targetAtom)
+  return t?.kind === L.추인 ? `/ratifies/${t.id}` : null
+})
 
 const size = (n: number) => (n === 1 ? L.단독 : `${n}${L.곳}`)
 const uniq = (list: string[]) => [...new Set(list)].join(' · ')
 
 /** 판단의 재료 세 타일(심사 기록과 같다): 합산(한도 대비 막대) · 한도 · 승인권자. 합산 · 승인권자는 계산이라 출처 표지를 단다 */
 export function RatifyTiles() {
-  const b = useBundle()
-  if (!b) return null
+  const q = useBundle()
+  const b = q.data
+  if (!b) return <Pending of={q} />
   const r = b.ratify
   const over = r.total > r.limit
   return (
@@ -92,8 +85,9 @@ export function RatifyTiles() {
 
 /** 재검토(당시 / 현재) 영역 */
 export function Again() {
-  const b = useBundle()
-  if (!b) return null
+  const q = useBundle()
+  const b = q.data
+  if (!b) return <Region title={L.재검토}><Pending of={q} /></Region>
   return (
     <Region
       title={L.재검토}
@@ -124,9 +118,10 @@ type Past = Bundle['reviews'][number] & Record<string, unknown>
 
 /** 심사 영역: 그 달의 재검토인 과거의 승인. 이름을 누르면 그 심사가 열린다(04의 심사 기록) */
 export function Past() {
-  const b = useBundle()
+  const q = useBundle()
+  const b = q.data
   const setTarget = useSetAtom(targetAtom)
-  if (!b) return null
+  if (!b) return <Region title={L.심사}><Pending of={q} /></Region>
   return (
     <Region title={L.심사} aside={<Badge variant="neutral" label={String(b.reviews.length)} />}>
       <Table<Past>
@@ -156,7 +151,8 @@ export function Past() {
 
 /** 페이지 조치: 지금 역할이 할 수 있는 것만(추인 / 거부 · 종결 · 이견). 보조가 앞, 주 버튼이 맨 끝. 서버가 거절하면 `onBad`로 그 낱말 */
 export function RatifyActions({ onBad }: { onBad: (word: string | null) => void }) {
-  const b = useBundle()
+  const b = useBundle().data
+  // 지금 역할이 할 수 있는 조치가 없으면(종결 · 차례가 아님) 조치 자리를 두지 않는다
   if (!b || !b.actions.length) return null
   const r = b.ratify
   const rows: [string, string][] = [[L.귀속월, r.ym], [L.합산, num(r.total)]]
@@ -177,8 +173,9 @@ export function RatifyActions({ onBad }: { onBad: (word: string | null) => void 
 
 /** 레일의 요약 */
 export function RatifySummary() {
-  const b = useBundle()
-  if (!b) return null
+  const q = useBundle()
+  const b = q.data
+  if (!b) return <Pending of={q} />
   const last = b.history.at(-1)
   return (
     <MetadataList columns="single" label={{ position: 'start', width: 72 }}>
@@ -192,8 +189,9 @@ export function RatifySummary() {
 
 /** 이력: 역할의 Avatar · 결정(굵게) / 사유의 분류 · 메모 / 날짜 */
 export function RatifyHistory() {
-  const b = useBundle()
-  if (!b) return null
+  const q = useBundle()
+  const b = q.data
+  if (!b) return <Pending of={q} />
   if (!b.history.length) return <Empty />
   return (
     <List density="spacious">

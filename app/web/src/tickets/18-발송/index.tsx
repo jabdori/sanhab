@@ -15,6 +15,7 @@ import { State } from '../../ui/Mark'
 import { L } from '../../labels'
 import { targetAtom, useData } from '../../state'
 import { Empty } from '../../ui/Empty'
+import { Pending } from '../../ui/Pending'
 import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
 import { useSignal } from '../11-정황/signal'
@@ -25,7 +26,8 @@ export const letterAtom = atom<string | null>(null)
 
 /** 요청서 영역: 영업지원이 발송할 수 있으면 AI 초안을 고치는 글 칸, 아니면 발송한 요청서. 초안이 아직 없으면 대기 Badge(몇 초마다 다시 읽는다) — 글 없이 목록만으로도 발송한다 */
 export function Letter() {
-  const d = useClarify()
+  const q = useClarify()
+  const d = q.data
   const bump = useSetAtom(tickAtom)
   const [typed, setTyped] = useAtom(letterAtom)
   const id = d?.clarify.id
@@ -38,7 +40,8 @@ export function Letter() {
     const t = setInterval(() => bump((n) => n + 1), 3000)
     return () => clearInterval(t)
   }, [waiting, bump])
-  if (!d) return null
+  if (!d) return <Region title={L.요청서}><Pending of={q} /></Region>
+  // 요청서가 없고 쓸 수도 없으면(발송 전의 내부 감시) 영역이 없다
   if (!d.can && !d.body) return null
   return (
     <Region
@@ -61,8 +64,9 @@ export function Letter() {
 
 /** 서류 목록(가정, D17): 일치 종류마다 정해진 서류. 요청서에는 항상 이 목록이 들어간다 */
 export function Docs() {
-  const d = useClarify()
-  if (!d) return null
+  const q = useClarify()
+  const d = q.data
+  if (!d) return <Region title={L.서류}><Pending of={q} /></Region>
   type Row = { kind: string; doc: string } & Record<string, unknown>
   const data: Row[] = d.docs.map(([kind, doc]) => ({ kind, doc }))
   return (
@@ -86,8 +90,9 @@ export function Docs() {
 
 /** 이력: 요청(내부 감시), 발송(영업지원), 접수, 결과를 일어난 순서대로. 역할의 Avatar · 낱말 · 역할 / 사유 / 날짜 */
 export function ClarifyHistory() {
-  const d = useClarify()
-  if (!d) return null
+  const q = useClarify()
+  const d = q.data
+  if (!d) return <Pending of={q} />
   if (!d.history.length) return <Empty />
   return (
     <List density="spacious">

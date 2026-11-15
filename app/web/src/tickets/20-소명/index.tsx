@@ -29,7 +29,8 @@ const span = (since: string | null | undefined, until: string | null | undefined
 
 /** 본문의 "제외": 인정한 뒤에 그 소명이 제외한 선(종류, 식별자, 효력 기간). 인정하지 않았으면 보이지 않는다 */
 export function Excluded() {
-  const v = useVerdict()
+  const v = useVerdict().data
+  // 값이 없는 것이 정상(인정 전)이라 읽는 중에도 그리지 않는다
   if (!v?.excluded.length) return null
   type E = Verdict['excluded'][number] & Record<string, unknown>
   return (
@@ -50,8 +51,8 @@ export function Excluded() {
 
 /** 레일 "미확인"의 몸통: 가장 나중 서류에서 서류만으로 가를 수 없는 항목(누락, 호실까지 같아 추가 확인). 코드가 찾은 것이라 출처는 계산이다. 서류가 아직 없으면 보이지 않는다 */
 export function Unknown() {
-  const v = useVerdict()
-  const docs = useDocs()
+  const v = useVerdict().data
+  const docs = useDocs().data
   // 미확인이 없으면 그리지 않는다. 요청한 서류가 빠졌으면(서류 종류) 그 서류도 누락으로 맨 위에
   if (!v || !docs?.docs.length || !(v.unknown.length || v.lacking?.length)) return null
   type U = { item: string; word: string } & Record<string, unknown>
@@ -79,8 +80,9 @@ export function Unknown() {
 /** 결과 조치(내부 감시, 정할 수 있을 때): 인정(주 버튼, 맨 끝) · 불인정 · 보완. 누르면 확인 창에서 사유(분류 · 메모)를 받고, 모두 사유 필수다. 인정의 창은 제외될 선과 기간을 보인다.
  * 서버가 거절하면 `onBad`로 그 낱말 */
 export function Verdicts({ onBad }: { onBad: (word: string | null) => void }) {
-  const v = useVerdict()
-  const c = useClarify()
+  const v = useVerdict().data
+  const c = useClarify().data
+  // 정할 수 있는 역할(내부 감시)에게만 조치가 있다
   if (!v?.can || !c) return null
   const go = (kind: string, reason: object | null) => {
     onBad(null)

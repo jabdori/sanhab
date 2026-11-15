@@ -6,9 +6,10 @@ import { useState } from 'react'
 import { L } from '../labels'
 import { useData } from '../state'
 import { Meta, RecordPage, Tiles } from '../ui/Record'
+import { Pending } from '../ui/Pending'
 import { Region } from '../ui/Region'
 import { num } from '../ui/status'
-import { Payouts, RegisteredRegion, useDetail } from '../tickets/02-대리점'
+import { Payouts, RegisteredRegion, useDetailLoad } from '../tickets/02-대리점'
 import { Links, useRelated } from '../tickets/03-관련자'
 import { Change, History } from '../tickets/13-변경'
 import { OfDealer } from '../tickets/19-서류'
@@ -16,9 +17,10 @@ import { Intake } from '../tickets/20-소명'
 
 /** 판단의 재료 타일: 관련자 · 지급 · 금액(지급의 합) */
 function DealerTiles() {
-  const d = useDetail()
-  const rel = useRelated()
-  if (!d) return null
+  const q = useDetailLoad()
+  const d = q.data
+  const rel = useRelated().data
+  if (!d) return <Pending of={q} />
   return (
     <Tiles
       items={[
@@ -32,8 +34,9 @@ function DealerTiles() {
 
 /** 접수: 영업지원이 일치하는 대리점이 있을 때만(서버가 정한다) */
 function IntakeRegion() {
-  const d = useDetail()
+  const d = useDetailLoad().data
   const rel = useData<{ id: string; can: boolean; near: unknown[] }>(d ? `/dealers/${encodeURIComponent(d.dealer.id)}/clarify` : null)
+  // 접수할 수 없는 역할 · 일치가 없는 대리점에는 영역이 없다(값이 없는 것이 정상이라 읽는 중에도 그리지 않는다)
   if (!d || rel?.id !== d.dealer.id || !rel.can || !rel.near.length) return null
   // Intake 자체가 제목 달린 영역(Region)이다
   return <Intake />
@@ -41,10 +44,11 @@ function IntakeRegion() {
 
 
 export function Dealer() {
-  const d = useDetail()
-  const rel = useRelated()
+  const q = useDetailLoad()
+  const rel = useRelated().data
   const [bad, setBad] = useState<string | null>(null)
-  if (!d) return null
+  const d = q.data
+  if (!d) return <Pending of={q} page />
   const v = d.dealer
   return (
     <RecordPage

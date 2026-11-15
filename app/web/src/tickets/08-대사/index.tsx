@@ -6,19 +6,19 @@ import { RadioList, RadioListItem } from '@astryxdesign/core/RadioList'
 import { Table, pixel, proportional } from '@astryxdesign/core/Table'
 import { Text } from '@astryxdesign/core/Text'
 import { TextInput } from '@astryxdesign/core/TextInput'
-import { atom, useAtomValue } from 'jotai'
-import { unwrap } from 'jotai/utils'
 import { useState } from 'react'
 import { Icon } from '@astryxdesign/core/Icon'
 import { UserCircleIcon } from '@heroicons/react/24/outline'
 import { State } from '../../ui/Mark'
 import { L } from '../../labels'
-import { api, changedAtom, roleAtom, store, targetAtom } from '../../state'
+import { api, changedAtom, store, targetAtom } from '../../state'
 import { Confirm } from '../../ui/Confirm'
 import { Empty } from '../../ui/Empty'
 import { grade } from '../../ui/grade'
 import { Region } from '../../ui/Region'
+import { Pending } from '../../ui/Pending'
 import { Source } from '../../ui/Source'
+import { sharedLoad } from '../load'
 import { num, plain } from '../../ui/status'
 
 type Recon = {
@@ -44,19 +44,10 @@ type Recon = {
 }
 
 // 열어 둔 지급의 대사. 세 조각이 같은 값을 읽고, 조치 뒤에 저절로 다시 읽힌다
-const reconAtom = atom(async (get) => {
-  get(changedAtom)
-  get(roleAtom)
+export const useRecon = sharedLoad<Recon>((get) => {
   const t = get(targetAtom)
-  return t?.kind === L.지급 ? api<Recon>(`/pays/${t.id}/recon`).catch(() => null) : null
+  return t?.kind === L.지급 ? `/pays/${t.id}/recon` : null
 })
-const latestAtom = unwrap(reconAtom, (prev) => prev ?? null)
-
-export function useRecon() {
-  const target = useAtomValue(targetAtom)
-  const d = useAtomValue(latestAtom)
-  return d && target?.kind === L.지급 && d.id === target.id ? d : null
-}
 
 const verdict = (v: string) => <State word={v} />
 const none = <Text color="secondary">{L.없음}</Text>
@@ -66,8 +57,9 @@ type Row = { key: string; item: string; n: number | null; want: string | null; g
 /** 대사 영역: 지급 시도마다 금액·계좌 두 줄에 승인 / 회신 / 비교. 실패한 시도의 비교는 실패, 성공한 시도는 항목마다 일치·불일치.
  *  아직 회신이 없는 시도(지급 전, 실패 뒤 다시 지급할 것 포함)는 승인 쪽만 채워져 있다. 출처는 영역 제목 옆에 */
 export function Recon() {
-  const d = useRecon()
-  if (!d) return null
+  const q = useRecon()
+  const d = q.data
+  if (!d) return <Region title={L.대사}><Pending of={q} /></Region>
   const { recon } = d
   const last = d.history.at(-1)
   // 회신을 기다리는 시도(지급 전 포함)에만 빈 줄을 둔다. 실패한 뒤 아직 다시 지급하지 않았으면 다음 줄은 없다
@@ -181,8 +173,10 @@ function Form({ d }: { d: Recon }) {
 
 /** 시연 서랍(slot 'demo'): 은행 회신을 넣는다(모의 회신 — 실제 은행이 없다). 넣은 회신은 지급 화면에 출처 모의로 남는다 */
 export function Reply() {
-  const d = useRecon()
-  return d?.can ? (
+  const q = useRecon()
+  const d = q.data
+  if (!d) return <Pending of={q} />
+  return d.can ? (
     // 어느 지급의 회신인지 영역 제목 옆에(서랍은 화면과 떨어져 있다)
     <Region title={L.회신} aside={<Text color="secondary">{d.name}</Text>}>
       <Form key={d.id} d={d} />
@@ -192,8 +186,9 @@ export function Reply() {
 
 /** 이력: 지급 표시와 회신을 일어난 순서대로. 역할의 Avatar · 낱말(지급 / 회신) / 결과 · 역할 / 날짜 */
 export function History() {
-  const d = useRecon()
-  if (!d) return null
+  const q = useRecon()
+  const d = q.data
+  if (!d) return <Pending of={q} />
   if (!d.lines.length) return <Empty />
   return (
     <List density="spacious">

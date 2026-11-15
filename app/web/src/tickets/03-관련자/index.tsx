@@ -3,15 +3,16 @@ import { HStack, VStack } from '@astryxdesign/core/Layout'
 import { Table, proportional } from '@astryxdesign/core/Table'
 import { Text } from '@astryxdesign/core/Text'
 import { Token } from '@astryxdesign/core/Token'
-import { useAtom, useAtomValue } from 'jotai'
+import { useAtom } from 'jotai'
 import { L } from '../../labels'
-import { targetAtom, useData } from '../../state'
+import { targetAtom } from '../../state'
 import { Empty } from '../../ui/Empty'
+import { Pending } from '../../ui/Pending'
 import { Region } from '../../ui/Region'
 import { Relation } from '../../ui/Relation'
 import { Source } from '../../ui/Source'
-import {  } from '../../ui/status'
 import { Dealer } from '../02-대리점'
+import { sharedLoad } from '../load'
 
 type Dlr = { id: string; name: string }
 type Near = Dlr & { match: string[]; related: boolean } & Record<string, unknown>
@@ -24,17 +25,17 @@ export type Related = {
   source: string
 }
 
-/** 열어 둔 대리점의 관계. 읽기 전이거나 다른 대리점의 것이면 undefined */
-export function useRelated() {
-  const target = useAtomValue(targetAtom)
-  const d = useData<Related>(target && `/dealers/${target.id}/related`)
-  return d?.id === target?.id ? d : undefined
-}
+/** 열어 둔 대리점의 관계(조각들이 한 번만 읽는다) */
+export const useRelated = sharedLoad<Related>((get) => {
+  const t = get(targetAtom)
+  return t?.kind === L.대리점 ? `/dealers/${t.id}/related` : null
+})
 
 export function Links() {
   const [, setTarget] = useAtom(targetAtom)
-  const d = useRelated()
-  if (!d) return null
+  const q = useRelated()
+  const d = q.data
+  if (!d) return <Region title={L.관계}><Pending of={q} /></Region>
   const me = d.group.find((g) => g.id === d.id)
   const none = d.near.length === 0 || !me
   return (

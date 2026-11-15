@@ -1,8 +1,8 @@
 // 열어 둔 소명의 서류(원본, 판독 낱말, 정리, 값 표). 조각마다 따로 부르지 않고 useDocs()로 같은 값을 읽는다
 import { atom, useAtomValue } from 'jotai'
-import { unwrap } from 'jotai/utils'
 import { L } from '../../labels'
-import { api, changedAtom, roleAtom, rolesAtom, store, targetAtom } from '../../state'
+import { changedAtom, roleAtom, rolesAtom, store, targetAtom } from '../../state'
+import { sharedLoad } from '../load'
 
 /** 판독 낱말: 글자와 위치(쪽의 폭·높이에 대한 0~1, [x0, y0, x1, y1]) */
 export type Word = { text: string; box: [number, number, number, number] }
@@ -43,25 +43,13 @@ export function pick(item: string) {
   setTimeout(() => store.get(pickAtom) === item && store.set(pickAtom, null), 1200)
 }
 
-const docsAtom = atom(async (get) => {
-  get(changedAtom)
-  get(roleAtom)
-  get(tickAtom)
+export const useDocs = sharedLoad<Docs>((get) => {
   const t = get(targetAtom)
-  if (t?.kind !== L.소명) return null
-  const d = await api<Docs>(`/clarifies/${encodeURIComponent(t.id)}/docs`).catch(() => null)
-  return d && { of: t.id, d }
-})
-const latestAtom = unwrap(docsAtom, (prev) => prev ?? null)
-
-export function useDocs() {
-  const target = useAtomValue(targetAtom)
-  const c = useAtomValue(latestAtom)
-  return c && target?.kind === L.소명 && c.of === target.id ? c.d : null
-}
-/** 지금 보는 서류 */
+  return t?.kind === L.소명 ? `/clarifies/${encodeURIComponent(t.id)}/docs` : null
+}, [tickAtom])
+/** 지금 보는 서류(서류를 읽는 동안 · 없으면 null) */
 export function useDoc() {
-  const d = useDocs()
+  const d = useDocs().data
   const see = useAtomValue(seeAtom)
   return d?.docs[see ?? d.docs.length - 1] ?? d?.docs.at(-1) ?? null
 }

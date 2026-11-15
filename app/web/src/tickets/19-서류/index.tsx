@@ -7,6 +7,7 @@ import { Button } from '@astryxdesign/core/Button'
 import { FileInput } from '@astryxdesign/core/FileInput'
 import { HStack, VStack } from '@astryxdesign/core/Layout'
 import { Link } from '@astryxdesign/core/Link'
+import { Token } from '@astryxdesign/core/Token'
 import { Table, pixel, proportional } from '@astryxdesign/core/Table'
 import { Text } from '@astryxdesign/core/Text'
 import { ToggleButton } from '@astryxdesign/core/ToggleButton'
@@ -16,6 +17,7 @@ import { State } from '../../ui/Mark'
 import { L } from '../../labels'
 import { menuAtom, targetAtom, useData } from '../../state'
 import { Empty } from '../../ui/Empty'
+import { Pending } from '../../ui/Pending'
 import { Region } from '../../ui/Region'
 import { Source } from '../../ui/Source'
 import { Confirm } from '../../ui/Confirm'
@@ -39,22 +41,25 @@ function useWaiting(d: Doc | null) {
 /** 원본: 이미지는 판독의 위치 상자를 겹쳐 그린다(값의 줄이 가리킨 낱말. 누르면 그 줄이 강조된다). PDF는 그대로 보인다 */
 function Original({ d }: { d: Doc }) {
   const [url, setUrl] = useState<string>()
+  const [failed, setFailed] = useState(false)
   const picked = useAtomValue(pickAtom)
   useEffect(() => {
     let live = true
     let made: string | undefined
+    setFailed(false)
     bin(`/docs/${encodeURIComponent(d.id)}/file`)
       .then((r) => r.blob())
       .then((b) => {
         made = URL.createObjectURL(b)
         if (live) setUrl(made)
-      }, () => {})
+      }, () => live && setFailed(true))
     return () => {
       live = false
       if (made) URL.revokeObjectURL(made)
     }
   }, [d.id])
-  if (!url) return <Empty />
+  if (!url) return failed ? <Empty /> : <Pending of={{ loading: true }} />
+  // 원본 그림(이미지 · PDF 보기)과 그 위의 위치 상자(svg)는 astryx에 대응하는 부품이 없어 남긴다: className은 그림의 틀(테두리 · 겹침)뿐
   if (d.mime === 'application/pdf') return <object data={url} type={d.mime} aria-label={d.name} className="aspect-3/4 w-full rounded-md border border-border" />
   const boxes = d.rows.flatMap((r) => r.words.map((i) => ({ item: r.item, w: d.words?.[i] })).filter((b) => b.w))
   return (
@@ -87,7 +92,7 @@ const RegSource = ({ r }: { r: Doc['rows'][number] }) =>
 
 /** 서류 선택(서류가 여럿일 때 번호 단추)과 이름 · 출처(판독의 모델 · 날짜) */
 function Aside() {
-  const all = useDocs()
+  const all = useDocs().data
   const d = useDoc()
   const setSee = useSetAtom(seeAtom)
   const target = useAtomValue(targetAtom)
@@ -109,9 +114,10 @@ function Aside() {
 
 /** 이미지 영역: 접수한 서류의 그림 */
 export function OriginalDoc() {
-  const all = useDocs()
+  const all = useDocs().data
   const d = useDoc()
   useWaiting(d)
+  // 접수한 서류가 없으면 영역이 없다(값이 없는 것이 정상이라 읽는 중에도 그리지 않는다)
   if (!all?.docs.length || !d) return null
   return (
     // 접수한 서류의 그림. 출처의 낱말 `원본`과 겹치지 않게 영역 이름은 `이미지`
@@ -123,7 +129,7 @@ export function OriginalDoc() {
 
 /** 판독 영역: 항목마다 판독 · 등록 · 비교(누락 · 불일치가 위). 항목을 누르면 그 줄과 원본의 위치가 강조된다. 판독 전에는 값이 없다 */
 export function Read() {
-  const all = useDocs()
+  const all = useDocs().data
   const d = useDoc()
   const picked = useAtomValue(pickAtom)
   const rows = (d?.rows ?? []) as Row[]
@@ -141,17 +147,18 @@ export function Read() {
               key: 'item',
               header: L.항목,
               width: proportional(2, { minWidth: 64 }),
-              // 강조: 줄 전체에 상태가 없어 첫 칸에 theme.css의 `.mark`를 건다
-              renderCell: (r) => (
-                <HStack className={r.item === picked ? 'mark' : undefined}>
+              // 강조: 줄 전체에 상태가 없어 가리킨 항목의 이름만 Token(칩)으로(theme.css의 `.mark` 대신)
+              renderCell: (r) =>
+                r.item === picked ? (
+                  <Token size="sm" label={r.item} onClick={() => pick(r.item)} />
+                ) : (
                   <Link weight="semibold" onClick={() => pick(r.item)}>
                     {r.item}
                   </Link>
-                </HStack>
-              ),
+                ),
             },
-            { key: 'read', header: L.판독, width: proportional(3, { minWidth: 96 }), renderCell: (r) => (r.read ? <Text hasTabularNumbers className="whitespace-nowrap">{range(r.read)}</Text> : <Text color="secondary">{L.없음}</Text>) },
-            { key: 'reg', header: L.등록, width: proportional(3, { minWidth: 96 }), renderCell: (r) => (r.reg?.value ? <Text hasTabularNumbers className="whitespace-nowrap">{range(r.reg.value)}</Text> : <Text color="secondary">{L.없음}</Text>) },
+            { key: 'read', header: L.판독, width: proportional(3, { minWidth: 96 }), renderCell: (r) => (r.read ? <Text hasTabularNumbers textWrap="nowrap">{range(r.read)}</Text> : <Text color="secondary">{L.없음}</Text>) },
+            { key: 'reg', header: L.등록, width: proportional(3, { minWidth: 96 }), renderCell: (r) => (r.reg?.value ? <Text hasTabularNumbers textWrap="nowrap">{range(r.reg.value)}</Text> : <Text color="secondary">{L.없음}</Text>) },
             // 비교가 모두 기본 상태(일치)면 칸째 두지 않는다
             ...(rows.some((r) => !plain(r.result)) ? [{ key: 'result', header: L.비교, width: pixel(80), renderCell: (r: Row) => <State word={r.result} /> }] : []),
             { key: 'source', header: L.출처, align: 'end', width: pixel(88), renderCell: (r) => <RegSource r={r} /> },
@@ -165,7 +172,7 @@ export function Read() {
 export function Tidy() {
   const d = useDoc()
   const all = useDocs()
-  if (!d) return all ? <Empty /> : null
+  if (!d) return all.data ? <Empty /> : <Pending of={all} />
   return (
     <VStack gap={2}>
       <HStack gap={2} vAlign="center">
@@ -204,7 +211,7 @@ export const fileAtom = atom<File | null>(null)
 
 /** 시연 서랍(slot 'demo'): 시연 서류를 골라 조치 칸의 접수할 파일로 둔다. 제품의 조작이 아니므로 소명 화면에는 없다. 그렇게 올린 서류는 출처가 모의다 */
 export function Samples() {
-  const d = useDocs()
+  const d = useDocs().data
   const samples = useData<{ id: string; name: string; dealer: string; source: string }[]>(d?.can ? '/samples' : null)
   const [file, setFile] = useAtom(fileAtom)
   if (!d?.can || !samples?.length) return null
@@ -230,7 +237,7 @@ export function Samples() {
 
 /** 접수 영역(영업지원, 올릴 수 있을 때): 파일(이미지 · PDF)을 골라 접수(주 버튼, 영역 조치). 누른 뒤 요청이 끝날 때까지 다시 눌리지 않고, 서버가 거절하면 그 낱말을 보인다 */
 export function Upload() {
-  const d = useDocs()
+  const d = useDocs().data
   const target = useAtomValue(targetAtom)
   const [file, setFile] = useAtom(fileAtom)
   const [busy, setBusy] = useState(false)

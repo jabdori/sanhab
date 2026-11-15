@@ -1,8 +1,8 @@
 // 열어 둔 소명. 소명을 다루는 티켓(19 서류 접수, 20 결정 …)은 useClarify()로 같은 값을 읽는다(조각마다 따로 부르지 않고, 조치 뒤에 저절로 다시 읽힌다).
-import { atom, useAtomValue } from 'jotai'
-import { unwrap } from 'jotai/utils'
+import { atom } from 'jotai'
 import { L } from '../../labels'
-import { api, changedAtom, roleAtom, targetAtom } from '../../state'
+import { targetAtom } from '../../state'
+import { sharedLoad } from '../load'
 import type { Decision } from '../04-심사/review'
 
 export type Clarify = {
@@ -25,20 +25,7 @@ export type Clarify = {
 /** AI가 초안을 쓰는 동안 다시 읽는 때를 알린다 */
 export const tickAtom = atom(0)
 
-const clarifyAtom = atom(async (get) => {
-  get(changedAtom)
-  get(roleAtom)
-  get(tickAtom)
+export const useClarify = sharedLoad<Clarify>((get) => {
   const t = get(targetAtom)
-  if (t?.kind !== L.소명) return null
-  const d = await api<Clarify>(`/clarifies/${encodeURIComponent(t.id)}`).catch(() => null)
-  return d && { of: t.id, d }
-})
-// 다시 읽는 동안에는 앞의 값을 그대로 둔다(조치 뒤에 화면이 비지 않게)
-const latestAtom = unwrap(clarifyAtom, (prev) => prev ?? null)
-
-export function useClarify() {
-  const target = useAtomValue(targetAtom)
-  const c = useAtomValue(latestAtom)
-  return c && target?.kind === L.소명 && c.of === target.id ? c.d : null
-}
+  return t?.kind === L.소명 ? `/clarifies/${encodeURIComponent(t.id)}` : null
+}, [tickAtom])

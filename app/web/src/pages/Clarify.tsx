@@ -17,6 +17,7 @@ import { useState } from 'react'
 import { State } from '../ui/Mark'
 import { L } from '../labels'
 import { api, changedAtom, store, targetAtom } from '../state'
+import { Pending } from '../ui/Pending'
 import { Region } from '../ui/Region'
 import { Act, Meta, RecordPage, Tiles } from '../ui/Record'
 import { Source } from '../ui/Source'
@@ -45,7 +46,8 @@ function Send({ d, onBad }: { d: Data; onBad: (word: string | null) => void }) {
 
 /** 서류의 AI 정리 카드(판독 영역 바로 아래, D63) + 미확인(코드가 찾은 것이라 사실 영역). 서류가 없으면 없음 */
 function ClarifyAi() {
-  const docs = useDocs()
+  const docs = useDocs().data
+  // 접수한 서류가 없으면 AI 정리도 없다(값이 없는 것이 정상)
   if (!docs?.docs.length) return null
   return (
     <>
@@ -57,7 +59,7 @@ function ClarifyAi() {
   )
 }
 function UnknownRegion() {
-  const v = useVerdict()
+  const v = useVerdict().data
   if (!v?.unknown.length && !v?.lacking?.length) return null
   return (
     <Region title={L.미확인}>
@@ -67,11 +69,12 @@ function UnknownRegion() {
 }
 
 export function Clarify() {
-  const d = useClarify()
-  const docs = useDocs()
-  const vd = useVerdict()
+  const q = useClarify()
+  const docs = useDocs().data
+  const vd = useVerdict().data
   const [bad, setBad] = useState<{ id: string; word: string } | null>(null)
-  if (!d) return null
+  const d = q.data
+  if (!d) return <Pending of={q} page />
   const c = d.clarify
   const onBad = (word: string | null) => setBad(word ? { id: c.id, word } : null)
   const read = docs?.docs.at(-1)?.rows.length

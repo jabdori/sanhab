@@ -1,8 +1,8 @@
 // 열어 둔 소명의 결과(인정·불인정·보완)를 정하는 값. 조각마다 따로 부르지 않고 useVerdict()로 같은 값을 읽는다(조치 뒤에 저절로 다시 읽힌다).
-import { atom, useAtomValue } from 'jotai'
-import { unwrap } from 'jotai/utils'
+import { atom } from 'jotai'
 import { L } from '../../labels'
-import { api, changedAtom, roleAtom, targetAtom } from '../../state'
+import { targetAtom } from '../../state'
+import { sharedLoad } from '../load'
 import { type Draft, blank } from '../../ui/Reason'
 import { tickAtom } from '../19-서류/docs'
 
@@ -24,23 +24,11 @@ export type Verdict = {
   lacking?: string[]
 }
 
-const verdictAtom = atom(async (get) => {
-  get(changedAtom)
-  get(roleAtom)
-  get(tickAtom) // 판독·정리를 기다리는 동안 19의 서류가 다시 읽을 때 같이 다시 읽는다(미확인이 채워진다)
+// 판독·정리를 기다리는 동안 19의 서류가 다시 읽을 때 같이 다시 읽는다(미확인이 채워진다)
+export const useVerdict = sharedLoad<Verdict>((get) => {
   const t = get(targetAtom)
-  if (t?.kind !== L.소명) return null
-  const d = await api<Verdict>(`/clarifies/${encodeURIComponent(t.id)}/verdict`).catch(() => null)
-  return d && { of: t.id, d }
-})
-// 다시 읽는 동안에는 앞의 값을 그대로 둔다(조치 뒤에 화면이 비지 않게)
-const latestAtom = unwrap(verdictAtom, (prev) => prev ?? null)
-
-export function useVerdict() {
-  const target = useAtomValue(targetAtom)
-  const v = useAtomValue(latestAtom)
-  return v && target?.kind === L.소명 && v.of === target.id ? v.d : null
-}
+  return t?.kind === L.소명 ? `/clarifies/${encodeURIComponent(t.id)}/verdict` : null
+}, [tickAtom])
 
 /** 쓰고 있는 사유 */
 export const reasonAtom = atom<Draft>(blank)
