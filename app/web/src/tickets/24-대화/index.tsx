@@ -430,26 +430,29 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
                     </HStack>
                   ) : null}
                   {/* AI의 도구 호출: 부르는 순간 한 줄(진행 → 완료). 조회는 읽은 기록의 이름, 펼치면 기록마다 여는 링크 */}
+                  {/* 대화 칸 폭 안에서: 도구 줄은 제 글 폭만큼 넓어져 긴 이름이 칸 오른쪽에서 잘렸다 — 칸 폭(maxWidth)으로 막으면 이름이 말줄임된다 */}
                   {steps.length > 0 && (
-                    <ChatToolCalls
-                      label={`${L.도구} ${steps.length}`}
-                      calls={steps.map((x) => ({
-                        key: x.id,
-                        name: x.tool,
-                        status: x.state === 'run' ? ('running' as const) : x.state === 'fail' ? ('error' as const) : ('complete' as const),
-                        duration: x.state === 'done' ? took(x.ms) : undefined,
-                        // 이름이 없는 조회(개수 세기 등)는 이름 칸을 두지 않는다
-                        target: uniq(x.names).length > 2 ? `${uniq(x.names).slice(0, 2).join(' · ')} ${L.외} ${uniq(x.names).length - 2}` : x.names.length ? uniq(x.names).join(' · ') : undefined,
-                        resultDetail: x.names.length ? (
-                          <VStack gap={1}>
-                            {uniq(x.names).map((name) => {
-                              const go = x.go[x.names.indexOf(name)]
-                              return go ? <Link key={name} type="supporting" onClick={() => store.set(targetAtom, go)}>{name}</Link> : <Text key={name} type="supporting">{name}</Text>
-                            })}
+                    <VStack maxWidth="100%">
+                      <ChatToolCalls
+                        label={`${L.도구} ${steps.length}`}
+                        calls={steps.map((x) => ({
+                          key: x.id,
+                          name: x.tool,
+                          status: x.state === 'run' ? ('running' as const) : x.state === 'fail' ? ('error' as const) : ('complete' as const),
+                          duration: x.state === 'done' ? took(x.ms) : undefined,
+                          // 이름이 없는 조회(개수 세기 등)는 이름 칸을 두지 않는다
+                          target: uniq(x.names).length > 2 ? `${uniq(x.names).slice(0, 2).join(' · ')} ${L.외} ${uniq(x.names).length - 2}` : x.names.length ? uniq(x.names).join(' · ') : undefined,
+                          resultDetail: x.names.length ? (
+                            <VStack gap={1}>
+                              {uniq(x.names).map((name) => {
+                                const go = x.go[x.names.indexOf(name)]
+                                return go ? <Link key={name} type="supporting" onClick={() => store.set(targetAtom, go)}>{name}</Link> : <Text key={name} type="supporting">{name}</Text>
+                              })}
                           </VStack>
                         ) : undefined,
                       }))}
                     />
+                    </VStack>
                   )}
                   {bubbles.map((b, i) => (
                     <ChatMessageBubble key={b.key} variant={ai ? 'ghost' : undefined} width={b.wide ? '100%' : undefined} metadata={i === bubbles.length - 1 ? meta : undefined}>

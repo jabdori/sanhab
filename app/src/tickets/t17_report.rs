@@ -364,10 +364,13 @@ async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
     let mut r = q1(&me.db, "
         LET $s = type::record('signal', $id);
         LET $r = fn::report_of($s);
+        -- 결정 때 조치가 없었으면(acted 비어 있음) 그 뒤의 조치를 읽을 때 채운다. 결정 기록은 고치지 않는다
+        LET $late = (SELECT kind, stamp FROM ruling WHERE signal = $s ORDER BY stamp DESC LIMIT 1)[0].kind;
         RETURN {
             report: IF $r != NONE THEN (SELECT record::id(id) AS id, state, model, reads, input, error, time::format(at, '%Y-%m-%d') AS at, guess, unknown, opinion, counter,
                 facts.map(|$f| { ref: <string> $f.ref, text: $f.text, cited: fn::evidence($f.ref) }) AS facts FROM $r)[0] END,
-            decision: IF $r != NONE THEN (SELECT kind, role, time::format(at, '%Y-%m-%d') AS at, reason, source, opinion, acted, same, stamp FROM adoption WHERE report = $r ORDER BY stamp DESC LIMIT 1)[0] END,
+            decision: IF $r != NONE THEN (SELECT kind, role, time::format(at, '%Y-%m-%d') AS at, reason, source, opinion, acted ?? $late AS acted,
+                IF (acted ?? $late) = NONE THEN NONE ELSE (acted ?? $late) = opinion END AS same, stamp FROM adoption WHERE report = $r ORDER BY stamp DESC LIMIT 1)[0] END,
             actions: IF $r != NONE AND fn::adoptable($r) THEN ['채택', '불채택'].map(|$k| { kind: $k, reason: $k = '불채택', classes: fn::adoption_classes($k) }) ELSE [] END,
             trail: (SELECT kind, role, time::format(at, '%Y-%m-%d') AS at, reason, source, stamp FROM adoption WHERE report.target = $s ORDER BY stamp),
             opened: fn::opened($s),
@@ -608,6 +611,12 @@ pub async fn check(c: &Check) -> Result<()> {
         *USE.lock().unwrap() = Some("fixture".into());
         ensure!(make(&c.db, &down, false).await? == "대기" && calls() == before + 1, "간격 안");
         ensure!(investigate(audit, &down).await?.1 == "검토" && report(audit, &down).await?["report"]["state"] == "검토" && report(audit, &down).await?["earlier"] == json!([]), "조사를 누르면 같은 보고가 채워진다");
+        // 결정을 먼저 하고 조치를 뒤에 해도 결정의 조치·같은지가 읽을 때 채워진다(결정 기록은 그대로)
+        let late = sample("late").await?.as_str().unwrap_or_default().trim_start_matches("signal:").trim_matches('`').to_string();
+        q(&c.db, "UPDATE type::record('signal', $s) SET state = '접수';", json!({ "s": late })).await?;
+        ensure!(investigate(audit, &late).await?.1 == "검토" && adopt(audit, &rid(&report(audit, &late).await?), "채택", J::Null).await? == "" && c.post(audit, "/api/rule", json!({ "id": late, "kind": "기각", "reason": { "class": "부족" } })).await?.0 == 200, "결정 뒤 조치");
+        let d = report(audit, &late).await?["decision"].clone();
+        ensure!(d["acted"] == "기각" && d["same"] == json!(d["opinion"] == "기각") && q1(&c.db, "RETURN (SELECT VALUE acted FROM adoption ORDER BY stamp DESC LIMIT 1)[0];", json!({})).await?.is_null(), "결정 뒤 조치의 결정 {d}");
         // 키가 없으면 OpenAI를 부르지 않고 응답이 없는 것과 같다
         ensure!(ask("gpt-6.1-terra", None, &ai, &basis(&c.db, bank).await?.unwrap_or_default(), "2026-07-01").await.err() == Some("키") && ask("gpt-6.1-terra", Some(""), &ai, &J::Null, "").await.err() == Some("키"), "키 없음");
 

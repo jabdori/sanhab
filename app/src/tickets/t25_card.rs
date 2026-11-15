@@ -168,8 +168,10 @@ pub(super) fn surface(raw: &str, seen: &BTreeSet<String>) -> Result<(J, Vec<Stri
 
 /// 부품 하나의 칸을 검사해 허락한 칸만 돌려준다(그 밖의 칸 — action 같은 것 — 은 버린다)
 fn part(ty: &str, p: &J) -> Result<J, String> {
-    // 글은 짧은 글, 수는 글로
-    let text = |v: &J, max: usize| -> Option<String> { let t = v.as_str().map(String::from).or_else(|| v.is_number().then(|| v.to_string()))?; (t.chars().count() <= max).then_some(t) };
+    // 글은 짧은 글, 수는 글로. DB의 날짜 · 시각(ISO)은 화면의 꼴로 바꾼다
+    let text = |v: &J, max: usize| -> Option<String> { let t = dates(&v.as_str().map(String::from).or_else(|| v.is_number().then(|| v.to_string()))?); (t.chars().count() <= max).then_some(t) };
+    // 값 칸(Facts의 value, Table의 칸): 빈 값은 `없음`
+    let cell = |v: &J, max: usize| -> Option<String> { if v.is_null() || v.as_str().is_some_and(|t| t.trim().is_empty()) { Some("없음".into()) } else { text(v, max) } };
     let list = |v: &J, lo: usize, hi: usize| v.as_array().filter(|a| (lo..=hi).contains(&a.len())).cloned();
     let title = || -> Result<J, String> { match &p["title"] { J::Null => Ok(J::Null), t => text(t, 60).map(J::String).ok_or_else(|| "title이 길다".into()) } };
     let bad = |w: &str| format!("{ty}: {w}");
@@ -182,7 +184,7 @@ fn part(ty: &str, p: &J) -> Result<J, String> {
         "Text" => json!({ "text": { "literalString": text(&p["text"]["literalString"], 1000).ok_or_else(|| bad("text.literalString(1000자까지)"))? } }),
         "Facts" => {
             let items = list(&p["items"], 1, 12).ok_or_else(|| bad("items는 1~12개"))?;
-            let items: Option<Vec<J>> = items.iter().map(|i| Some(json!({ "label": text(&i["label"], 40)?, "value": text(&i["value"], 200)? }))).collect();
+            let items: Option<Vec<J>> = items.iter().map(|i| Some(json!({ "label": text(&i["label"], 40)?, "value": cell(&i["value"], 200)? }))).collect();
             json!({ "title": title()?, "items": items.ok_or_else(|| bad("items는 { label, value }"))? })
         }
         "Table" => {
@@ -190,7 +192,7 @@ fn part(ty: &str, p: &J) -> Result<J, String> {
             let cols: Option<Vec<String>> = cols.iter().map(|c| text(c, 40)).collect();
             let cols = cols.ok_or_else(|| bad("columns는 글"))?;
             let rows = list(&p["rows"], 1, 20).ok_or_else(|| bad("rows는 1~20줄"))?;
-            let rows: Option<Vec<Vec<String>>> = rows.iter().map(|r| r.as_array().filter(|r| r.len() == cols.len()).and_then(|r| r.iter().map(|x| text(x, 100)).collect())).collect();
+            let rows: Option<Vec<Vec<String>>> = rows.iter().map(|r| r.as_array().filter(|r| r.len() == cols.len()).and_then(|r| r.iter().map(|x| cell(x, 100)).collect())).collect();
             json!({ "title": title()?, "columns": cols, "rows": rows.ok_or_else(|| bad("rows의 줄마다 columns와 같은 수의 글"))? })
         }
         "Records" => {
@@ -200,6 +202,38 @@ fn part(ty: &str, p: &J) -> Result<J, String> {
         }
         _ => return Err(format!("{ty}는 부품 목록에 없다({}만)", CATALOG.join(" · "))),
     })
+}
+
+/// 글 안의 ISO 날짜 · 시각(`2026-06-01T00:00:00Z`)을 화면의 꼴로: 자정이면 `2026-06-01`, 아니면 한국 시각 `2026-06-01 14:05`
+pub(super) fn dates(s: &str) -> String {
+    let b = s.as_bytes();
+    let dig = |i: usize, n: usize| b.get(i..i + n).is_some_and(|x| x.iter().all(u8::is_ascii_digit));
+    let num = |i: usize, n: usize| s[i..i + n].parse::<u32>().unwrap_or(0);
+    let (mut out, mut i, mut from) = (String::new(), 0, 0);
+    while i < b.len() {
+        let iso = dig(i, 4) && b.get(i + 4) == Some(&b'-') && dig(i + 5, 2) && b.get(i + 7) == Some(&b'-') && dig(i + 8, 2) && b.get(i + 10) == Some(&b'T') && dig(i + 11, 2) && b.get(i + 13) == Some(&b':') && dig(i + 14, 2);
+        if !iso { i += 1; continue; }
+        // 끝: 초 · 소수 · Z까지 삼킨다
+        let mut e = i + 16;
+        while e < b.len() && (b[e].is_ascii_digit() || matches!(b[e], b':' | b'.')) { e += 1; }
+        if b.get(e) == Some(&b'Z') { e += 1; }
+        let (mut y, mut m, mut d, mut h, mi) = (num(i, 4), num(i + 5, 2), num(i + 8, 2), num(i + 11, 2), num(i + 14, 2));
+        let zero = s[i + 11..e].bytes().all(|c| !c.is_ascii_digit() || c == b'0');
+        out.push_str(&s[from..i]);
+        if zero { out.push_str(&s[i..i + 10]); } else {
+            h += 9;
+            if h >= 24 {
+                h -= 24;
+                d += 1;
+                let len = match m { 2 => if y % 4 == 0 && (y % 100 != 0 || y % 400 == 0) { 29 } else { 28 }, 4 | 6 | 9 | 11 => 30, _ => 31 };
+                if d > len { d = 1; m += 1; if m > 12 { m = 1; y += 1; } }
+            }
+            out.push_str(&format!("{y:04}-{m:02}-{d:02} {h:02}:{mi:02}"));
+        }
+        (i, from) = (e, e);
+    }
+    out.push_str(&s[from..]);
+    out
 }
 
 /// 검사한 표면의 기록 목록에 이름과 여는 길을 붙인다(이름은 모델이 아니라 DB에서). 없는 기록이면 거절
@@ -233,7 +267,7 @@ pub(super) fn show_tool(ai: &Db, seen: Arc<Mutex<BTreeSet<String>>>, out: Arc<Mu
         .description(r#"답에 값이 셋 이상이거나 여러 기록 · 비교를 보일 때 글과 함께 화면 부품을 그린다. 보기만 한다(단추 · 조치 없음 — 조치는 card).
 messages는 A2UI v0.8 메시지의 JSON 배열 글이다. 예: [{"surfaceUpdate":{"surfaceId":"s1","components":[{"id":"root","component":{"Column":{"children":{"explicitList":["f","r"]}}}},{"id":"f","component":{"Facts":{"title":"합산","items":[{"label":"합산","value":"3,888,097원"},{"label":"한도","value":"2,000,000원"}]}}},{"id":"r","component":{"Records":{"title":"관련 거래처","items":[{"record":"dealer:`D-011`"}]}}}]}},{"beginRendering":{"surfaceId":"s1","root":"root"}}]
 부품은 이 다섯만: Column{children:{explicitList:[id…]}} · Text{text:{literalString}} · Facts{title, items:[{label, value}]}(한 기록의 값들) · Table{title, columns:[…], rows:[[…]]}(여러 기록 · 비교. 첫 열은 이름) · Records{title, items:[{record:"테이블:id"}]}(이 답에서 read_db로 읽은 기록만. 이름은 앱이 붙이고 누르면 그 기록이 열린다).
-값은 read_db로 읽은 것을 그대로 넣는다(지어내거나 계산하지 않는다). 글은 한국어 이름으로 쓰고 테이블 이름과 id는 record에만 쓴다. 그리지 못하면 까닭을 글로 돌려준다"#)
+값은 read_db로 읽은 것을 그대로 넣는다(지어내거나 계산하지 않는다). 날짜는 2026-06-01 꼴로 쓰고(T00:00:00Z를 붙이지 않는다), 값이 없으면 없음이라고 쓴다. 글은 한국어 이름으로 쓰고 테이블 이름과 id는 record에만 쓴다. 그리지 못하면 까닭을 글로 돌려준다"#)
         .input_schema(schemars::schema_for!(ShowInput))
         .execute(ToolExecute::from_async({
             let ai = ai.clone();

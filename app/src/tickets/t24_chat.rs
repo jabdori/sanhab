@@ -59,8 +59,9 @@ pub const SYSTEM: &str = "너는 SanHab의 대화 도우미다. SanHab은 판매
 - 무엇을 묻는지 모호하면 도구를 부르지 말고 한 문장으로 되묻는다.
 
 ## 읽는 법
-DB는 read_db 도구로만 읽는다(SurrealQL의 SELECT와 RETURN만. 쓰기는 되지 않는다). 테이블: dealer(name) · person · address · account · rep/addr/acct(대리점 → 사람/주소/계좌 선) · deposit(회수) · payout(지급: ym, amount, status) · review(심사) · signal(정황) · clarify(소명) · rule(규칙) · clause(조항) · recon(대사) · task(작업) · doc(소명에 올라온 서류: name, clarify, read(판독 — 업스테이지 OCR이 읽은 낱말 목록, 낱말은 read.text), tidy(AI가 판독에서 항목 · 값을 정리한 것: item, value)). doc의 data(원본)는 크니 읽지 않는다: 서류의 내용은 `SELECT name, read.text AS words, tidy FROM doc WHERE clarify = clarify:`…``처럼 칸을 정해 읽는다. id에 -가 있으면 `D-024`처럼 백틱으로 감싼다.
+DB는 read_db 도구로만 읽는다(SurrealQL의 SELECT와 RETURN만. 쓰기는 되지 않는다). 테이블: dealer(name) · person · address · account · rep/addr/acct(대리점 → 사람/주소/계좌 선) · deposit(회수) · payout(지급: ym, amount, status) · review(심사) · signal(정황: kind, name, state, evidence(근거 기록들)) · incident(대리점 정보 변경: dealer, item, value, since(변경일), known(인지일)) · clarify(소명) · rule(규칙) · clause(조항) · recon(대사) · task(작업) · doc(소명에 올라온 서류: name, clarify, read(판독 — 업스테이지 OCR이 읽은 낱말 목록, 낱말은 read.text), tidy(AI가 판독에서 항목 · 값을 정리한 것: item, value)). doc의 data(원본)는 크니 읽지 않는다: 서류의 내용은 `SELECT name, read.text AS words, tidy FROM doc WHERE clarify = clarify:`…``처럼 칸을 정해 읽는다. id에 -가 있으면 `D-024`처럼 백틱으로 감싼다.
 - 지금 보는 화면의 기록이 있으면 그 id에서 시작한다. 한 번의 조회에 필요한 칸을 함께 가져온다(대개 한두 번, 많아도 서너 번). 같은 것을 다시 읽지 않는다.
+- 정황 화면의 근거 줄과 숫자(지연 일수 · 변경일 · 인지일 · 금액 …)는 `RETURN signal:`지연-D-034`.evidence.map(|$e| fn::evidence($e));`로 화면과 같은 값을 읽는다: at(변경일 · 날짜), known(인지일), days(지연 일수 — 화면의 「지연 45일」), amount, value. 지연 정황의 지연은 근거인 incident의 인지일과 변경일의 차이다.
 - 칸을 모를 때만 SELECT * FROM 테이블 LIMIT 2로 먼저 본다.
 - 목록 화면(작업)에서는 특정 기록을 가리키지 않는다. 사용자가 기록을 말하지 않았으면 기록을 골라 읽지 않는다.
 
@@ -85,6 +86,7 @@ DB는 read_db 도구로만 읽는다(SurrealQL의 SELECT와 RETURN만. 쓰기는
 ## 답의 꼴
 - 첫 문장에 묻는 말의 답을 바로 쓴다. 그 뒤에 근거가 된 값을 줄마다 `-`로 짧게 덧붙인다(필요할 때만).
 - 답에는 테이블 이름과 id를 쓰지 않고 이름(대리점 이름, 귀속월 …)으로 적는다. id는 도구를 부를 때만 쓴다.
+- 날짜는 2026-06-01 꼴로 쓴다(DB의 T00:00:00Z는 붙이지 않는다). 값이 비어 있으면 없음이라고 쓴다.
 - 한국어로 짧게 쓴다. 마크다운(표, 굵은 글씨, 제목)은 쓰지 않는다.";
 
 /// 화면의 기록: 대상의 종류(화면의 낱말)와 id
@@ -749,6 +751,17 @@ mod tests {
         assert!(surface(&one(r#"{"id":"root","component":{"Table":{"columns":["a","b"],"rows":[["1"]]}}}"#), &seen).is_err());
         assert!(surface(&one(r#"{"id":"root","component":{"Records":{"items":[{"record":"dealer:`D-001`"}]}}}"#), &seen).is_err());
         assert!(surface("[]", &seen).is_err() && surface("x", &seen).is_err());
+    }
+
+    #[test]
+    fn a2ui_dates_and_blanks() {
+        use super::super::t25_card::{dates, surface};
+        assert_eq!(dates("변경일 2026-06-01T00:00:00Z, 인지일 2026-07-16T00:00:00.000Z"), "변경일 2026-06-01, 인지일 2026-07-16");
+        assert_eq!(dates("2026-12-31T15:05:00Z"), "2027-01-01 00:05");
+        assert_eq!(dates("2026-06"), "2026-06");
+        let one = r#"[{"surfaceUpdate":{"components":[{"id":"root","component":{"Table":{"columns":["이름","날짜"],"rows":[["가","2026-06-01T00:00:00Z"],["나",""]]}}}]}},{"beginRendering":{"root":"root"}}]"#;
+        let (s, _) = surface(one, &BTreeSet::new()).unwrap();
+        assert_eq!(s[0]["surfaceUpdate"]["components"][0]["component"]["Table"]["rows"], json!([["가", "2026-06-01"], ["나", "없음"]]));
     }
 
     #[test]
