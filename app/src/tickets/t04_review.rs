@@ -161,6 +161,7 @@ async fn tasks(Extension(me): Extension<Me>) -> R {
 }
 
 /// 심사 상세. 가운데: 제목과 숫자 줄(`review`), 구성(`members`: 그 귀속월의 지급 전부(`pays`)와 다른 구성원과 일치하는 식별자), 관계(`relation`), 규정(`rules`).
+/// `basis`: 일치 · 관계를 계산한 기간(`from` · `to`)과 그 안에서 바뀐 구성원의 식별자(`changes`: 대리점 · 항목 · 변경일).
 /// 오른쪽: 지금 역할이 할 수 있는 조치(`actions`), 이력(`history`. 그룹이 바뀌기 전의 옛 심사의 결정(13, D56의 `was`)은 빼고 06의 이력에만 보인다). 일치와 관계는 그 귀속월의 선으로 계산한다
 async fn detail(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
     let mut r = q1(&me.db, "
@@ -171,6 +172,8 @@ async fn detail(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<M
             rules: (SELECT name, ver, value, record::id(clause) AS clause, clause.title AS title, clause.doc.path AS file, clause.first AS first, clause.last AS last, clause.text AS text, clause.source AS source FROM rule WHERE id INSIDE $r.rules ORDER BY name),
             actions: (SELECT record::id(id) AS kind, fn::must(record::id(id), $r) AS reason, fn::classes(record::id(id), $r) AS classes, seq FROM act WHERE fn::can(record::id(id), $r) ORDER BY seq, kind),
             history: (SELECT kind, role, IF at THEN time::format(at, '%Y-%m-%d') END AS at, reason, source, stamp FROM decision WHERE review = $r AND was = NONE ORDER BY stamp),
+            -- D47: 그 귀속월에 하루라도 유효했던 식별자를 본다. 그 달 안에 바뀐 식별자(옛 값 · 새 값이 모두 이 심사의 일치 · 그림에 들어간다)
+            changes: (SELECT dealer.name AS dealer, item, time::format(since, '%Y-%m-%d') AS since, since AS at FROM incident WHERE dealer INSIDE $r.members AND time::format(since, '%Y-%m') = $r.ym ORDER BY at).map(|$c| { dealer: $c.dealer, item: $c.item, since: $c.since }),
         };", json!({ "id": id })).await?;
     if r["review"].is_null() {
         return Err(err(StatusCode::NOT_FOUND, "없음"));
@@ -199,7 +202,9 @@ async fn detail(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<M
         "lines": mine.iter().filter(|l| shared(&l.node)).map(|l| json!([l.dealer, l.node])).collect::<Vec<_>>(),
     });
     r["members"] = json!(members);
-    r.as_object_mut().map(|o| o.remove("payouts"));
+    // 기준: 일치 · 관계 그림을 계산한 기간(그 귀속월 전체, D47)과 그 안에서 바뀐 식별자. 대리점 화면(오늘의 선)과 구성이 다를 수 있는 까닭
+    r["basis"] = json!({ "from": from, "to": to, "changes": r["changes"].take() });
+    r.as_object_mut().map(|o| { o.remove("payouts"); o.remove("changes") });
     Ok(Json(r))
 }
 

@@ -82,7 +82,7 @@ DEFINE EVENT t20_verdict ON verdict WHEN $event = 'CREATE' THEN {
         IF $c.signal != NONE { UPDATE $c.signal SET state = '해소'; };   -- 정황에서 시작한 소명만(D59)
     };
     IF $after.kind = '보완' {
-        UPDATE $c SET sent = NONE, due = NONE, body = NONE, docs = [];
+        UPDATE $c SET sent = NONE, due = NONE, body = NONE, docs = [], draft = NONE, draft_tried = NONE;   -- 18: 초안은 보완 사유로 다시 쓴다
         CREATE task SET kind = '발송', view = '소명', target = $c, role = '영업지원', also = ['내부 감시'], source = '계산';
     };
 };

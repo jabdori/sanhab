@@ -85,7 +85,8 @@ async fn row(db: &Db, id: &str) -> Result<Option<(J, BTreeSet<&'static str>, Vec
         LET $c = type::record('clarify', $id);
         RETURN (SELECT record::id(id) AS id, name, state, source, record::id(dealer) AS dealer, dealer.name AS dealer_name,
             IF signal THEN record::id(signal) END AS signal, signal.kind AS signal_kind, signal.name AS signal_name, signal.state AS signal_state,
-            (pair ?? signal.dealers).map(|$d| record::id($d)) AS dealers, kind AS own_kind, docs, body, draft, draft_model,
+            (pair ?? signal.dealers).map(|$d| record::id($d)) AS dealers, (pair ?? signal.dealers).map(|$d| $d.name) AS dealer_names, kind AS own_kind,
+            (SELECT reason, stamp FROM verdict WHERE clarify = $parent.id AND kind = '보완' ORDER BY stamp DESC LIMIT 1)[0].reason AS redo, docs, body, draft, draft_model,
             IF sent THEN time::format(sent, '%Y-%m-%d') END AS sent, IF due THEN time::format(due, '%Y-%m-%d') END AS due FROM $c)[0];", json!({ "id": id })).await?;
     if c.is_null() {
         return Ok(None);
@@ -108,29 +109,46 @@ async fn row(db: &Db, id: &str) -> Result<Option<(J, BTreeSet<&'static str>, Vec
 
 const SYSTEM: &str = "너는 판매장려금 심사에서 영업지원을 돕는 AI다. 내부 감시가 어느 대리점에 소명을 요청하기로 했다. 대리점에 보낼 요청서의 글 초안을 쓴다.
 - 정중한 한국어로 두세 문장. 소명을 청하는 이유를 쓰되 의심한다거나 잘못이라고 단정하는 표현은 쓰지 않는다.
-- 대리점 이름은 {dealer}로만 적는다(다른 {…}는 쓰지 않는다).
+- 무엇을 소명해 달라는 것인지 밝힌다: 정황의 종류와 상대 대리점, 겹친 식별자의 종류(대표자 · 주소 · 계좌). 보완 사유가 있으면 이번 요청이 보완 요청이고 무엇이 부족했는지 쓴다.
+- 대리점 이름은 {dealer}, 상대 대리점은 {other}로만 적는다(다른 {…}는 쓰지 않는다).
+- 값 자리 바로 뒤에 은/는, 이/가, 와/과 같은 조사를 붙이지 않는다(\"{dealer} · {other} 사이\", \"{dealer} 귀하\"처럼).
 - 숫자(날짜, 금액, 기한, 건수)는 어디에도 쓰지 않는다. 서류 목록과 기한은 코드가 따로 붙인다.
 - 요청할 서류가 없으면 서류를 말하지 않고 설명을 청한다.
 - 글만 답한다(제목, 목록, 코드 울타리 없이).";
 
-/// 초안의 꼴: 비어 있지 않고, 너무 길지 않고, 숫자가 없고, 값 자리는 {dealer}뿐이다
+/// 초안의 꼴: 비어 있지 않고, 너무 길지 않고, 숫자가 없고, 값 자리는 {dealer} · {other}뿐이다
 fn plain(t: &str) -> bool {
-    let rest = t.replace("{dealer}", "");
+    let rest = t.replace("{dealer}", "").replace("{other}", "");
     !t.trim().is_empty() && t.chars().count() <= CUT && !t.chars().any(|c| c.is_ascii_digit()) && !rest.contains(['{', '}'])
 }
-/// 값 자리를 코드가 채운다
-fn fill(t: &str, dealer: &str) -> String {
-    t.replace("{dealer}", dealer)
+/// 값 자리를 코드가 채운다(상대 대리점이 여럿이면 ` · `로 잇는다)
+fn fill(t: &str, dealer: &str, other: &str) -> String {
+    t.replace("{dealer}", dealer).replace("{other}", other)
+}
+
+/// 초안의 근거: 정황의 종류, 겹친 식별자의 종류, 보완이면 그 사유(분류 · 메모)
+struct Ctx { kind: String, items: Vec<&'static str>, redo: Option<String> }
+fn ctx(c: &J, ks: &BTreeSet<&'static str>) -> Ctx {
+    let r = &c["redo"];
+    let redo = r.is_object().then(|| [r["class"].as_str(), r["memo"].as_str()].into_iter().flatten().filter(|t| !t.trim().is_empty()).collect::<Vec<_>>().join(" · "));
+    Ctx { kind: c["signal_kind"].as_str().unwrap_or("소명").to_string(), items: ITEMS.iter().copied().filter(|i| ks.contains(i)).collect(), redo }
+}
+/// 상대 대리점(소명한 대리점 말고)의 이름
+fn others(c: &J) -> String {
+    let me = c["dealer_name"].as_str().unwrap_or_default();
+    c["dealer_names"].as_array().into_iter().flatten().filter_map(J::as_str).filter(|n| *n != me).collect::<Vec<_>>().join(" · ")
 }
 
 /// AI의 초안. 모델 이름이 `fixture`로 시작하면 OpenAI를 부르지 않고 고정한 글(`fixture-digit`은 숫자가 든 글, `fixture-down`은 응답 없음). 키가 없거나 응답이 없으면 None
-async fn ask(model: &str, key: Option<&str>, name: &str, docs: &[[String; 2]]) -> Option<String> {
+async fn ask(model: &str, key: Option<&str>, name: &str, docs: &[[String; 2]], x: &Ctx) -> Option<String> {
     if let Some(m) = model.strip_prefix("fixture") {
+        let why = if x.items.is_empty() { format!("{{dealer}} · {{other}} 사이 {} 정황이 있어", x.kind) } else { format!("{{dealer}} · {{other}} 사이 {} 정황(겹친 식별자: {})이 있어", x.kind, x.items.join(" · ")) };
+        let redo = x.redo.as_ref().map(|r| format!(" 앞서 내신 서류로는 확인이 어려워({r}) 보완을 요청드립니다.")).unwrap_or_default();
         return match m {
             "-down" => None,
             "-digit" => Some("{dealer} 귀하, 3일 안에 서류를 내 주십시오.".into()),
-            _ if docs.is_empty() => Some("{dealer} 귀하, 확인이 필요한 사항이 있어 설명을 요청드립니다. 살펴본 뒤 결과를 알려 드리겠습니다.".into()),
-            _ => Some("{dealer} 귀하, 확인이 필요한 사항이 있어 아래 서류의 제출을 요청드립니다. 서류를 살펴본 뒤 결과를 알려 드리겠습니다.".into()),
+            _ if docs.is_empty() => Some(format!("{{dealer}} 귀하, {why} 그 경위의 설명을 요청드립니다.{redo} 살펴본 뒤 결과를 알려 드리겠습니다.")),
+            _ => Some(format!("{{dealer}} 귀하, {why} 아래 서류의 제출을 요청드립니다.{redo} 서류를 살펴본 뒤 결과를 알려 드리겠습니다.")),
         };
     }
     if key.is_none_or(str::is_empty) {
@@ -140,18 +158,18 @@ async fn ask(model: &str, key: Option<&str>, name: &str, docs: &[[String; 2]]) -
     let mut req = LanguageModelRequest::builder()
         .model(OpenAI::<aisdk::core::DynamicModel>::model_name(model))
         .system(SYSTEM)
-        .prompt(format!("대리점: {name}\n요청할 서류: {}", if list.is_empty() { "없음".into() } else { list }))
+        .prompt(format!("대리점: {name}\n정황: {}\n겹친 식별자: {}\n보완 사유: {}\n요청할 서류: {}", x.kind, if x.items.is_empty() { "없음".into() } else { x.items.join(" · ") }, x.redo.as_deref().unwrap_or("없음"), if list.is_empty() { "없음".into() } else { list }))
         .build();
     tokio::time::timeout(Duration::from_secs(120), req.generate_text()).await.ok()?.ok()?.text()
 }
 
 /// 그 소명의 초안을 쓴다. 시도한 때를 먼저 남기고(간격 동안 다시 부르지 않는다), 꼴이 맞는 글만 남긴다. 남겼으면 true
 pub async fn draft(db: &Db, id: &str, key: Option<&str>) -> Result<bool> {
-    let Some((c, _, docs)) = row(db, id).await? else { return Ok(false) };
+    let Some((c, ks, docs)) = row(db, id).await? else { return Ok(false) };
     q(db, "UPDATE type::record('clarify', $id) SET draft_tried = time::now();", json!({ "id": id })).await?;
     CALLS.fetch_add(1, Ordering::Relaxed);
     let model = model();
-    let Some(text) = ask(&model, key, c["dealer_name"].as_str().unwrap_or_default(), &docs).await.map(|t| t.trim().to_string()).filter(|t| plain(t)) else { return Ok(false) };
+    let Some(text) = ask(&model, key, c["dealer_name"].as_str().unwrap_or_default(), &docs, &ctx(&c, &ks)).await.map(|t| t.trim().to_string()).filter(|t| plain(t)) else { return Ok(false) };
     q(db, "UPDATE type::record('clarify', $id) SET draft = $text, draft_model = $model;", json!({ "id": id, "text": text, "model": model })).await?;
     Ok(true)
 }
@@ -163,7 +181,7 @@ pub async fn sweep(db: &Db) -> Result<()> {
 /// `sweep`의 키를 인자로 뗀 것(자동 검사는 환경과 상관없이 키 없음을 탄다)
 async fn sweep_with(db: &Db, key: Option<&str>) -> Result<()> {
     let ids = q1(db, &format!("
-        RETURN (SELECT VALUE record::id(id) FROM clarify WHERE sent = NONE AND pair = NONE AND draft = NONE AND state = '요청' AND (draft_tried = NONE OR (time::now() - draft_tried) > {RETRY}s) ORDER BY id);"), json!({})).await?;
+        RETURN (SELECT VALUE record::id(id) FROM clarify WHERE sent = NONE AND pair = NONE AND draft = NONE AND state INSIDE ['요청', '보완'] AND (draft_tried = NONE OR (time::now() - draft_tried) > {RETRY}s) ORDER BY id);"), json!({})).await?;
     for id in ids.as_array().into_iter().flatten().filter_map(|i| i.as_str()) {
         draft(db, id, key).await.ok();
     }
@@ -192,7 +210,7 @@ async fn detail(State(db): State<std::sync::Arc<Db>>, Extension(me): Extension<M
         h.sort_by(|a, b| a["stamp"].as_str().cmp(&b["stamp"].as_str()));
     }
     let dealer = c["dealer_name"].as_str().unwrap_or_default();
-    let draft = c["draft"].as_str().filter(|_| c["sent"].is_null()).map(|t| json!({ "text": fill(t, dealer), "model": c["draft_model"], "source": "AI" }));
+    let draft = c["draft"].as_str().filter(|_| c["sent"].is_null()).map(|t| json!({ "text": fill(t, dealer, &others(&c)), "model": c["draft_model"], "source": "AI" }));
     Ok(Json(json!({
         "clarify": { "id": c["id"], "name": c["name"], "state": c["state"], "source": c["source"],
             "dealer": { "id": c["dealer"], "name": c["dealer_name"] },
@@ -258,7 +276,9 @@ mod tests {
         assert!(!plain("3일 안에 내 주십시오."));
         assert!(!plain("{amount} 귀하"));
         assert!(!plain("  "));
-        assert_eq!(fill("{dealer} 귀하", "성일상사24"), "성일상사24 귀하");
+        assert!(plain("{dealer} · {other} 사이 주소가 겹칩니다."));
+        assert_eq!(fill("{dealer} 귀하", "성일상사24", ""), "성일상사24 귀하");
+        assert_eq!(fill("{dealer} · {other}", "금강상사11", "성일상사24"), "금강상사11 · 성일상사24");
     }
 }
 

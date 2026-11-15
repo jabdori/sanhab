@@ -296,6 +296,10 @@ pub async fn check(c: &Check) -> Result<()> {
     ensure!(tasks(exec, "going", "심사").await?.iter().any(|t| t["target"] == "2026-06-D-011"), "보완은 결과가 아니라 보류한 작업이 돌아오지 않는다");
     let kinds: Vec<String> = rows(&d["history"]).iter().map(|h| h["kind"].as_str().unwrap_or("").to_string()).collect();
     ensure!(kinds == ["요청", "발송", "보완"] && d["history"][2]["reason"] == json!({ "class": "누락", "memo": "호실이 빠졌다" }) && d["history"][2]["role"] == audit, "이력 {}", d["history"]);
+    // 18: 보완 뒤의 초안은 다시 쓰고, 정황의 근거(종류 · 상대 대리점 · 겹친 식별자)와 보완 사유를 담는다
+    ensure!(super::t18_send::draft(&c.db, &three, None).await?, "보완 뒤의 초안");   // 이 검사 내내 고정 응답(USE = fixture)
+    let t = c.get(support, &format!("/api/clarifies/{three}")).await?["draft"]["text"].as_str().unwrap_or_default().to_string();
+    ensure!(t.contains("주소") && t.contains("누락 · 호실이 빠졌다") && t.contains("보완") && !t.contains('{'), "보완 뒤의 초안 글 {t}");
     // 서류는 다시 발송한 뒤에 받는다. 같은 시도를 두 번 발송하지 못한다
     ensure!(up(&three, png1).await? == 400, "발송 전의 접수");
     ensure!(c.post(support, "/api/send", json!({ "id": three })).await?.0 == 200 && c.post(support, "/api/send", json!({ "id": three })).await? == (400, json!({ "error": "상태" })), "다시 발송");

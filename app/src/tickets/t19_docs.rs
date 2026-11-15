@@ -114,7 +114,7 @@ const SYSTEM: &str = "너는 판매장려금 심사에서 내부 감시를 돕�
 항목마다 그 값에 해당하는 낱말의 번호를 가리키고, 값을 견줄 수 있게 다듬는다.
 - 항목: 임차인(상호 그대로), 주소(시 도로명 건물번호까지. 층·호는 빼고 예: 성남시 상공로 128), 호실(호 번호에 '호'. 층은 빼고 예: 302호), 기간(YYYY-MM-DD~YYYY-MM-DD).
 - 값은 가리킨 낱말에 있는 글자와 숫자로만 만든다. 없는 숫자를 지어내지 않는다.
-- 서류에서 찾지 못한 항목은 words를 빈 배열, value를 null로 둔다.
+- 서류에서 찾지 못한 항목은 words를 빈 배열, value를 null로 둔다. 임대차계약서가 아닌 서류(산정 내역서, 거래 명세 등)면 모든 항목을 찾지 못한 것으로 둔다.
 - JSON 하나로만 답한다(다른 글, 코드 울타리 없이): {\"items\": [{\"item\": \"호실\", \"words\": [13, 14], \"value\": \"302호\"}, …]}";
 
 /// 자동 검사용으로 고정한 정리: 항목의 이름표 낱말(임차인·소재지·호실·기간)을 찾아 같은 줄의 뒤 낱말을 가리킨다. `fixture-digit`은 호실에 판독에 없는 숫자를 쓴다
@@ -274,11 +274,14 @@ pub(super) async fn list(State(db): State<std::sync::Arc<Db>>, Extension(me): Ex
         .into_iter().filter_map(|(k, v)| Some((k, v?))).collect();
     let docs: Vec<J> = c["docs"].as_array().into_iter().flatten().map(|d| {
         let ws = d["read"].as_array().cloned().unwrap_or_default();
-        let rs = d["tidy"].as_array().map(|t| rows(&ws, t, &reg)).unwrap_or_default();
+        // 임대차 항목을 하나도 찾지 못한 서류는 그 틀의 서류가 아니다(산정 내역서 등): 항목 표 · 값 표를 비우고 누락으로 세지 않는다
+        let lease = d["tidy"].as_array().is_none_or(|t| t.iter().any(|x| x["value"].is_string()));
+        let tidy = if lease { d["tidy"].clone() } else { json!([]) };
+        let rs = tidy.as_array().map(|t| rows(&ws, t, &reg)).unwrap_or_default();
         let n = |w: &str| rs.iter().filter(|r| r["result"] == w).count();
         // sample: 시연용으로 만든 서류(SAMPLES)와 내용이 같은가 — 어느 길로 올렸든 합성 서류다(A05 §6)
         json!({ "id": d["id"], "name": d["name"], "mime": d["mime"], "size": d["size"], "role": d["role"], "at": d["at"], "source": d["source"], "sample": SAMPLES.iter().any(|x| d["sha"].as_str() == Some(sha(x.2).as_str())),
-            "words": d["read"], "read_model": d["read_model"], "tidy": d["tidy"], "tidy_model": d["tidy_model"], "rows": rs,
+            "words": d["read"], "read_model": d["read_model"], "tidy": tidy, "tidy_model": d["tidy_model"], "rows": rs,
             "counts": { "누락": n("누락"), "불일치": n("불일치") } })
     }).collect();
     Ok(Json(json!({ "can": can, "kinds": KINDS, "max": MAX, "docs": docs })))

@@ -4,7 +4,7 @@
 import { L } from '../../labels'
 import { useLoad } from '../../state'
 import { VStack } from '@astryxdesign/core/Layout'
-import { Heading } from '@astryxdesign/core/Text'
+import { Heading, Text } from '@astryxdesign/core/Text'
 import { Compare } from '../../ui/Compare'
 import { Pending } from '../../ui/Pending'
 import { Region } from '../../ui/Region'
@@ -33,7 +33,11 @@ function Tag({ adds }: { adds: string[] }) {
   )
 }
 
+/** 가설이 현재와 같으면(더하는 일치가 없는 동명 · 근접 정황 등) 같은 값을 나란히 둔 표 대신 한 줄 */
+const same = (h: Hypo) => h.group[0] === h.group[1] && h.approver[0] === h.approver[1] && h.match.every((m) => kinds(m.cur) === kinds(m.hyp))
+
 function Rows({ h }: { h: Hypo }) {
+  if (same(h)) return <Text color="secondary">{`${L.변동} ${L.없음}`}</Text>
   return (
     <Compare
       head={[L.현재, L.가설]}

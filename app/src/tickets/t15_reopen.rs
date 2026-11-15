@@ -74,6 +74,8 @@ pub async fn check(c: &mut Check) -> Result<()> {
     ensure!(st == "검토", "새 보고 {st} {}", q1(&c.db, "RETURN (SELECT state, error FROM report WHERE target = type::record('signal', $id) ORDER BY born DESC LIMIT 1)[0];", json!({ "id": name })).await?);
     let rep = c.get(audit, &format!("/api/signals/{name}/report")).await?["report"].clone();
     ensure!(rep["stale"] == false && rows(&rep["facts"]).iter().any(|f| f["ref"] == inc.as_str()), "새 보고의 사실 {rep}");
+    // 변경을 가리킨 사실은 사람의 말(대리점 · 항목 · 변경일)이다(AI의 틀이 아니라 코드의 틀)
+    ensure!(rows(&rep["facts"]).iter().any(|f| f["ref"] == inc.as_str() && f["text"] == "한라인상사34 주소 변경 2026-02-01 신고"), "변경 사실의 글 {}", rep["facts"]);
 
     // 지연: 변경일 2026-02-01, 인지일 2026-07-01(150일)이라 기준(fn::delay)보다 늦다. 근거는 그 변경 하나
     let late = sig("지연-D-034").await?;
@@ -84,6 +86,10 @@ pub async fn check(c: &mut Check) -> Result<()> {
     // 기준 안의 변경(변경일 6월 20일, 11일)은 지연이 아니다
     ensure!(c.post(support, "/api/change", json!({ "id": "D-001", "item": "주소", "value": "시연 주소", "since": "2026-06-20" })).await?.0 == 200, "기준 안의 변경");
     ensure!(q1(&c.db, "RETURN count(SELECT id FROM signal WHERE kind = '지연');", json!({})).await? == 1, "기준 안의 지연");
+    // D47: 6월 심사는 6월 전체의 선으로 본다. 그 까닭(기간 · 그 달 안의 변경)을 응답에 싣는다
+    let june = q1(&c.db, "RETURN (SELECT VALUE record::id(id) FROM review WHERE ym = '2026-06' AND dealer:`D-001` INSIDE members)[0];", json!({})).await?;
+    let b = &c.get(exec, &format!("/api/reviews/{}", june.as_str().unwrap_or_default())).await?["basis"];
+    ensure!(b["from"] == "2026-06-01" && b["to"] == "2026-06-30" && rows(&b["changes"]).iter().any(|x| x["item"] == "주소" && x["since"] == "2026-06-20"), "6월 심사의 기준 {b}");
 
     // 다시 결정할 수 있다: 이번에도 사유가 필수이고, 기각하면 새 근거가 비고 앞의 기각과 함께 이력이 둘이다
     ensure!(c.post(audit, "/api/rule", json!({ "id": name, "kind": "기각" })).await?.0 == 400, "다시 기각의 사유");

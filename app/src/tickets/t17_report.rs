@@ -124,6 +124,12 @@ fn parts(text: &str, ev: &J) -> Vec<(String, bool)> {
     out
 }
 
+/// 변경(사건)을 가리킨 사실의 틀은 코드가 정한다: 사건의 값 자리는 item = 변경, value = 바뀐 항목이라 AI의 틀이 `변경 변경 … 값 주소` 같은 기계 문장이 되었다
+const CHANGE: &str = "{dealer} {value} 변경 {at} 신고";
+fn said(f: &J) -> &str {
+    if f["ref"].as_str().is_some_and(|r| r.starts_with("incident:")) { CHANGE } else { f["text"].as_str().unwrap_or_default() }
+}
+
 /// 식별자 기록(rep · addr · acct)을 가리킨 사실의 구조: 종류(대표자 · 주소 · 계좌), 대리점, 값. 화면이 대리점끼리 비교 표로 묶는다. 다른 기록이면 null
 fn ident(f: &J) -> J {
     let (r, c) = (f["ref"].as_str().unwrap_or_default(), &f["cited"]);
@@ -195,7 +201,7 @@ fn human(v: &mut J) {
 }
 
 /// 지시문에 덧붙이는 출처의 뜻(보고·대화가 같이 쓴다)
-pub(super) const SOURCE: &str = "기록의 source 칸: 원본은 원본 데이터의 값, 화면 입력은 사람이 이 화면에서 한 조치(식별자 변경 신고, 결정, 요청 등)로 생긴 기록, 계산은 코드가 계산한 값이다. 화면 입력인 기록은 \"화면에서 입력한 변경\"처럼 사람이 한 일로 쓴다.";
+pub(super) const SOURCE: &str = "기록의 source 칸: 원본은 원본 데이터의 값, 화면 입력은 사람이 이 화면에서 한 조치(식별자 변경 신고, 결정, 요청 등)로 생긴 기록, 계산은 코드가 계산한 값이다. 화면 입력인 기록은 사람이 한 일로 쓴다(변경은 \"○○상사 주소 변경 2026-06-20 신고\"처럼 대리점 · 바뀐 항목 · 변경일로).";
 
 /// DB를 읽는 도구가 하는 일. AI의 세션으로 실행하므로 쓰기는 DB가 거절한다. 쓰는 글자가 보이면 보내지도 않는다
 pub(super) async fn read_db(ai: &Db, sql: &str) -> String {
@@ -405,7 +411,7 @@ async fn detail(Extension(me): Extension<Me>, Path(id): Path<String>) -> R {
             x["opinion"] = J::Null;
             x["counter"] = J::Null;
         }
-        let facts: Vec<J> = x["facts"].as_array().into_iter().flatten().map(|f| { let t = f["text"].as_str().unwrap_or_default(); json!({ "ref": f["ref"], "text": fill(t, &f["cited"]), "parts": parts(t, &f["cited"]), "id": ident(f) }) }).collect();
+        let facts: Vec<J> = x["facts"].as_array().into_iter().flatten().map(|f| { let t = said(f); json!({ "ref": f["ref"], "text": fill(t, &f["cited"]), "parts": parts(t, &f["cited"]), "id": ident(f) }) }).collect();
         x["facts"] = json!(facts);
         x["stale"] = json!(stale);
         x

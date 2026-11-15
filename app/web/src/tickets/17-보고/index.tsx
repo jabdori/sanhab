@@ -108,17 +108,21 @@ const ITEMS: string[] = [L.대표자, L.주소, L.계좌]
 type Row = { item: string; cells: Record<string, Fact> } & Record<string, unknown>
 
 /** 사실: 식별자 기록(대표자 · 주소 · 계좌)을 가리킨 사실이 두 대리점 이상이면 비교 표(줄 = 항목, 열 = 대리점, 끝 열 일치 — 기록 값의 비교이지 AI 판단이 아니다).
- * 나머지 사실(지급 · 회수 · 변경 …)은 목록. 한 대리점의 같은 항목을 둘 가리켰으면 칸이 겹쳐 표로 묶지 않는다 */
+ * 모든 대리점에 값이 있는 항목만 표의 줄이 된다(빈 칸 · 일치 없음의 줄을 만들지 않는다 — 그 사실은 목록으로). 나머지 사실(지급 · 회수 · 변경 …)도 목록.
+ * 한 대리점의 같은 항목을 둘 가리켰으면 칸이 겹쳐 표로 묶지 않는다 */
 function Facts({ facts, signal }: { facts: Fact[]; signal?: Signal }) {
   const ids = facts.filter((f) => f.id && ITEMS.includes(f.id.item))
   const dealers = [...new Map(ids.map((f) => [f.id!.dealer.id, f.id!.dealer])).values()]
-  const rows: Row[] = ITEMS.map((item) => ({ item, cells: Object.fromEntries(ids.filter((f) => f.id!.item === item).map((f) => [f.id!.dealer.id, f])) })).filter((r) => Object.keys(r.cells).length)
-  const table = ids.length >= 2 && dealers.length >= 2 && rows.reduce((n, r) => n + Object.keys(r.cells).length, 0) === ids.length
-  const rest = table ? facts.filter((f) => !ids.includes(f)) : facts
-  // 모든 대리점에 값이 있어야 비교한다(빠진 칸이 있으면 없음)
+  const all = ITEMS.map((item) => ({ item, list: ids.filter((f) => f.id!.item === item) }))
+  const rows: Row[] = all
+    .filter((r) => r.list.length === dealers.length && dealers.every((d) => r.list.some((f) => f.id!.dealer.id === d.id && f.id!.value)))
+    .map((r) => ({ item: r.item, cells: Object.fromEntries(r.list.map((f) => [f.id!.dealer.id, f])) }))
+  const table = dealers.length >= 2 && rows.length > 0
+  const inTable = new Set(rows.flatMap((r) => Object.values(r.cells)))
+  const rest = facts.filter((f) => !inTable.has(f))
   const same = (r: Row) => {
-    const v = dealers.map((d) => r.cells[d.id]?.id?.value)
-    return v.some((x) => !x) ? null : v.every((x) => x === v[0])
+    const v = dealers.map((d) => r.cells[d.id].id!.value)
+    return v.every((x) => x === v[0])
   }
   return (
     <VStack gap={2}>
@@ -137,13 +141,11 @@ function Facts({ facts, signal }: { facts: Fact[]; signal?: Signal }) {
                 width: proportional(2, { minWidth: 96 }),
                 renderCell: (r: Row) => {
                   const f = r.cells[d.id]
-                  return f ? (
+                  return (
                     <HStack gap={1} vAlign="start">
-                      <Text hasTabularNumbers>{f.id!.value ?? L.없음}</Text>
+                      <Text hasTabularNumbers>{f.id!.value}</Text>
                       <Go f={f} signal={signal} />
                     </HStack>
-                  ) : (
-                    <Text color="secondary">{L.없음}</Text>
                   )
                 },
               })),
@@ -152,8 +154,7 @@ function Facts({ facts, signal }: { facts: Fact[]; signal?: Signal }) {
                 header: L.일치,
                 width: proportional(1, { minWidth: 64 }),
                 renderCell: (r) => {
-                  const s = same(r)
-                  return s ? <Done word={L.같음} /> : <Text color="secondary">{s === null ? L.없음 : L.다름}</Text>
+                  return same(r) ? <Done word={L.같음} /> : <Text color="secondary">{L.다름}</Text>
                 },
               },
             ]}

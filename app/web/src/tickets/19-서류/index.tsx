@@ -186,6 +186,8 @@ export function Tidy() {
   const d = useDoc()
   const all = useDocs()
   if (!d) return all.data ? <Empty /> : <Pending of={all} />
+  // 임대차 항목을 하나도 찾지 못한 서류(산정 내역서 등)는 서버가 정리를 비워 보낸다: 빈 표 대신 한 줄
+  if (d.tidy && !d.tidy.length) return <Text color="secondary">{`${L.항목} ${L.없음}`}</Text>
   return (
     <>
       {d.tidy && (
