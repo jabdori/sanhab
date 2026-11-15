@@ -31,12 +31,3 @@ body {
   word-break: keep-all;
   overflow-wrap: anywhere;
 }
-
-/* 예외 2 — 근거 연결(17 보고의 사실 ↗)이 가리킨 줄을 잠깐 노랗게(tickets/11 · 19의 className 'mark'). astryx에 줄 강조 상태가 없다.
-   남은 앱 클래스는 이것 하나다: 그 화면이 className을 걷어 내면(예: el.animate로) 이 규칙과 함께 지운다 */
-@keyframes mark {
-  from { background: var(--color-background-yellow); }
-}
-.mark {
-  animation: mark 1.2s ease-out;
-}

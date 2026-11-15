@@ -100,6 +100,9 @@
 | 대화 | ai-chat | AI 표지는 Avatar가 아니라 반짝이 아이콘(헤더 · AI 보고 카드와 같은 것), 답의 첫 줄(도구 줄) 가운데 | 글자 "A" 원형이 이상하다는 유저 지적(2026-11-15 합의) |
 | 대화 | ai-chat | 말풍선 안에 화면 부품(A2UI v0.8 표면): 앱의 부품 목록 Column → VStack · Text → Text · Facts → MetadataList · Table → Table(ui/Compare 꼴) · Records → List(누르면 그 기록). 단추 · 조치 없음 | AI가 값이 여럿인 답을 표 · 목록으로 보이게(2026-11-15 유저 결정, service-plan U17). 실행 단추는 조치 카드에만 |
 | 대화 | ai-chat | 서류 붙이기 단추 뒤에 숨은 `<input type="file">`(doctor 지적 1건) | astryx에 단추로 여는 파일 고르기가 없다(FileInput은 늘 보이는 칸). 붙여넣기 · 끌어놓기는 ChatComposerInput의 onFiles |
+| 서류(소명) | detail-page | 원본 보기는 `<object>`(PDF) · `<img>`와 그 위의 위치 상자 `<svg>`(doctor 지적 6건, `doctor.mjs`의 KEPT) | 그림 위에 상자를 겹치는 부품이 없다(Overlay는 내용을 flex로 놓고, Thumbnail은 정사각으로 자른다) |
+| 경위 · 이력 | detail-page TimelineSection | Avatar 대신 사람 · 기록 아이콘, 눌러 이동하는 칸은 ClickableCard | 사람은 아이콘으로(빈 자리 절 합의), 경위는 그 대상으로 이동한다 |
+| 관계 · 경위 그림 | 없음 | `<svg>`(doctor 지적 각 1건, KEPT) | 노드 · 선 그림 부품이 없다(앱 부품 표) |
 | 빈 대화 | ai-chat-landing | 제목 display-3, 카드 Grid 최소 폭 200, 바깥은 Section | 대화 칸 폭(360) |
 | 작업 목록 | table-grouped | 묶음 기준 고르기(View Options) · 줄 끝 `···` 메뉴 없음 · 숫자 묶음 없음 | 묶음 기준은 종류 하나(2026-11-14 합의) |
 | 대리점 목록 | table-page | 머리의 내려받기(Download PDF) · 범위 고르기(SegmentedControl) · 합계 줄(TotalRow) · 정렬 · 칸별 걸러내기 없음. 사실 묶음은 대리점 수 · 걸러진 수 | 대리점 목록에는 금액 · 범위가 없다 |
@@ -110,7 +113,7 @@
 | 틀 | shell-side-nav / AppShellSideNavOnly(+ table-grouped의 폭 조절 칸) | 메뉴(SideNavHeading + SideNavSection 둘: 메뉴 · 바닥) · 흰 본문 · 오른쪽 대화 칸 | `App.tsx` |
 | 접속 | login-card | 가운데 카드 하나 | `Enter.tsx` |
 | 작업 | **table-grouped**(+ dashboard-alert-rail의 숫자 타일) | 머리(제목 · 분할 단추) → 숫자 타일 → 검색 → 묶음 머리(접힘 · 건수)가 있는 Table, 줄은 StatusDot · 이름 · 열 · 상태 | `pages/Work.tsx` |
-| 대리점 · 규정 목록 | table-page / table-grouped | 흰 면의 Table, 줄 전체가 눌림 | `pages/Dealers.tsx`, `pages/Rules.tsx` |
+| 대리점 · 규정 목록 | table-page | 흰 면의 Table, 줄 전체가 눌림(규정 목록도 대리점 목록과 같은 꼴) | `pages/Dealers.tsx`, `pages/Rules.tsx` |
 | 기록(심사 · 정황 · 소명 · 지급 · 추인 · 대리점 · 규정) | **detail-page**(+ work-item-detail 머리) | 머리의 돌아가기 줄 · 제목 · 메타 줄(상태 Badge · 표시 · 사람) · 조치 · 탭 줄, 본문은 Section(`ui/Region`)이 gap 4로 쌓이고, 오른쪽 칸은 요약 | `ui/Record.tsx`, `ui/Region.tsx`, `pages/Review.tsx` 외 |
 | 오른쪽 | ai-chat · ai-chat-landing | 대화 칸 하나(입력창 상시). AI 보고는 기록 화면 안, 다룬 사실 영역 바로 아래 카드(D63) | `tickets/24-대화`, `ui/AiCard.tsx` |
 | 시연 서랍 | DrawerScrim 블록(hasScrim={false}) | 뒤를 막지 않음 | `Demo.tsx` |

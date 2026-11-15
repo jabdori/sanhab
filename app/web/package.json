@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run lint && tsc --noEmit && vite build",
+    "build": "npm run lint && npm run doctor && tsc --noEmit && vite build",
     "lint": "node lint.mjs",
     "doctor": "node doctor.mjs"
   },
