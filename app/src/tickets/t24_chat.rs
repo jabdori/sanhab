@@ -3,7 +3,7 @@
 //! 답은 AI SDK의 UI 메시지 스트림(SSE)으로 조각조각 보낸다(`docs/spike/ai-stream.rs`: 내장 변환기를 쓰지 않고 직접 낸다). 웹소켓은 쓰지 않는다.
 //! AI는 17의 읽기 전용 계정(`ai_session`)의 `read_db`만 쓴다. 답 아래의 조회한 기록 목록은 AI가 쓰지 않고, 도구가 돌려준 결과에서 코드가 찾아 붙인다(`data-reads`).
 //! 자동 검사는 OpenAI를 부르지 않는다: 모델 이름이 `fixture`로 시작하면 고정한 답을 쓰고(`fixture-down` 응답 없음, `fixture-slow` 느리게 흐름), 키는 인자로 받는다.
-use super::t25_card::{card_tool, make as make_card};
+use super::t25_card::{card_tool, draw, make as make_card, show_tool};
 use super::t26_chatdoc::{Up, distinct, doc_tool, files_of, hand};
 use super::t17_report::{USE, ai_session, ask, basis, model, read_db, read_tool, settle, verify};
 use crate::check::Check;
@@ -38,7 +38,7 @@ const WAIT: u64 = 120;
 /// 한 답에서 도구를 부르는 단계의 수
 const STEPS: usize = 10;
 /// 조회한 기록으로 알려 줄 수 있는 테이블(도구 결과에서 `테이블:id` 꼴을 찾는다)과 그 수
-const TABLES: [&str; 22] = [
+pub(super) const TABLES: [&str; 22] = [
     "dealer", "person", "address", "account", "payout", "deposit", "review", "signal", "ruling", "recon", "clarify",
     "doc", "verdict", "report", "rule", "clause", "task", "decision", "ratify", "dispatch", "adoption", "act",
 ];
@@ -73,6 +73,11 @@ DB는 read_db 도구로만 읽는다(SurrealQL의 SELECT와 RETURN만. 쓰기는
 - 합산, 승인권자, 관련자 여부, 재검토 여부는 DB에 계산되어 있는 값을 읽어 전한다. 직접 계산하거나 고치지 않는다.
 - 조치를 실행하지 못하고 기록을 만들거나 바꾸지 못한다. 사용자가 승인, 보류, 반려, 추인, 거부, 요청, 기각, 인정, 불인정, 보완 같은 조치를 하라고 지시하면 card 도구로 조치 카드를 낸다(대상의 id는 먼저 읽어 확인한다). 카드는 내용일 뿐이고 실행은 사람이 카드에서 누른다. 사유의 분류와 메모는 사용자가 말한 것만 옮겨 적고 말하지 않았으면 비운다(지어내지 않는다). 사용자가 지시하지 않았으면 카드를 내지 않는다. 도구가 카드를 내지 않는다고 하면 그 까닭(권한이 없다 · 지금 상태에서는 할 수 없다 · 분류가 맞지 않는다)을 짧게 알린다.
 - 사용자가 대화에 파일을 올리고 소명의 서류로 넘기라고 하면 doc 도구로 넘긴다(문맥에 사용자가 올린 파일이 있을 때만). 어느 소명인지 사용자가 말하지 않았고 열어 둔 대상도 소명이 아니면 clarify를 비워 불러 받을 수 있는 소명을 얻고 사용자에게 묻는다(추측하지 않는다). 넘기지 못했다고 하면 그 까닭을 짧게 알린다. 서류의 내용을 읽거나 판단하지 않는다.
+
+## 화면 부품(show)
+- 답에 값이 셋 이상이거나, 여러 기록을 들거나, 둘 이상을 비교할 때만 글과 함께 show로 부품을 하나 그린다(한 기록의 값 → Facts, 여러 기록 · 비교 → Table, 근거가 된 기록 → Records). 인사 · 낱말 · 값 한두 개의 물음에는 쓰지 않는다.
+- 부품에는 이 답에서 read_db로 읽은 값만 그대로 넣는다. 읽지 않은 값과 계산한 값은 넣지 않는다. 사용자가 말한 가정의 값(예: 한도 150만 원)은 넣을 수 있고, 열이나 칸 이름에 가정이라고 밝힌다. 부품은 보기만 한다 — 조치는 card로만 낸다.
+- 부품을 그렸으면 글은 첫 문장의 답과 부품에 없는 것만 짧게 쓴다.
 
 ## 답의 꼴
 - 첫 문장에 묻는 말의 답을 바로 쓴다. 그 뒤에 근거가 된 값을 줄마다 `-`로 짧게 덧붙인다(필요할 때만).
@@ -166,31 +171,39 @@ fn talk(model: String, key: Option<String>, ai: Db, me: Db, system: String, recs
         let seen = Arc::new(Mutex::new(BTreeSet::new()));
         // 조치 카드(25): AI가 도구로 낸 카드의 내용. 실행은 하지 않는다
         let cards = Arc::new(Mutex::new(Vec::<J>::new()));
+        // 화면 부품(A2UI, 25): AI가 show 도구로 낸 표면. 검사를 거친 것만
+        let surfaces = Arc::new(Mutex::new(Vec::<J>::new()));
         // 서류(26): 넘긴 파일. 넘기는 일은 도구가 그 사람의 세션으로 19와 같은 길에서 한다
         let (files, handed) = (Arc::new(files), Arc::new(Mutex::new(Vec::<J>::new())));
         let mut n = 0;
         let mut open = false;
         let mut word: Option<&str> = None;
-        // 시작한 도구 호출(끝나지 않고 멈추면 실패로 닫는다)
-        let mut running: Vec<(String, &str)> = vec![];
+        // 시작한 도구 호출과 그 시각(끝나지 않고 멈추면 실패로 닫는다. 끝나면 걸린 시간을 보인다)
+        let mut running: Vec<(String, &str, tokio::time::Instant)> = vec![];
         if model.starts_with("fixture") {
             let say = match match fixture_card(&model, &me, &talk, &cards).await { None => fixture_doc(&model, &me, &talk, &files, &handed).await, c => c } { Some(t) => Some((t, 5)), None => canned(&model, &ai, &system, &recs, &talk, &seen).await };
             match say {
                 None => word = Some("대기"),
-                Some((text, pause)) => for piece in text.split_inclusive(' ') {
+                Some((text, pause)) => {
+                if let Some(raw) = talk.last().and_then(|(_, t)| t.strip_prefix("표시|")).filter(|_| model == "fixture") {
+                    let known = seen.lock().unwrap().clone();
+                    match draw(&ai, raw, &known).await { Ok(s) => surfaces.lock().unwrap().push(s), Err(w) => { n += 1; yield json!({ "type": "text-start", "id": format!("t{n}") }); yield json!({ "type": "text-delta", "id": format!("t{n}"), "delta": format!("그리지 않는다: {w}. ") }); yield json!({ "type": "text-end", "id": format!("t{n}") }); } }
+                }
+                for piece in text.split_inclusive(' ') {
                     if !open { n += 1; open = true; yield json!({ "type": "text-start", "id": format!("t{n}") }); }
                     yield json!({ "type": "text-delta", "id": format!("t{n}"), "delta": piece });
                     tokio::time::sleep(Duration::from_millis(pause)).await;
-                },
+                }
+                }
             }
         } else if key.as_deref().is_none_or(str::is_empty) {
             word = Some("대기");
         } else {
-            let tool = read_tool(&ai, { let seen = seen.clone(); Arc::new(move |out: &str| cited(out, &mut seen.lock().unwrap())) }).and_then(|t| card_tool(&me, cards.clone()).map(|c| (t, c))).and_then(|(t, c)| doc_tool(&me, files.clone(), handed.clone()).map(|d| (t, c, d)));
+            let tool = read_tool(&ai, { let seen = seen.clone(); Arc::new(move |out: &str| cited(out, &mut seen.lock().unwrap())) }).and_then(|t| card_tool(&me, cards.clone()).map(|c| (t, c))).and_then(|(t, c)| doc_tool(&me, files.clone(), handed.clone()).map(|d| (t, c, d))).and_then(|(t, c, d)| show_tool(&ai, seen.clone(), surfaces.clone()).map(|s| (t, c, d, s)));
             let started = match tool {
-                Ok((tool, card, doc)) => LanguageModelRequest::builder()
+                Ok((tool, card, doc, show)) => LanguageModelRequest::builder()
                     .model(OpenAI::<aisdk::core::DynamicModel>::model_name(&model)).messages(messages(system, &talk))
-                    .with_tool(tool).with_tool(card).with_tool(doc).stop_when(step_count_is(STEPS)).build().stream_text().await.ok(),
+                    .with_tool(tool).with_tool(card).with_tool(doc).with_tool(show).stop_when(step_count_is(STEPS)).build().stream_text().await.ok(),
                 Err(_) => None,
             };
             match started {
@@ -208,18 +221,19 @@ fn talk(model: String, key: Option<String>, ai: Db, me: Db, system: String, recs
                             }
                             LanguageModelStreamChunkType::TextEnd => if open { open = false; yield json!({ "type": "text-end", "id": format!("t{n}") }); },
                             LanguageModelStreamChunkType::ToolCallAvailable(info) => {
-                                let what = match info.tool.name.as_str() { "read_db" => "조회", "card" => "카드", "doc" => "서류", _ => "" };
-                                if !what.is_empty() { running.push((info.tool.id.clone(), what)); yield json!({ "type": "data-step", "id": info.tool.id, "data": { "tool": what, "state": "run", "names": [], "go": [] } }); }
+                                let what = match info.tool.name.as_str() { "read_db" => "조회", "card" => "카드", "doc" => "서류", "show" => "표시", _ => "" };
+                                if !what.is_empty() { running.push((info.tool.id.clone(), what, tokio::time::Instant::now())); yield json!({ "type": "data-step", "id": info.tool.id, "data": { "tool": what, "state": "run", "names": [], "go": [] } }); }
                             }
                             LanguageModelStreamChunkType::ToolCallEnd(r) => {
-                                let what = match r.tool.name.as_str() { "read_db" => "조회", "card" => "카드", "doc" => "서류", _ => "" };
+                                let what = match r.tool.name.as_str() { "read_db" => "조회", "card" => "카드", "doc" => "서류", "show" => "표시", _ => "" };
                                 if !what.is_empty() {
-                                    running.retain(|(id, _)| id != &r.tool.id);
+                                    let ms = running.iter().find(|(id, ..)| id == &r.tool.id).map(|(.., t0)| t0.elapsed().as_millis() as u64);
+                                    running.retain(|(id, ..)| id != &r.tool.id);
                                     // aisdk는 도구의 실패를 `Error: …` 글로 감싸 돌려준다
                                     let out = r.output.as_ref().map(|v| v.as_str().map_or_else(|| v.to_string(), String::from)).unwrap_or_default();
                                     let failed = r.output.is_err() || out.starts_with("Error:");
                                     let (names, go) = if what == "조회" { let mut one = BTreeSet::new(); cited(&out, &mut one); reads_names(&ai, &one.into_iter().take(LISTED).collect::<Vec<_>>()).await } else { (vec![], vec![]) };
-                                    yield json!({ "type": "data-step", "id": r.tool.id, "data": { "tool": what, "state": if failed { "fail" } else { "done" }, "names": names, "go": go } });
+                                    yield json!({ "type": "data-step", "id": r.tool.id, "data": { "tool": what, "state": if failed { "fail" } else { "done" }, "names": names, "go": go, "ms": ms } });
                                 }
                             }
                             LanguageModelStreamChunkType::Failed(_) => { word = Some("대기"); break }
@@ -231,14 +245,16 @@ fn talk(model: String, key: Option<String>, ai: Db, me: Db, system: String, recs
         }
         if open { yield json!({ "type": "text-end", "id": format!("t{n}") }); }
         // 시간 초과 · 모델 실패로 끝났으면 진행 중인 도구 줄을 실패로 닫는다(저장된 대화에 `진행`이 남지 않게)
-        for (id, what) in std::mem::take(&mut running) { yield json!({ "type": "data-step", "id": id, "data": { "tool": what, "state": "fail", "names": [], "go": [] } }); }
+        for (id, what, _) in std::mem::take(&mut running) { yield json!({ "type": "data-step", "id": id, "data": { "tool": what, "state": "fail", "names": [], "go": [] } }); }
         if model.starts_with("fixture") {
             let ids: Vec<String> = seen.lock().unwrap().iter().take(LISTED).cloned().collect();
             if !ids.is_empty() { let (names, go) = reads_names(&ai, &ids).await; yield json!({ "type": "data-step", "id": "s1", "data": { "tool": "조회", "state": "done", "names": names, "go": go } }); }
         }
         // 글 없이 끝났으면(단계를 다 쓰고도 답하지 못함) 응답이 없는 것과 같다
-        if n == 0 && word.is_none() && cards.lock().unwrap().is_empty() && handed.lock().unwrap().is_empty() { word = Some("대기"); }
+        if n == 0 && word.is_none() && cards.lock().unwrap().is_empty() && handed.lock().unwrap().is_empty() && surfaces.lock().unwrap().is_empty() { word = Some("대기"); }
         if let Some(w) = word { yield json!({ "type": "error", "errorText": w }); }
+        let shown: Vec<J> = surfaces.lock().unwrap().clone();
+        for (i, s) in shown.into_iter().enumerate() { yield json!({ "type": "data-a2ui", "id": format!("a{i}"), "data": { "messages": s } }); }
         let drawn: Vec<J> = cards.lock().unwrap().clone();
         for card in drawn { yield json!({ "type": "data-card", "data": card }); }
         let given: Vec<J> = handed.lock().unwrap().clone();
@@ -246,7 +262,9 @@ fn talk(model: String, key: Option<String>, ai: Db, me: Db, system: String, recs
         let ids: Vec<String> = seen.lock().unwrap().iter().take(LISTED).cloned().collect();
         let (listed, go) = reads_names(&ai, &ids).await;
         if !listed.is_empty() { yield json!({ "type": "data-reads", "data": { "names": listed, "go": go } }); }
-        yield json!({ "type": "finish" });
+        // 답을 마친 시각(말의 시각 표시)과 실패의 낱말은 말의 메타데이터로 — 저장된 대화에도 남는다
+        let at = q1(&ai, "RETURN <string> time::now();", json!({})).await.unwrap_or_default();
+        yield json!({ "type": "finish", "messageMetadata": { "at": at, "fail": word } });
     }
 }
 
@@ -422,16 +440,19 @@ async fn names_of(db: &Db, recs: &[Rec]) -> Result<Vec<Option<String>>> {
 /// 조회한 기록(`테이블:id`)의 이름들. 이름이 없는 기록은 빼고 같은 이름은 한 번만
 /// 조회한 기록의 이름과, 화면에서 그 기록을 여는 길(`go`: 이름과 같은 순서. `{ kind: 화면의 종류, id }`, 열 화면이 없는 기록(사람·주소·규칙 …)은 null)
 async fn reads_names(db: &Db, ids: &[String]) -> (Vec<String>, Vec<J>) {
-    let v = q1(db, &format!("RETURN $ids.map(|$s| type::record($s)).map(|$r| {{ name: {NAME}, tb: record::tb($r), id: <string> record::id($r) }});"), json!({ "ids": ids })).await.unwrap_or_default();
-    let view = |tb: &str| match tb { "review" => Some("심사"), "ratify" => Some("추인"), "payout" => Some("지급"), "dealer" => Some("대리점"), "signal" => Some("정황"), "clarify" => Some("소명"), _ => None };
     let (mut out, mut go): (Vec<String>, Vec<J>) = (vec![], vec![]);
-    for r in v.as_array().into_iter().flatten() {
-        let Some(n) = r["name"].as_str() else { continue };
-        if n.is_empty() || out.iter().any(|o| o == n) { continue; }
-        out.push(n.into());
-        go.push(view(r["tb"].as_str().unwrap_or_default()).map_or(J::Null, |k| json!({ "kind": k, "id": r["id"] })));
+    for (n, g) in named(db, ids).await.into_iter().flatten() {
+        if n.is_empty() || out.contains(&n) { continue; }
+        out.push(n);
+        go.push(g);
     }
     (out, go)
+}
+/// 기록마다(같은 순서) 이름과 여는 길. 없는 기록은 None, 이름이 없으면 빈 글
+pub(super) async fn named(db: &Db, ids: &[String]) -> Vec<Option<(String, J)>> {
+    let v = q1(db, &format!("RETURN $ids.map(|$s| type::record($s)).map(|$r| {{ name: {NAME}, tb: record::tb($r), id: <string> record::id($r) }});"), json!({ "ids": ids })).await.unwrap_or_default();
+    let view = |tb: &str| match tb { "review" => Some("심사"), "ratify" => Some("추인"), "payout" => Some("지급"), "dealer" => Some("대리점"), "signal" => Some("정황"), "clarify" => Some("소명"), _ => None };
+    v.as_array().into_iter().flatten().map(|r| Some((r["name"].as_str()?.to_string(), view(r["tb"].as_str().unwrap_or_default()).map_or(J::Null, |k| json!({ "kind": k, "id": r["id"] }))))).collect()
 }
 
 /// 답을 조각으로 흘린다. 프록시가 모아 두지 않게 하는 머리글을 둔다(AXHub는 웹소켓이 없어 이 응답 본문이 길이다)
@@ -573,6 +594,23 @@ pub async fn check(c: &Check) -> Result<()> {
         let (ev, _) = events(&body);
         ensure!(said(&ev).contains("근거 ") && ev.iter().any(|e| e["type"] == "data-reads" && e["data"]["names"] == json!(["계좌 · 성일상사24"])), "열어 둔 정황 {body}");
 
+        // 화면 부품(A2UI v0.8): 목록 안의 부품만, 허락한 칸만 남고(action 같은 칸은 버린다), 기록 목록은 이 답에서 읽은 기록만 — 이름과 여는 길은 서버가 붙인다. 답을 마친 시각은 말의 메타데이터
+        let ui = |parts: &str| format!(r#"표시|[{{"surfaceUpdate":{{"surfaceId":"s1","components":[{{"id":"root","component":{{"Column":{{"children":{{"explicitList":["f","r"]}}}}}}}},{parts}]}}}},{{"beginRendering":{{"surfaceId":"s1","root":"root"}}}}]"#);
+        let facts = r#"{"id":"f","component":{"Facts":{"title":"합산","items":[{"label":"합산","value":3888097}],"action":{"name":"승인"}}}}"#;
+        let (_, _, body) = stream(audit, json!({ "messages": [say(&ui(&format!(r#"{facts},{{"id":"r","component":{{"Records":{{"items":[{{"record":"dealer:`D-011`"}}]}}}}}}"#)))], "target": { "kind": "대리점", "id": "D-011" } })).await?;
+        let (ev, _) = events(&body);
+        let a = ev.iter().find(|e| e["type"] == "data-a2ui").map(|e| e["data"]["messages"].clone()).unwrap_or_default();
+        let parts = &a[0]["surfaceUpdate"]["components"];
+        let item = &parts[2]["component"]["Records"]["items"][0];
+        ensure!(a[1]["beginRendering"]["root"] == "root" && parts.as_array().is_some_and(|p| p.len() == 3) && parts[1]["component"]["Facts"].get("action").is_none() && parts.as_array().is_some_and(|p| p.iter().all(|c| c["component"].as_object().is_some_and(|o| o.len() == 1))) && parts[1]["component"]["Facts"]["items"][0]["value"] == "3888097"
+            && item["name"] == "금강상사11" && item["go"] == json!({ "kind": "대리점", "id": "D-011" }), "A2UI 표면 {body}");
+        ensure!(ev.last().is_some_and(|e| e["type"] == "finish" && e["messageMetadata"]["at"].as_str().is_some_and(|t| t.len() >= 19) && e["messageMetadata"]["fail"].is_null()), "답을 마친 시각 {body}");
+        for bad in [r#"{"id":"f","component":{"Button":{"label":"승인","action":{"name":"승인"}}}},{"id":"r","component":{"Text":{"text":{"literalString":"x"}}}}"#.to_string(), format!(r#"{facts},{{"id":"r","component":{{"Records":{{"items":[{{"record":"dealer:`D-024`"}}]}}}}}}"#)] {
+            let (_, _, body) = stream(audit, json!({ "messages": [say(&ui(&bad))], "target": { "kind": "대리점", "id": "D-011" } })).await?;
+            let (ev, _) = events(&body);
+            ensure!(!ev.iter().any(|e| e["type"] == "data-a2ui") && said(&ev).starts_with("그리지 않는다: "), "목록 밖 부품 · 읽지 않은 기록 {body}");
+        }
+
         // 문맥은 끌 수 있고, 붙인 기록이 따라온다. 판정을 묻는 말에는 사실과 규정을 답하고 판정 의견을 내지 않는다
         let (_, _, body) = stream(support, json!({ "messages": [say("이 지급을 승인해도 되나?")], "target": null, "attach": [{ "kind": "정황", "id": "계좌-D-024" }, { "kind": "지급", "id": "RB-00001" }] })).await?;
         let text = said(&events(&body).0);
@@ -667,6 +705,20 @@ fn urlenc(s: &str) -> String { s.bytes().map(|b| if b.is_ascii_alphanumeric() { 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn checks_a2ui() {
+        use super::super::t25_card::surface;
+        let seen: BTreeSet<String> = ["review:⟨2026-06-D-001⟩".to_string()].into();
+        let one = |c: &str| format!(r#"[{{"surfaceUpdate":{{"components":[{c}]}}}},{{"beginRendering":{{"root":"root"}}}}]"#);
+        let ok = surface(&one(r#"{"id":"root","component":{"Records":{"items":[{"record":"review:`2026-06-D-001`"}]}}}"#), &seen);
+        assert!(ok.is_ok_and(|(s, refs)| refs == ["review:`2026-06-D-001`"] && s[1]["beginRendering"]["catalogId"] == "sanhab"));
+        assert!(surface(&one(r#"{"id":"root","component":{"Image":{"url":"x"}}}"#), &seen).is_err());
+        assert!(surface(&one(r#"{"id":"root","component":{"Column":{"children":{"explicitList":["root"]}}}}"#), &seen).is_err());
+        assert!(surface(&one(r#"{"id":"root","component":{"Table":{"columns":["a","b"],"rows":[["1"]]}}}"#), &seen).is_err());
+        assert!(surface(&one(r#"{"id":"root","component":{"Records":{"items":[{"record":"dealer:`D-001`"}]}}}"#), &seen).is_err());
+        assert!(surface("[]", &seen).is_err() && surface("x", &seen).is_err());
+    }
 
     #[test]
     fn rules_are_in_the_prompt() {

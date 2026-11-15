@@ -2,7 +2,8 @@
 // 24 대화: 모든 화면 오른쪽 끝의 대화 칸(App의 end, 폭 조절). 사람이 묻고 AI가 DB를 읽어 답한다.
 // 대화는 역할마다 하나의 어시스턴트다(D67): 화면을 옮겨도 이어지고, 새 대화는 사람이 시작한다. 지금 보는 화면은 입력창의 문맥 카드로 늘 따라오고,
 // 사람의 말마다 그때의 화면이 남는다. 대화는 그래프의 노드다(D61): 답이 끝날 때마다 저장하고 말마다 다룬 기록을 선으로 잇는다.
-// AI의 도구 호출(조회 · 카드 · 서류)은 부르는 순간 한 줄씩 보인다(서버의 data-step). 조회문은 보이지 않고 읽은 기록의 이름만 보인다.
+// AI의 도구 호출(조회 · 카드 · 서류 · 표시)은 부르는 순간 한 줄씩 보인다(서버의 data-step, 끝나면 걸린 시간). 조회문은 보이지 않고 읽은 기록의 이름만 보인다.
+// AI는 답에 화면 부품(A2UI, data-a2ui)을 그릴 수 있다 — 앱의 부품 목록 안의 것만, 보기만(25-카드의 Surface). 말마다 시각(보낸 순간 · 답을 마친 순간)이 붙고 실패한 답은 표시된다.
 // 받는 부품은 AI SDK의 useChat(UI 메시지 스트림 — docs/spike). 가운데(사실)에는 AI의 글이 없고 이 칸에만 있다.
 // 지금 열어 둔 대상이 문맥으로 따라오고(눌러서 끈다) 붙임으로 다른 기록을 더한다. 답 아래의 조회는 서버가 도구 결과에서 찾아 붙인 기록 목록이다.
 // 대화는 역할마다 따로다. 누른 뒤 요청이 끝날 때까지 전송·보고는 다시 눌리지 않는다. AI가 멈춰 있어도 다른 화면은 그대로 된다.
@@ -13,7 +14,8 @@ import { List, ListItem } from '@astryxdesign/core/List'
 import { Badge } from '@astryxdesign/core/Badge'
 import { EmptyState } from '@astryxdesign/core/EmptyState'
 import { HStack, Layout, LayoutContent, LayoutHeader, StackItem, VStack } from '@astryxdesign/core/Layout'
-import { ChatComposer, ChatComposerDrawer, ChatComposerInput, ChatLayout, ChatMessage, ChatMessageBubble, ChatMessageList, ChatSystemMessage, ChatTokenizedText, ChatToolCalls } from '@astryxdesign/core/Chat'
+import { ChatComposer, ChatComposerDrawer, ChatComposerInput, ChatLayout, ChatMessage, ChatMessageBubble, ChatMessageList, ChatMessageMetadata, ChatSystemMessage, ChatTokenizedText, ChatToolCalls } from '@astryxdesign/core/Chat'
+import { Timestamp } from '@astryxdesign/core/Timestamp'
 import { Center } from '@astryxdesign/core/Center'
 import { ClickableCard } from '@astryxdesign/core/ClickableCard'
 import { Grid } from '@astryxdesign/core/Grid'
@@ -37,14 +39,18 @@ import { ASK, L } from '../../labels'
 import { State } from '../../ui/Mark'
 import { api, changedAtom, exampleAtom, menuAtom, roleAtom, rolesAtom, store, targetAtom, useData, type Target } from '../../state'
 import { fail, nb } from '../../ui/status'
-import { Card as ActionCard, type CardData } from '../25-카드'
+import { Card as ActionCard, Surface, type A2ui, type CardData } from '../25-카드'
 
 /** 답에 붙는 조회한 기록(서버가 `data-reads`로 보낸다). go는 이름과 같은 순서의 여는 길(열 화면이 없는 기록은 null) */
 /** 말에 붙은 문맥(보낸 말 위에 그대로 남는다): 종류 · id · 이름 */
 type Ctx = { kind: string; id: string; name: string }
-/** 도구 호출 한 줄(서버의 data-step, 같은 id로 진행 → 완료): 도구의 낱말, 상태, 읽은 기록의 이름과 여는 길 */
-type Step = { tool: string; state: 'run' | 'done' | 'fail'; names: string[]; go: (Target | null)[] }
-type Talk = UIMessage<{ ctx?: Ctx[] }, { reads: { names: string[]; go?: (Target | null)[] }; card: CardData; doc: { id: string; name: string }; step: Step }>
+/** 도구 호출 한 줄(서버의 data-step, 같은 id로 진행 → 완료): 도구의 낱말, 상태, 읽은 기록의 이름과 여는 길, 걸린 시간(밀리초) */
+type Step = { tool: string; state: 'run' | 'done' | 'fail'; names: string[]; go: (Target | null)[]; ms?: number | null }
+/** 말의 메타데이터: 문맥(보낸 말), 시각(보낸 순간 · 서버가 답을 마친 순간, ISO), 실패의 낱말(AI 답). 옛 말에는 시각이 없다 */
+type Meta = { ctx?: Ctx[]; at?: string; fail?: string | null }
+type Talk = UIMessage<Meta, { reads: { names: string[]; go?: (Target | null)[] }; card: CardData; doc: { id: string; name: string }; step: Step; a2ui: { messages: A2ui[] } }>
+/** 도구 줄의 걸린 시간(템플릿 ai-chat의 duration 꼴: 45ms · 3.2s) */
+const took = (ms?: number | null) => (ms == null ? undefined : ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`)
 
 /** 칩에 보이는 이름. 아직 받지 못했거나 모르면 id */
 const key = (t: Target) => `${t.kind}/${t.id}`
@@ -174,11 +180,19 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
     // 이 말을 할 때 보던 화면(목록이면 메뉴 이름)과 붙인 기록 — 말 위에 남고 서버가 AI에게도 전한다
     const used: Ctx[] = [...(view ? [{ kind: view, id: '', name: '' }] : []), ...[...(now ? [now] : []), ...pinned].map((t) => ({ ...t, name: named[key(t)] ?? t.id }))]
     const files = file ? (() => { const d = new DataTransfer(); d.items.add(file); return d.files })() : undefined
-    sendMessage({ text: value.trim(), files, metadata: { ctx: used } })
+    sendMessage({ text: value.trim(), files, metadata: { ctx: used, at: new Date().toISOString() } })
     setText('')
     setFile(null)
     setTooBig(false)
     if (pick.current) pick.current.value = ''
+  }
+  // ai-chat-landing의 applySuggestion: 제안을 입력창에 넣는다(보내지 않는다 — 사람이 고쳐 보낸다)
+  const applySuggestion = (prompt: string) => {
+    const el = input.current
+    if (!el) return
+    el.focus()
+    if (document.activeElement) window.getSelection()?.selectAllChildren(document.activeElement)
+    el.insertText(prompt)
   }
   // 보고로 남기기의 대상은 정황이다(열어 둔 정황, 없으면 붙인 정황)
   const signal = [now, ...pinned].some((t) => t?.kind === L.정황)
@@ -284,7 +298,7 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
               drawer={
                 // 문맥은 입력창 안의 카드다: 지금 연 기록(자동, 빼면 이 대화에서 빠진다) · `@`로 붙인 기록 · 올릴 서류. 아무것도 없으면 칸을 두지 않는다
                 (now || view || pinned.length > 0 || file) && (
-                  <ChatComposerDrawer label={L.문맥}>
+                  <ChatComposerDrawer label={L.문맥} count={(now || view ? 1 : 0) + pinned.length + (file ? 1 : 0)}>
                     <VStack gap={2}>
                     {/* 지금 보는 화면: 종류 아이콘 · 이름 · 종류. 빼면 이번 말에서 빠지고, 화면을 옮기면 다시 따라온다 */}
                     {(now || view) && (
@@ -327,7 +341,7 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
               <Section variant="transparent" padding={4}>
                 <Grid columns={{ minWidth: 200 }} gap={3}>
                   {Object.entries(ASK).map(([name, prompt]) => (
-                    <ClickableCard key={name} label={name} padding={3} variant="muted" isDisabled={busy} onClick={() => send(prompt)}>
+                    <ClickableCard key={name} label={name} padding={3} variant="muted" isDisabled={busy} onClick={() => applySuggestion(prompt)}>
                       <VStack gap={0.5}>
                         <Heading level={4}>{name}</Heading>
                         <Text type="supporting" color="secondary">{prompt}</Text>
@@ -346,9 +360,19 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
             {messages.map((m) => {
               const steps = m.parts.flatMap((p) => (p.type === 'data-step' ? [{ id: p.id ?? '', ...p.data }] : []))
               const cards = m.parts.flatMap((p) => (p.type === 'data-card' ? [p.data] : []))
+              const surfaces = m.parts.flatMap((p) => (p.type === 'data-a2ui' ? [{ id: p.id ?? '', ...p.data }] : []))
               const body = m.parts.map((p) => (p.type === 'text' ? p.text : '')).join('')
               const ai = m.role === 'assistant'
-              const empty = ai && !body && !steps.length && !cards.length
+              const empty = ai && !body && !steps.length && !cards.length && !surfaces.length
+              // 말의 시각과 상태: 템플릿처럼 마지막 말풍선의 metadata. 시각이 없는 옛 말은 두지 않는다
+              const at = m.metadata?.at
+              const meta = at || m.metadata?.fail ? <ChatMessageMetadata timestamp={at ? <Timestamp value={at} format="time" timezoneID="Asia/Seoul" /> : undefined} status={m.metadata?.fail ? fail : undefined} /> : undefined
+              // 말풍선: 글 · 화면 부품 · 조치 카드 순서
+              const bubbles = [
+                ...(body ? [{ key: 'text', wide: false, node: ai ? <Markdown density="compact" isStreaming={busy}>{body}</Markdown> : <ChatTokenizedText>{body}</ChatTokenizedText> }] : []),
+                ...surfaces.map((x) => ({ key: `a2ui/${x.id}`, wide: true, node: <Surface messages={x.messages} /> })),
+                ...cards.map((c) => ({ key: `${c.kind}/${c.id}/${c.action}`, wide: true, node: <ActionCard card={c} /> })),
+              ]
               // 답이 오기 전의 빈 AI 말: 마지막이고 받는 중이면 응답 대기 줄 하나, 아니면 그리지 않는다(아바타가 둘이 되지 않게)
               if (empty && !(busy && m === messages.at(-1))) return null
               if (empty)
@@ -380,6 +404,7 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
                         key: x.id,
                         name: x.tool,
                         status: x.state === 'run' ? ('running' as const) : x.state === 'fail' ? ('error' as const) : ('complete' as const),
+                        duration: x.state === 'done' ? took(x.ms) : undefined,
                         // 이름이 없는 조회(개수 세기 등)는 이름 칸을 두지 않는다
                         target: x.names.length > 2 ? `${x.names.slice(0, 2).join(' · ')} ${L.외} ${x.names.length - 2}` : x.names.length ? x.names.join(' · ') : undefined,
                         resultDetail: x.names.length ? (
@@ -393,16 +418,13 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
                       }))}
                     />
                   )}
-                  {body && (
-                    <ChatMessageBubble variant={ai ? 'ghost' : undefined}>
-                      {ai ? <Markdown density="compact" isStreaming={busy} className="break-keep">{body}</Markdown> : <ChatTokenizedText>{body}</ChatTokenizedText>}
-                    </ChatMessageBubble>
-                  )}
-                  {cards.map((c) => (
-                    <ChatMessageBubble key={`${c.kind}/${c.id}/${c.action}`} variant="ghost" width="100%">
-                      <ActionCard card={c} />
+                  {bubbles.map((b, i) => (
+                    <ChatMessageBubble key={b.key} variant={ai ? 'ghost' : undefined} width={b.wide ? '100%' : undefined} metadata={i === bubbles.length - 1 ? meta : undefined}>
+                      {b.node}
                     </ChatMessageBubble>
                   ))}
+                  {/* 말풍선 없이 끝난 답(도구 줄만 — 실패한 답): 시각과 상태는 말 끝에 */}
+                  {!bubbles.length && meta}
                 </ChatMessage>
               )
             })}

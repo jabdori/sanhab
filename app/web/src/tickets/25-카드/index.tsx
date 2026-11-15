@@ -2,16 +2,19 @@
 // 사유는 사람이 말한 것을 옮겨 적은 것이라 여기서 고칠 수 있고, 사유가 필수인 조치는 채우기 전에는 실행이 눌리지 않는다.
 // 실행은 사람이 누른다: 화면에서 직접 한 조치와 같은 경로를 그 사람의 세션으로 부르므로 이력과 경위에 똑같이 남는다. 누른 뒤 끝날 때까지 다시 눌리지 않는다.
 // 인정은 되돌리기 어려워 20의 조치처럼 제외될 선과 기간을 보이는 확인 창을 거친다.
+// 화면 부품(Surface): AI가 show 도구로 낸 A2UI v0.8 표면을 앱의 부품 목록(catalog) 그대로 astryx로 그린다. 보기만 한다 — 단추와 조치는 위의 카드에만 있다.
 import { Badge } from '@astryxdesign/core/Badge'
 import { Button } from '@astryxdesign/core/Button'
 import { HStack, VStack } from '@astryxdesign/core/Layout'
 import { Card as Box } from '@astryxdesign/core/Card'
+import { List, ListItem } from '@astryxdesign/core/List'
 import { MetadataList, MetadataListItem } from '@astryxdesign/core/MetadataList'
+import { Table, proportional } from '@astryxdesign/core/Table'
 import { Text } from '@astryxdesign/core/Text'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { State } from '../../ui/Mark'
 import { L } from '../../labels'
-import { api, useData } from '../../state'
+import { api, store, targetAtom, useData, type Target } from '../../state'
 import { Confirm } from '../../ui/Confirm'
 import { Reason, ready, sent, type Draft } from '../../ui/Reason'
 import { fail } from '../../ui/status'
@@ -77,7 +80,7 @@ export function Card({ card }: { card: CardData }) {
           <Text type="supporting">{L['조치 카드']}</Text>
           <MetadataList label={{ width: 72 }}>
             <MetadataListItem label={L.대상}>
-              <Text className="wrap-anywhere">
+              <Text>
                 {card.kind} {card.name}
               </Text>
             </MetadataListItem>
@@ -108,3 +111,71 @@ export function Card({ card }: { card: CardData }) {
   )
 }
 
+/** 앱의 A2UI 부품 목록(서버 t25_card.rs의 CATALOG와 같다). 서버가 검사해 허락한 칸만 온다 */
+type Part = {
+  Column?: { children: { explicitList: string[] } }
+  Text?: { text: { literalString: string } }
+  Facts?: { title: string | null; items: { label: string; value: string }[] }
+  Table?: { title: string | null; columns: string[]; rows: string[][] }
+  Records?: { title: string | null; items: { record: string; name: string; go: Target | null }[] }
+}
+/** 서버가 `data-a2ui`로 보내는 A2UI v0.8 메시지(surfaceUpdate · beginRendering) */
+export type A2ui = { surfaceUpdate?: { surfaceId: string; components: { id: string; component: Part }[] }; beginRendering?: { surfaceId: string; root: string } }
+
+/** 부품 위의 이름(조치 카드의 이름 줄과 같은 꼴) */
+const titled = (key: string, title: string | null, body: ReactNode) => (
+  <VStack key={key} gap={2}>
+    {title && <Text type="supporting">{title}</Text>}
+    {body}
+  </VStack>
+)
+
+/** A2UI 표면: Column → VStack · Text → Text · Facts → MetadataList · Table → Table(ui/Compare 꼴: 첫 열 굵게, 수는 고른 폭) · Records → List(누르면 그 기록을 연다) */
+export function Surface({ messages }: { messages: A2ui[] }) {
+  const parts = new Map(messages.flatMap((m) => m.surfaceUpdate?.components ?? []).map((c) => [c.id, c.component]))
+  const draw = (id: string): ReactNode => {
+    const c = parts.get(id)
+    if (c?.Column) return <VStack key={id} gap={3}>{c.Column.children.explicitList.map(draw)}</VStack>
+    if (c?.Text) return <Text key={id}>{c.Text.text.literalString}</Text>
+    if (c?.Facts)
+      return titled(
+        id,
+        c.Facts.title,
+        <MetadataList label={{ width: 72 }}>
+          {c.Facts.items.map((i, n) => (
+            <MetadataListItem key={n} label={i.label}>
+              <Text hasTabularNumbers>{i.value}</Text>
+            </MetadataListItem>
+          ))}
+        </MetadataList>,
+      )
+    if (c?.Table) {
+      const t = c.Table
+      const data = t.rows.map((r, n) => ({ n, ...Object.fromEntries(r.map((v, i) => [`c${i}`, v])) }) as Record<string, string | number>)
+      return titled(
+        id,
+        t.title,
+        <Table<Record<string, string | number>>
+          data={data}
+          idKey="n"
+          density="balanced"
+          columns={t.columns.map((h, i) => ({ key: `c${i}`, header: h, width: proportional(1, { minWidth: 80 }), renderCell: (r) => <Text weight={i === 0 ? 'semibold' : undefined} hasTabularNumbers>{r[`c${i}`]}</Text> }))}
+        />,
+      )
+    }
+    if (c?.Records)
+      return titled(
+        id,
+        c.Records.title,
+        <List hasDividers>
+          {c.Records.items.map((i) => {
+            const go = i.go
+            return <ListItem key={i.record} label={i.name || i.record} description={go?.kind} onClick={go ? () => store.set(targetAtom, go) : undefined} />
+          })}
+        </List>,
+      )
+    return null
+  }
+  const root = messages.find((m) => m.beginRendering)?.beginRendering?.root
+  return root ? draw(root) : null
+}
