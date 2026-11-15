@@ -30,7 +30,7 @@ scrollto(){ wait; log clear ""; A eval "(()=>{const q=$(js "$1");let e;if(q.star
 newchat(){ local nc; nc=$(ref 'button "새 대화"'); [ -n "$nc" ] && A click @$nc >/dev/null; }
 curRole(){ A eval 'JSON.parse(sessionStorage.getItem("role") ?? "null")' 2>/dev/null | tr -d '"'; }   # 지금 역할은 앱이 저장한 값으로(화면의 같은 이름 단추에 속지 않게)
 setrole(){ wait; local cur; cur=$(curRole); [ "$cur" = "$1" ] && return; A mouse move 36 36 --duration 500 --human >/dev/null; A click @$(ref "button \"$cur\"") >/dev/null; sleep 0.6; tap @$(ref 'combobox "역할"') 450; sleep 0.4; tap @$(ref "option \"$1\"") 400; sleep 2.2; newchat; }
-role_quiet(){ local cur; cur=$(curRole); [ "$cur" = "$1" ] && return; A click @$(ref "button \"$cur\"") >/dev/null; sleep .6; A click @$(ref 'combobox "역할"') >/dev/null; sleep .5; A click @$(ref "option \"$1\"") >/dev/null; sleep 3; }
+role_quiet(){ local cur; cur=$(curRole); [ "$cur" = "$1" ] && return; A click @$(ref "button \"$cur\"") >/dev/null; sleep .6; A click @$(ref 'combobox "역할"') >/dev/null; sleep .5; A click @$(ref "option \"$1\"") >/dev/null; sleep 3; newchat; sleep 0.5; }  # 역할을 바꾸면 새 대화(그 역할의 지난 대화가 화면에 남지 않게)
 typeslow(){ wait; log clear ""; A keyboard type "$1" >/dev/null; }
 # 시연 패널 닫기: Escape가 패널에 닿지 않을 때가 있어(초점이 밖에 있으면) 남아 있으면 패널의 닫기를 누른다(남으면 대화 칸을 가린다)
 demo_off(){ A press Escape >/dev/null; sleep .4; local c; c=$(A snapshot -i 2>/dev/null | grep -A3 'dialog "시연"' | grep -F 'button "닫기"' | grep -oE 'ref=e[0-9]+' | cut -d= -f2); [ -n "$c" ] && A click @$c >/dev/null; sleep .3; }
