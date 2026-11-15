@@ -28,7 +28,7 @@ clear(){ log clear ""; }
 top(){ wait; log clear ""; A eval 'document.querySelectorAll("*").forEach(n=>{if(n.scrollTop>0)n.scrollTo({top:0,behavior:"smooth"})});document.scrollingElement.scrollTo({top:0,behavior:"smooth"});1' >/dev/null; sleep 0.9; }
 scrollto(){ wait; log clear ""; A eval "(()=>{const q=$(js "$1");let e;if(q.startsWith('h2:'))e=[...document.querySelectorAll('h2')].find(h=>h.textContent.trim().startsWith(q.slice(3)));else e=document.querySelector(q.replace(/^css:/,''));if(!e)return 0;const sc=(n=>{while(n&&n!==document.body){const s=getComputedStyle(n);if(/(auto|scroll)/.test(s.overflowY)&&n.scrollHeight>n.clientHeight)return n;n=n.parentElement}return document.scrollingElement})(e);const top=e.getBoundingClientRect().top-sc.getBoundingClientRect().top+sc.scrollTop-${2:-12};sc.scrollTo({top,behavior:'smooth'});return 1})()" >/dev/null; sleep 1.1; }
 newchat(){ local nc; nc=$(ref 'button "새 대화"'); [ -n "$nc" ] && A click @$nc >/dev/null; }
-curRole(){ A snapshot -i | grep -oE 'button "(영업지원|영업임원|내부 감시|회계·자금)"' | head -1 | cut -d'"' -f2; }
+curRole(){ A eval 'JSON.parse(sessionStorage.getItem("role") ?? "null")' 2>/dev/null | tr -d '"'; }   # 지금 역할은 앱이 저장한 값으로(화면의 같은 이름 단추에 속지 않게)
 setrole(){ wait; local cur; cur=$(curRole); [ "$cur" = "$1" ] && return; A mouse move 36 36 --duration 500 --human >/dev/null; A click @$(ref "button \"$cur\"") >/dev/null; sleep 0.6; tap @$(ref 'combobox "역할"') 450; sleep 0.4; tap @$(ref "option \"$1\"") 400; sleep 2.2; newchat; }
 role_quiet(){ local cur; cur=$(curRole); [ "$cur" = "$1" ] && return; A click @$(ref "button \"$cur\"") >/dev/null; sleep .6; A click @$(ref 'combobox "역할"') >/dev/null; sleep .5; A click @$(ref "option \"$1\"") >/dev/null; sleep 3; }
 typeslow(){ wait; log clear ""; A keyboard type "$1" >/dev/null; }
@@ -51,6 +51,8 @@ recstop(){ wait; [ -n "${DRY:-}" ] && { echo "end$1 $(now)" >> $MARKS; return; }
   python3 $HERE/stitch.py $W/frames$1 $(grep "^rec$1 " $MARKS | cut -d' ' -f2) $(grep "^end$1 " $MARKS | cut -d' ' -f2) $W/clip$1.mp4 && rm -rf $W/frames$1; }
 # 접속(서버를 다시 띄우면 토큰이 바뀐다): 패스워드는 .env에서 읽어 입력만 하고 출력하지 않는다
 login(){ local p; p=$(grep '^DEMO_PASS=' "$HERE/../../.env" | cut -d= -f2- | tr -d '"'); A open ${APP:-http://localhost:3100} >/dev/null 2>&1; sleep 3
+  # 안내는 접속 직후 뜬다: 역할에 들어가기 전에 네 역할 모두 본 것으로 기록한다(새 세션은 브라우저 기록이 비어 있다)
+  A eval 'for (const r of ["영업지원","영업임원","내부 감시","회계·자금"]) localStorage.setItem("tour:"+r,"1"); 1' >/dev/null
   [ -n "$(ref textbox)" ] || return 0; A fill @$(ref textbox) "$p" >/dev/null; A click @$(ref 'button "접속"') >/dev/null; sleep 3; A click @$(ref "button \"${1:-영업지원}\"") >/dev/null; sleep 3; }
 # 어시스턴트에게 묻기: 입력창을 눌러 질문을 치고 보낸다(ask 표지). 답이 끝날 때까지 기다리는 구간은 wait_on ~ wait_off로 남겨 편집에서 잘라 낸다(대기 생략 표시)
 ask(){ wait; local r; r=$(ref 'combobox "대화"'); tap @$r 450; typeslow "$1"; sleep 0.4; log ask ""; A press Enter >/dev/null; sleep 1.2; log wait_on ""

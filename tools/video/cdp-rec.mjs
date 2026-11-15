@@ -15,7 +15,7 @@ const call = (method, params = {}) => new Promise((r) => { const i = ++id; wait[
 ws.onmessage = (ev) => { const m = JSON.parse(ev.data); if (wait[m.id]) { wait[m.id](m); delete wait[m.id] } }
 await new Promise((r) => (ws.onopen = r))
 // 화면 설정은 연결마다 따로다: agent-browser와 같은 크기 · 배율을 이 연결에도 건다
-await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 720, deviceScaleFactor: 3, mobile: false })
+// 화면 설정(Emulation)은 덮어쓰지 않는다 — 덮어쓰면 agent-browser의 클릭이 엇나간다. 배율은 스크린샷의 clip.scale로만 준다
 let on = true
 let n = 0
 process.on('SIGTERM', () => { on = false })
@@ -23,7 +23,7 @@ console.log('rec started')
 await Promise.all([0, 1, 2, 3].map(async () => {
   while (on) {
     const t0 = Date.now() / 1000
-    const r = await call('Page.captureScreenshot', { format: 'jpeg', quality: 92, optimizeForSpeed: true })
+    const r = await call('Page.captureScreenshot', { format: 'jpeg', quality: 92, optimizeForSpeed: true, clip: { x: 0, y: 0, width: 1280, height: 720, scale: 3 } })
     const t1 = Date.now() / 1000
     if (!r.result) continue
     const f = `f${String(++n).padStart(6, '0')}.jpg`
