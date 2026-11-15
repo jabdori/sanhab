@@ -18,6 +18,8 @@ export type Review = {
   /** 지금 역할이 할 수 있는 조치. reason은 이 심사에서 사유(분류)가 필수인지, classes는 고를 수 있는 분류(05) */
   actions: { kind: string; reason: boolean; classes: string[] }[]
   history: Decision[]
+  /** 일치 · 관계를 계산한 기간과 그 안에서 바뀐 식별자(D47: 그 귀속월에 하루라도 유효했던 식별자를 모두 본다) */
+  basis?: { from: string; to: string; changes: { dealer: string; item: string; since: string }[] }
 }
 
 const reviewAtom = atom(async (get) => {

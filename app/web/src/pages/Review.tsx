@@ -157,6 +157,10 @@ export function Review() {
         [L.승인권자, v.holder && v.holder !== v.approver ? <HStack gap={2} vAlign="center"><Text>{v.holder}</Text><Mark>{v.marks.includes(L.이탈) ? L.이탈 : L.가설}</Mark></HStack> : v.approver],
         [L.귀속월, v.ym],
         [L.구성, <Names list={data.members.map((m) => m.name)} unit={L.곳} />],
+        // 귀속월 안에 식별자가 바뀌었으면 왜 오늘의 대리점 화면과 구성이 다른지: 계산한 기간과 그 변경(D47)
+        ...(data.basis?.changes.length
+          ? [[L.기간, `${data.basis.from} ~ ${data.basis.to}`] as [string, ReactNode], ...data.basis.changes.map((c): [string, ReactNode] => [L.변경, `${c.dealer} ${c.item} ${c.since}`])]
+          : []),
       ]}
       tabs={[
         {
