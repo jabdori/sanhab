@@ -71,8 +71,8 @@ export function Confirm({ label, trigger, title, rows, variant = 'secondary', is
               <VStack gap={4}>
                 {rows && (
                   <MetadataList>
-                    {rows.map(([k, v]) => (
-                      <MetadataListItem key={k} label={k}>
+                    {rows.map(([k, v], i) => (
+                      <MetadataListItem key={i} label={k}>
                         <Text hasTabularNumbers>{v}</Text>
                       </MetadataListItem>
                     ))}
