@@ -14,6 +14,7 @@ import { Badge } from '@astryxdesign/core/Badge'
 import { EmptyState } from '@astryxdesign/core/EmptyState'
 import { HStack, Layout, LayoutContent, LayoutHeader, StackItem, VStack } from '@astryxdesign/core/Layout'
 import { ChatComposer, ChatComposerDrawer, ChatComposerInput, ChatLayout, ChatMessage, ChatMessageBubble, ChatMessageList, ChatSystemMessage, ChatTokenizedText, ChatToolCalls } from '@astryxdesign/core/Chat'
+import { Center } from '@astryxdesign/core/Center'
 import { ClickableCard } from '@astryxdesign/core/ClickableCard'
 import { Grid } from '@astryxdesign/core/Grid'
 import { Icon } from '@astryxdesign/core/Icon'
@@ -439,8 +440,12 @@ function Panel({ sid, initial, list, here, onPick }: { sid: string | null; initi
   )
 }
 
-// AI의 말 표지: AI 카드와 같은 반짝이 아이콘(이름 첫 글자 아바타는 뜻이 없다)
-const AI_MARK = <Icon icon={SparklesIcon} size="md" color="accent" />
+// AI의 말 표지: 헤더 · AI 카드와 같은 반짝이 아이콘(이름 첫 글자 아바타는 뜻이 없다). 답의 첫 줄은 언제나 도구 줄(조회 · 응답, 높이 40px)이므로 그 줄의 가운데에 둔다
+const AI_MARK = (
+  <Center width={32} height={40}>
+    <Icon icon={SparklesIcon} size="sm" color="accent" />
+  </Center>
+)
 
 /**
  * 대화 칸(astryx ai-chat 템플릿의 대화 열): 모든 화면의 오른쪽 끝에 붙고 입력창이 늘 보인다.
