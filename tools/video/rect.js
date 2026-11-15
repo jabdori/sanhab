@@ -1,4 +1,4 @@
-(q)=>{const vis=e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0&&r.bottom>0&&r.top<innerHeight};let el;
+(q)=>{const vis=e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0&&r.bottom>0&&r.top<innerHeight&&r.right>0&&r.left<innerWidth};let el;
 // 글 찾기는 모달 확인 창이 열려 있으면 그 안에서만(뒤에 가려진 같은 글 — 예: 옆 막대의 날짜 — 을 고르지 않게)
 if(q.startsWith('css:')){el=[...document.querySelectorAll(q.slice(4))].filter(vis)[0]}
 else if(q.startsWith('h2:')){const n=q.slice(3);const hs=[...document.querySelectorAll('h2')].filter(vis);const h=hs.find(h=>h.textContent.trim().startsWith(n));if(!h)return 'none';const a=h.parentElement.getBoundingClientRect();const nx=hs.slice(hs.indexOf(h)+1).find(x=>x.getBoundingClientRect().top>a.top+10&&Math.abs(x.getBoundingClientRect().left-a.left)<40);const b=nx?nx.parentElement.getBoundingClientRect().top:Math.min(innerHeight,a.top+400);return [a.left-8,a.top-6,a.width+16,b-a.top].map(Math.round).join(' ')}
